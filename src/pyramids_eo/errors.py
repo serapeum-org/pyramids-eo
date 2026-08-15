@@ -1,7 +1,7 @@
 """Exception hierarchy for pyramids-eo.
 
-Every error raised by this package derives from :class:`EOError`, so callers can
-catch the whole family with a single ``except EOError``.
+Every error raised by this package derives from `EOError`, so callers can
+catch the whole family with a single `except EOError`.
 """
 
 from __future__ import annotations
