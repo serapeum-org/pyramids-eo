@@ -160,7 +160,7 @@ class TestCdseS3Signer:
         env = CdseS3Signer("ak", "sk", endpoint="eodata.example").gdal_env()
         assert env["AWS_S3_ENDPOINT"] == "eodata.example"
         assert env["AWS_ACCESS_KEY_ID"] == "ak"
-        assert env["AWS_SECRET_ACCESS_KEY"] == "sk"
+        assert env["AWS_SECRET_ACCESS_KEY"] == "sk"  # pragma: allowlist secret
         assert env["AWS_VIRTUAL_HOSTING"] == "FALSE"
         assert "GDAL_HTTP_HEADERS" not in env and "Authorization" not in str(env)
 
@@ -634,7 +634,10 @@ class TestBuildSigner:
     def test_anonymous_ignores_unrelated_creds(self):
         """The anonymous branch uses only region and drops the other backend kwargs."""
         env = build_signer(
-            "anonymous", region="af-south-1", access_key="ak", secret_key="sk"
+            "anonymous",
+            region="af-south-1",
+            access_key="ak",
+            secret_key="sk",  # pragma: allowlist secret
         ).gdal_env()
         assert env == {
             "AWS_NO_SIGN_REQUEST": "YES",
@@ -675,7 +678,11 @@ class TestBuildSigner:
     def test_earthdata_tolerates_backend_s3_kwargs(self):
         """build_signer drops the region/S3 kwargs the backend always forwards."""
         signer = build_signer(
-            "earthdata", token="t", region="us-west-2", access_key="ak", secret_key="sk"
+            "earthdata",
+            token="t",
+            region="us-west-2",
+            access_key="ak",
+            secret_key="sk",  # pragma: allowlist secret
         )
         assert isinstance(signer, EarthdataSigner)
         assert "Bearer t" in signer.gdal_env()["GDAL_HTTP_HEADERS"]
@@ -688,14 +695,16 @@ class TestBuildSigner:
             password="p",
             region="eu",
             access_key="ak",
-            secret_key="sk",
+            secret_key="sk",  # pragma: allowlist secret
         )
         assert isinstance(signer, CDSESigner)
         assert signer.name == "cdse"
 
     def test_cdse_s3_from_kwargs(self):
         """The cdse-s3 name resolves to CdseS3Signer using the supplied keys."""
-        signer = build_signer("cdse-s3", access_key="ak", secret_key="sk")
+        signer = build_signer(
+            "cdse-s3", access_key="ak", secret_key="sk"
+        )  # pragma: allowlist secret
         assert isinstance(signer, CdseS3Signer)
         assert signer.gdal_env()["AWS_ACCESS_KEY_ID"] == "ak"
 
@@ -781,7 +790,9 @@ class TestS3Credentials:
         """Explicit kwargs are returned even when env vars are also set."""
         monkeypatch.setenv("CDSE_S3_ACCESS_KEY", "env-ak")
         monkeypatch.setenv("CDSE_S3_SECRET_KEY", "env-sk")
-        assert auth_cdse.s3_credentials(access_key="ak", secret_key="sk") == (
+        assert auth_cdse.s3_credentials(
+            access_key="ak", secret_key="sk"
+        ) == (  # pragma: allowlist secret
             "ak",
             "sk",
         )
@@ -807,7 +818,9 @@ class TestS3Credentials:
     def test_extra_kwargs_ignored(self, monkeypatch):
         """Unrelated kwargs forwarded by build_signer are ignored."""
         assert auth_cdse.s3_credentials(
-            access_key="ak", secret_key="sk", region="x"
+            access_key="ak",
+            secret_key="sk",
+            region="x",  # pragma: allowlist secret
         ) == (
             "ak",
             "sk",
