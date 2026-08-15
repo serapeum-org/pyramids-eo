@@ -17,9 +17,6 @@ on:
     workflows: ['github-release']
     types: [completed]
 
-# All jobs push the built docs to the single shared `gh-pages` branch via
-# `mike deploy --push`. Serialize every run onto one lane so concurrent pushes
-# queue instead of colliding with a non-fast-forward rejection.
 concurrency:
   group: mkdocs-gh-pages-deploy
   cancel-in-progress: false

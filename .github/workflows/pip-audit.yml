@@ -1,16 +1,11 @@
 name: pip-audit
 
-# Dependency-vulnerability scan. A CI job on every PR catches a newly introduced
-# vulnerable dependency, and the weekly schedule re-audits the unchanged tree so a
-# freshly disclosed CVE is caught without needing a code change.
-
 permissions:
   contents: read
 
 on:
   pull_request:
   schedule:
-    # Weekly, Monday 06:00 UTC.
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
@@ -35,13 +30,6 @@ jobs:
           cache: true
 
       - name: Audit dependencies with pip-audit
-        # pip-audit checks installed packages against the PyPI/OSV advisory DB. Conda
-        # and PyPI packages both carry site-packages metadata, so a `pip freeze` of the
-        # resolved env captures the whole tree; we audit that pinned list. pip-audit is
-        # run via pipx so it is never added to the project's own dependency graph.
-        # No --strict: a conda-only package with no PyPI advisory record is skipped
-        # rather than failing the run — the job fails only when a real vulnerability is
-        # reported (pip-audit exits non-zero).
         run: |
           pixi run -e py311 python -m pip freeze --exclude-editable \
             | grep -E '^[A-Za-z0-9_.-]+==' > "${RUNNER_TEMP}/pip-audit-reqs.txt"

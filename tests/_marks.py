@@ -25,8 +25,6 @@ def _has(*module_names: str) -> bool:
 
 HAS_CLEOPATRA = _has("cleopatra")
 
-# marker name -> (is-available, skip-reason). Marker names use underscores
-# (valid ``pytest.mark.<name>`` identifiers); PyPI extra names use hyphens.
 EXTRA_MARKERS: dict[str, tuple[bool, str]] = {
     "plot": (HAS_CLEOPATRA, "requires the [viz] extra (cleopatra)"),
 }

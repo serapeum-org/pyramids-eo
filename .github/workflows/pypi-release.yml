@@ -1,10 +1,5 @@
 name: pypi-release
 
-# Canonical release path for this pure-Python package: build the sdist + the
-# universal (py3-none-any) wheel and publish both to PyPI. Fires automatically
-# when github-release.yml's Commitizen tag publishes a GitHub release, and can
-# be run manually (`gh workflow run pypi-release.yml`).
-
 on:
   release:
     types: [published]

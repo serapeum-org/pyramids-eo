@@ -1,17 +1,5 @@
 name: Pure Wheel - Build & Test
 
-# Validates the end-user pip install path: build the universal (py3-none-any)
-# wheel from this pure-Python package, then `pip install` it in a clean,
-# pixi-free environment across OS × Python. The install resolves pyramids-eo's
-# only heavy dependency, pyramids-gis, from PyPI as a self-contained platform
-# wheel (vendored GDAL) — so this proves `pip install pyramids-eo` works with no
-# system GDAL and no conda, the shape a real user gets. tests.yml exercises the
-# editable source tree inside pixi; this workflow exercises the built artifact
-# the way it ships.
-#
-# A per-extra job (currently just [viz]) additionally verifies that each extra's
-# headline dep installs from the built wheel and the package still imports.
-
 permissions:
   contents: read
 
@@ -52,12 +40,6 @@ jobs:
           name: wheel
           path: dist/*.whl
 
-  # Core wheel test: install the bare wheel (no optional extras) across OS ×
-  # Python in a plain setup-python env — no conda, no pixi. `pip install` pulls
-  # pyramids-gis from PyPI as a platform wheel (vendored GDAL), so a passing job
-  # is proof the published package installs and imports on a clean machine.
-  # --only-binary=:all: forbids any source build: pyramids-gis and numpy must
-  # resolve to real wheels, exactly as an end user would get them.
   test-wheel-core:
     needs: build-wheel
     runs-on: ${{ matrix.os }}
@@ -97,17 +79,8 @@ jobs:
         run: "pip install pytest pytest-env pytest-mock --only-binary=:all:"
 
       - name: Run core tests (not plot, not live)
-        # The [viz] extra (cleopatra) is absent here, so plot-marked tests
-        # auto-skip via tests/conftest.py's collection hook; -m "not plot"
-        # deselects them explicitly and `not live` drops the network tests.
         run: pytest -vvv -sv -m "not plot and not live" tests/
 
-  # Per-extra wheel test: install the built wheel with one extra and confirm the
-  # extra's dep resolves and the package still imports/tests. Held at a single
-  # OS/Python cell — the core matrix above covers that dimension; this job's point
-  # is the extras × pip semantics. --only-binary is dropped here because a viz
-  # transitive dep may lack a wheel on some platform, and correctness (not the
-  # no-source-build guarantee) is what this job checks.
   test-wheel-extras:
     needs: build-wheel
     runs-on: ${{ matrix.os }}
@@ -149,7 +122,4 @@ jobs:
         run: pip install pytest pytest-env pytest-mock
 
       - name: Run ${{ matrix.extra.marker }}-marked tests (not live)
-        # With the extra installed the marked tests are collected instead of
-        # skipped. `not live` still drops the network tests. If no test carries
-        # this marker yet, the import + install steps above are the assertion.
         run: pytest -vvv -sv -m "${{ matrix.extra.marker }} and not live" tests/ || [ $? -eq 5 ]
