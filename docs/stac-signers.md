@@ -19,8 +19,9 @@ client = open_client(endpoint_url, signer=signer)
 ```
 
 The `build_signer(name, **creds)` factory maps a catalog `signer:` string to the
-right object; it reuses the pyramids generic signers for the `anonymous` /
-`aws-requester-pays` cases.
+right object: the `anonymous` case is the pyramids-eo-local `_AnonymousS3Signer`
+(which adds `AWS_NO_SIGN_REQUEST` and region pinning), while `aws-requester-pays`
+reuses the pyramids generic signer.
 
 !!! note "Credentials stay out of code"
     Every provider reads its secrets from environment variables (shown per

@@ -27,8 +27,9 @@ library but squarely in scope for the EO layer (serapeum-org/pyramids-eo#2):
 
 Search is anonymous on these providers (`sign_request` is a no-op); only the
 asset-read boundary needs credentials. The `build_signer` factory maps a catalog
-`signer:` string to the right object, reusing the pyramids generic signers for
-the `anonymous` / `aws-requester-pays` cases.
+`signer:` string to the right object: the `anonymous` case is the
+pyramids-eo-local `_AnonymousS3Signer` (which adds `AWS_NO_SIGN_REQUEST` and
+region pinning), while `aws-requester-pays` reuses the pyramids generic signer.
 """
 
 from __future__ import annotations
