@@ -29,10 +29,6 @@
          <lastmod>2026-08-15</lastmod>
     </url>
     <url>
-         <loc>https://serapeum-org.github.io/pyramids-eo/develop/stac-signers/</loc>
-         <lastmod>2026-08-15</lastmod>
-    </url>
-    <url>
          <loc>https://serapeum-org.github.io/pyramids-eo/develop/reference/</loc>
          <lastmod>2026-08-15</lastmod>
     </url>
@@ -46,10 +42,6 @@
     </url>
     <url>
          <loc>https://serapeum-org.github.io/pyramids-eo/develop/reference/registry/</loc>
-         <lastmod>2026-08-15</lastmod>
-    </url>
-    <url>
-         <loc>https://serapeum-org.github.io/pyramids-eo/develop/reference/stac/</loc>
          <lastmod>2026-08-15</lastmod>
     </url>
 </urlset>
