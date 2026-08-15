@@ -79,7 +79,7 @@ jobs:
         run: "pip install pytest pytest-env pytest-mock pytest-timeout --only-binary=:all:"
 
       - name: Run core tests (not plot, not live)
-        run: pytest -vvv -sv -m "not plot and not live" tests/
+        run: pytest -vvv -sv -o pythonpath= -m "not plot and not live" tests/
 
   test-wheel-extras:
     needs: build-wheel
@@ -122,4 +122,5 @@ jobs:
         run: pip install pytest pytest-env pytest-mock pytest-timeout
 
       - name: Run ${{ matrix.extra.marker }}-marked tests (not live)
-        run: pytest -vvv -sv -m "${{ matrix.extra.marker }} and not live" tests/ || [ $? -eq 5 ]
+        shell: bash
+        run: pytest -vvv -sv -o pythonpath= -m "${{ matrix.extra.marker }} and not live" tests/ || [ $? -eq 5 ]
