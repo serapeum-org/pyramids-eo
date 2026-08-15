@@ -1,7 +1,7 @@
 [project]
 name = "pyramids-eo"
 version = "0.1.0"
-description = "GDAL-native, xarray-free remote-sensing / Earth-observation tier for the pyramids GIS stack"
+description = "GDAL-native, remote-sensing / Earth-observation tier for the pyramids GIS stack"
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [{ name = "Mostafa Farrag", email = "moah.farag@gmail.com" }]
 license = {text = "GNU General Public License v3"}
@@ -24,18 +24,13 @@ classifiers = [
 
 requires-python = ">= 3.11, <4"
 
-# pyramids-eo is pure Python: it decodes + processes instrument data on top of
-# pyramids' GDAL raster engine and never builds a native extension of its own.
-# GDAL is provided transitively by pyramids-gis' self-contained platform wheels
-# (which vendor osgeo) — so `pip install pyramids-eo` works with no system GDAL.
 dependencies = [
-    "pyramids-gis >=0.41.0",
+    "pyramids-gis >=0.53.0",
     "numpy >=2.0.0",
 ]
 
 [project.optional-dependencies]
-# Plotting / quick-look composites via cleopatra, same extra name pyramids uses.
-viz = ["cleopatra[tiles]>=0.21.0"]
+viz = ["pyramids-gis[viz]>=0.53.0"]
 
 [dependency-groups]
 dev = [
@@ -70,9 +65,6 @@ docs = [
     "mkdocs-mermaid2-plugin  >=1.2.1",
     "mkdocs-panzoom-plugin",
     "notebook<7.0",
-    # Required by the mkdocs-deploy action's notebook-execution preflight
-    # (`import jupyter, nbconvert, ipykernel`) and to register the python3 kernel
-    # that `jupyter nbconvert --execute` uses in CI.
     "jupyter",
     "nbconvert",
     "ipykernel",
@@ -94,44 +86,24 @@ where = ["src"]
 include = ["pyramids_eo", "pyramids_eo.*"]
 
 [tool.setuptools.package-data]
-# Sensor metadata tables (band -> wavelength, native res, fill, calibration
-# coefficients) ship as YAML data files alongside the registry module.
 pyramids_eo = [
     "registry/data/*.yaml",
 ]
 
-# Ruff replaces black + isort + flake8 + pyupgrade (and their nbqa notebook
-# wrappers) with one tool. Because a single engine formats and sorts imports
-# against one line-length, the formatter and the import sorter cannot disagree the
-# way black and isort did — a long trailing comment on an import made black wrap the
-# line while isort collapsed it, an endless loop. Ruff lints and formats both .py
-# and .ipynb natively, so the nbqa wrappers are gone too.
 [tool.ruff]
 line-length = 88
-target-version = "py311"  # requires-python floors at 3.11
+target-version = "py311"
 
 [tool.ruff.format]
-# black had skip-string-normalization = true → preserve existing quotes.
 quote-style = "preserve"
 
 [tool.ruff.lint]
-# The *effective* flake8 rule set was E/F/W (the old config's B/C/T4 selectors were
-# inert — flake8-bugbear / flake8-print were never installed). Add I (isort) and
-# UP (pyupgrade) to fold in those two standalone hooks.
 select = ["E", "F", "W", "I", "UP"]
-# Mirror the old [tool.flake8].ignore. W503 is dropped — ruff does not implement it
-# (a formatter-owned pycodestyle code black conflicts with), so there is nothing to
-# ignore. E226/E701 are added to match pyramids' shared rule set.
 ignore = ["E203", "E226", "E266", "E501", "E701", "E722", "C901", "E741", "E731"]
 
 [tool.ruff.lint.per-file-ignores]
-# flake8 excluded tests/ from linting, and the old bare pyupgrade never modernized
-# their typing — so drop E/F/W and UP there, keeping only import-sorting (I), which
-# isort did run everywhere. This keeps the migration's lint churn on shipped src/.
 "tests/**" = ["E", "F", "W", "UP"]
 "docs/examples/**" = ["E", "F", "W", "UP"]
-# Tutorial notebooks import next to first use and run setup (e.g. `%matplotlib inline`)
-# before imports — both legitimately trip E402, which stays enforced for real modules.
 "*.ipynb" = ["E402"]
 
 [tool.bandit]
@@ -147,11 +119,6 @@ show_missing = true
 fail_under = 90
 
 [tool.mypy]
-# Checker target is 3.12 even though `requires-python` floors at 3.11: numpy 2.5
-# ships PEP 695 `type` statements in its stubs, which mypy only parses when the
-# target is >= 3.12 (at 3.11 it aborts with a syntax error before checking any
-# source). This only widens the *typing* target; actual 3.11 runtime
-# compatibility is covered by the py311 leg of the test matrix, not by mypy.
 python_version = "3.12"
 mypy_path = "src"
 packages = ["pyramids_eo"]
@@ -192,8 +159,6 @@ style = [
 env = ["MPLBACKEND=Agg"]
 pythonpath = ["src"]
 testpaths = ["tests"]
-# Fail (don't hang) on a stuck test: pytest-timeout aborts any single test that
-# runs longer than `timeout` and prints its stack.
 timeout = 300
 faulthandler_timeout = 120
 markers = [
@@ -210,14 +175,9 @@ channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "linux-aarch64", "osx-arm64", "osx-64"]
 
 [tool.pixi.pypi-dependencies]
-# pyramids-eo is installed editable; pyramids-gis comes from PyPI as a
-# self-contained platform wheel (vendored GDAL) — no conda GDAL is pulled in, so
-# there is exactly one GDAL in the environment. Pure-Python, zero native build.
 pyramids-eo = { path = ".", editable = true }
 
 [tool.pixi.dependencies]
-# conda-forge provides the interpreter + pip only; every geospatial native lib
-# arrives inside the pyramids-gis wheel above.
 pip = "*"
 
 [tool.pixi.tasks]
@@ -236,7 +196,6 @@ mypy = { cmd = "mypy", description = "Run mypy type checking" }
 default = { features = ["viz"], solve-group = "default" }
 dev = { features = ["viz", "dev"], solve-group = "default" }
 docs = { features = ["docs", "viz"], solve-group = "docs" }
-# One env per supported Python so the test matrix can pin the interpreter.
 py311 = { features = ["py311", "viz", "dev"], solve-group = "py311" }
 py312 = { features = ["py312", "viz", "dev"], solve-group = "py312" }
 py313 = { features = ["py313", "viz", "dev"], solve-group = "py313" }
@@ -249,6 +208,4 @@ python = "3.12.*"
 [tool.pixi.feature.py313.dependencies]
 python = "3.13.*"
 [tool.pixi.feature.py314.dependencies]
-# Pin the standard-GIL ABI: conda-forge ships two 3.14 builds (*_cp314 GIL and
-# *_cp314t free-threaded); pin the GIL build so the leg tests one intended ABI.
 python = { version = "3.14.*", build = "*_cp314" }
