@@ -4553,7 +4553,7 @@ CDSE S3 credential resolution kwargs for <code>cdse-s3</code> (see
 </code></pre></div></li>
 <li>Build the CDSE S3 signer from explicit S3 keys:
     <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.stac</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_signer</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">build_signer</span><span class="p">(</span><span class="s2">&quot;cdse-s3&quot;</span><span class="p">,</span> <span class="n">access_key</span><span class="o">=</span><span class="s2">&quot;ak&quot;</span><span class="p">,</span> <span class="n">secret_key</span><span class="o">=</span><span class="s2">&quot;sk&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()[</span><span class="s2">&quot;AWS_ACCESS_KEY_ID&quot;</span><span class="p">]</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">build_signer</span><span class="p">(</span><span class="s2">&quot;cdse-s3&quot;</span><span class="p">,</span> <span class="n">access_key</span><span class="o">=</span><span class="s2">&quot;ak&quot;</span><span class="p">,</span> <span class="n">secret_key</span><span class="o">=</span><span class="s2">&quot;sk&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()[</span><span class="s2">&quot;AWS_ACCESS_KEY_ID&quot;</span><span class="p">]</span>  <span class="c1"># pragma: allowlist secret</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="s1">&#39;ak&#39;</span>
 </code></pre></div></li>
 <li>Build the BDC token signer with an explicit token:
@@ -4694,7 +4694,7 @@ CDSE S3 credential resolution kwargs for <code>cdse-s3</code> (see
 <a id="__codelineno-0-1070" name="__codelineno-0-1070"></a><span class="sd">        - Build the CDSE S3 signer from explicit S3 keys:</span>
 <a id="__codelineno-0-1071" name="__codelineno-0-1071"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-1072" name="__codelineno-0-1072"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.stac import build_signer</span>
-<a id="__codelineno-0-1073" name="__codelineno-0-1073"></a><span class="sd">            &gt;&gt;&gt; build_signer(&quot;cdse-s3&quot;, access_key=&quot;ak&quot;, secret_key=&quot;sk&quot;).gdal_env()[&quot;AWS_ACCESS_KEY_ID&quot;]</span>
+<a id="__codelineno-0-1073" name="__codelineno-0-1073"></a><span class="sd">            &gt;&gt;&gt; build_signer(&quot;cdse-s3&quot;, access_key=&quot;ak&quot;, secret_key=&quot;sk&quot;).gdal_env()[&quot;AWS_ACCESS_KEY_ID&quot;]  # pragma: allowlist secret</span>
 <a id="__codelineno-0-1074" name="__codelineno-0-1074"></a><span class="sd">            &#39;ak&#39;</span>
 <a id="__codelineno-0-1075" name="__codelineno-0-1075"></a>
 <a id="__codelineno-0-1076" name="__codelineno-0-1076"></a><span class="sd">            ```</span>
@@ -4937,12 +4937,12 @@ URL where keys are generated and the env vars to set.</p>
     <ul>
 <li>Explicit keys are returned as a pair (kwargs win over the env):
     <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.stac</span><span class="w"> </span><span class="kn">import</span> <span class="n">auth_cdse</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">auth_cdse</span><span class="o">.</span><span class="n">s3_credentials</span><span class="p">(</span><span class="n">access_key</span><span class="o">=</span><span class="s2">&quot;ak&quot;</span><span class="p">,</span> <span class="n">secret_key</span><span class="o">=</span><span class="s2">&quot;sk&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">auth_cdse</span><span class="o">.</span><span class="n">s3_credentials</span><span class="p">(</span><span class="n">access_key</span><span class="o">=</span><span class="s2">&quot;ak&quot;</span><span class="p">,</span> <span class="n">secret_key</span><span class="o">=</span><span class="s2">&quot;sk&quot;</span><span class="p">)</span>  <span class="c1"># pragma: allowlist secret</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">(</span><span class="s1">&#39;ak&#39;</span><span class="p">,</span> <span class="s1">&#39;sk&#39;</span><span class="p">)</span>
 </code></pre></div></li>
 <li>Extra kwargs that <code>build_signer</code> forwards are ignored:
     <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.stac</span><span class="w"> </span><span class="kn">import</span> <span class="n">auth_cdse</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">auth_cdse</span><span class="o">.</span><span class="n">s3_credentials</span><span class="p">(</span><span class="n">access_key</span><span class="o">=</span><span class="s2">&quot;ak&quot;</span><span class="p">,</span> <span class="n">secret_key</span><span class="o">=</span><span class="s2">&quot;sk&quot;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s2">&quot;eu&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">auth_cdse</span><span class="o">.</span><span class="n">s3_credentials</span><span class="p">(</span><span class="n">access_key</span><span class="o">=</span><span class="s2">&quot;ak&quot;</span><span class="p">,</span> <span class="n">secret_key</span><span class="o">=</span><span class="s2">&quot;sk&quot;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s2">&quot;eu&quot;</span><span class="p">)</span>  <span class="c1"># pragma: allowlist secret</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">(</span><span class="s1">&#39;ak&#39;</span><span class="p">,</span> <span class="s1">&#39;sk&#39;</span><span class="p">)</span>
 </code></pre></div></li>
 </ul>
@@ -5035,14 +5035,14 @@ URL where keys are generated and the env vars to set.</p>
 <a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="sd">        - Explicit keys are returned as a pair (kwargs win over the env):</span>
 <a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-56" name="__codelineno-0-56"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.stac import auth_cdse</span>
-<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">            &gt;&gt;&gt; auth_cdse.s3_credentials(access_key=&quot;ak&quot;, secret_key=&quot;sk&quot;)</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">            &gt;&gt;&gt; auth_cdse.s3_credentials(access_key=&quot;ak&quot;, secret_key=&quot;sk&quot;)  # pragma: allowlist secret</span>
 <a id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="sd">            (&#39;ak&#39;, &#39;sk&#39;)</span>
 <a id="__codelineno-0-59" name="__codelineno-0-59"></a>
 <a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="sd">            ```</span>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a><span class="sd">        - Extra kwargs that `build_signer` forwards are ignored:</span>
 <a id="__codelineno-0-62" name="__codelineno-0-62"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.stac import auth_cdse</span>
-<a id="__codelineno-0-64" name="__codelineno-0-64"></a><span class="sd">            &gt;&gt;&gt; auth_cdse.s3_credentials(access_key=&quot;ak&quot;, secret_key=&quot;sk&quot;, region=&quot;eu&quot;)</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a><span class="sd">            &gt;&gt;&gt; auth_cdse.s3_credentials(access_key=&quot;ak&quot;, secret_key=&quot;sk&quot;, region=&quot;eu&quot;)  # pragma: allowlist secret</span>
 <a id="__codelineno-0-65" name="__codelineno-0-65"></a><span class="sd">            (&#39;ak&#39;, &#39;sk&#39;)</span>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a>
 <a id="__codelineno-0-67" name="__codelineno-0-67"></a><span class="sd">            ```</span>
