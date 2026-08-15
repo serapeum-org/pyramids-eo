@@ -582,6 +582,12 @@ class CdseS3Signer:
 
     name = "cdse-s3"
 
+    #: Canonical CDSE eodata asset host. Only this host and its subdomains (or
+    #: the configured `endpoint`) are rewritten to `/vsis3/`; other
+    #: `dataspace.copernicus.eu` hosts (e.g. `identity.`, `catalogue.`) and
+    #: lookalikes are left untouched.
+    _ASSET_HOST = "eodata.dataspace.copernicus.eu"
+
     def __init__(
         self,
         access_key: str,
@@ -630,8 +636,11 @@ class CdseS3Signer:
             from urllib.parse import urlsplit
 
             parts = urlsplit(href)
-            if parts.netloc == self._endpoint or parts.netloc.endswith(
-                "dataspace.copernicus.eu"
+            host = parts.netloc
+            if (
+                host == self._endpoint
+                or host == self._ASSET_HOST
+                or host.endswith("." + self._ASSET_HOST)
             ):
                 key = parts.path.lstrip("/")
                 if key.startswith("eodata/"):

@@ -131,6 +131,23 @@ class TestCdseS3Signer:
         out = CdseS3Signer("ak", "sk").sign_href("https://example.com/a.tif")
         assert out == "https://example.com/a.tif"
 
+    def test_sign_href_ignores_non_eodata_dataspace_hosts(self):
+        """A non-asset dataspace.copernicus.eu host is not rewritten to /vsis3/."""
+        href = "https://identity.dataspace.copernicus.eu/token/a.tif"
+        assert CdseS3Signer("ak", "sk").sign_href(href) == href
+
+    def test_sign_href_ignores_lookalike_host(self):
+        """A lookalike host without a dot boundary is left unchanged."""
+        href = "https://evil-eodata.dataspace.copernicus.eu.attacker.test/a.tif"
+        assert CdseS3Signer("ak", "sk").sign_href(href) == href
+
+    def test_sign_href_rewrites_eodata_subdomain(self):
+        """A true subdomain of the eodata asset host is rewritten to /vsis3/."""
+        out = CdseS3Signer("ak", "sk").sign_href(
+            "https://s3.eodata.dataspace.copernicus.eu/foo/B04.jp2"
+        )
+        assert out == "/vsis3/eodata/foo/B04.jp2"
+
     def test_sign_href_non_http_scheme_passthrough(self):
         """A non-s3, non-http href is returned unchanged."""
         assert (
