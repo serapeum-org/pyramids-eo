@@ -44,6 +44,8 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
+from pyramids_eo.errors import AuthenticationError
+
 
 class _BaseSigner:
     """No-op signer base; concrete signers override only what they need."""
@@ -420,7 +422,7 @@ class EarthdataSigner(_BearerProviderSigner):
     def _fetch_token(self) -> tuple[str, float]:
         """Mint an EDL bearer token via find_or_create_token (HTTP Basic)."""
         if not (self._username and self._password):
-            raise ValueError(
+            raise AuthenticationError(
                 "EarthdataSigner needs a token (EARTHDATA_TOKEN/PAT) or "
                 "EARTHDATA_USERNAME + EARTHDATA_PASSWORD."
             )
@@ -513,7 +515,7 @@ class CDSESigner(_BearerProviderSigner):
                 # Refresh token expired / rejected — re-authenticate below.
                 self._refresh_token = None
         if not (self._username and self._password):
-            raise ValueError("CDSESigner needs CDSE_USERNAME + CDSE_PASSWORD.")
+            raise AuthenticationError("CDSESigner needs CDSE_USERNAME + CDSE_PASSWORD.")
         return self._request_token(
             {
                 "client_id": self._client_id,
@@ -708,8 +710,6 @@ class BdcTokenSigner(_BaseSigner):
         """Return the BDC OAuth token from kwarg or `BDC_ACCESS_TOKEN`."""
         token = self._explicit_token or os.environ.get("BDC_ACCESS_TOKEN")
         if not token:
-            from pyramids_eo.errors import AuthenticationError
-
             raise AuthenticationError(
                 "set BDC_ACCESS_TOKEN — this Brazil Data Cube collection requires "
                 "an OAuth token; open collections such as CBERS4-WFI-16D-2 do not "

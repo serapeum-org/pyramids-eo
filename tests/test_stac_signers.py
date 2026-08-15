@@ -287,10 +287,10 @@ class TestEarthdataSigner:
         assert "Bearer minted" in signer.gdal_env()["GDAL_HTTP_HEADERS"]
 
     def test_missing_credentials_raises(self, monkeypatch):
-        """No token and no username/password raises a clear ValueError."""
+        """No token and no username/password raises a clear AuthenticationError."""
         for var in _EARTHDATA_ENV:
             monkeypatch.delenv(var, raising=False)
-        with pytest.raises(ValueError, match="EARTHDATA_USERNAME"):
+        with pytest.raises(AuthenticationError, match="EARTHDATA_USERNAME"):
             EarthdataSigner().gdal_env()
 
     def test_pat_env_used_as_static_token(self, monkeypatch):
@@ -344,10 +344,10 @@ class TestCDSESigner:
         assert signer.gdal_env()["GDAL_HTTP_HEADERS"] == "Authorization: Bearer acc"
 
     def test_missing_credentials_raises(self, monkeypatch):
-        """No username/password raises a clear ValueError."""
+        """No username/password raises a clear AuthenticationError."""
         for var in ("CDSE_USERNAME", "CDSE_PASSWORD"):
             monkeypatch.delenv(var, raising=False)
-        with pytest.raises(ValueError, match="CDSE_USERNAME"):
+        with pytest.raises(AuthenticationError, match="CDSE_USERNAME"):
             CDSESigner().gdal_env()
 
     def test_bearer_is_not_url_side(self):
