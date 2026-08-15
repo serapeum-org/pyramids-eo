@@ -1,13 +1,12 @@
-"""pyramids-eo — GDAL-native, xarray-free remote-sensing tier for the pyramids stack.
+"""pyramids-eo — the Earth-observation layer of the pyramids stack.
 
-``pyramids-eo`` sits between :mod:`pyramids` (the generic GDAL raster engine) and
-provider/orchestration layers. It knows what a pixel *means* for a given
-instrument: which subdataset is which channel, how to calibrate it, how to
-composite it, how to resample a swath. It takes a local file / path / bytes and
-decodes + processes it — it does **not** fetch from providers.
-
-The instrument readers (``read_seviri``, ``read_fci``, ``read_abi``,
-``read_olci``, ``read_slstr``) are re-exported here once implemented.
+``pyramids-eo`` is built on top of :mod:`pyramids` (``pyramids-gis``, the generic
+GDAL raster/vector engine) and adds the logic that is specific to
+**Earth-observation data**. Where pyramids knows how to *move rasters around*,
+pyramids-eo knows what a pixel *means* for a given instrument or provider: which
+subdataset is which channel, how to calibrate it, how to composite it, how to
+resample a swath — and how to reach signed EO cloud assets so they stream through
+GDAL. It is scoped by *domain* (EO data), not by a restriction on what it may do.
 """
 
 from __future__ import annotations
