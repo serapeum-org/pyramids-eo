@@ -980,16 +980,20 @@ class _AnonymousS3Signer:
         """
         return href
 
-    def sign_item(self, item: Any) -> Any:
-        """Return `item` unchanged.
+    def sign_item(self, item: Any) -> None:
+        """Leave `item` unchanged and return `None`.
+
+        pystac-client's `modifier` contract requires `sign_item` to return
+        `None` (it warns on a non-`None` return); the anonymous signer has
+        nothing to rewrite, so it is a pure no-op.
 
         Args:
             item: A STAC item.
 
         Returns:
-            The same item.
+            None.
         """
-        return item
+        return None
 
 
 def build_signer(signer_type: str, **creds: Any) -> Any:

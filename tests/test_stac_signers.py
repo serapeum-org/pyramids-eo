@@ -481,10 +481,10 @@ class TestAnonymousS3Signer:
             == "s3://bucket/key.tif"
         )
 
-    def test_sign_item_returns_same_object(self):
-        """Returned items are not rewritten by the anonymous signer."""
+    def test_sign_item_returns_none(self):
+        """The anonymous signer rewrites nothing and returns None (modifier contract)."""
         item = object()
-        assert _AnonymousS3Signer().sign_item(item) is item
+        assert _AnonymousS3Signer().sign_item(item) is None
 
 
 class TestBuildSigner:
