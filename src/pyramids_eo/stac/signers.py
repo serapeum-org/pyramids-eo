@@ -1070,7 +1070,8 @@ def build_signer(signer_type: str, **creds: Any) -> Any:
 
         return AWSRequesterPaysSigner(region=creds.get("region"))
     if signer_type == "mpc-sas":
-        return PlanetaryComputerSigner()
+        keys = ("sas_url", "subscription_key", "refresh_window", "timeout")
+        return PlanetaryComputerSigner(**{k: creds[k] for k in keys if k in creds})
     if signer_type == "earthdata":
         keys = ("username", "password", "token", "refresh_window", "timeout")
         return EarthdataSigner(**{k: creds[k] for k in keys if k in creds})

@@ -547,6 +547,12 @@ class TestBuildSigner:
         assert isinstance(signer, PlanetaryComputerSigner)
         assert signer.name == "planetary-computer"
 
+    def test_mpc_sas_forwards_whitelisted_kwargs(self):
+        """build_signer('mpc-sas') forwards PC-specific kwargs and drops the rest."""
+        signer = build_signer("mpc-sas", sas_url="https://custom/token", region="x")
+        assert isinstance(signer, PlanetaryComputerSigner)
+        assert signer._sas_url == "https://custom/token"
+
     def test_earthdata_from_kwargs(self):
         """The earthdata name resolves to EarthdataSigner using a supplied token."""
         signer = build_signer("earthdata", token="edl-tok")
