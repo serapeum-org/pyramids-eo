@@ -1,0 +1,127 @@
+name: Pure Wheel - Build & Test
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch / ref to build and test (defaults to the ref selected in the UI)"
+        required: false
+        default: ""
+        type: string
+  workflow_call:
+
+jobs:
+  build-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Set up Pixi
+        uses: serapeum-org/github-actions/actions/python-setup/pixi@38c111084f99d5ff5f4a1e63bedce48fe33a10c0 # pixi/v1.2.1
+        with:
+          environments: dev
+          activate-environment: dev
+          cache: true
+          version: v0.73.0
+
+      - name: Build wheel
+        run: pixi run -e dev python -m build --wheel --outdir dist/
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wheel
+          path: dist/*.whl
+
+  test-wheel-core:
+    needs: build-wheel
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: wheel
+          path: dist/
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install wheel (no extras)
+        shell: bash
+        run: |
+          WHEEL=$(ls dist/*.whl)
+          pip install "${WHEEL}" --only-binary=:all:
+
+      - name: Verify package import
+        run: python -c "import pyramids_eo; print(pyramids_eo.__version__)"
+
+      - name: Install test runner
+        run: "pip install pytest pytest-env pytest-mock pytest-timeout --only-binary=:all:"
+
+      - name: Run core tests (not plot, not live)
+        run: pytest -vvv -sv -o pythonpath= -m "not plot and not live" tests/
+
+  test-wheel-extras:
+    needs: build-wheel
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.13"]
+        extra:
+          - { name: viz, pip_extra: "viz", marker: "plot" }
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: wheel
+          path: dist/
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install wheel with only [${{ matrix.extra.name }}] extra
+        shell: bash
+        run: |
+          WHEEL=$(ls dist/*.whl)
+          pip install "${WHEEL}[${{ matrix.extra.pip_extra }}]"
+
+      - name: Verify package import
+        run: python -c "import pyramids_eo; print(pyramids_eo.__version__)"
+
+      - name: Install test runner
+        run: pip install pytest pytest-env pytest-mock pytest-timeout
+
+      - name: Run ${{ matrix.extra.marker }}-marked tests (not live)
+        shell: bash
+        run: pytest -vvv -sv -o pythonpath= -m "${{ matrix.extra.marker }} and not live" tests/ || [ $? -eq 5 ]

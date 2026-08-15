@@ -1,0 +1,52 @@
+name: Tests - Suite
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  main-package:
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        environment: [py311, py312, py313, py314]
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: serapeum-org/github-actions/actions/python-setup/pixi@38c111084f99d5ff5f4a1e63bedce48fe33a10c0  # pixi/v1.2.1
+        with:
+          environments: ${{ matrix.environment }}
+          activate-environment: ${{ matrix.environment }}
+          cache: true
+          version: v0.73.0
+
+      - name: Run main tests (not plot, not live)
+        run: pixi run -e ${{ matrix.environment }} pytest -vvv --cov=src/pyramids_eo -sv -m 'not plot and not live' --cov-report=xml --cov-append --cov-fail-under=0
+
+      - name: Run plot tests
+        shell: bash
+        run: pixi run -e ${{ matrix.environment }} plot --cov-fail-under=0 || [ $? -eq 5 ]
+
+      - name: Upload coverage reports to Codecov with GitHub Action
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
+        with:
+          use_oidc: true
