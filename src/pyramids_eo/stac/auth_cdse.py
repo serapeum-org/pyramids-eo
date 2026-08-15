@@ -54,14 +54,14 @@ def s3_credentials(
         - Explicit keys are returned as a pair (kwargs win over the env):
             ```python
             >>> from pyramids_eo.stac import auth_cdse
-            >>> auth_cdse.s3_credentials(access_key="ak", secret_key="sk")  # pragma: allowlist secret
+            >>> auth_cdse.s3_credentials(access_key="ak", secret_key="sk")
             ('ak', 'sk')
 
             ```
         - Extra kwargs that `build_signer` forwards are ignored:
             ```python
             >>> from pyramids_eo.stac import auth_cdse
-            >>> auth_cdse.s3_credentials(access_key="ak", secret_key="sk", region="eu")  # pragma: allowlist secret
+            >>> auth_cdse.s3_credentials(access_key="ak", secret_key="sk", region="eu")
             ('ak', 'sk')
 
             ```

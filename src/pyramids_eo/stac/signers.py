@@ -1070,7 +1070,7 @@ def build_signer(signer_type: str, **creds: Any) -> Any:
         - Build the CDSE S3 signer from explicit S3 keys:
             ```python
             >>> from pyramids_eo.stac import build_signer
-            >>> build_signer("cdse-s3", access_key="ak", secret_key="sk").gdal_env()["AWS_ACCESS_KEY_ID"]  # pragma: allowlist secret
+            >>> build_signer("cdse-s3", access_key="ak", secret_key="sk").gdal_env()["AWS_ACCESS_KEY_ID"]
             'ak'
 
             ```
