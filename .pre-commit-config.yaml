@@ -95,6 +95,16 @@ repos:
 
   - repo: local
     hooks:
+      - id: doctest
+        name: "[py   -  doc] doctest"
+        entry: pixi run -e dev pytest --doctest-modules src/pyramids_eo -p no:cacheprovider
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]
+
+  - repo: local
+    hooks:
       - id: pytest-check
         name: pytest-check
         entry: pixi run -e dev pytest -v --cov=src/pyramids_eo --cov-report=term-missing -m "not plot and not live"

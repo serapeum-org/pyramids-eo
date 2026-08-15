@@ -5,6 +5,7 @@ The pyramids-eo public API.
 - [Readers](readers.md) — instrument readers (the package entry points).
 - [Registry](registry.md) — sensor metadata (band → wavelength, native resolution, fill, calibration).
 - [Errors](errors.md) — the `EOError` exception family.
+- [STAC signers](stac.md) — EO provider asset signers (PC / Earthdata / CDSE / BDC).
 
 ::: pyramids_eo
     options:
