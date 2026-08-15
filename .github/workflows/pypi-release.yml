@@ -1,0 +1,32 @@
+name: pypi-release
+
+# Canonical release path for this pure-Python package: build the sdist + the
+# universal (py3-none-any) wheel and publish both to PyPI. Fires automatically
+# when github-release.yml's Commitizen tag publishes a GitHub release, and can
+# be run manually (`gh workflow run pypi-release.yml`).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Build and publish sdist + pure wheel
+        uses: serapeum-org/github-actions/actions/release/pypi@cb1baebe72f571981605ab895a45dae7bfb566ba  # pypi-release/v1.2.0
+        with:
+          pypi-username: __token__
+          pypi-password: ${{ secrets.PYPI_PUBLISH }}
+          package-manager: 'pixi'
+          install-groups: 'dev'
+          verify-lock: 'false'

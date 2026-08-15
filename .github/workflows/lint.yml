@@ -1,0 +1,72 @@
+name: Lint
+
+# The static gate that the test matrix (tests.yml) does not provide. tests.yml runs
+# pytest across the OS/Python matrix, but nothing else in CI runs the pre-commit hooks
+# or mypy — so a formatting slip, a ruff violation, a leaked secret, or a type error
+# could reach main unnoticed. This workflow closes that gap. It stays out of tests.yml
+# so a slow test leg never blocks the sub-two-minute lint feedback, and vice versa.
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Runs the pre-commit hooks in CI: ruff (lint + format), the file/format checks,
+  # bandit, detect-secrets — plus mypy, which needs the pixi `dev` env (typed deps and
+  # an importable package), so this job installs that env and the mypy hook runs here.
+  # One runner, no matrix (formatting/linting/typing are identical on every OS and
+  # Python version).
+  #
+  # SKIP drops the hooks CI runs elsewhere or that can't run here: pytest-check is the
+  # tests.yml matrix's job (running it here would duplicate it and pin to one Python);
+  # no-commit-to-branch is a local commit guard that would misfire in CI, which
+  # legitimately runs on main; gitleaks scans only staged changes (empty after a CI
+  # checkout), so it is inert in --all-files — detect-secrets, which runs against the
+  # whole tree, provides the full-tree secret scan instead.
+  pre-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # No fetch-depth: `pre-commit run --all-files` scans the working tree, not history.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      # The mypy hook shells out to `pixi run -e dev mypy`, so the dev env must exist
+      # here. Installs pixi + the cached dev env (not activated — the hook selects the
+      # env explicitly with `-e dev`, and leaving it unactivated keeps the system Python
+      # below as the one that runs pre-commit itself).
+      - name: Set up pixi dev env
+        uses: serapeum-org/github-actions/actions/python-setup/pixi@cb1baebe72f571981605ab895a45dae7bfb566ba  # pixi/v1.2.0
+        with:
+          environments: dev
+          cache: true
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+
+      # Cache the hook toolchains (each hook repo builds an isolated env on first run).
+      # Keyed on the config so a hook or rev bump rebuilds; restore-keys reuse the rest.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: pre-commit-
+
+      # Pin the resolved version (reproducible CI, and satisfies the supply-chain
+      # "lock resolved versions" check); bump deliberately or via dependabot.
+      - run: python -m pip install pre-commit==4.5.1
+
+      - name: Run pre-commit hooks
+        # --show-diff-on-failure prints exactly what the auto-fixers (ruff-format,
+        # end-of-file-fixer, ...) would change, so a contributor sees the fix to apply.
+        run: pre-commit run --all-files --show-diff-on-failure --color=always
+        env:
+          SKIP: no-commit-to-branch,gitleaks,pytest-check

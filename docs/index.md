@@ -26,30 +26,17 @@ pyramids           (generic GDAL raster / vector engine)
 pyramids-eo takes a **local file / path / bytes** and decodes + processes it. It does **not** fetch from
 providers (no HTTP, no auth, no product catalogs) — that stays in the orchestration layer above it.
 
-## Installation
+- **Remote sensing** = offline compute.
+- **Orchestration** = I/O.
 
-pyramids-eo is pure Python; GDAL is provided transitively by the `pyramids-gis` platform wheels, so no
-system GDAL is required.
+## Public surface (readers)
 
-```console
-pip install pyramids-eo
+```python
+import pyramids_eo as eo
+
+scene = eo.read_fci("MTGI-FCI-...nc", channels=["ir_105", "vis_06"])   # -> Container
+disc  = eo.read_seviri("MSG4-...nat", calibration="radiance")          # -> Dataset
+swath = eo.read_olci("S3A_OL_1_...SEN3", bands=["Oa08_radiance"])      # -> curvilinear Container
 ```
 
-## Development
-
-Environments are managed with [pixi](https://pixi.sh):
-
-```console
-pixi install -e dev
-pixi run -e dev pytest        # run the tests
-pixi run -e dev mypy          # type-check
-pre-commit install            # enable git hooks
-```
-
-## Documentation
-
-Full documentation: <https://serapeum-org.github.io/pyramids-eo>
-
-## License
-
-GNU General Public License v3 (GPLv3) — see [`LICENSE`](LICENSE).
+See [Installation](installation.md) to get started and the [Reference](reference/index.md) for the API.

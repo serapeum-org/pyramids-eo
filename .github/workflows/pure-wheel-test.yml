@@ -1,0 +1,155 @@
+name: Pure Wheel - Build & Test
+
+# Validates the end-user pip install path: build the universal (py3-none-any)
+# wheel from this pure-Python package, then `pip install` it in a clean,
+# pixi-free environment across OS × Python. The install resolves pyramids-eo's
+# only heavy dependency, pyramids-gis, from PyPI as a self-contained platform
+# wheel (vendored GDAL) — so this proves `pip install pyramids-eo` works with no
+# system GDAL and no conda, the shape a real user gets. tests.yml exercises the
+# editable source tree inside pixi; this workflow exercises the built artifact
+# the way it ships.
+#
+# A per-extra job (currently just [viz]) additionally verifies that each extra's
+# headline dep installs from the built wheel and the package still imports.
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch / ref to build and test (defaults to the ref selected in the UI)"
+        required: false
+        default: ""
+        type: string
+  workflow_call:
+
+jobs:
+  build-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Set up Pixi
+        uses: serapeum-org/github-actions/actions/python-setup/pixi@cb1baebe72f571981605ab895a45dae7bfb566ba # pixi/v1.2.0
+        with:
+          environments: dev
+          activate-environment: dev
+          cache: true
+
+      - name: Build wheel
+        run: pixi run -e dev python -m build --wheel --outdir dist/
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wheel
+          path: dist/*.whl
+
+  # Core wheel test: install the bare wheel (no optional extras) across OS ×
+  # Python in a plain setup-python env — no conda, no pixi. `pip install` pulls
+  # pyramids-gis from PyPI as a platform wheel (vendored GDAL), so a passing job
+  # is proof the published package installs and imports on a clean machine.
+  # --only-binary=:all: forbids any source build: pyramids-gis and numpy must
+  # resolve to real wheels, exactly as an end user would get them.
+  test-wheel-core:
+    needs: build-wheel
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: wheel
+          path: dist/
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install wheel (no extras)
+        shell: bash
+        run: |
+          WHEEL=$(ls dist/*.whl)
+          pip install "${WHEEL}" --only-binary=:all:
+
+      - name: Verify package import
+        run: python -c "import pyramids_eo; print(pyramids_eo.__version__)"
+
+      - name: Install test runner
+        run: "pip install pytest pytest-env pytest-mock --only-binary=:all:"
+
+      - name: Run core tests (not plot, not live)
+        # The [viz] extra (cleopatra) is absent here, so plot-marked tests
+        # auto-skip via tests/conftest.py's collection hook; -m "not plot"
+        # deselects them explicitly and `not live` drops the network tests.
+        run: pytest -vvv -sv -m "not plot and not live" tests/
+
+  # Per-extra wheel test: install the built wheel with one extra and confirm the
+  # extra's dep resolves and the package still imports/tests. Held at a single
+  # OS/Python cell — the core matrix above covers that dimension; this job's point
+  # is the extras × pip semantics. --only-binary is dropped here because a viz
+  # transitive dep may lack a wheel on some platform, and correctness (not the
+  # no-source-build guarantee) is what this job checks.
+  test-wheel-extras:
+    needs: build-wheel
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.13"]
+        extra:
+          - { name: viz, pip_extra: "viz", marker: "plot" }
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: wheel
+          path: dist/
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install wheel with only [${{ matrix.extra.name }}] extra
+        shell: bash
+        run: |
+          WHEEL=$(ls dist/*.whl)
+          pip install "${WHEEL}[${{ matrix.extra.pip_extra }}]"
+
+      - name: Verify package import
+        run: python -c "import pyramids_eo; print(pyramids_eo.__version__)"
+
+      - name: Install test runner
+        run: pip install pytest pytest-env pytest-mock
+
+      - name: Run ${{ matrix.extra.marker }}-marked tests (not live)
+        # With the extra installed the marked tests are collected instead of
+        # skipped. `not live` still drops the network tests. If no test carries
+        # this marker yet, the import + install steps above are the assertion.
+        run: pytest -vvv -sv -m "${{ matrix.extra.marker }} and not live" tests/ || [ $? -eq 5 ]
