@@ -97,7 +97,7 @@ repos:
     hooks:
       - id: pytest-check
         name: pytest-check
-        entry: pixi run -e dev pytest -v --cov=src/pyramids_eo --cov-report=term-missing -m "not plot"
+        entry: pixi run -e dev pytest -v --cov=src/pyramids_eo --cov-report=term-missing -m "not plot and not live"
         language: system
         pass_filenames: false
         always_run: true
