@@ -207,6 +207,21 @@ class TestPlanetaryComputerSigner:
         signer.sign_href(href)
         assert calls["n"] == 1
 
+    def test_token_inner_recheck_returns_cached(self, monkeypatch):
+        """The locked recheck returns a token another caller cached, skipping the fetch."""
+        signer = PlanetaryComputerSigner()
+        seq = [("old", time.time() - 100), ("new", time.time() + 3600)]
+
+        class FlipCache(dict):
+            def get(self, key, default=None):
+                return seq.pop(0) if seq else default
+
+        signer._cache = FlipCache()
+        monkeypatch.setattr(
+            signer, "_fetch_token", lambda a, c: pytest.fail("should not fetch")
+        )
+        assert signer._token("acct", "cont") == "new"
+
     def test_blob_href_with_existing_query_uses_ampersand(self, monkeypatch):
         """A PC blob href carrying a non-SAS query joins the SAS token with '&'."""
         signer = PlanetaryComputerSigner()
@@ -545,6 +560,26 @@ class TestBearerProviderSigner:
         """The base _fetch_token is abstract and must be overridden."""
         with pytest.raises(NotImplementedError):
             _BearerProviderSigner()._fetch_token()
+
+    def test_token_inner_recheck_returns_cached(self):
+        """The locked recheck returns a token that became fresh, skipping the fetch."""
+        signer = _BearerProviderSigner()
+
+        class FlipExpiry:
+            """A cache stand-in reading stale on the first expiry probe, fresh after."""
+
+            def __init__(self):
+                self._seq = [time.time() - 100, time.time() + 3600]
+
+            def __getitem__(self, idx):
+                if idx == 1:
+                    return self._seq.pop(0) if len(self._seq) > 1 else self._seq[0]
+                return "cached-token"
+
+        signer._cache = FlipExpiry()
+        # _fetch_token is abstract; reaching it would raise, so a clean return
+        # proves the inner recheck short-circuited before the fetch.
+        assert signer._token() == "cached-token"
 
 
 class TestAnonymousS3Signer:
