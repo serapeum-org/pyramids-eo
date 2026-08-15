@@ -17,7 +17,7 @@ pip install pyramids-eo
 
 ### Optional extras
 
-- `viz`: `cleopatra[tiles]` — plotting and quick-look composites.
+- `viz`: installs `pyramids-gis[viz]` (plotting and quick-look composites via cleopatra).
 
 ```console
 pip install "pyramids-eo[viz]"

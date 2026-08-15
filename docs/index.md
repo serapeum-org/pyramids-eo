@@ -31,6 +31,10 @@ providers (no HTTP, no auth, no product catalogs) — that stays in the orchestr
 
 ## Public surface (readers)
 
+> **Planned API — not yet implemented.** These reader entry points are the roadmap for the package;
+> the current release ships the scaffold only, so the calls below are illustrative and will raise
+> `AttributeError` until the readers land.
+
 ```python
 import pyramids_eo as eo
 
