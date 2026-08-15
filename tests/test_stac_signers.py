@@ -247,6 +247,12 @@ class TestPlanetaryComputerSigner:
         PlanetaryComputerSigner(subscription_key="sub-key")._fetch_token("acct", "cont")
         assert calls["requests"][0].get_header("Ocp-apim-subscription-key") == "sub-key"
 
+    def test_malformed_token_response_raises(self, monkeypatch):
+        """A PC token response missing the token key raises AuthenticationError."""
+        _patch_urlopen(monkeypatch, [{"nope": 1}])
+        with pytest.raises(AuthenticationError, match="Planetary Computer"):
+            PlanetaryComputerSigner()._fetch_token("acct", "cont")
+
     def test_sign_request_is_noop(self):
         """Search is anonymous — sign_request leaves the request unchanged."""
         assert PlanetaryComputerSigner().sign_request(object()) is None
@@ -344,6 +350,14 @@ class TestEarthdataSigner:
             [{"access_token": "", "expiration_date": "2099-01-01T00:00:00Z"}],
         )
         with pytest.raises(AuthenticationError, match="empty or non-string"):
+            EarthdataSigner(username="u", password="p").gdal_env()
+
+    def test_malformed_token_response_raises(self, monkeypatch):
+        """An EDL token response missing access_token raises AuthenticationError."""
+        for var in _EARTHDATA_ENV:
+            monkeypatch.delenv(var, raising=False)
+        _patch_urlopen(monkeypatch, [{"nope": 1}])
+        with pytest.raises(AuthenticationError, match="Earthdata"):
             EarthdataSigner(username="u", password="p").gdal_env()
 
     def test_minted_token_is_cached(self, monkeypatch):
@@ -478,6 +492,32 @@ class TestCDSESigner:
         request = SimpleNamespace(headers={})
         CDSESigner(username="u", password="p").sign_request(request)
         assert request.headers["Authorization"] == "Bearer acc"
+
+    def test_malformed_refresh_falls_back_to_password(self, monkeypatch):
+        """A refresh 200 with no access_token drops the refresh token and does a password grant."""
+        for var in _CDSE_ENV:
+            monkeypatch.delenv(var, raising=False)
+        calls = _patch_urlopen_actions(
+            monkeypatch,
+            [
+                {"refresh_token": "r"},  # malformed refresh: no access_token
+                {"access_token": "pw", "refresh_token": "r2", "expires_in": 600},
+            ],
+        )
+        signer = CDSESigner(username="u", password="p")
+        signer._refresh_token = "stale"
+        token, _ = signer._fetch_token()
+        assert token == "pw"
+        assert calls["n"] == 2
+        assert "grant_type=password" in calls["requests"][1].data.decode()
+
+    def test_malformed_password_grant_raises(self, monkeypatch):
+        """A malformed password-grant response raises AuthenticationError (no fallback)."""
+        for var in _CDSE_ENV:
+            monkeypatch.delenv(var, raising=False)
+        _patch_urlopen(monkeypatch, [{"nope": 1}])
+        with pytest.raises(AuthenticationError, match="CDSE"):
+            CDSESigner(username="u", password="p")._fetch_token()
 
     def test_request_token_defaults_expires_in(self, monkeypatch):
         """A token response without expires_in defaults the access-token TTL to 600s."""

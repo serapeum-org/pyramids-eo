@@ -282,8 +282,14 @@ class PlanetaryComputerSigner(_BaseSigner):
         if self._subscription_key:
             request.add_header("Ocp-Apim-Subscription-Key", self._subscription_key)
         with urllib.request.urlopen(request, timeout=self._timeout) as response:  # nosec B310 - fixed http(s) endpoint, not attacker-controlled
-            payload = json.loads(response.read().decode("utf-8"))
-        token = payload["token"]
+            body = response.read().decode("utf-8")
+        try:
+            payload = json.loads(body)
+            token = payload["token"]
+        except (KeyError, ValueError) as exc:
+            raise AuthenticationError(
+                "Planetary Computer token endpoint returned a malformed response."
+            ) from exc
         expiry = self._parse_expiry(payload.get("msft:expiry"))
         return token, expiry
 
@@ -440,8 +446,14 @@ class EarthdataSigner(_BearerProviderSigner):
         request.add_header("Authorization", f"Basic {creds}")
         request.add_header("Accept", "application/json")
         with urllib.request.urlopen(request, timeout=self._timeout) as response:  # nosec B310 - fixed http(s) endpoint, not attacker-controlled
-            payload = json.loads(response.read().decode("utf-8"))
-        token = payload["access_token"]
+            body = response.read().decode("utf-8")
+        try:
+            payload = json.loads(body)
+            token = payload["access_token"]
+        except (KeyError, ValueError) as exc:
+            raise AuthenticationError(
+                "Earthdata (EDL) token endpoint returned a malformed response."
+            ) from exc
         expiry = self._parse_expiry(payload.get("expiration_date"))
         return token, expiry
 
@@ -507,9 +519,10 @@ class CDSESigner(_BearerProviderSigner):
 
         Tries the refresh-token grant when a refresh token is held; if that
         fails (the refresh token has expired — CDSE refresh tokens live
-        ~3600 s — or is otherwise rejected), the stale token is dropped and a
-        fresh password grant is attempted. This lets a long-idle, reused signer
-        recover instead of raising on the expired refresh token.
+        ~3600 s — is rejected, or comes back with a malformed body), the stale
+        token is dropped and a fresh password grant is attempted. This lets a
+        long-idle, reused signer recover instead of raising on the expired
+        refresh token.
         """
         if self._refresh_token is not None:
             try:
@@ -520,8 +533,8 @@ class CDSESigner(_BearerProviderSigner):
                         "refresh_token": self._refresh_token,
                     }
                 )
-            except urllib.error.URLError:
-                # Refresh token expired / rejected — re-authenticate below.
+            except (urllib.error.URLError, AuthenticationError):
+                # Refresh token expired / rejected / malformed — re-authenticate.
                 self._refresh_token = None
         if not (self._username and self._password):
             raise AuthenticationError("CDSESigner needs CDSE_USERNAME + CDSE_PASSWORD.")
@@ -544,10 +557,17 @@ class CDSESigner(_BearerProviderSigner):
         request = urllib.request.Request(self._TOKEN_URL, data=body, method="POST")
         request.add_header("Content-Type", "application/x-www-form-urlencoded")
         with urllib.request.urlopen(request, timeout=self._timeout) as response:  # nosec B310 - fixed http(s) endpoint, not attacker-controlled
-            payload = json.loads(response.read().decode("utf-8"))
+            raw = response.read().decode("utf-8")
+        try:
+            payload = json.loads(raw)
+            access_token = payload["access_token"]
+        except (KeyError, ValueError) as exc:
+            raise AuthenticationError(
+                "CDSE token endpoint returned a malformed response."
+            ) from exc
         self._refresh_token = payload.get("refresh_token", self._refresh_token)
         expiry = time.time() + float(payload.get("expires_in", 600))
-        return payload["access_token"], expiry
+        return access_token, expiry
 
 
 class CdseS3Signer:
