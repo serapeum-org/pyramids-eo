@@ -1214,8 +1214,9 @@ way regardless of provider:</p>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">client</span> <span class="o">=</span> <span class="n">open_client</span><span class="p">(</span><span class="n">endpoint_url</span><span class="p">,</span> <span class="n">signer</span><span class="o">=</span><span class="n">signer</span><span class="p">)</span>
 </code></pre></div>
 <p>The <code>build_signer(name, **creds)</code> factory maps a catalog <code>signer:</code> string to the
-right object; it reuses the pyramids generic signers for the <code>anonymous</code> /
-<code>aws-requester-pays</code> cases.</p>
+right object: the <code>anonymous</code> case is the pyramids-eo-local <code>_AnonymousS3Signer</code>
+(which adds <code>AWS_NO_SIGN_REQUEST</code> and region pinning), while <code>aws-requester-pays</code>
+reuses the pyramids generic signer.</p>
 <div class="admonition note">
 <p class="admonition-title">Credentials stay out of code</p>
 <p>Every provider reads its secrets from environment variables (shown per
