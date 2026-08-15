@@ -18,7 +18,7 @@ jobs:
           ref: ${{ github.ref }}
 
       - name: Build and publish sdist + pure wheel
-        uses: serapeum-org/github-actions/actions/release/pypi@cb1baebe72f571981605ab895a45dae7bfb566ba  # pypi-release/v1.2.0
+        uses: serapeum-org/github-actions/actions/release/pypi@38c111084f99d5ff5f4a1e63bedce48fe33a10c0  # pypi-release/v1.5.0
         with:
           pypi-username: __token__
           pypi-password: ${{ secrets.PYPI_PUBLISH }}
