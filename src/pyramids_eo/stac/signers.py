@@ -42,7 +42,7 @@ import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 from pyramids_eo.errors import AuthenticationError
 
@@ -273,7 +273,10 @@ class PlanetaryComputerSigner(_BaseSigner):
             no parseable `msft:expiry` the token is treated as already expired
             so the next call refetches.
         """
-        url = f"{self._sas_url}/{account}/{container}"
+        # account / container come from the asset href (semi-trusted catalog
+        # data); percent-encode them so a crafted value cannot alter the token
+        # endpoint URL's structure.
+        url = f"{self._sas_url}/{quote(account, safe='')}/{quote(container, safe='')}"
         request = urllib.request.Request(url)
         if self._subscription_key:
             request.add_header("Ocp-Apim-Subscription-Key", self._subscription_key)
