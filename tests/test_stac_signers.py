@@ -207,6 +207,31 @@ class TestPlanetaryComputerSigner:
         signer.sign_href(href)
         assert calls["n"] == 1
 
+    def test_expired_token_is_refetched(self, monkeypatch):
+        """A cached PC token past its expiry is re-minted on the next sign_href."""
+        signer = PlanetaryComputerSigner()
+        calls = {"n": 0}
+
+        def _fetch(account, container):
+            calls["n"] += 1
+            return "se=x&sig=y", time.time() - 1.0  # already expired
+
+        monkeypatch.setattr(signer, "_fetch_token", _fetch)
+        href = "https://acct.blob.core.windows.net/cont/blob.tif"
+        signer.sign_href(href)
+        signer.sign_href(href)
+        assert calls["n"] == 2
+
+    def test_sas_url_env_override(self, monkeypatch):
+        """PC_SDK_SAS_URL overrides the default token endpoint (trailing slash trimmed)."""
+        monkeypatch.setenv("PC_SDK_SAS_URL", "https://env.example/token/")
+        assert PlanetaryComputerSigner()._sas_url == "https://env.example/token"
+
+    def test_default_sas_url_when_env_absent(self, monkeypatch):
+        """With no arg and no env, the signer uses the public PC token endpoint."""
+        monkeypatch.delenv("PC_SDK_SAS_URL", raising=False)
+        assert PlanetaryComputerSigner()._sas_url.endswith("/api/sas/v1/token")
+
     def test_fetch_token_reads_pc_endpoint(self, monkeypatch):
         """_fetch_token GETs the token + parses the msft:expiry epoch."""
         _patch_urlopen(
@@ -309,6 +334,19 @@ class TestEarthdataSigner:
             monkeypatch.delenv(var, raising=False)
         with pytest.raises(AuthenticationError, match="EARTHDATA_USERNAME"):
             EarthdataSigner().gdal_env()
+
+    def test_minted_token_is_cached(self, monkeypatch):
+        """A minted EDL token is reused until expiry — one network mint for two reads."""
+        for var in _EARTHDATA_ENV:
+            monkeypatch.delenv(var, raising=False)
+        calls = _patch_urlopen(
+            monkeypatch,
+            [{"access_token": "minted", "expiration_date": "2099-01-01T00:00:00Z"}],
+        )
+        signer = EarthdataSigner(username="u", password="p")
+        signer.gdal_env()
+        signer.gdal_env()
+        assert calls["n"] == 1
 
     def test_pat_env_used_as_static_token(self, monkeypatch):
         """A token in EARTHDATA_PAT is used directly without minting."""
@@ -429,6 +467,15 @@ class TestCDSESigner:
         request = SimpleNamespace(headers={})
         CDSESigner(username="u", password="p").sign_request(request)
         assert request.headers["Authorization"] == "Bearer acc"
+
+    def test_request_token_defaults_expires_in(self, monkeypatch):
+        """A token response without expires_in defaults the access-token TTL to 600s."""
+        for var in _CDSE_ENV:
+            monkeypatch.delenv(var, raising=False)
+        _patch_urlopen(monkeypatch, [{"access_token": "acc", "refresh_token": "r"}])
+        signer = CDSESigner(username="u", password="p")
+        _, expiry = signer._fetch_token()
+        assert time.time() + 550 < expiry <= time.time() + 600
 
 
 class TestBearerProviderSigner:
