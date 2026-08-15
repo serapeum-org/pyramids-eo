@@ -76,7 +76,7 @@ jobs:
         run: python -c "import pyramids_eo; print(pyramids_eo.__version__)"
 
       - name: Install test runner
-        run: "pip install pytest pytest-env pytest-mock --only-binary=:all:"
+        run: "pip install pytest pytest-env pytest-mock pytest-timeout --only-binary=:all:"
 
       - name: Run core tests (not plot, not live)
         run: pytest -vvv -sv -m "not plot and not live" tests/
@@ -119,7 +119,7 @@ jobs:
         run: python -c "import pyramids_eo; print(pyramids_eo.__version__)"
 
       - name: Install test runner
-        run: pip install pytest pytest-env pytest-mock
+        run: pip install pytest pytest-env pytest-mock pytest-timeout
 
       - name: Run ${{ matrix.extra.marker }}-marked tests (not live)
         run: pytest -vvv -sv -m "${{ matrix.extra.marker }} and not live" tests/ || [ $? -eq 5 ]
