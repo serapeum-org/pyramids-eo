@@ -42,7 +42,7 @@ import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import parse_qs, quote, urlencode, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse, urlsplit, urlunsplit
 
 from pyramids_eo.errors import AuthenticationError
 
@@ -636,8 +636,6 @@ class CdseS3Signer:
         if href.startswith("s3://"):
             return "/vsis3/" + href[len("s3://") :]
         if href.startswith(("https://", "http://")):
-            from urllib.parse import urlsplit
-
             parts = urlsplit(href)
             host = parts.netloc
             if (
@@ -737,8 +735,6 @@ class BdcTokenSigner(_BaseSigner):
         `"?" in href` check would mistake a fragment for a query and append
         after `#`, where the server never sees it).
         """
-        from urllib.parse import quote, urlsplit, urlunsplit
-
         token = quote(self._token(), safe="")
         parts = urlsplit(href)
         new_query = (
