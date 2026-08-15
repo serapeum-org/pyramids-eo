@@ -335,6 +335,17 @@ class TestEarthdataSigner:
         with pytest.raises(AuthenticationError, match="EARTHDATA_USERNAME"):
             EarthdataSigner().gdal_env()
 
+    def test_empty_minted_token_raises(self, monkeypatch):
+        """An empty access_token from the endpoint raises rather than sending 'Bearer '."""
+        for var in _EARTHDATA_ENV:
+            monkeypatch.delenv(var, raising=False)
+        _patch_urlopen(
+            monkeypatch,
+            [{"access_token": "", "expiration_date": "2099-01-01T00:00:00Z"}],
+        )
+        with pytest.raises(AuthenticationError, match="empty or non-string"):
+            EarthdataSigner(username="u", password="p").gdal_env()
+
     def test_minted_token_is_cached(self, monkeypatch):
         """A minted EDL token is reused until expiry — one network mint for two reads."""
         for var in _EARTHDATA_ENV:

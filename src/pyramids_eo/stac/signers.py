@@ -354,6 +354,11 @@ class _BearerProviderSigner(_BaseSigner):
                 assert self._cache is not None  # fresh() is False when _cache is None
                 return self._cache[0]
             token, expiry = self._fetch_token()
+            if not isinstance(token, str) or not token:
+                raise AuthenticationError(
+                    f"{type(self).__name__} received an empty or non-string access "
+                    "token from the provider token endpoint."
+                )
             self._cache = (token, expiry)
             return token
 
