@@ -36,6 +36,7 @@ jobs:
           environments: ${{ matrix.environment }}
           activate-environment: ${{ matrix.environment }}
           cache: true
+          version: v0.73.0
 
       - name: Run main tests (not plot, not live)
         run: pixi run -e ${{ matrix.environment }} pytest -vvv --cov=src/pyramids_eo -sv -m 'not plot and not live' --cov-report=xml --cov-append --cov-fail-under=0
