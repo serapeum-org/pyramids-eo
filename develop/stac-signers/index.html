@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://serapeum-org.github.io/pyramids-eo/develop/reference/">
+        <link rel="canonical" href="https://serapeum-org.github.io/pyramids-eo/develop/stac-signers/">
       
       
-        <link rel="prev" href="../stac-signers/">
+        <link rel="prev" href="../installation/">
       
       
-        <link rel="next" href="readers/">
+        <link rel="next" href="../reference/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Overview - pyramids-eo</title>
+        <title>STAC provider signers - pyramids-eo</title>
       
     
     
@@ -83,7 +83,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#api-reference" class="md-skip">
+        <a href="#stac-provider-signers" class="md-skip">
           Skip to content
         </a>
       
@@ -123,7 +123,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Overview
+              STAC provider signers
             
           </span>
         </div>
@@ -277,11 +277,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../stac-signers/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -297,13 +299,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../reference/" class="md-tabs__link">
           
   
   
@@ -502,91 +502,6 @@
       
   
   
-  
-  
-    
-    
-    
-    
-      
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Guides
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Guides
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../stac-signers/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    STAC provider signers
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
     
   
   
@@ -606,17 +521,17 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-    Reference
+    Guides
   
 
     
@@ -627,12 +542,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Reference
+    Guides
   
 
           </label>
@@ -661,7 +576,7 @@
   <span class="md-ellipsis">
     
   
-    Overview
+    STAC provider signers
   
 
     
@@ -679,7 +594,7 @@
   <span class="md-ellipsis">
     
   
-    Overview
+    STAC provider signers
   
 
     
@@ -705,10 +620,54 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#pyramids_eo" class="md-nav__link">
+  <a href="#microsoft-planetary-computer-planetarycomputersigner" class="md-nav__link">
     <span class="md-ellipsis">
       
-        pyramids_eo
+        Microsoft Planetary Computer — PlanetaryComputerSigner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nasa-earthdata-edl-earthdatasigner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NASA Earthdata (EDL) — EarthdataSigner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#copernicus-data-space-cdse-cdsesigner-cdses3signer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Copernicus Data Space (CDSE) — CDSESigner / CdseS3Signer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#brazil-data-cube-bdc-bdctokensigner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Brazil Data Cube (BDC) — BdcTokenSigner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selecting-a-signer-by-name-build_signer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selecting a signer by name — build_signer
       
     </span>
   </a>
@@ -724,6 +683,63 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
               
                 
   
@@ -731,7 +747,35 @@
   
   
     <li class="md-nav__item">
-      <a href="readers/" class="md-nav__link">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/readers/" class="md-nav__link">
         
   
   
@@ -759,7 +803,7 @@
   
   
     <li class="md-nav__item">
-      <a href="registry/" class="md-nav__link">
+      <a href="../reference/registry/" class="md-nav__link">
         
   
   
@@ -787,7 +831,7 @@
   
   
     <li class="md-nav__item">
-      <a href="errors/" class="md-nav__link">
+      <a href="../reference/errors/" class="md-nav__link">
         
   
   
@@ -815,7 +859,7 @@
   
   
     <li class="md-nav__item">
-      <a href="stac/" class="md-nav__link">
+      <a href="../reference/stac/" class="md-nav__link">
         
   
   
@@ -1067,10 +1111,54 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#pyramids_eo" class="md-nav__link">
+  <a href="#microsoft-planetary-computer-planetarycomputersigner" class="md-nav__link">
     <span class="md-ellipsis">
       
-        pyramids_eo
+        Microsoft Planetary Computer — PlanetaryComputerSigner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nasa-earthdata-edl-earthdatasigner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NASA Earthdata (EDL) — EarthdataSigner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#copernicus-data-space-cdse-cdsesigner-cdses3signer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Copernicus Data Space (CDSE) — CDSESigner / CdseS3Signer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#brazil-data-cube-bdc-bdctokensigner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Brazil Data Cube (BDC) — BdcTokenSigner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selecting-a-signer-by-name-build_signer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selecting a signer by name — build_signer
       
     </span>
   </a>
@@ -1094,7 +1182,7 @@
 
 
   
-    <a href="https://github.com/serapeum-org/pyramids-eo/edit/master/docs/reference/index.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/serapeum-org/pyramids-eo/edit/master/docs/stac-signers.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1103,71 +1191,114 @@
     
       
     
-    <a href="https://github.com/serapeum-org/pyramids-eo/raw/master/docs/reference/index.md" title="View source of this page" class="md-content__button md-icon">
+    <a href="https://github.com/serapeum-org/pyramids-eo/raw/master/docs/stac-signers.md" title="View source of this page" class="md-content__button md-icon">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
     </a>
   
 
 
-<h1 id="api-reference"><a class="toclink" href="#api-reference">API Reference</a><a class="headerlink" href="#api-reference" title="Permanent link">#</a></h1>
-<p>The pyramids-eo public API.</p>
-<ul>
-<li><a href="readers/">Readers</a> — instrument readers (the package entry points).</li>
-<li><a href="registry/">Registry</a> — sensor metadata (band → wavelength, native resolution, fill, calibration).</li>
-<li><a href="errors/">Errors</a> — the <code>EOError</code> exception family.</li>
-<li><a href="stac/">STAC signers</a> — EO provider asset signers (PC / Earthdata / CDSE / BDC).</li>
-</ul>
-
-
-<div class="doc doc-object doc-module">
-
-
-
-<h3 id="pyramids_eo" class="doc doc-heading"><a href="#pyramids_eo" class="toclink">
-            <code>pyramids_eo</code>
-
-
-</a><a href="#pyramids_eo" class="headerlink" title="Permanent link">#</a></h3>
-
-    <div class="doc doc-contents first">
-
-        <p>pyramids-eo — GDAL-native, xarray-free remote-sensing tier for the pyramids stack.</p>
-<p><code>pyramids-eo</code> sits between :mod:<code>pyramids</code> (the generic GDAL raster engine) and
-provider/orchestration layers. It knows what a pixel <em>means</em> for a given
-instrument: which subdataset is which channel, how to calibrate it, how to
-composite it, how to resample a swath. It takes a local file / path / bytes and
-decodes + processes it — it does <strong>not</strong> fetch from providers.</p>
-<p>The instrument readers (<code>read_seviri</code>, <code>read_fci</code>, <code>read_abi</code>,
-<code>read_olci</code>, <code>read_slstr</code>) are re-exported here once implemented.</p>
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
+<h1 id="stac-provider-signers"><a class="toclink" href="#stac-provider-signers">STAC provider signers</a><a class="headerlink" href="#stac-provider-signers" title="Permanent link">#</a></h1>
+<p>pyramids owns the generic STAC <code>Signer</code> protocol and the generic <code>anonymous</code> /
+<code>aws-requester-pays</code> / bearer signers. <strong>pyramids-eo</strong> — the Earth-observation
+layer — owns the <strong>provider-specific</strong> signers that implement that same protocol
+for real EO cloud providers, so signed EO STAC assets stream through GDAL
+<code>/vsicurl/</code> (and <code>/vsis3/</code>) for any pyramids consumer, with <strong>no provider SDK</strong>
+(pure standard-library <code>urllib</code>).</p>
+<p>Every signer here satisfies <code>pyramids.stac.Signer</code>, so you wire it in the same
+way regardless of provider:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_stac</span><span class="p">,</span> <span class="n">open_client</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># either entry point accepts any signer below</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">ds</span> <span class="o">=</span> <span class="n">from_stac</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">signer</span><span class="o">=</span><span class="n">signer</span><span class="p">)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">client</span> <span class="o">=</span> <span class="n">open_client</span><span class="p">(</span><span class="n">endpoint_url</span><span class="p">,</span> <span class="n">signer</span><span class="o">=</span><span class="n">signer</span><span class="p">)</span>
+</code></pre></div>
+<p>The <code>build_signer(name, **creds)</code> factory maps a catalog <code>signer:</code> string to the
+right object; it reuses the pyramids generic signers for the <code>anonymous</code> /
+<code>aws-requester-pays</code> cases.</p>
+<div class="admonition note">
+<p class="admonition-title">Credentials stay out of code</p>
+<p>Every provider reads its secrets from environment variables (shown per
+provider below); pass them explicitly only when you must. Nothing here
+hard-codes a token.</p>
 </div>
+<h2 id="microsoft-planetary-computer-planetarycomputersigner"><a class="toclink" href="#microsoft-planetary-computer-planetarycomputersigner">Microsoft Planetary Computer — <code>PlanetaryComputerSigner</code></a><a class="headerlink" href="#microsoft-planetary-computer-planetarycomputersigner" title="Permanent link">#</a></h2>
+<p>Mints a per-<code>(account, container)</code> Shared Access Signature (SAS) token from the
+PC token endpoint and appends it to the blob href — the same algorithm as
+<code>planetary_computer.sign</code>, over <code>urllib</code>, so no <code>planetary-computer</code> SDK is
+needed. The credential rides the URL, so <code>gdal_env()</code> is empty. Non-PC hrefs,
+the public <code>ai4edatasetspublicassets</code> bucket, and already-signed URLs pass
+through unchanged.</p>
+<p>Environment: <code>PC_SDK_SAS_URL</code> (optional endpoint override),
+<code>PC_SDK_SUBSCRIPTION_KEY</code> (optional, raises rate limits).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_stac</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.stac</span><span class="w"> </span><span class="kn">import</span> <span class="n">PlanetaryComputerSigner</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">signer</span> <span class="o">=</span> <span class="n">PlanetaryComputerSigner</span><span class="p">()</span>          <span class="c1"># or build_signer(&quot;mpc-sas&quot;)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">ds</span> <span class="o">=</span> <span class="n">from_stac</span><span class="p">(</span><span class="n">pc_item</span><span class="p">,</span> <span class="n">signer</span><span class="o">=</span><span class="n">signer</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="nasa-earthdata-edl-earthdatasigner"><a class="toclink" href="#nasa-earthdata-edl-earthdatasigner">NASA Earthdata (EDL) — <code>EarthdataSigner</code></a><a class="headerlink" href="#nasa-earthdata-edl-earthdatasigner" title="Permanent link">#</a></h2>
+<p>Uses a pre-minted bearer token when given, otherwise mints one from the EDL
+<code>find_or_create_token</code> endpoint with HTTP Basic auth. The token is sent as a
+GDAL <code>Authorization: Bearer</code> header for <code>/vsicurl/</code> reads of EDL-gated DAAC
+assets (auth is header-side, so <code>sign_href</code> is identity).</p>
+<p>Environment: <code>EARTHDATA_TOKEN</code> / <code>EARTHDATA_PAT</code> (a pre-minted token), or
+<code>EARTHDATA_USERNAME</code> + <code>EARTHDATA_PASSWORD</code> (to mint one).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids</span><span class="w"> </span><span class="kn">import</span> <span class="n">open_client</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.stac</span><span class="w"> </span><span class="kn">import</span> <span class="n">EarthdataSigner</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">signer</span> <span class="o">=</span> <span class="n">EarthdataSigner</span><span class="p">()</span>                  <span class="c1"># reads the env vars above</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># or explicitly: EarthdataSigner(token=&quot;edl-token&quot;)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">client</span> <span class="o">=</span> <span class="n">open_client</span><span class="p">(</span><span class="s2">&quot;https://cmr.earthdata.nasa.gov/stac/…&quot;</span><span class="p">,</span> <span class="n">signer</span><span class="o">=</span><span class="n">signer</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="copernicus-data-space-cdse-cdsesigner-cdses3signer"><a class="toclink" href="#copernicus-data-space-cdse-cdsesigner-cdses3signer">Copernicus Data Space (CDSE) — <code>CDSESigner</code> / <code>CdseS3Signer</code></a><a class="headerlink" href="#copernicus-data-space-cdse-cdsesigner-cdses3signer" title="Permanent link">#</a></h2>
+<p>CDSE assets are reachable two ways, so there are two signers:</p>
+<ul>
+<li><strong><code>CDSESigner</code></strong> — the HTTPS/OData path. Mints an access token from the CDSE
+  Keycloak endpoint (password grant, then refresh grant) and sends it as a GDAL
+  <code>Authorization: Bearer</code> header. Environment: <code>CDSE_USERNAME</code> + <code>CDSE_PASSWORD</code>.</li>
+<li><strong><code>CdseS3Signer</code></strong> — the S3 path. CDSE assets also live on an S3-compatible
+  store at <code>eodata.dataspace.copernicus.eu</code>; this signer rewrites <code>s3://eodata/…</code>
+  (and the equivalent <code>https://</code> host) to the <code>/vsis3/eodata/…</code> GDAL path and
+  supplies the S3 credentials through <code>gdal_env()</code>. Environment:
+  <code>CDSE_S3_ACCESS_KEY</code> + <code>CDSE_S3_SECRET_KEY</code> (generate at the
+  <a href="https://eodata-s3keysmanager.dataspace.copernicus.eu">CDSE S3 keys dashboard</a>).</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_stac</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.stac</span><span class="w"> </span><span class="kn">import</span> <span class="n">CDSESigner</span><span class="p">,</span> <span class="n">CdseS3Signer</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">bearer</span> <span class="o">=</span> <span class="n">CDSESigner</span><span class="p">()</span>                        <span class="c1"># CDSE_USERNAME / CDSE_PASSWORD</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">s3</span> <span class="o">=</span> <span class="n">CdseS3Signer</span><span class="p">(</span><span class="n">access_key</span><span class="o">=</span><span class="s2">&quot;…&quot;</span><span class="p">,</span> <span class="n">secret_key</span><span class="o">=</span><span class="s2">&quot;…&quot;</span><span class="p">)</span>  <span class="c1"># or the env vars above</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">ds</span> <span class="o">=</span> <span class="n">from_stac</span><span class="p">(</span><span class="n">cdse_item</span><span class="p">,</span> <span class="n">signer</span><span class="o">=</span><span class="n">s3</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="brazil-data-cube-bdc-bdctokensigner"><a class="toclink" href="#brazil-data-cube-bdc-bdctokensigner">Brazil Data Cube (BDC) — <code>BdcTokenSigner</code></a><a class="headerlink" href="#brazil-data-cube-bdc-bdctokensigner" title="Permanent link">#</a></h2>
+<p>Rewrites each asset href to carry an <code>?access_token=…</code> query parameter, needed
+only by the token-gated BDC tiers (most published BDC collections read
+anonymously). The credential rides the URL, so <code>gdal_env()</code> is empty; a missing
+token raises <code>AuthenticationError</code> naming the env var.</p>
+<p>Environment: <code>BDC_ACCESS_TOKEN</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_stac</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.stac</span><span class="w"> </span><span class="kn">import</span> <span class="n">BdcTokenSigner</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">signer</span> <span class="o">=</span> <span class="n">BdcTokenSigner</span><span class="p">()</span>                    <span class="c1"># reads $BDC_ACCESS_TOKEN</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># or explicitly: BdcTokenSigner(token=&quot;…&quot;)</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">ds</span> <span class="o">=</span> <span class="n">from_stac</span><span class="p">(</span><span class="n">bdc_item</span><span class="p">,</span> <span class="n">signer</span><span class="o">=</span><span class="n">signer</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="selecting-a-signer-by-name-build_signer"><a class="toclink" href="#selecting-a-signer-by-name-build_signer">Selecting a signer by name — <code>build_signer</code></a><a class="headerlink" href="#selecting-a-signer-by-name-build_signer" title="Permanent link">#</a></h2>
+<p>When the signer is chosen from catalog configuration, resolve it by its
+<code>signer:</code> string:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.stac</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_signer</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">build_signer</span><span class="p">(</span><span class="s2">&quot;mpc-sas&quot;</span><span class="p">)</span>                      <span class="c1"># PlanetaryComputerSigner</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">build_signer</span><span class="p">(</span><span class="s2">&quot;earthdata&quot;</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">&quot;…&quot;</span><span class="p">)</span>         <span class="c1"># EarthdataSigner</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">build_signer</span><span class="p">(</span><span class="s2">&quot;cdse&quot;</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="s2">&quot;…&quot;</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s2">&quot;…&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">build_signer</span><span class="p">(</span><span class="s2">&quot;cdse-s3&quot;</span><span class="p">,</span> <span class="n">access_key</span><span class="o">=</span><span class="s2">&quot;…&quot;</span><span class="p">,</span> <span class="n">secret_key</span><span class="o">=</span><span class="s2">&quot;…&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">build_signer</span><span class="p">(</span><span class="s2">&quot;bdc-token&quot;</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">&quot;…&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="n">build_signer</span><span class="p">(</span><span class="s2">&quot;anonymous&quot;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s2">&quot;af-south-1&quot;</span><span class="p">)</span>     <span class="c1"># pyramids-eo _AnonymousS3Signer</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">build_signer</span><span class="p">(</span><span class="s2">&quot;aws-requester-pays&quot;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s2">&quot;us-west-2&quot;</span><span class="p">)</span>  <span class="c1"># pyramids generic signer</span>
+</code></pre></div>
+<p>See the <a href="../reference/stac/"><code>stac</code> API reference</a> for the full signature of each
+signer.</p>
 
 
 
@@ -1203,7 +1334,7 @@ decodes + processes it — it does <strong>not</strong> fetch from providers.</p
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../stac-signers/" class="md-footer__link md-footer__link--prev" aria-label="Previous: STAC provider signers">
+          <a href="../installation/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Installation">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1213,20 +1344,20 @@ decodes + processes it — it does <strong>not</strong> fetch from providers.</p
                 Previous
               </span>
               <div class="md-ellipsis">
-                STAC provider signers
+                Installation
               </div>
             </div>
           </a>
         
         
           
-          <a href="readers/" class="md-footer__link md-footer__link--next" aria-label="Next: Readers">
+          <a href="../reference/" class="md-footer__link md-footer__link--next" aria-label="Next: Overview">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Readers
+                Overview
               </div>
             </div>
             <div class="md-footer__button md-icon">
