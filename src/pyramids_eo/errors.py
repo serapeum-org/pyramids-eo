@@ -21,3 +21,7 @@ class UnknownSensorError(EOError):
 
 class CalibrationError(EOError):
     """Raised when a requested calibration is unavailable for the input."""
+
+
+class AuthenticationError(EOError):
+    """Raised when provider credentials for a signed EO asset are missing or invalid."""
