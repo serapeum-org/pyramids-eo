@@ -178,6 +178,9 @@ class PlanetaryComputerSigner(_BaseSigner):
         if account is None or container is None or self._already_signed(href):
             return href
         token = self._token(account, container)
+        # PC blob hrefs are fragment-free Azure URLs, so a plain concat is safe:
+        # the SAS token is itself a query string, appended after ? or & (unlike
+        # BdcTokenSigner, which must urlsplit to keep a #fragment last).
         sep = "&" if urlparse(href).query else "?"
         return f"{href}{sep}{token}"
 

@@ -207,6 +207,15 @@ class TestPlanetaryComputerSigner:
         signer.sign_href(href)
         assert calls["n"] == 1
 
+    def test_blob_href_with_existing_query_uses_ampersand(self, monkeypatch):
+        """A PC blob href carrying a non-SAS query joins the SAS token with '&'."""
+        signer = PlanetaryComputerSigner()
+        monkeypatch.setattr(
+            signer, "_fetch_token", lambda a, c: ("se=x&sig=y", time.time() + 3600.0)
+        )
+        href = "https://acct.blob.core.windows.net/cont/blob.tif?snapshot=2024"
+        assert signer.sign_href(href) == href + "&se=x&sig=y"
+
     def test_expired_token_is_refetched(self, monkeypatch):
         """A cached PC token past its expiry is re-minted on the next sign_href."""
         signer = PlanetaryComputerSigner()
