@@ -99,10 +99,10 @@ quote-style = "preserve"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]
-ignore = ["E203", "E226", "E266", "E501", "E701", "E722", "C901", "E741", "E731"]
+ignore = ["E203", "E226", "E266", "E501", "E701", "E722", "E741", "E731"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["E", "F", "W", "UP"]
+"tests/**" = ["E", "W", "UP"]
 "docs/examples/**" = ["E", "F", "W", "UP"]
 "*.ipynb" = ["E402"]
 
