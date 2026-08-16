@@ -1307,9 +1307,10 @@ class TestMaterialize:
             29.0 - 100 * 0.001,
         )
         mem = ee_reader._materialize(src, bbox, "EPSG:4326")
-        assert mem.columns > 256 and mem.rows > 256, (
-            "window must span more than one 256-px block to exercise the stitch"
+        assert mem.columns > 256, (
+            "window must span >1 block on x to exercise the stitch"
         )
+        assert mem.rows > 256, "window must span >1 block on y to exercise the stitch"
         inverse = gdal.InvGeoTransform(src.GetGeoTransform())
         mem_gt = mem.geotransform
         origin_col, origin_row = gdal.ApplyGeoTransform(inverse, mem_gt[0], mem_gt[3])
@@ -1433,8 +1434,9 @@ class TestMaterialize:
 
                 return _Band()
 
+        src = _NoneReadSrc(_synthetic_srtm())
         with pytest.raises(ReaderError, match="block read failed"):
-            ee_reader._materialize(_NoneReadSrc(_synthetic_srtm()), _BBOX, "EPSG:4326")
+            ee_reader._materialize(src, _BBOX, "EPSG:4326")
 
 
 class TestLivePixelCorrectness:
