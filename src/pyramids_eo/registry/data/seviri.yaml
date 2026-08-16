@@ -1,0 +1,21 @@
+# MSG-SEVIRI channel table.
+#
+# The thermal central_wavenumber_cm1 / alpha / beta are the published Meteosat-9
+# effective-radiance-to-brightness-temperature constants (EUMETSAT MSG Level 1.5
+# calibration); solar_irradiance is nominal. These vary per Meteosat spacecraft
+# (MSG-8/9/10/11) — a reader should PREFER the per-granule metadata and use this
+# table (Meteosat-9 class) only as a fallback.
+name: seviri
+channels:
+  VIS006: {wavelength_um: 0.635, resolution_m: 3000, kind: solar, solar_irradiance: 1630.0}
+  VIS008: {wavelength_um: 0.810, resolution_m: 3000, kind: solar, solar_irradiance: 1100.0}
+  IR_016: {wavelength_um: 1.640, resolution_m: 3000, kind: solar, solar_irradiance: 240.0}
+  IR_039: {wavelength_um: 3.900,  resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 2567.330, alpha: 0.9956, beta: 3.410}
+  WV_062: {wavelength_um: 6.250,  resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 1598.103, alpha: 0.9962, beta: 2.218}
+  WV_073: {wavelength_um: 7.350,  resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 1362.081, alpha: 0.9991, beta: 0.478}
+  IR_087: {wavelength_um: 8.700,  resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 1149.069, alpha: 0.9996, beta: 0.179}
+  IR_097: {wavelength_um: 9.660,  resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 1034.343, alpha: 0.9999, beta: 0.060}
+  IR_108: {wavelength_um: 10.800, resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 930.647,  alpha: 0.9983, beta: 0.625}
+  IR_120: {wavelength_um: 12.000, resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 839.660,  alpha: 0.9988, beta: 0.397}
+  IR_134: {wavelength_um: 13.400, resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 752.387,  alpha: 0.9981, beta: 0.578}
+  HRV:    {wavelength_um: 0.700, resolution_m: 1000, kind: solar, solar_irradiance: 1370.0}

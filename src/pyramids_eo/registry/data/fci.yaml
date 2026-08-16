@@ -1,0 +1,25 @@
+# MTG-FCI (FDHSI) channel table.
+#
+# NOMINAL constants — wavelengths / resolutions / kinds are from the instrument
+# spec; solar_irradiance is nominal and the thermal central_wavenumber_cm1 is the
+# nominal 1e4/wavelength with an identity band correction (alpha=1, beta=0).
+# A reader should PREFER the per-granule calibration metadata and use this table
+# only as a fallback. Verify against the official EUMETSAT FCI calibration tables
+# before relying on these numbers for quantitative products.
+name: fci
+channels:
+  vis_04:  {wavelength_um: 0.444, resolution_m: 1000, kind: solar, solar_irradiance: 1700.0}
+  vis_05:  {wavelength_um: 0.510, resolution_m: 1000, kind: solar, solar_irradiance: 1900.0}
+  vis_06:  {wavelength_um: 0.640, resolution_m: 500,  kind: solar, solar_irradiance: 1580.0}
+  vis_08:  {wavelength_um: 0.865, resolution_m: 1000, kind: solar, solar_irradiance: 970.0}
+  nir_13:  {wavelength_um: 1.380, resolution_m: 1000, kind: solar, solar_irradiance: 360.0}
+  nir_16:  {wavelength_um: 1.610, resolution_m: 1000, kind: solar, solar_irradiance: 250.0}
+  nir_22:  {wavelength_um: 2.250, resolution_m: 500,  kind: solar, solar_irradiance: 78.0}
+  ir_38:   {wavelength_um: 3.800, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 2631.6, alpha: 1.0, beta: 0.0}
+  wv_63:   {wavelength_um: 6.300, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 1587.3, alpha: 1.0, beta: 0.0}
+  wv_73:   {wavelength_um: 7.350, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 1360.5, alpha: 1.0, beta: 0.0}
+  ir_87:   {wavelength_um: 8.700, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 1149.4, alpha: 1.0, beta: 0.0}
+  ir_97:   {wavelength_um: 9.660, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 1035.2, alpha: 1.0, beta: 0.0}
+  ir_105:  {wavelength_um: 10.500, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 952.4, alpha: 1.0, beta: 0.0}
+  ir_123:  {wavelength_um: 12.300, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 813.0, alpha: 1.0, beta: 0.0}
+  ir_133:  {wavelength_um: 13.300, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 751.9, alpha: 1.0, beta: 0.0}
