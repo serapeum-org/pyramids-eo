@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -1671,7 +1671,12 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <span class="normal"><a href="#__codelineno-0-382">382</a></span>
 <span class="normal"><a href="#__codelineno-0-383">383</a></span>
 <span class="normal"><a href="#__codelineno-0-384">384</a></span>
-<span class="normal"><a href="#__codelineno-0-385">385</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="k">class</span><span class="w"> </span><span class="nc">EarthEngineCredentials</span><span class="p">:</span>
+<span class="normal"><a href="#__codelineno-0-385">385</a></span>
+<span class="normal"><a href="#__codelineno-0-386">386</a></span>
+<span class="normal"><a href="#__codelineno-0-387">387</a></span>
+<span class="normal"><a href="#__codelineno-0-388">388</a></span>
+<span class="normal"><a href="#__codelineno-0-389">389</a></span>
+<span class="normal"><a href="#__codelineno-0-390">390</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="k">class</span><span class="w"> </span><span class="nc">EarthEngineCredentials</span><span class="p">:</span>
 <a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Application Default Credentials for the Earth Engine GDAL drivers.</span>
 <a id="__codelineno-0-71" name="__codelineno-0-71"></a>
 <a id="__codelineno-0-72" name="__codelineno-0-72"></a><span class="sd">    Three modes:</span>
@@ -1778,216 +1783,221 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-173" name="__codelineno-0-173"></a><span class="sd">                ```</span>
 <a id="__codelineno-0-174" name="__codelineno-0-174"></a><span class="sd">        &quot;&quot;&quot;</span>
 <a id="__codelineno-0-175" name="__codelineno-0-175"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-<a id="__codelineno-0-176" name="__codelineno-0-176"></a>            <span class="n">text</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
-<a id="__codelineno-0-177" name="__codelineno-0-177"></a>        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-<a id="__codelineno-0-178" name="__codelineno-0-178"></a>            <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-179" name="__codelineno-0-179"></a>                <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
-<a id="__codelineno-0-180" name="__codelineno-0-180"></a>            <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-<a id="__codelineno-0-181" name="__codelineno-0-181"></a>                <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
-<a id="__codelineno-0-182" name="__codelineno-0-182"></a>                    <span class="s2">&quot;Earth Engine service-account info is not valid JSON.&quot;</span>
-<a id="__codelineno-0-183" name="__codelineno-0-183"></a>                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-<a id="__codelineno-0-184" name="__codelineno-0-184"></a>            <span class="n">text</span> <span class="o">=</span> <span class="n">info</span>
-<a id="__codelineno-0-185" name="__codelineno-0-185"></a>        <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-186" name="__codelineno-0-186"></a>            <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
-<a id="__codelineno-0-187" name="__codelineno-0-187"></a>                <span class="s2">&quot;Earth Engine service-account info must be a JSON string or mapping.&quot;</span>
-<a id="__codelineno-0-188" name="__codelineno-0-188"></a>            <span class="p">)</span>
-<a id="__codelineno-0-189" name="__codelineno-0-189"></a>        <span class="n">path</span> <span class="o">=</span> <span class="n">_write_secret_json</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
-<a id="__codelineno-0-190" name="__codelineno-0-190"></a>        <span class="n">creds</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-<a id="__codelineno-0-191" name="__codelineno-0-191"></a>        <span class="n">creds</span><span class="o">.</span><span class="n">_owns_path</span> <span class="o">=</span> <span class="kc">True</span>
-<a id="__codelineno-0-192" name="__codelineno-0-192"></a>        <span class="n">creds</span><span class="o">.</span><span class="n">_finalizer</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">finalize</span><span class="p">(</span><span class="n">creds</span><span class="p">,</span> <span class="n">_unlink_quiet</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
-<a id="__codelineno-0-193" name="__codelineno-0-193"></a>        <span class="k">return</span> <span class="n">creds</span>
-<a id="__codelineno-0-194" name="__codelineno-0-194"></a>
-<a id="__codelineno-0-195" name="__codelineno-0-195"></a>    <span class="nd">@classmethod</span>
-<a id="__codelineno-0-196" name="__codelineno-0-196"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">from_service_account</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-197" name="__codelineno-0-197"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Build credentials from a service-account JSON key path.</span>
-<a id="__codelineno-0-198" name="__codelineno-0-198"></a>
-<a id="__codelineno-0-199" name="__codelineno-0-199"></a><span class="sd">        Args:</span>
-<a id="__codelineno-0-200" name="__codelineno-0-200"></a><span class="sd">            path: Path to the Google service-account JSON key. ``~`` is</span>
-<a id="__codelineno-0-201" name="__codelineno-0-201"></a><span class="sd">                expanded; the file must exist.</span>
-<a id="__codelineno-0-202" name="__codelineno-0-202"></a>
-<a id="__codelineno-0-203" name="__codelineno-0-203"></a><span class="sd">        Returns:</span>
-<a id="__codelineno-0-204" name="__codelineno-0-204"></a><span class="sd">            The credentials, whose :meth:`gdal_env` points GDAL at ``path``.</span>
-<a id="__codelineno-0-205" name="__codelineno-0-205"></a>
-<a id="__codelineno-0-206" name="__codelineno-0-206"></a><span class="sd">        Examples:</span>
-<a id="__codelineno-0-207" name="__codelineno-0-207"></a><span class="sd">            - Build from an existing key file and read the stored path back:</span>
-<a id="__codelineno-0-208" name="__codelineno-0-208"></a><span class="sd">                ```python</span>
-<a id="__codelineno-0-209" name="__codelineno-0-209"></a><span class="sd">                &gt;&gt;&gt; import tempfile</span>
-<a id="__codelineno-0-210" name="__codelineno-0-210"></a><span class="sd">                &gt;&gt;&gt; from pathlib import Path</span>
-<a id="__codelineno-0-211" name="__codelineno-0-211"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-212" name="__codelineno-0-212"></a><span class="sd">                &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
-<a id="__codelineno-0-213" name="__codelineno-0-213"></a><span class="sd">                &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
-<a id="__codelineno-0-214" name="__codelineno-0-214"></a><span class="sd">                &gt;&gt;&gt; creds = EarthEngineCredentials.from_service_account(key)</span>
-<a id="__codelineno-0-215" name="__codelineno-0-215"></a><span class="sd">                &gt;&gt;&gt; creds.service_account_path == key</span>
-<a id="__codelineno-0-216" name="__codelineno-0-216"></a><span class="sd">                True</span>
-<a id="__codelineno-0-217" name="__codelineno-0-217"></a>
-<a id="__codelineno-0-218" name="__codelineno-0-218"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-219" name="__codelineno-0-219"></a><span class="sd">            - A missing key path is rejected early:</span>
-<a id="__codelineno-0-220" name="__codelineno-0-220"></a><span class="sd">                ```python</span>
-<a id="__codelineno-0-221" name="__codelineno-0-221"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-222" name="__codelineno-0-222"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.from_service_account(  # doctest: +ELLIPSIS</span>
-<a id="__codelineno-0-223" name="__codelineno-0-223"></a><span class="sd">                ...     &quot;/no/such/key.json&quot;</span>
-<a id="__codelineno-0-224" name="__codelineno-0-224"></a><span class="sd">                ... )</span>
-<a id="__codelineno-0-225" name="__codelineno-0-225"></a><span class="sd">                Traceback (most recent call last):</span>
-<a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="sd">                    ...</span>
-<a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="sd">                pyramids_eo.errors.AuthenticationError: ...not found...</span>
-<a id="__codelineno-0-228" name="__codelineno-0-228"></a>
-<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-230" name="__codelineno-0-230"></a><span class="sd">        &quot;&quot;&quot;</span>
-<a id="__codelineno-0-231" name="__codelineno-0-231"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
-<a id="__codelineno-0-232" name="__codelineno-0-232"></a>
-<a id="__codelineno-0-233" name="__codelineno-0-233"></a>    <span class="nd">@classmethod</span>
-<a id="__codelineno-0-234" name="__codelineno-0-234"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">application_default</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Build credentials that defer to ambient ADC (no explicit key).</span>
-<a id="__codelineno-0-236" name="__codelineno-0-236"></a>
-<a id="__codelineno-0-237" name="__codelineno-0-237"></a><span class="sd">        Returns:</span>
-<a id="__codelineno-0-238" name="__codelineno-0-238"></a><span class="sd">            Credentials with an empty :meth:`gdal_env`; GDAL resolves an</span>
-<a id="__codelineno-0-239" name="__codelineno-0-239"></a><span class="sd">            already-exported ``GOOGLE_APPLICATION_CREDENTIALS`` or ``gcloud``</span>
-<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="sd">            login at read time.</span>
+<a id="__codelineno-0-176" name="__codelineno-0-176"></a>            <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-177" name="__codelineno-0-177"></a>                <span class="n">text</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+<a id="__codelineno-0-178" name="__codelineno-0-178"></a>            <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+<a id="__codelineno-0-179" name="__codelineno-0-179"></a>                <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
+<a id="__codelineno-0-180" name="__codelineno-0-180"></a>                    <span class="s2">&quot;Earth Engine service-account info is not JSON-serialisable.&quot;</span>
+<a id="__codelineno-0-181" name="__codelineno-0-181"></a>                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+<a id="__codelineno-0-182" name="__codelineno-0-182"></a>        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+<a id="__codelineno-0-183" name="__codelineno-0-183"></a>            <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-184" name="__codelineno-0-184"></a>                <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+<a id="__codelineno-0-185" name="__codelineno-0-185"></a>            <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+<a id="__codelineno-0-186" name="__codelineno-0-186"></a>                <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
+<a id="__codelineno-0-187" name="__codelineno-0-187"></a>                    <span class="s2">&quot;Earth Engine service-account info is not valid JSON.&quot;</span>
+<a id="__codelineno-0-188" name="__codelineno-0-188"></a>                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+<a id="__codelineno-0-189" name="__codelineno-0-189"></a>            <span class="n">text</span> <span class="o">=</span> <span class="n">info</span>
+<a id="__codelineno-0-190" name="__codelineno-0-190"></a>        <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-191" name="__codelineno-0-191"></a>            <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
+<a id="__codelineno-0-192" name="__codelineno-0-192"></a>                <span class="s2">&quot;Earth Engine service-account info must be a JSON string or mapping.&quot;</span>
+<a id="__codelineno-0-193" name="__codelineno-0-193"></a>            <span class="p">)</span>
+<a id="__codelineno-0-194" name="__codelineno-0-194"></a>        <span class="n">path</span> <span class="o">=</span> <span class="n">_write_secret_json</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+<a id="__codelineno-0-195" name="__codelineno-0-195"></a>        <span class="n">creds</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+<a id="__codelineno-0-196" name="__codelineno-0-196"></a>        <span class="n">creds</span><span class="o">.</span><span class="n">_owns_path</span> <span class="o">=</span> <span class="kc">True</span>
+<a id="__codelineno-0-197" name="__codelineno-0-197"></a>        <span class="n">creds</span><span class="o">.</span><span class="n">_finalizer</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">finalize</span><span class="p">(</span><span class="n">creds</span><span class="p">,</span> <span class="n">_unlink_quiet</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+<a id="__codelineno-0-198" name="__codelineno-0-198"></a>        <span class="k">return</span> <span class="n">creds</span>
+<a id="__codelineno-0-199" name="__codelineno-0-199"></a>
+<a id="__codelineno-0-200" name="__codelineno-0-200"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-0-201" name="__codelineno-0-201"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">from_service_account</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
+<a id="__codelineno-0-202" name="__codelineno-0-202"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Build credentials from a service-account JSON key path.</span>
+<a id="__codelineno-0-203" name="__codelineno-0-203"></a>
+<a id="__codelineno-0-204" name="__codelineno-0-204"></a><span class="sd">        Args:</span>
+<a id="__codelineno-0-205" name="__codelineno-0-205"></a><span class="sd">            path: Path to the Google service-account JSON key. ``~`` is</span>
+<a id="__codelineno-0-206" name="__codelineno-0-206"></a><span class="sd">                expanded; the file must exist.</span>
+<a id="__codelineno-0-207" name="__codelineno-0-207"></a>
+<a id="__codelineno-0-208" name="__codelineno-0-208"></a><span class="sd">        Returns:</span>
+<a id="__codelineno-0-209" name="__codelineno-0-209"></a><span class="sd">            The credentials, whose :meth:`gdal_env` points GDAL at ``path``.</span>
+<a id="__codelineno-0-210" name="__codelineno-0-210"></a>
+<a id="__codelineno-0-211" name="__codelineno-0-211"></a><span class="sd">        Examples:</span>
+<a id="__codelineno-0-212" name="__codelineno-0-212"></a><span class="sd">            - Build from an existing key file and read the stored path back:</span>
+<a id="__codelineno-0-213" name="__codelineno-0-213"></a><span class="sd">                ```python</span>
+<a id="__codelineno-0-214" name="__codelineno-0-214"></a><span class="sd">                &gt;&gt;&gt; import tempfile</span>
+<a id="__codelineno-0-215" name="__codelineno-0-215"></a><span class="sd">                &gt;&gt;&gt; from pathlib import Path</span>
+<a id="__codelineno-0-216" name="__codelineno-0-216"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-217" name="__codelineno-0-217"></a><span class="sd">                &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
+<a id="__codelineno-0-218" name="__codelineno-0-218"></a><span class="sd">                &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
+<a id="__codelineno-0-219" name="__codelineno-0-219"></a><span class="sd">                &gt;&gt;&gt; creds = EarthEngineCredentials.from_service_account(key)</span>
+<a id="__codelineno-0-220" name="__codelineno-0-220"></a><span class="sd">                &gt;&gt;&gt; creds.service_account_path == key</span>
+<a id="__codelineno-0-221" name="__codelineno-0-221"></a><span class="sd">                True</span>
+<a id="__codelineno-0-222" name="__codelineno-0-222"></a>
+<a id="__codelineno-0-223" name="__codelineno-0-223"></a><span class="sd">                ```</span>
+<a id="__codelineno-0-224" name="__codelineno-0-224"></a><span class="sd">            - A missing key path is rejected early:</span>
+<a id="__codelineno-0-225" name="__codelineno-0-225"></a><span class="sd">                ```python</span>
+<a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.from_service_account(  # doctest: +ELLIPSIS</span>
+<a id="__codelineno-0-228" name="__codelineno-0-228"></a><span class="sd">                ...     &quot;/no/such/key.json&quot;</span>
+<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">                ... )</span>
+<a id="__codelineno-0-230" name="__codelineno-0-230"></a><span class="sd">                Traceback (most recent call last):</span>
+<a id="__codelineno-0-231" name="__codelineno-0-231"></a><span class="sd">                    ...</span>
+<a id="__codelineno-0-232" name="__codelineno-0-232"></a><span class="sd">                pyramids_eo.errors.AuthenticationError: ...not found...</span>
+<a id="__codelineno-0-233" name="__codelineno-0-233"></a>
+<a id="__codelineno-0-234" name="__codelineno-0-234"></a><span class="sd">                ```</span>
+<a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-236" name="__codelineno-0-236"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
+<a id="__codelineno-0-237" name="__codelineno-0-237"></a>
+<a id="__codelineno-0-238" name="__codelineno-0-238"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-0-239" name="__codelineno-0-239"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">application_default</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
+<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Build credentials that defer to ambient ADC (no explicit key).</span>
 <a id="__codelineno-0-241" name="__codelineno-0-241"></a>
-<a id="__codelineno-0-242" name="__codelineno-0-242"></a><span class="sd">        Examples:</span>
-<a id="__codelineno-0-243" name="__codelineno-0-243"></a><span class="sd">            - Application-default credentials hold no explicit key:</span>
-<a id="__codelineno-0-244" name="__codelineno-0-244"></a><span class="sd">                ```python</span>
-<a id="__codelineno-0-245" name="__codelineno-0-245"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-246" name="__codelineno-0-246"></a><span class="sd">                &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
-<a id="__codelineno-0-247" name="__codelineno-0-247"></a><span class="sd">                &gt;&gt;&gt; creds.service_account_path is None</span>
-<a id="__codelineno-0-248" name="__codelineno-0-248"></a><span class="sd">                True</span>
-<a id="__codelineno-0-249" name="__codelineno-0-249"></a><span class="sd">                &gt;&gt;&gt; creds.gdal_env()</span>
-<a id="__codelineno-0-250" name="__codelineno-0-250"></a><span class="sd">                {}</span>
-<a id="__codelineno-0-251" name="__codelineno-0-251"></a>
-<a id="__codelineno-0-252" name="__codelineno-0-252"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-253" name="__codelineno-0-253"></a><span class="sd">            - They report their mode in ``repr``:</span>
-<a id="__codelineno-0-254" name="__codelineno-0-254"></a><span class="sd">                ```python</span>
-<a id="__codelineno-0-255" name="__codelineno-0-255"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-256" name="__codelineno-0-256"></a><span class="sd">                &gt;&gt;&gt; repr(EarthEngineCredentials.application_default())</span>
-<a id="__codelineno-0-257" name="__codelineno-0-257"></a><span class="sd">                &#39;EarthEngineCredentials(application_default)&#39;</span>
-<a id="__codelineno-0-258" name="__codelineno-0-258"></a>
-<a id="__codelineno-0-259" name="__codelineno-0-259"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-260" name="__codelineno-0-260"></a><span class="sd">        &quot;&quot;&quot;</span>
-<a id="__codelineno-0-261" name="__codelineno-0-261"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-<a id="__codelineno-0-262" name="__codelineno-0-262"></a>
-<a id="__codelineno-0-263" name="__codelineno-0-263"></a>    <span class="nd">@classmethod</span>
-<a id="__codelineno-0-264" name="__codelineno-0-264"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">coerce</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Normalise a caller-supplied credentials value.</span>
-<a id="__codelineno-0-266" name="__codelineno-0-266"></a>
-<a id="__codelineno-0-267" name="__codelineno-0-267"></a><span class="sd">        Args:</span>
-<a id="__codelineno-0-268" name="__codelineno-0-268"></a><span class="sd">            credentials: An :class:`EarthEngineCredentials`, a path-like pointing</span>
-<a id="__codelineno-0-269" name="__codelineno-0-269"></a><span class="sd">                at a service-account key, a mapping of inline service-account JSON,</span>
-<a id="__codelineno-0-270" name="__codelineno-0-270"></a><span class="sd">                or ``None`` for application-default.</span>
+<a id="__codelineno-0-242" name="__codelineno-0-242"></a><span class="sd">        Returns:</span>
+<a id="__codelineno-0-243" name="__codelineno-0-243"></a><span class="sd">            Credentials with an empty :meth:`gdal_env`; GDAL resolves an</span>
+<a id="__codelineno-0-244" name="__codelineno-0-244"></a><span class="sd">            already-exported ``GOOGLE_APPLICATION_CREDENTIALS`` or ``gcloud``</span>
+<a id="__codelineno-0-245" name="__codelineno-0-245"></a><span class="sd">            login at read time.</span>
+<a id="__codelineno-0-246" name="__codelineno-0-246"></a>
+<a id="__codelineno-0-247" name="__codelineno-0-247"></a><span class="sd">        Examples:</span>
+<a id="__codelineno-0-248" name="__codelineno-0-248"></a><span class="sd">            - Application-default credentials hold no explicit key:</span>
+<a id="__codelineno-0-249" name="__codelineno-0-249"></a><span class="sd">                ```python</span>
+<a id="__codelineno-0-250" name="__codelineno-0-250"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-251" name="__codelineno-0-251"></a><span class="sd">                &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
+<a id="__codelineno-0-252" name="__codelineno-0-252"></a><span class="sd">                &gt;&gt;&gt; creds.service_account_path is None</span>
+<a id="__codelineno-0-253" name="__codelineno-0-253"></a><span class="sd">                True</span>
+<a id="__codelineno-0-254" name="__codelineno-0-254"></a><span class="sd">                &gt;&gt;&gt; creds.gdal_env()</span>
+<a id="__codelineno-0-255" name="__codelineno-0-255"></a><span class="sd">                {}</span>
+<a id="__codelineno-0-256" name="__codelineno-0-256"></a>
+<a id="__codelineno-0-257" name="__codelineno-0-257"></a><span class="sd">                ```</span>
+<a id="__codelineno-0-258" name="__codelineno-0-258"></a><span class="sd">            - They report their mode in ``repr``:</span>
+<a id="__codelineno-0-259" name="__codelineno-0-259"></a><span class="sd">                ```python</span>
+<a id="__codelineno-0-260" name="__codelineno-0-260"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-261" name="__codelineno-0-261"></a><span class="sd">                &gt;&gt;&gt; repr(EarthEngineCredentials.application_default())</span>
+<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="sd">                &#39;EarthEngineCredentials(application_default)&#39;</span>
+<a id="__codelineno-0-263" name="__codelineno-0-263"></a>
+<a id="__codelineno-0-264" name="__codelineno-0-264"></a><span class="sd">                ```</span>
+<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-266" name="__codelineno-0-266"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-0-267" name="__codelineno-0-267"></a>
+<a id="__codelineno-0-268" name="__codelineno-0-268"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-0-269" name="__codelineno-0-269"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">coerce</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
+<a id="__codelineno-0-270" name="__codelineno-0-270"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Normalise a caller-supplied credentials value.</span>
 <a id="__codelineno-0-271" name="__codelineno-0-271"></a>
-<a id="__codelineno-0-272" name="__codelineno-0-272"></a><span class="sd">        Returns:</span>
-<a id="__codelineno-0-273" name="__codelineno-0-273"></a><span class="sd">            An :class:`EarthEngineCredentials` instance.</span>
-<a id="__codelineno-0-274" name="__codelineno-0-274"></a>
-<a id="__codelineno-0-275" name="__codelineno-0-275"></a><span class="sd">        Examples:</span>
-<a id="__codelineno-0-276" name="__codelineno-0-276"></a><span class="sd">            - ``None`` becomes application-default:</span>
-<a id="__codelineno-0-277" name="__codelineno-0-277"></a><span class="sd">                ```python</span>
-<a id="__codelineno-0-278" name="__codelineno-0-278"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-279" name="__codelineno-0-279"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.coerce(None).service_account_path is None</span>
-<a id="__codelineno-0-280" name="__codelineno-0-280"></a><span class="sd">                True</span>
-<a id="__codelineno-0-281" name="__codelineno-0-281"></a>
-<a id="__codelineno-0-282" name="__codelineno-0-282"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-283" name="__codelineno-0-283"></a><span class="sd">            - An existing instance passes through unchanged:</span>
-<a id="__codelineno-0-284" name="__codelineno-0-284"></a><span class="sd">                ```python</span>
-<a id="__codelineno-0-285" name="__codelineno-0-285"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-286" name="__codelineno-0-286"></a><span class="sd">                &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
-<a id="__codelineno-0-287" name="__codelineno-0-287"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.coerce(creds) is creds</span>
-<a id="__codelineno-0-288" name="__codelineno-0-288"></a><span class="sd">                True</span>
-<a id="__codelineno-0-289" name="__codelineno-0-289"></a>
-<a id="__codelineno-0-290" name="__codelineno-0-290"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-291" name="__codelineno-0-291"></a><span class="sd">        &quot;&quot;&quot;</span>
-<a id="__codelineno-0-292" name="__codelineno-0-292"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">credentials</span><span class="p">,</span> <span class="n">EarthEngineCredentials</span><span class="p">):</span>
-<a id="__codelineno-0-293" name="__codelineno-0-293"></a>            <span class="k">return</span> <span class="n">credentials</span>
-<a id="__codelineno-0-294" name="__codelineno-0-294"></a>        <span class="k">if</span> <span class="n">credentials</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-295" name="__codelineno-0-295"></a>            <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">application_default</span><span class="p">()</span>
-<a id="__codelineno-0-296" name="__codelineno-0-296"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">credentials</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-<a id="__codelineno-0-297" name="__codelineno-0-297"></a>            <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">from_service_account_info</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
-<a id="__codelineno-0-298" name="__codelineno-0-298"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">from_service_account</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
-<a id="__codelineno-0-299" name="__codelineno-0-299"></a>
-<a id="__codelineno-0-300" name="__codelineno-0-300"></a>    <span class="nd">@property</span>
-<a id="__codelineno-0-301" name="__codelineno-0-301"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">service_account_path</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-302" name="__codelineno-0-302"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;The service-account key path, or ``None`` in application-default mode.&quot;&quot;&quot;</span>
-<a id="__codelineno-0-303" name="__codelineno-0-303"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span>
+<a id="__codelineno-0-272" name="__codelineno-0-272"></a><span class="sd">        Args:</span>
+<a id="__codelineno-0-273" name="__codelineno-0-273"></a><span class="sd">            credentials: An :class:`EarthEngineCredentials`, a path-like pointing</span>
+<a id="__codelineno-0-274" name="__codelineno-0-274"></a><span class="sd">                at a service-account key, a mapping of inline service-account JSON,</span>
+<a id="__codelineno-0-275" name="__codelineno-0-275"></a><span class="sd">                or ``None`` for application-default.</span>
+<a id="__codelineno-0-276" name="__codelineno-0-276"></a>
+<a id="__codelineno-0-277" name="__codelineno-0-277"></a><span class="sd">        Returns:</span>
+<a id="__codelineno-0-278" name="__codelineno-0-278"></a><span class="sd">            An :class:`EarthEngineCredentials` instance.</span>
+<a id="__codelineno-0-279" name="__codelineno-0-279"></a>
+<a id="__codelineno-0-280" name="__codelineno-0-280"></a><span class="sd">        Examples:</span>
+<a id="__codelineno-0-281" name="__codelineno-0-281"></a><span class="sd">            - ``None`` becomes application-default:</span>
+<a id="__codelineno-0-282" name="__codelineno-0-282"></a><span class="sd">                ```python</span>
+<a id="__codelineno-0-283" name="__codelineno-0-283"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-284" name="__codelineno-0-284"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.coerce(None).service_account_path is None</span>
+<a id="__codelineno-0-285" name="__codelineno-0-285"></a><span class="sd">                True</span>
+<a id="__codelineno-0-286" name="__codelineno-0-286"></a>
+<a id="__codelineno-0-287" name="__codelineno-0-287"></a><span class="sd">                ```</span>
+<a id="__codelineno-0-288" name="__codelineno-0-288"></a><span class="sd">            - An existing instance passes through unchanged:</span>
+<a id="__codelineno-0-289" name="__codelineno-0-289"></a><span class="sd">                ```python</span>
+<a id="__codelineno-0-290" name="__codelineno-0-290"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-291" name="__codelineno-0-291"></a><span class="sd">                &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
+<a id="__codelineno-0-292" name="__codelineno-0-292"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.coerce(creds) is creds</span>
+<a id="__codelineno-0-293" name="__codelineno-0-293"></a><span class="sd">                True</span>
+<a id="__codelineno-0-294" name="__codelineno-0-294"></a>
+<a id="__codelineno-0-295" name="__codelineno-0-295"></a><span class="sd">                ```</span>
+<a id="__codelineno-0-296" name="__codelineno-0-296"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-297" name="__codelineno-0-297"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">credentials</span><span class="p">,</span> <span class="n">EarthEngineCredentials</span><span class="p">):</span>
+<a id="__codelineno-0-298" name="__codelineno-0-298"></a>            <span class="k">return</span> <span class="n">credentials</span>
+<a id="__codelineno-0-299" name="__codelineno-0-299"></a>        <span class="k">if</span> <span class="n">credentials</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-300" name="__codelineno-0-300"></a>            <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">application_default</span><span class="p">()</span>
+<a id="__codelineno-0-301" name="__codelineno-0-301"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">credentials</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+<a id="__codelineno-0-302" name="__codelineno-0-302"></a>            <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">from_service_account_info</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
+<a id="__codelineno-0-303" name="__codelineno-0-303"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">from_service_account</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
 <a id="__codelineno-0-304" name="__codelineno-0-304"></a>
-<a id="__codelineno-0-305" name="__codelineno-0-305"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gdal_env</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
-<a id="__codelineno-0-306" name="__codelineno-0-306"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the GDAL-config mapping for this credential.</span>
-<a id="__codelineno-0-307" name="__codelineno-0-307"></a>
-<a id="__codelineno-0-308" name="__codelineno-0-308"></a><span class="sd">        Returns:</span>
-<a id="__codelineno-0-309" name="__codelineno-0-309"></a><span class="sd">            ``{&quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: &lt;path&gt;}`` for a service account,</span>
-<a id="__codelineno-0-310" name="__codelineno-0-310"></a><span class="sd">            or an empty mapping for application-default (ambient) resolution.</span>
-<a id="__codelineno-0-311" name="__codelineno-0-311"></a>
-<a id="__codelineno-0-312" name="__codelineno-0-312"></a><span class="sd">        Examples:</span>
-<a id="__codelineno-0-313" name="__codelineno-0-313"></a><span class="sd">            - Application-default carries no explicit config:</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">                ```python</span>
-<a id="__codelineno-0-315" name="__codelineno-0-315"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-316" name="__codelineno-0-316"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.application_default().gdal_env()</span>
-<a id="__codelineno-0-317" name="__codelineno-0-317"></a><span class="sd">                {}</span>
-<a id="__codelineno-0-318" name="__codelineno-0-318"></a>
-<a id="__codelineno-0-319" name="__codelineno-0-319"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-320" name="__codelineno-0-320"></a><span class="sd">            - A service account surfaces its key path for GDAL:</span>
-<a id="__codelineno-0-321" name="__codelineno-0-321"></a><span class="sd">                ```python</span>
-<a id="__codelineno-0-322" name="__codelineno-0-322"></a><span class="sd">                &gt;&gt;&gt; import tempfile</span>
-<a id="__codelineno-0-323" name="__codelineno-0-323"></a><span class="sd">                &gt;&gt;&gt; from pathlib import Path</span>
-<a id="__codelineno-0-324" name="__codelineno-0-324"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-325" name="__codelineno-0-325"></a><span class="sd">                &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
-<a id="__codelineno-0-326" name="__codelineno-0-326"></a><span class="sd">                &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
-<a id="__codelineno-0-327" name="__codelineno-0-327"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.from_service_account(key).gdal_env() == {</span>
-<a id="__codelineno-0-328" name="__codelineno-0-328"></a><span class="sd">                ...     &quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: str(key)</span>
-<a id="__codelineno-0-329" name="__codelineno-0-329"></a><span class="sd">                ... }</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330"></a><span class="sd">                True</span>
-<a id="__codelineno-0-331" name="__codelineno-0-331"></a>
-<a id="__codelineno-0-332" name="__codelineno-0-332"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333"></a><span class="sd">        &quot;&quot;&quot;</span>
-<a id="__codelineno-0-334" name="__codelineno-0-334"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-335" name="__codelineno-0-335"></a>            <span class="k">return</span> <span class="p">{}</span>
-<a id="__codelineno-0-336" name="__codelineno-0-336"></a>        <span class="k">return</span> <span class="p">{</span><span class="n">GOOGLE_APPLICATION_CREDENTIALS</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">)}</span>
-<a id="__codelineno-0-337" name="__codelineno-0-337"></a>
-<a id="__codelineno-0-338" name="__codelineno-0-338"></a>    <span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
-<a id="__codelineno-0-339" name="__codelineno-0-339"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">activate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-0-340" name="__codelineno-0-340"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply this credential&#39;s GDAL config for the duration of a ``with`` block.</span>
-<a id="__codelineno-0-341" name="__codelineno-0-341"></a>
-<a id="__codelineno-0-342" name="__codelineno-0-342"></a><span class="sd">        Sets each :meth:`gdal_env` key as a GDAL config option and restores the</span>
-<a id="__codelineno-0-343" name="__codelineno-0-343"></a><span class="sd">        previous value (or clears it) on exit, so the process-wide GDAL config is</span>
-<a id="__codelineno-0-344" name="__codelineno-0-344"></a><span class="sd">        left untouched afterwards.</span>
-<a id="__codelineno-0-345" name="__codelineno-0-345"></a>
-<a id="__codelineno-0-346" name="__codelineno-0-346"></a><span class="sd">        Note:</span>
-<a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="sd">            GDAL config options are **process-global**, so this save/restore is not</span>
-<a id="__codelineno-0-348" name="__codelineno-0-348"></a><span class="sd">            thread-safe: two threads activating different service-account</span>
-<a id="__codelineno-0-349" name="__codelineno-0-349"></a><span class="sd">            credentials concurrently would clobber each other&#39;s</span>
-<a id="__codelineno-0-350" name="__codelineno-0-350"></a><span class="sd">            ``GOOGLE_APPLICATION_CREDENTIALS``. The reader is intended for</span>
-<a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="sd">            single-threaded, single-credential use per process.</span>
-<a id="__codelineno-0-352" name="__codelineno-0-352"></a>
-<a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="sd">        Yields:</span>
-<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">            This :class:`EarthEngineCredentials` instance.</span>
-<a id="__codelineno-0-355" name="__codelineno-0-355"></a>
-<a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">        Examples:</span>
-<a id="__codelineno-0-357" name="__codelineno-0-357"></a><span class="sd">            - Application-default activation is a no-op that yields the credentials:</span>
-<a id="__codelineno-0-358" name="__codelineno-0-358"></a><span class="sd">                ```python</span>
-<a id="__codelineno-0-359" name="__codelineno-0-359"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-360" name="__codelineno-0-360"></a><span class="sd">                &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
-<a id="__codelineno-0-361" name="__codelineno-0-361"></a><span class="sd">                &gt;&gt;&gt; with creds.activate() as active:</span>
-<a id="__codelineno-0-362" name="__codelineno-0-362"></a><span class="sd">                ...     active is creds</span>
-<a id="__codelineno-0-363" name="__codelineno-0-363"></a><span class="sd">                True</span>
-<a id="__codelineno-0-364" name="__codelineno-0-364"></a>
-<a id="__codelineno-0-365" name="__codelineno-0-365"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-366" name="__codelineno-0-366"></a><span class="sd">        &quot;&quot;&quot;</span>
-<a id="__codelineno-0-367" name="__codelineno-0-367"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
-<a id="__codelineno-0-368" name="__codelineno-0-368"></a>
-<a id="__codelineno-0-369" name="__codelineno-0-369"></a>        <span class="n">env</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span>
-<a id="__codelineno-0-370" name="__codelineno-0-370"></a>        <span class="n">previous</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-0-371" name="__codelineno-0-371"></a>        <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-372" name="__codelineno-0-372"></a>            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-373" name="__codelineno-0-373"></a>                <span class="n">previous</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">GetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-<a id="__codelineno-0-374" name="__codelineno-0-374"></a>                <span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-<a id="__codelineno-0-375" name="__codelineno-0-375"></a>            <span class="k">yield</span> <span class="bp">self</span>
-<a id="__codelineno-0-376" name="__codelineno-0-376"></a>        <span class="k">finally</span><span class="p">:</span>
-<a id="__codelineno-0-377" name="__codelineno-0-377"></a>            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">old</span> <span class="ow">in</span> <span class="n">previous</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-378" name="__codelineno-0-378"></a>                <span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">old</span><span class="p">)</span>
-<a id="__codelineno-0-379" name="__codelineno-0-379"></a>
-<a id="__codelineno-0-380" name="__codelineno-0-380"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-0-381" name="__codelineno-0-381"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-382" name="__codelineno-0-382"></a>            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(application_default)&quot;</span>
-<a id="__codelineno-0-383" name="__codelineno-0-383"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_owns_path</span><span class="p">:</span>
-<a id="__codelineno-0-384" name="__codelineno-0-384"></a>            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(service_account_info=&lt;redacted&gt;)&quot;</span>
-<a id="__codelineno-0-385" name="__codelineno-0-385"></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(service_account_json=</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">)</span><span class="si">!r}</span><span class="s2">)&quot;</span>
+<a id="__codelineno-0-305" name="__codelineno-0-305"></a>    <span class="nd">@property</span>
+<a id="__codelineno-0-306" name="__codelineno-0-306"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">service_account_path</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-307" name="__codelineno-0-307"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;The service-account key path, or ``None`` in application-default mode.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-308" name="__codelineno-0-308"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span>
+<a id="__codelineno-0-309" name="__codelineno-0-309"></a>
+<a id="__codelineno-0-310" name="__codelineno-0-310"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gdal_env</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the GDAL-config mapping for this credential.</span>
+<a id="__codelineno-0-312" name="__codelineno-0-312"></a>
+<a id="__codelineno-0-313" name="__codelineno-0-313"></a><span class="sd">        Returns:</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">            ``{&quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: &lt;path&gt;}`` for a service account,</span>
+<a id="__codelineno-0-315" name="__codelineno-0-315"></a><span class="sd">            or an empty mapping for application-default (ambient) resolution.</span>
+<a id="__codelineno-0-316" name="__codelineno-0-316"></a>
+<a id="__codelineno-0-317" name="__codelineno-0-317"></a><span class="sd">        Examples:</span>
+<a id="__codelineno-0-318" name="__codelineno-0-318"></a><span class="sd">            - Application-default carries no explicit config:</span>
+<a id="__codelineno-0-319" name="__codelineno-0-319"></a><span class="sd">                ```python</span>
+<a id="__codelineno-0-320" name="__codelineno-0-320"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-321" name="__codelineno-0-321"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.application_default().gdal_env()</span>
+<a id="__codelineno-0-322" name="__codelineno-0-322"></a><span class="sd">                {}</span>
+<a id="__codelineno-0-323" name="__codelineno-0-323"></a>
+<a id="__codelineno-0-324" name="__codelineno-0-324"></a><span class="sd">                ```</span>
+<a id="__codelineno-0-325" name="__codelineno-0-325"></a><span class="sd">            - A service account surfaces its key path for GDAL:</span>
+<a id="__codelineno-0-326" name="__codelineno-0-326"></a><span class="sd">                ```python</span>
+<a id="__codelineno-0-327" name="__codelineno-0-327"></a><span class="sd">                &gt;&gt;&gt; import tempfile</span>
+<a id="__codelineno-0-328" name="__codelineno-0-328"></a><span class="sd">                &gt;&gt;&gt; from pathlib import Path</span>
+<a id="__codelineno-0-329" name="__codelineno-0-329"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a><span class="sd">                &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
+<a id="__codelineno-0-331" name="__codelineno-0-331"></a><span class="sd">                &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
+<a id="__codelineno-0-332" name="__codelineno-0-332"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.from_service_account(key).gdal_env() == {</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a><span class="sd">                ...     &quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: str(key)</span>
+<a id="__codelineno-0-334" name="__codelineno-0-334"></a><span class="sd">                ... }</span>
+<a id="__codelineno-0-335" name="__codelineno-0-335"></a><span class="sd">                True</span>
+<a id="__codelineno-0-336" name="__codelineno-0-336"></a>
+<a id="__codelineno-0-337" name="__codelineno-0-337"></a><span class="sd">                ```</span>
+<a id="__codelineno-0-338" name="__codelineno-0-338"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-339" name="__codelineno-0-339"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-340" name="__codelineno-0-340"></a>            <span class="k">return</span> <span class="p">{}</span>
+<a id="__codelineno-0-341" name="__codelineno-0-341"></a>        <span class="k">return</span> <span class="p">{</span><span class="n">GOOGLE_APPLICATION_CREDENTIALS</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">)}</span>
+<a id="__codelineno-0-342" name="__codelineno-0-342"></a>
+<a id="__codelineno-0-343" name="__codelineno-0-343"></a>    <span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+<a id="__codelineno-0-344" name="__codelineno-0-344"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">activate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-0-345" name="__codelineno-0-345"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply this credential&#39;s GDAL config for the duration of a ``with`` block.</span>
+<a id="__codelineno-0-346" name="__codelineno-0-346"></a>
+<a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="sd">        Sets each :meth:`gdal_env` key as a GDAL config option and restores the</span>
+<a id="__codelineno-0-348" name="__codelineno-0-348"></a><span class="sd">        previous value (or clears it) on exit, so the process-wide GDAL config is</span>
+<a id="__codelineno-0-349" name="__codelineno-0-349"></a><span class="sd">        left untouched afterwards.</span>
+<a id="__codelineno-0-350" name="__codelineno-0-350"></a>
+<a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="sd">        Note:</span>
+<a id="__codelineno-0-352" name="__codelineno-0-352"></a><span class="sd">            GDAL config options are **process-global**, so this save/restore is not</span>
+<a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="sd">            thread-safe: two threads activating different service-account</span>
+<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">            credentials concurrently would clobber each other&#39;s</span>
+<a id="__codelineno-0-355" name="__codelineno-0-355"></a><span class="sd">            ``GOOGLE_APPLICATION_CREDENTIALS``. The reader is intended for</span>
+<a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">            single-threaded, single-credential use per process.</span>
+<a id="__codelineno-0-357" name="__codelineno-0-357"></a>
+<a id="__codelineno-0-358" name="__codelineno-0-358"></a><span class="sd">        Yields:</span>
+<a id="__codelineno-0-359" name="__codelineno-0-359"></a><span class="sd">            This :class:`EarthEngineCredentials` instance.</span>
+<a id="__codelineno-0-360" name="__codelineno-0-360"></a>
+<a id="__codelineno-0-361" name="__codelineno-0-361"></a><span class="sd">        Examples:</span>
+<a id="__codelineno-0-362" name="__codelineno-0-362"></a><span class="sd">            - Application-default activation is a no-op that yields the credentials:</span>
+<a id="__codelineno-0-363" name="__codelineno-0-363"></a><span class="sd">                ```python</span>
+<a id="__codelineno-0-364" name="__codelineno-0-364"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-365" name="__codelineno-0-365"></a><span class="sd">                &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366"></a><span class="sd">                &gt;&gt;&gt; with creds.activate() as active:</span>
+<a id="__codelineno-0-367" name="__codelineno-0-367"></a><span class="sd">                ...     active is creds</span>
+<a id="__codelineno-0-368" name="__codelineno-0-368"></a><span class="sd">                True</span>
+<a id="__codelineno-0-369" name="__codelineno-0-369"></a>
+<a id="__codelineno-0-370" name="__codelineno-0-370"></a><span class="sd">                ```</span>
+<a id="__codelineno-0-371" name="__codelineno-0-371"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-372" name="__codelineno-0-372"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
+<a id="__codelineno-0-373" name="__codelineno-0-373"></a>
+<a id="__codelineno-0-374" name="__codelineno-0-374"></a>        <span class="n">env</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span>
+<a id="__codelineno-0-375" name="__codelineno-0-375"></a>        <span class="n">previous</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-0-376" name="__codelineno-0-376"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-377" name="__codelineno-0-377"></a>            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-378" name="__codelineno-0-378"></a>                <span class="n">previous</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">GetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-0-379" name="__codelineno-0-379"></a>                <span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+<a id="__codelineno-0-380" name="__codelineno-0-380"></a>            <span class="k">yield</span> <span class="bp">self</span>
+<a id="__codelineno-0-381" name="__codelineno-0-381"></a>        <span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-0-382" name="__codelineno-0-382"></a>            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">old</span> <span class="ow">in</span> <span class="n">previous</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-383" name="__codelineno-0-383"></a>                <span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">old</span><span class="p">)</span>
+<a id="__codelineno-0-384" name="__codelineno-0-384"></a>
+<a id="__codelineno-0-385" name="__codelineno-0-385"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-0-386" name="__codelineno-0-386"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-387" name="__codelineno-0-387"></a>            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(application_default)&quot;</span>
+<a id="__codelineno-0-388" name="__codelineno-0-388"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_owns_path</span><span class="p">:</span>
+<a id="__codelineno-0-389" name="__codelineno-0-389"></a>            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(service_account_info=&lt;redacted&gt;)&quot;</span>
+<a id="__codelineno-0-390" name="__codelineno-0-390"></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(service_account_json=</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">)</span><span class="si">!r}</span><span class="s2">)&quot;</span>
 </code></pre></div></td></tr></table></div>
               </details>
 
@@ -2225,7 +2235,12 @@ mapping.</p>
 <span class="normal"><a href="#__codelineno-0-190">190</a></span>
 <span class="normal"><a href="#__codelineno-0-191">191</a></span>
 <span class="normal"><a href="#__codelineno-0-192">192</a></span>
-<span class="normal"><a href="#__codelineno-0-193">193</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-130" name="__codelineno-0-130"></a><span class="nd">@classmethod</span>
+<span class="normal"><a href="#__codelineno-0-193">193</a></span>
+<span class="normal"><a href="#__codelineno-0-194">194</a></span>
+<span class="normal"><a href="#__codelineno-0-195">195</a></span>
+<span class="normal"><a href="#__codelineno-0-196">196</a></span>
+<span class="normal"><a href="#__codelineno-0-197">197</a></span>
+<span class="normal"><a href="#__codelineno-0-198">198</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-130" name="__codelineno-0-130"></a><span class="nd">@classmethod</span>
 <a id="__codelineno-0-131" name="__codelineno-0-131"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_service_account_info</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">info</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
 <a id="__codelineno-0-132" name="__codelineno-0-132"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build credentials from inline service-account JSON (string or mapping).</span>
 <a id="__codelineno-0-133" name="__codelineno-0-133"></a>
@@ -2271,24 +2286,29 @@ mapping.</p>
 <a id="__codelineno-0-173" name="__codelineno-0-173"></a><span class="sd">            ```</span>
 <a id="__codelineno-0-174" name="__codelineno-0-174"></a><span class="sd">    &quot;&quot;&quot;</span>
 <a id="__codelineno-0-175" name="__codelineno-0-175"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-<a id="__codelineno-0-176" name="__codelineno-0-176"></a>        <span class="n">text</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
-<a id="__codelineno-0-177" name="__codelineno-0-177"></a>    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-<a id="__codelineno-0-178" name="__codelineno-0-178"></a>        <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-179" name="__codelineno-0-179"></a>            <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
-<a id="__codelineno-0-180" name="__codelineno-0-180"></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-<a id="__codelineno-0-181" name="__codelineno-0-181"></a>            <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
-<a id="__codelineno-0-182" name="__codelineno-0-182"></a>                <span class="s2">&quot;Earth Engine service-account info is not valid JSON.&quot;</span>
-<a id="__codelineno-0-183" name="__codelineno-0-183"></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-<a id="__codelineno-0-184" name="__codelineno-0-184"></a>        <span class="n">text</span> <span class="o">=</span> <span class="n">info</span>
-<a id="__codelineno-0-185" name="__codelineno-0-185"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-186" name="__codelineno-0-186"></a>        <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
-<a id="__codelineno-0-187" name="__codelineno-0-187"></a>            <span class="s2">&quot;Earth Engine service-account info must be a JSON string or mapping.&quot;</span>
-<a id="__codelineno-0-188" name="__codelineno-0-188"></a>        <span class="p">)</span>
-<a id="__codelineno-0-189" name="__codelineno-0-189"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">_write_secret_json</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
-<a id="__codelineno-0-190" name="__codelineno-0-190"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-<a id="__codelineno-0-191" name="__codelineno-0-191"></a>    <span class="n">creds</span><span class="o">.</span><span class="n">_owns_path</span> <span class="o">=</span> <span class="kc">True</span>
-<a id="__codelineno-0-192" name="__codelineno-0-192"></a>    <span class="n">creds</span><span class="o">.</span><span class="n">_finalizer</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">finalize</span><span class="p">(</span><span class="n">creds</span><span class="p">,</span> <span class="n">_unlink_quiet</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
-<a id="__codelineno-0-193" name="__codelineno-0-193"></a>    <span class="k">return</span> <span class="n">creds</span>
+<a id="__codelineno-0-176" name="__codelineno-0-176"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-177" name="__codelineno-0-177"></a>            <span class="n">text</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+<a id="__codelineno-0-178" name="__codelineno-0-178"></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+<a id="__codelineno-0-179" name="__codelineno-0-179"></a>            <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
+<a id="__codelineno-0-180" name="__codelineno-0-180"></a>                <span class="s2">&quot;Earth Engine service-account info is not JSON-serialisable.&quot;</span>
+<a id="__codelineno-0-181" name="__codelineno-0-181"></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+<a id="__codelineno-0-182" name="__codelineno-0-182"></a>    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+<a id="__codelineno-0-183" name="__codelineno-0-183"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-184" name="__codelineno-0-184"></a>            <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+<a id="__codelineno-0-185" name="__codelineno-0-185"></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+<a id="__codelineno-0-186" name="__codelineno-0-186"></a>            <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
+<a id="__codelineno-0-187" name="__codelineno-0-187"></a>                <span class="s2">&quot;Earth Engine service-account info is not valid JSON.&quot;</span>
+<a id="__codelineno-0-188" name="__codelineno-0-188"></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+<a id="__codelineno-0-189" name="__codelineno-0-189"></a>        <span class="n">text</span> <span class="o">=</span> <span class="n">info</span>
+<a id="__codelineno-0-190" name="__codelineno-0-190"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-191" name="__codelineno-0-191"></a>        <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
+<a id="__codelineno-0-192" name="__codelineno-0-192"></a>            <span class="s2">&quot;Earth Engine service-account info must be a JSON string or mapping.&quot;</span>
+<a id="__codelineno-0-193" name="__codelineno-0-193"></a>        <span class="p">)</span>
+<a id="__codelineno-0-194" name="__codelineno-0-194"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">_write_secret_json</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+<a id="__codelineno-0-195" name="__codelineno-0-195"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+<a id="__codelineno-0-196" name="__codelineno-0-196"></a>    <span class="n">creds</span><span class="o">.</span><span class="n">_owns_path</span> <span class="o">=</span> <span class="kc">True</span>
+<a id="__codelineno-0-197" name="__codelineno-0-197"></a>    <span class="n">creds</span><span class="o">.</span><span class="n">_finalizer</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">finalize</span><span class="p">(</span><span class="n">creds</span><span class="p">,</span> <span class="n">_unlink_quiet</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+<a id="__codelineno-0-198" name="__codelineno-0-198"></a>    <span class="k">return</span> <span class="n">creds</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2394,12 +2414,7 @@ expanded; the file must exist.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/earthengine/credentials.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-195">195</a></span>
-<span class="normal"><a href="#__codelineno-0-196">196</a></span>
-<span class="normal"><a href="#__codelineno-0-197">197</a></span>
-<span class="normal"><a href="#__codelineno-0-198">198</a></span>
-<span class="normal"><a href="#__codelineno-0-199">199</a></span>
-<span class="normal"><a href="#__codelineno-0-200">200</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-200">200</a></span>
 <span class="normal"><a href="#__codelineno-0-201">201</a></span>
 <span class="normal"><a href="#__codelineno-0-202">202</a></span>
 <span class="normal"><a href="#__codelineno-0-203">203</a></span>
@@ -2430,43 +2445,48 @@ expanded; the file must exist.</p>
 <span class="normal"><a href="#__codelineno-0-228">228</a></span>
 <span class="normal"><a href="#__codelineno-0-229">229</a></span>
 <span class="normal"><a href="#__codelineno-0-230">230</a></span>
-<span class="normal"><a href="#__codelineno-0-231">231</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-195" name="__codelineno-0-195"></a><span class="nd">@classmethod</span>
-<a id="__codelineno-0-196" name="__codelineno-0-196"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_service_account</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-197" name="__codelineno-0-197"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build credentials from a service-account JSON key path.</span>
-<a id="__codelineno-0-198" name="__codelineno-0-198"></a>
-<a id="__codelineno-0-199" name="__codelineno-0-199"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-200" name="__codelineno-0-200"></a><span class="sd">        path: Path to the Google service-account JSON key. ``~`` is</span>
-<a id="__codelineno-0-201" name="__codelineno-0-201"></a><span class="sd">            expanded; the file must exist.</span>
-<a id="__codelineno-0-202" name="__codelineno-0-202"></a>
-<a id="__codelineno-0-203" name="__codelineno-0-203"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-204" name="__codelineno-0-204"></a><span class="sd">        The credentials, whose :meth:`gdal_env` points GDAL at ``path``.</span>
-<a id="__codelineno-0-205" name="__codelineno-0-205"></a>
-<a id="__codelineno-0-206" name="__codelineno-0-206"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-207" name="__codelineno-0-207"></a><span class="sd">        - Build from an existing key file and read the stored path back:</span>
-<a id="__codelineno-0-208" name="__codelineno-0-208"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-209" name="__codelineno-0-209"></a><span class="sd">            &gt;&gt;&gt; import tempfile</span>
-<a id="__codelineno-0-210" name="__codelineno-0-210"></a><span class="sd">            &gt;&gt;&gt; from pathlib import Path</span>
-<a id="__codelineno-0-211" name="__codelineno-0-211"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-212" name="__codelineno-0-212"></a><span class="sd">            &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
-<a id="__codelineno-0-213" name="__codelineno-0-213"></a><span class="sd">            &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
-<a id="__codelineno-0-214" name="__codelineno-0-214"></a><span class="sd">            &gt;&gt;&gt; creds = EarthEngineCredentials.from_service_account(key)</span>
-<a id="__codelineno-0-215" name="__codelineno-0-215"></a><span class="sd">            &gt;&gt;&gt; creds.service_account_path == key</span>
-<a id="__codelineno-0-216" name="__codelineno-0-216"></a><span class="sd">            True</span>
-<a id="__codelineno-0-217" name="__codelineno-0-217"></a>
-<a id="__codelineno-0-218" name="__codelineno-0-218"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-219" name="__codelineno-0-219"></a><span class="sd">        - A missing key path is rejected early:</span>
-<a id="__codelineno-0-220" name="__codelineno-0-220"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-221" name="__codelineno-0-221"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-222" name="__codelineno-0-222"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.from_service_account(  # doctest: +ELLIPSIS</span>
-<a id="__codelineno-0-223" name="__codelineno-0-223"></a><span class="sd">            ...     &quot;/no/such/key.json&quot;</span>
-<a id="__codelineno-0-224" name="__codelineno-0-224"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-225" name="__codelineno-0-225"></a><span class="sd">            Traceback (most recent call last):</span>
-<a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="sd">                ...</span>
-<a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="sd">            pyramids_eo.errors.AuthenticationError: ...not found...</span>
-<a id="__codelineno-0-228" name="__codelineno-0-228"></a>
-<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-230" name="__codelineno-0-230"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-231" name="__codelineno-0-231"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-231">231</a></span>
+<span class="normal"><a href="#__codelineno-0-232">232</a></span>
+<span class="normal"><a href="#__codelineno-0-233">233</a></span>
+<span class="normal"><a href="#__codelineno-0-234">234</a></span>
+<span class="normal"><a href="#__codelineno-0-235">235</a></span>
+<span class="normal"><a href="#__codelineno-0-236">236</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-200" name="__codelineno-0-200"></a><span class="nd">@classmethod</span>
+<a id="__codelineno-0-201" name="__codelineno-0-201"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_service_account</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
+<a id="__codelineno-0-202" name="__codelineno-0-202"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build credentials from a service-account JSON key path.</span>
+<a id="__codelineno-0-203" name="__codelineno-0-203"></a>
+<a id="__codelineno-0-204" name="__codelineno-0-204"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-205" name="__codelineno-0-205"></a><span class="sd">        path: Path to the Google service-account JSON key. ``~`` is</span>
+<a id="__codelineno-0-206" name="__codelineno-0-206"></a><span class="sd">            expanded; the file must exist.</span>
+<a id="__codelineno-0-207" name="__codelineno-0-207"></a>
+<a id="__codelineno-0-208" name="__codelineno-0-208"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-209" name="__codelineno-0-209"></a><span class="sd">        The credentials, whose :meth:`gdal_env` points GDAL at ``path``.</span>
+<a id="__codelineno-0-210" name="__codelineno-0-210"></a>
+<a id="__codelineno-0-211" name="__codelineno-0-211"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-212" name="__codelineno-0-212"></a><span class="sd">        - Build from an existing key file and read the stored path back:</span>
+<a id="__codelineno-0-213" name="__codelineno-0-213"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-214" name="__codelineno-0-214"></a><span class="sd">            &gt;&gt;&gt; import tempfile</span>
+<a id="__codelineno-0-215" name="__codelineno-0-215"></a><span class="sd">            &gt;&gt;&gt; from pathlib import Path</span>
+<a id="__codelineno-0-216" name="__codelineno-0-216"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-217" name="__codelineno-0-217"></a><span class="sd">            &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
+<a id="__codelineno-0-218" name="__codelineno-0-218"></a><span class="sd">            &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
+<a id="__codelineno-0-219" name="__codelineno-0-219"></a><span class="sd">            &gt;&gt;&gt; creds = EarthEngineCredentials.from_service_account(key)</span>
+<a id="__codelineno-0-220" name="__codelineno-0-220"></a><span class="sd">            &gt;&gt;&gt; creds.service_account_path == key</span>
+<a id="__codelineno-0-221" name="__codelineno-0-221"></a><span class="sd">            True</span>
+<a id="__codelineno-0-222" name="__codelineno-0-222"></a>
+<a id="__codelineno-0-223" name="__codelineno-0-223"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-224" name="__codelineno-0-224"></a><span class="sd">        - A missing key path is rejected early:</span>
+<a id="__codelineno-0-225" name="__codelineno-0-225"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.from_service_account(  # doctest: +ELLIPSIS</span>
+<a id="__codelineno-0-228" name="__codelineno-0-228"></a><span class="sd">            ...     &quot;/no/such/key.json&quot;</span>
+<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-230" name="__codelineno-0-230"></a><span class="sd">            Traceback (most recent call last):</span>
+<a id="__codelineno-0-231" name="__codelineno-0-231"></a><span class="sd">                ...</span>
+<a id="__codelineno-0-232" name="__codelineno-0-232"></a><span class="sd">            pyramids_eo.errors.AuthenticationError: ...not found...</span>
+<a id="__codelineno-0-233" name="__codelineno-0-233"></a>
+<a id="__codelineno-0-234" name="__codelineno-0-234"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-236" name="__codelineno-0-236"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2554,12 +2574,7 @@ expanded; the file must exist.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/earthengine/credentials.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-233">233</a></span>
-<span class="normal"><a href="#__codelineno-0-234">234</a></span>
-<span class="normal"><a href="#__codelineno-0-235">235</a></span>
-<span class="normal"><a href="#__codelineno-0-236">236</a></span>
-<span class="normal"><a href="#__codelineno-0-237">237</a></span>
-<span class="normal"><a href="#__codelineno-0-238">238</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-238">238</a></span>
 <span class="normal"><a href="#__codelineno-0-239">239</a></span>
 <span class="normal"><a href="#__codelineno-0-240">240</a></span>
 <span class="normal"><a href="#__codelineno-0-241">241</a></span>
@@ -2582,35 +2597,40 @@ expanded; the file must exist.</p>
 <span class="normal"><a href="#__codelineno-0-258">258</a></span>
 <span class="normal"><a href="#__codelineno-0-259">259</a></span>
 <span class="normal"><a href="#__codelineno-0-260">260</a></span>
-<span class="normal"><a href="#__codelineno-0-261">261</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-233" name="__codelineno-0-233"></a><span class="nd">@classmethod</span>
-<a id="__codelineno-0-234" name="__codelineno-0-234"></a><span class="k">def</span><span class="w"> </span><span class="nf">application_default</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build credentials that defer to ambient ADC (no explicit key).</span>
-<a id="__codelineno-0-236" name="__codelineno-0-236"></a>
-<a id="__codelineno-0-237" name="__codelineno-0-237"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-238" name="__codelineno-0-238"></a><span class="sd">        Credentials with an empty :meth:`gdal_env`; GDAL resolves an</span>
-<a id="__codelineno-0-239" name="__codelineno-0-239"></a><span class="sd">        already-exported ``GOOGLE_APPLICATION_CREDENTIALS`` or ``gcloud``</span>
-<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="sd">        login at read time.</span>
+<span class="normal"><a href="#__codelineno-0-261">261</a></span>
+<span class="normal"><a href="#__codelineno-0-262">262</a></span>
+<span class="normal"><a href="#__codelineno-0-263">263</a></span>
+<span class="normal"><a href="#__codelineno-0-264">264</a></span>
+<span class="normal"><a href="#__codelineno-0-265">265</a></span>
+<span class="normal"><a href="#__codelineno-0-266">266</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-238" name="__codelineno-0-238"></a><span class="nd">@classmethod</span>
+<a id="__codelineno-0-239" name="__codelineno-0-239"></a><span class="k">def</span><span class="w"> </span><span class="nf">application_default</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
+<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build credentials that defer to ambient ADC (no explicit key).</span>
 <a id="__codelineno-0-241" name="__codelineno-0-241"></a>
-<a id="__codelineno-0-242" name="__codelineno-0-242"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-243" name="__codelineno-0-243"></a><span class="sd">        - Application-default credentials hold no explicit key:</span>
-<a id="__codelineno-0-244" name="__codelineno-0-244"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-245" name="__codelineno-0-245"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-246" name="__codelineno-0-246"></a><span class="sd">            &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
-<a id="__codelineno-0-247" name="__codelineno-0-247"></a><span class="sd">            &gt;&gt;&gt; creds.service_account_path is None</span>
-<a id="__codelineno-0-248" name="__codelineno-0-248"></a><span class="sd">            True</span>
-<a id="__codelineno-0-249" name="__codelineno-0-249"></a><span class="sd">            &gt;&gt;&gt; creds.gdal_env()</span>
-<a id="__codelineno-0-250" name="__codelineno-0-250"></a><span class="sd">            {}</span>
-<a id="__codelineno-0-251" name="__codelineno-0-251"></a>
-<a id="__codelineno-0-252" name="__codelineno-0-252"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-253" name="__codelineno-0-253"></a><span class="sd">        - They report their mode in ``repr``:</span>
-<a id="__codelineno-0-254" name="__codelineno-0-254"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-255" name="__codelineno-0-255"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-256" name="__codelineno-0-256"></a><span class="sd">            &gt;&gt;&gt; repr(EarthEngineCredentials.application_default())</span>
-<a id="__codelineno-0-257" name="__codelineno-0-257"></a><span class="sd">            &#39;EarthEngineCredentials(application_default)&#39;</span>
-<a id="__codelineno-0-258" name="__codelineno-0-258"></a>
-<a id="__codelineno-0-259" name="__codelineno-0-259"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-260" name="__codelineno-0-260"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-261" name="__codelineno-0-261"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-0-242" name="__codelineno-0-242"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-243" name="__codelineno-0-243"></a><span class="sd">        Credentials with an empty :meth:`gdal_env`; GDAL resolves an</span>
+<a id="__codelineno-0-244" name="__codelineno-0-244"></a><span class="sd">        already-exported ``GOOGLE_APPLICATION_CREDENTIALS`` or ``gcloud``</span>
+<a id="__codelineno-0-245" name="__codelineno-0-245"></a><span class="sd">        login at read time.</span>
+<a id="__codelineno-0-246" name="__codelineno-0-246"></a>
+<a id="__codelineno-0-247" name="__codelineno-0-247"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-248" name="__codelineno-0-248"></a><span class="sd">        - Application-default credentials hold no explicit key:</span>
+<a id="__codelineno-0-249" name="__codelineno-0-249"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-250" name="__codelineno-0-250"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-251" name="__codelineno-0-251"></a><span class="sd">            &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
+<a id="__codelineno-0-252" name="__codelineno-0-252"></a><span class="sd">            &gt;&gt;&gt; creds.service_account_path is None</span>
+<a id="__codelineno-0-253" name="__codelineno-0-253"></a><span class="sd">            True</span>
+<a id="__codelineno-0-254" name="__codelineno-0-254"></a><span class="sd">            &gt;&gt;&gt; creds.gdal_env()</span>
+<a id="__codelineno-0-255" name="__codelineno-0-255"></a><span class="sd">            {}</span>
+<a id="__codelineno-0-256" name="__codelineno-0-256"></a>
+<a id="__codelineno-0-257" name="__codelineno-0-257"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-258" name="__codelineno-0-258"></a><span class="sd">        - They report their mode in ``repr``:</span>
+<a id="__codelineno-0-259" name="__codelineno-0-259"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-260" name="__codelineno-0-260"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-261" name="__codelineno-0-261"></a><span class="sd">            &gt;&gt;&gt; repr(EarthEngineCredentials.application_default())</span>
+<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="sd">            &#39;EarthEngineCredentials(application_default)&#39;</span>
+<a id="__codelineno-0-263" name="__codelineno-0-263"></a>
+<a id="__codelineno-0-264" name="__codelineno-0-264"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-266" name="__codelineno-0-266"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2709,12 +2729,7 @@ or <code>None</code> for application-default.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/earthengine/credentials.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-263">263</a></span>
-<span class="normal"><a href="#__codelineno-0-264">264</a></span>
-<span class="normal"><a href="#__codelineno-0-265">265</a></span>
-<span class="normal"><a href="#__codelineno-0-266">266</a></span>
-<span class="normal"><a href="#__codelineno-0-267">267</a></span>
-<span class="normal"><a href="#__codelineno-0-268">268</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-268">268</a></span>
 <span class="normal"><a href="#__codelineno-0-269">269</a></span>
 <span class="normal"><a href="#__codelineno-0-270">270</a></span>
 <span class="normal"><a href="#__codelineno-0-271">271</a></span>
@@ -2744,42 +2759,47 @@ or <code>None</code> for application-default.</p>
 <span class="normal"><a href="#__codelineno-0-295">295</a></span>
 <span class="normal"><a href="#__codelineno-0-296">296</a></span>
 <span class="normal"><a href="#__codelineno-0-297">297</a></span>
-<span class="normal"><a href="#__codelineno-0-298">298</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-263" name="__codelineno-0-263"></a><span class="nd">@classmethod</span>
-<a id="__codelineno-0-264" name="__codelineno-0-264"></a><span class="k">def</span><span class="w"> </span><span class="nf">coerce</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalise a caller-supplied credentials value.</span>
-<a id="__codelineno-0-266" name="__codelineno-0-266"></a>
-<a id="__codelineno-0-267" name="__codelineno-0-267"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-268" name="__codelineno-0-268"></a><span class="sd">        credentials: An :class:`EarthEngineCredentials`, a path-like pointing</span>
-<a id="__codelineno-0-269" name="__codelineno-0-269"></a><span class="sd">            at a service-account key, a mapping of inline service-account JSON,</span>
-<a id="__codelineno-0-270" name="__codelineno-0-270"></a><span class="sd">            or ``None`` for application-default.</span>
+<span class="normal"><a href="#__codelineno-0-298">298</a></span>
+<span class="normal"><a href="#__codelineno-0-299">299</a></span>
+<span class="normal"><a href="#__codelineno-0-300">300</a></span>
+<span class="normal"><a href="#__codelineno-0-301">301</a></span>
+<span class="normal"><a href="#__codelineno-0-302">302</a></span>
+<span class="normal"><a href="#__codelineno-0-303">303</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-268" name="__codelineno-0-268"></a><span class="nd">@classmethod</span>
+<a id="__codelineno-0-269" name="__codelineno-0-269"></a><span class="k">def</span><span class="w"> </span><span class="nf">coerce</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
+<a id="__codelineno-0-270" name="__codelineno-0-270"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalise a caller-supplied credentials value.</span>
 <a id="__codelineno-0-271" name="__codelineno-0-271"></a>
-<a id="__codelineno-0-272" name="__codelineno-0-272"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-273" name="__codelineno-0-273"></a><span class="sd">        An :class:`EarthEngineCredentials` instance.</span>
-<a id="__codelineno-0-274" name="__codelineno-0-274"></a>
-<a id="__codelineno-0-275" name="__codelineno-0-275"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-276" name="__codelineno-0-276"></a><span class="sd">        - ``None`` becomes application-default:</span>
-<a id="__codelineno-0-277" name="__codelineno-0-277"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-278" name="__codelineno-0-278"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-279" name="__codelineno-0-279"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.coerce(None).service_account_path is None</span>
-<a id="__codelineno-0-280" name="__codelineno-0-280"></a><span class="sd">            True</span>
-<a id="__codelineno-0-281" name="__codelineno-0-281"></a>
-<a id="__codelineno-0-282" name="__codelineno-0-282"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-283" name="__codelineno-0-283"></a><span class="sd">        - An existing instance passes through unchanged:</span>
-<a id="__codelineno-0-284" name="__codelineno-0-284"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-285" name="__codelineno-0-285"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-286" name="__codelineno-0-286"></a><span class="sd">            &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
-<a id="__codelineno-0-287" name="__codelineno-0-287"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.coerce(creds) is creds</span>
-<a id="__codelineno-0-288" name="__codelineno-0-288"></a><span class="sd">            True</span>
-<a id="__codelineno-0-289" name="__codelineno-0-289"></a>
-<a id="__codelineno-0-290" name="__codelineno-0-290"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-291" name="__codelineno-0-291"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-292" name="__codelineno-0-292"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">credentials</span><span class="p">,</span> <span class="n">EarthEngineCredentials</span><span class="p">):</span>
-<a id="__codelineno-0-293" name="__codelineno-0-293"></a>        <span class="k">return</span> <span class="n">credentials</span>
-<a id="__codelineno-0-294" name="__codelineno-0-294"></a>    <span class="k">if</span> <span class="n">credentials</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-295" name="__codelineno-0-295"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">application_default</span><span class="p">()</span>
-<a id="__codelineno-0-296" name="__codelineno-0-296"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">credentials</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-<a id="__codelineno-0-297" name="__codelineno-0-297"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">from_service_account_info</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
-<a id="__codelineno-0-298" name="__codelineno-0-298"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">from_service_account</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
+<a id="__codelineno-0-272" name="__codelineno-0-272"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-273" name="__codelineno-0-273"></a><span class="sd">        credentials: An :class:`EarthEngineCredentials`, a path-like pointing</span>
+<a id="__codelineno-0-274" name="__codelineno-0-274"></a><span class="sd">            at a service-account key, a mapping of inline service-account JSON,</span>
+<a id="__codelineno-0-275" name="__codelineno-0-275"></a><span class="sd">            or ``None`` for application-default.</span>
+<a id="__codelineno-0-276" name="__codelineno-0-276"></a>
+<a id="__codelineno-0-277" name="__codelineno-0-277"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-278" name="__codelineno-0-278"></a><span class="sd">        An :class:`EarthEngineCredentials` instance.</span>
+<a id="__codelineno-0-279" name="__codelineno-0-279"></a>
+<a id="__codelineno-0-280" name="__codelineno-0-280"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-281" name="__codelineno-0-281"></a><span class="sd">        - ``None`` becomes application-default:</span>
+<a id="__codelineno-0-282" name="__codelineno-0-282"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-283" name="__codelineno-0-283"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-284" name="__codelineno-0-284"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.coerce(None).service_account_path is None</span>
+<a id="__codelineno-0-285" name="__codelineno-0-285"></a><span class="sd">            True</span>
+<a id="__codelineno-0-286" name="__codelineno-0-286"></a>
+<a id="__codelineno-0-287" name="__codelineno-0-287"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-288" name="__codelineno-0-288"></a><span class="sd">        - An existing instance passes through unchanged:</span>
+<a id="__codelineno-0-289" name="__codelineno-0-289"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-290" name="__codelineno-0-290"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-291" name="__codelineno-0-291"></a><span class="sd">            &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
+<a id="__codelineno-0-292" name="__codelineno-0-292"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.coerce(creds) is creds</span>
+<a id="__codelineno-0-293" name="__codelineno-0-293"></a><span class="sd">            True</span>
+<a id="__codelineno-0-294" name="__codelineno-0-294"></a>
+<a id="__codelineno-0-295" name="__codelineno-0-295"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-296" name="__codelineno-0-296"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-297" name="__codelineno-0-297"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">credentials</span><span class="p">,</span> <span class="n">EarthEngineCredentials</span><span class="p">):</span>
+<a id="__codelineno-0-298" name="__codelineno-0-298"></a>        <span class="k">return</span> <span class="n">credentials</span>
+<a id="__codelineno-0-299" name="__codelineno-0-299"></a>    <span class="k">if</span> <span class="n">credentials</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-300" name="__codelineno-0-300"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">application_default</span><span class="p">()</span>
+<a id="__codelineno-0-301" name="__codelineno-0-301"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">credentials</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+<a id="__codelineno-0-302" name="__codelineno-0-302"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">from_service_account_info</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
+<a id="__codelineno-0-303" name="__codelineno-0-303"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">from_service_account</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2856,12 +2876,7 @@ or <code>None</code> for application-default.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/earthengine/credentials.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-305">305</a></span>
-<span class="normal"><a href="#__codelineno-0-306">306</a></span>
-<span class="normal"><a href="#__codelineno-0-307">307</a></span>
-<span class="normal"><a href="#__codelineno-0-308">308</a></span>
-<span class="normal"><a href="#__codelineno-0-309">309</a></span>
-<span class="normal"><a href="#__codelineno-0-310">310</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-310">310</a></span>
 <span class="normal"><a href="#__codelineno-0-311">311</a></span>
 <span class="normal"><a href="#__codelineno-0-312">312</a></span>
 <span class="normal"><a href="#__codelineno-0-313">313</a></span>
@@ -2887,38 +2902,43 @@ or <code>None</code> for application-default.</p>
 <span class="normal"><a href="#__codelineno-0-333">333</a></span>
 <span class="normal"><a href="#__codelineno-0-334">334</a></span>
 <span class="normal"><a href="#__codelineno-0-335">335</a></span>
-<span class="normal"><a href="#__codelineno-0-336">336</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-305" name="__codelineno-0-305"></a><span class="k">def</span><span class="w"> </span><span class="nf">gdal_env</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
-<a id="__codelineno-0-306" name="__codelineno-0-306"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the GDAL-config mapping for this credential.</span>
-<a id="__codelineno-0-307" name="__codelineno-0-307"></a>
-<a id="__codelineno-0-308" name="__codelineno-0-308"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-309" name="__codelineno-0-309"></a><span class="sd">        ``{&quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: &lt;path&gt;}`` for a service account,</span>
-<a id="__codelineno-0-310" name="__codelineno-0-310"></a><span class="sd">        or an empty mapping for application-default (ambient) resolution.</span>
-<a id="__codelineno-0-311" name="__codelineno-0-311"></a>
-<a id="__codelineno-0-312" name="__codelineno-0-312"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-313" name="__codelineno-0-313"></a><span class="sd">        - Application-default carries no explicit config:</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-315" name="__codelineno-0-315"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-316" name="__codelineno-0-316"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.application_default().gdal_env()</span>
-<a id="__codelineno-0-317" name="__codelineno-0-317"></a><span class="sd">            {}</span>
-<a id="__codelineno-0-318" name="__codelineno-0-318"></a>
-<a id="__codelineno-0-319" name="__codelineno-0-319"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-320" name="__codelineno-0-320"></a><span class="sd">        - A service account surfaces its key path for GDAL:</span>
-<a id="__codelineno-0-321" name="__codelineno-0-321"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-322" name="__codelineno-0-322"></a><span class="sd">            &gt;&gt;&gt; import tempfile</span>
-<a id="__codelineno-0-323" name="__codelineno-0-323"></a><span class="sd">            &gt;&gt;&gt; from pathlib import Path</span>
-<a id="__codelineno-0-324" name="__codelineno-0-324"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-325" name="__codelineno-0-325"></a><span class="sd">            &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
-<a id="__codelineno-0-326" name="__codelineno-0-326"></a><span class="sd">            &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
-<a id="__codelineno-0-327" name="__codelineno-0-327"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.from_service_account(key).gdal_env() == {</span>
-<a id="__codelineno-0-328" name="__codelineno-0-328"></a><span class="sd">            ...     &quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: str(key)</span>
-<a id="__codelineno-0-329" name="__codelineno-0-329"></a><span class="sd">            ... }</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330"></a><span class="sd">            True</span>
-<a id="__codelineno-0-331" name="__codelineno-0-331"></a>
-<a id="__codelineno-0-332" name="__codelineno-0-332"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-334" name="__codelineno-0-334"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-335" name="__codelineno-0-335"></a>        <span class="k">return</span> <span class="p">{}</span>
-<a id="__codelineno-0-336" name="__codelineno-0-336"></a>    <span class="k">return</span> <span class="p">{</span><span class="n">GOOGLE_APPLICATION_CREDENTIALS</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">)}</span>
+<span class="normal"><a href="#__codelineno-0-336">336</a></span>
+<span class="normal"><a href="#__codelineno-0-337">337</a></span>
+<span class="normal"><a href="#__codelineno-0-338">338</a></span>
+<span class="normal"><a href="#__codelineno-0-339">339</a></span>
+<span class="normal"><a href="#__codelineno-0-340">340</a></span>
+<span class="normal"><a href="#__codelineno-0-341">341</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-310" name="__codelineno-0-310"></a><span class="k">def</span><span class="w"> </span><span class="nf">gdal_env</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the GDAL-config mapping for this credential.</span>
+<a id="__codelineno-0-312" name="__codelineno-0-312"></a>
+<a id="__codelineno-0-313" name="__codelineno-0-313"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">        ``{&quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: &lt;path&gt;}`` for a service account,</span>
+<a id="__codelineno-0-315" name="__codelineno-0-315"></a><span class="sd">        or an empty mapping for application-default (ambient) resolution.</span>
+<a id="__codelineno-0-316" name="__codelineno-0-316"></a>
+<a id="__codelineno-0-317" name="__codelineno-0-317"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-318" name="__codelineno-0-318"></a><span class="sd">        - Application-default carries no explicit config:</span>
+<a id="__codelineno-0-319" name="__codelineno-0-319"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-320" name="__codelineno-0-320"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-321" name="__codelineno-0-321"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.application_default().gdal_env()</span>
+<a id="__codelineno-0-322" name="__codelineno-0-322"></a><span class="sd">            {}</span>
+<a id="__codelineno-0-323" name="__codelineno-0-323"></a>
+<a id="__codelineno-0-324" name="__codelineno-0-324"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-325" name="__codelineno-0-325"></a><span class="sd">        - A service account surfaces its key path for GDAL:</span>
+<a id="__codelineno-0-326" name="__codelineno-0-326"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-327" name="__codelineno-0-327"></a><span class="sd">            &gt;&gt;&gt; import tempfile</span>
+<a id="__codelineno-0-328" name="__codelineno-0-328"></a><span class="sd">            &gt;&gt;&gt; from pathlib import Path</span>
+<a id="__codelineno-0-329" name="__codelineno-0-329"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a><span class="sd">            &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
+<a id="__codelineno-0-331" name="__codelineno-0-331"></a><span class="sd">            &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
+<a id="__codelineno-0-332" name="__codelineno-0-332"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.from_service_account(key).gdal_env() == {</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a><span class="sd">            ...     &quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: str(key)</span>
+<a id="__codelineno-0-334" name="__codelineno-0-334"></a><span class="sd">            ... }</span>
+<a id="__codelineno-0-335" name="__codelineno-0-335"></a><span class="sd">            True</span>
+<a id="__codelineno-0-336" name="__codelineno-0-336"></a>
+<a id="__codelineno-0-337" name="__codelineno-0-337"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-338" name="__codelineno-0-338"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-339" name="__codelineno-0-339"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-340" name="__codelineno-0-340"></a>        <span class="k">return</span> <span class="p">{}</span>
+<a id="__codelineno-0-341" name="__codelineno-0-341"></a>    <span class="k">return</span> <span class="p">{</span><span class="n">GOOGLE_APPLICATION_CREDENTIALS</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">)}</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2987,12 +3007,7 @@ single-threaded, single-credential use per process.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/earthengine/credentials.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-338">338</a></span>
-<span class="normal"><a href="#__codelineno-0-339">339</a></span>
-<span class="normal"><a href="#__codelineno-0-340">340</a></span>
-<span class="normal"><a href="#__codelineno-0-341">341</a></span>
-<span class="normal"><a href="#__codelineno-0-342">342</a></span>
-<span class="normal"><a href="#__codelineno-0-343">343</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-343">343</a></span>
 <span class="normal"><a href="#__codelineno-0-344">344</a></span>
 <span class="normal"><a href="#__codelineno-0-345">345</a></span>
 <span class="normal"><a href="#__codelineno-0-346">346</a></span>
@@ -3027,47 +3042,52 @@ single-threaded, single-credential use per process.</p>
 <span class="normal"><a href="#__codelineno-0-375">375</a></span>
 <span class="normal"><a href="#__codelineno-0-376">376</a></span>
 <span class="normal"><a href="#__codelineno-0-377">377</a></span>
-<span class="normal"><a href="#__codelineno-0-378">378</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-338" name="__codelineno-0-338"></a><span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
-<a id="__codelineno-0-339" name="__codelineno-0-339"></a><span class="k">def</span><span class="w"> </span><span class="nf">activate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-0-340" name="__codelineno-0-340"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply this credential&#39;s GDAL config for the duration of a ``with`` block.</span>
-<a id="__codelineno-0-341" name="__codelineno-0-341"></a>
-<a id="__codelineno-0-342" name="__codelineno-0-342"></a><span class="sd">    Sets each :meth:`gdal_env` key as a GDAL config option and restores the</span>
-<a id="__codelineno-0-343" name="__codelineno-0-343"></a><span class="sd">    previous value (or clears it) on exit, so the process-wide GDAL config is</span>
-<a id="__codelineno-0-344" name="__codelineno-0-344"></a><span class="sd">    left untouched afterwards.</span>
-<a id="__codelineno-0-345" name="__codelineno-0-345"></a>
-<a id="__codelineno-0-346" name="__codelineno-0-346"></a><span class="sd">    Note:</span>
-<a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="sd">        GDAL config options are **process-global**, so this save/restore is not</span>
-<a id="__codelineno-0-348" name="__codelineno-0-348"></a><span class="sd">        thread-safe: two threads activating different service-account</span>
-<a id="__codelineno-0-349" name="__codelineno-0-349"></a><span class="sd">        credentials concurrently would clobber each other&#39;s</span>
-<a id="__codelineno-0-350" name="__codelineno-0-350"></a><span class="sd">        ``GOOGLE_APPLICATION_CREDENTIALS``. The reader is intended for</span>
-<a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="sd">        single-threaded, single-credential use per process.</span>
-<a id="__codelineno-0-352" name="__codelineno-0-352"></a>
-<a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="sd">    Yields:</span>
-<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">        This :class:`EarthEngineCredentials` instance.</span>
-<a id="__codelineno-0-355" name="__codelineno-0-355"></a>
-<a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-357" name="__codelineno-0-357"></a><span class="sd">        - Application-default activation is a no-op that yields the credentials:</span>
-<a id="__codelineno-0-358" name="__codelineno-0-358"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-359" name="__codelineno-0-359"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-360" name="__codelineno-0-360"></a><span class="sd">            &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
-<a id="__codelineno-0-361" name="__codelineno-0-361"></a><span class="sd">            &gt;&gt;&gt; with creds.activate() as active:</span>
-<a id="__codelineno-0-362" name="__codelineno-0-362"></a><span class="sd">            ...     active is creds</span>
-<a id="__codelineno-0-363" name="__codelineno-0-363"></a><span class="sd">            True</span>
-<a id="__codelineno-0-364" name="__codelineno-0-364"></a>
-<a id="__codelineno-0-365" name="__codelineno-0-365"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-366" name="__codelineno-0-366"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-367" name="__codelineno-0-367"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
-<a id="__codelineno-0-368" name="__codelineno-0-368"></a>
-<a id="__codelineno-0-369" name="__codelineno-0-369"></a>    <span class="n">env</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span>
-<a id="__codelineno-0-370" name="__codelineno-0-370"></a>    <span class="n">previous</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-0-371" name="__codelineno-0-371"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-372" name="__codelineno-0-372"></a>        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-373" name="__codelineno-0-373"></a>            <span class="n">previous</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">GetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-<a id="__codelineno-0-374" name="__codelineno-0-374"></a>            <span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-<a id="__codelineno-0-375" name="__codelineno-0-375"></a>        <span class="k">yield</span> <span class="bp">self</span>
-<a id="__codelineno-0-376" name="__codelineno-0-376"></a>    <span class="k">finally</span><span class="p">:</span>
-<a id="__codelineno-0-377" name="__codelineno-0-377"></a>        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">old</span> <span class="ow">in</span> <span class="n">previous</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-378" name="__codelineno-0-378"></a>            <span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">old</span><span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-378">378</a></span>
+<span class="normal"><a href="#__codelineno-0-379">379</a></span>
+<span class="normal"><a href="#__codelineno-0-380">380</a></span>
+<span class="normal"><a href="#__codelineno-0-381">381</a></span>
+<span class="normal"><a href="#__codelineno-0-382">382</a></span>
+<span class="normal"><a href="#__codelineno-0-383">383</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-343" name="__codelineno-0-343"></a><span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+<a id="__codelineno-0-344" name="__codelineno-0-344"></a><span class="k">def</span><span class="w"> </span><span class="nf">activate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-0-345" name="__codelineno-0-345"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply this credential&#39;s GDAL config for the duration of a ``with`` block.</span>
+<a id="__codelineno-0-346" name="__codelineno-0-346"></a>
+<a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="sd">    Sets each :meth:`gdal_env` key as a GDAL config option and restores the</span>
+<a id="__codelineno-0-348" name="__codelineno-0-348"></a><span class="sd">    previous value (or clears it) on exit, so the process-wide GDAL config is</span>
+<a id="__codelineno-0-349" name="__codelineno-0-349"></a><span class="sd">    left untouched afterwards.</span>
+<a id="__codelineno-0-350" name="__codelineno-0-350"></a>
+<a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="sd">    Note:</span>
+<a id="__codelineno-0-352" name="__codelineno-0-352"></a><span class="sd">        GDAL config options are **process-global**, so this save/restore is not</span>
+<a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="sd">        thread-safe: two threads activating different service-account</span>
+<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">        credentials concurrently would clobber each other&#39;s</span>
+<a id="__codelineno-0-355" name="__codelineno-0-355"></a><span class="sd">        ``GOOGLE_APPLICATION_CREDENTIALS``. The reader is intended for</span>
+<a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">        single-threaded, single-credential use per process.</span>
+<a id="__codelineno-0-357" name="__codelineno-0-357"></a>
+<a id="__codelineno-0-358" name="__codelineno-0-358"></a><span class="sd">    Yields:</span>
+<a id="__codelineno-0-359" name="__codelineno-0-359"></a><span class="sd">        This :class:`EarthEngineCredentials` instance.</span>
+<a id="__codelineno-0-360" name="__codelineno-0-360"></a>
+<a id="__codelineno-0-361" name="__codelineno-0-361"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-362" name="__codelineno-0-362"></a><span class="sd">        - Application-default activation is a no-op that yields the credentials:</span>
+<a id="__codelineno-0-363" name="__codelineno-0-363"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-364" name="__codelineno-0-364"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
+<a id="__codelineno-0-365" name="__codelineno-0-365"></a><span class="sd">            &gt;&gt;&gt; creds = EarthEngineCredentials.application_default()</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366"></a><span class="sd">            &gt;&gt;&gt; with creds.activate() as active:</span>
+<a id="__codelineno-0-367" name="__codelineno-0-367"></a><span class="sd">            ...     active is creds</span>
+<a id="__codelineno-0-368" name="__codelineno-0-368"></a><span class="sd">            True</span>
+<a id="__codelineno-0-369" name="__codelineno-0-369"></a>
+<a id="__codelineno-0-370" name="__codelineno-0-370"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-371" name="__codelineno-0-371"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-372" name="__codelineno-0-372"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
+<a id="__codelineno-0-373" name="__codelineno-0-373"></a>
+<a id="__codelineno-0-374" name="__codelineno-0-374"></a>    <span class="n">env</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span>
+<a id="__codelineno-0-375" name="__codelineno-0-375"></a>    <span class="n">previous</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-0-376" name="__codelineno-0-376"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-377" name="__codelineno-0-377"></a>        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-378" name="__codelineno-0-378"></a>            <span class="n">previous</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">GetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-0-379" name="__codelineno-0-379"></a>            <span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+<a id="__codelineno-0-380" name="__codelineno-0-380"></a>        <span class="k">yield</span> <span class="bp">self</span>
+<a id="__codelineno-0-381" name="__codelineno-0-381"></a>    <span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-0-382" name="__codelineno-0-382"></a>        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">old</span> <span class="ow">in</span> <span class="n">previous</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-383" name="__codelineno-0-383"></a>            <span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">old</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
