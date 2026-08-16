@@ -1839,7 +1839,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </style>
 <!-- End of mermaid configuration --><div class="jupyter-wrapper">
 <div class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light">
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f4a0289a">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=896c4943">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -1883,7 +1883,7 @@ key (or run <code>gcloud auth application-default login</code>). See the <em>Cre
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=8eed5280">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=9c8eb4e5">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -1894,7 +1894,7 @@ key (or run <code>gcloud auth application-default login</code>). See the <em>Cre
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=6106a9b1">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=882a3e01">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -1913,8 +1913,8 @@ key (or run <code>gcloud auth application-default login</code>). See the <em>Cre
 </clipboard-copy>
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="o">%</span><span class="n">matplotlib</span> <span class="n">inline</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">EarthEngineCredentials</span><span class="p">,</span>
@@ -1923,8 +1923,8 @@ key (or run <code>gcloud auth application-default login</code>). See the <em>Cre
 <span class="p">)</span>
 </pre></div>
 <div class="clipboard-copy-txt" id="cell-1">%matplotlib inline
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 from pyramids_eo import (
     EarthEngineCredentials,
@@ -1937,7 +1937,7 @@ from pyramids_eo import (
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=ae751f85">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=8fb61d33">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -1948,7 +1948,7 @@ from pyramids_eo import (
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=09ac943e">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=fdb0fce4">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -1967,15 +1967,17 @@ from pyramids_eo import (
 </clipboard-copy>
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">AOI</span> <span class="o">=</span> <span class="p">(</span><span class="mf">86.9</span><span class="p">,</span> <span class="mf">27.9</span><span class="p">,</span> <span class="mf">87.0</span><span class="p">,</span> <span class="mf">28.0</span><span class="p">)</span>  <span class="c1"># (min_lon, min_lat, max_lon, max_lat) in EPSG:4326</span>
+<span class="n">SRTM</span> <span class="o">=</span> <span class="s2">"USGS/SRTMGL1_003"</span>  <span class="c1"># the SRTM 30 m elevation asset used below</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-2">AOI = (86.9, 27.9, 87.0, 28.0)  # (min_lon, min_lat, max_lon, max_lat) in EPSG:4326</div>
+<div class="clipboard-copy-txt" id="cell-2">AOI = (86.9, 27.9, 87.0, 28.0)  # (min_lon, min_lat, max_lon, max_lat) in EPSG:4326
+SRTM = "USGS/SRTMGL1_003"  # the SRTM 30 m elevation asset used below</div>
 </div>
 </div>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=adcbbe9a">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=a3c520be">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -1986,7 +1988,7 @@ from pyramids_eo import (
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=a1c7527e">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=ebdc6b73">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2039,7 +2041,7 @@ from pyramids_eo import (
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=7cbd64ba">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=9df73970">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2090,7 +2092,7 @@ from pyramids_eo import (
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f102c43f">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=b7e3ab03">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2127,7 +2129,7 @@ its <code>gdal_env()</code> is empty:</p>
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=475c05e4">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=e61e2658">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2166,7 +2168,7 @@ its <code>gdal_env()</code> is empty:</p>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=aa690e56">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=56620e9c">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2179,7 +2181,7 @@ EPSG:4326.</p>
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=8c52c305">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=699ba8c8">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2197,10 +2199,10 @@ EPSG:4326.</p>
 </div>
 </clipboard-copy>
 </div>
-<div class="highlight-ipynb hl-python"><pre><span></span><span class="n">dem</span> <span class="o">=</span> <span class="n">from_earthengine</span><span class="p">(</span><span class="s2">"USGS/SRTMGL1_003"</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">AOI</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="mi">120</span><span class="p">))</span>
+<div class="highlight-ipynb hl-python"><pre><span></span><span class="n">dem</span> <span class="o">=</span> <span class="n">from_earthengine</span><span class="p">(</span><span class="n">SRTM</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">AOI</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="mi">120</span><span class="p">))</span>
 <span class="n">dem</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dem</span><span class="o">.</span><span class="n">epsg</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-6">dem = from_earthengine("USGS/SRTMGL1_003", bbox=AOI, shape=(120, 120))
+<div class="clipboard-copy-txt" id="cell-6">dem = from_earthengine(SRTM, bbox=AOI, shape=(120, 120))
 dem.shape, dem.epsg</div>
 </div>
 </div>
@@ -2220,7 +2222,7 @@ dem.shape, dem.epsg</div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=acfe980a">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=e836e971">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2231,7 +2233,7 @@ dem.shape, dem.epsg</div>
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=d6afb1f1">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=5dec885d">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2270,7 +2272,7 @@ dem.shape, dem.epsg</div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=9e7692fc">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=49f4f483">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2281,7 +2283,7 @@ dem.shape, dem.epsg</div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=33907aec">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=53185a52">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2324,7 +2326,7 @@ dem.shape, dem.epsg</div>
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=af32051b">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=3b62a637">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2342,10 +2344,10 @@ dem.shape, dem.epsg</div>
 </div>
 </clipboard-copy>
 </div>
-<div class="highlight-ipynb hl-python"><pre><span></span><span class="n">dem_coarse</span> <span class="o">=</span> <span class="n">from_earthengine</span><span class="p">(</span><span class="s2">"USGS/SRTMGL1_003"</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">AOI</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.005</span><span class="p">)</span>
+<div class="highlight-ipynb hl-python"><pre><span></span><span class="n">dem_coarse</span> <span class="o">=</span> <span class="n">from_earthengine</span><span class="p">(</span><span class="n">SRTM</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">AOI</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.005</span><span class="p">)</span>
 <span class="n">dem_coarse</span><span class="o">.</span><span class="n">shape</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-8">dem_coarse = from_earthengine("USGS/SRTMGL1_003", bbox=AOI, scale=0.005)
+<div class="clipboard-copy-txt" id="cell-8">dem_coarse = from_earthengine(SRTM, bbox=AOI, scale=0.005)
 dem_coarse.shape</div>
 </div>
 </div>
@@ -2365,7 +2367,7 @@ dem_coarse.shape</div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=211a4111">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=483a64c2">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2376,7 +2378,7 @@ dem_coarse.shape</div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=3b9a1fe2">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=016a727a">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2389,7 +2391,7 @@ reprojected to <code>crs</code> automatically.</p>
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=3a62ef65">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=a00178e0">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2428,7 +2430,7 @@ basin = gpd.GeoDataFrame(
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=adcca8d1">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=8abd5a78">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2446,10 +2448,10 @@ basin = gpd.GeoDataFrame(
 </div>
 </clipboard-copy>
 </div>
-<div class="highlight-ipynb hl-python"><pre><span></span><span class="n">dem_clip</span> <span class="o">=</span> <span class="n">from_earthengine</span><span class="p">(</span><span class="s2">"USGS/SRTMGL1_003"</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="n">basin</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="mi">120</span><span class="p">))</span>
+<div class="highlight-ipynb hl-python"><pre><span></span><span class="n">dem_clip</span> <span class="o">=</span> <span class="n">from_earthengine</span><span class="p">(</span><span class="n">SRTM</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="n">basin</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="mi">120</span><span class="p">))</span>
 <span class="n">show</span><span class="p">(</span><span class="n">dem_clip</span><span class="p">,</span> <span class="s2">"SRTM clipped to a triangular AOI"</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">"terrain"</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-10">dem_clip = from_earthengine("USGS/SRTMGL1_003", geometry=basin, shape=(120, 120))
+<div class="clipboard-copy-txt" id="cell-10">dem_clip = from_earthengine(SRTM, geometry=basin, shape=(120, 120))
 show(dem_clip, "SRTM clipped to a triangular AOI", cmap="terrain")</div>
 </div>
 </div>
@@ -2469,7 +2471,7 @@ show(dem_clip, "SRTM clipped to a triangular AOI", cmap="terrain")</div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=063d1409">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=ec3e9595">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2480,7 +2482,7 @@ show(dem_clip, "SRTM clipped to a triangular AOI", cmap="terrain")</div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f1976cf3">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f3dc5be5">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2525,7 +2527,7 @@ clouds):</p>
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=7c195d4e">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=4787cd83">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2582,7 +2584,7 @@ s2.shape</div>
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=e7c9b36c">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=92b21870">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2621,7 +2623,7 @@ s2.shape</div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=2f89adf4">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=cb74e864">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2632,7 +2634,7 @@ s2.shape</div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=aa680bd4">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=0dfeb582">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2644,7 +2646,7 @@ s2.shape</div>
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=4a91988e">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=0c01727f">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2702,7 +2704,7 @@ scenes.time_length, list(scenes.time)[:3]</div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=0ffb7ab7">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=ddf1002d">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2713,7 +2715,7 @@ scenes.time_length, list(scenes.time)[:3]</div>
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=eb4d90d8">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=6d3700c7">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -2752,7 +2754,7 @@ scenes.time_length, list(scenes.time)[:3]</div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=8b5ef4df">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=da93bf79">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
