@@ -15,6 +15,7 @@ Black Marble mirror is
 
 from __future__ import annotations
 
+import hashlib
 import os
 import urllib.request
 from pathlib import Path
@@ -68,6 +69,25 @@ def _download(
         part.unlink(missing_ok=True)
 
 
+def _cache_path(cache: Path, url: str) -> Path:
+    """Return the cache filename for `url` — a full-URL hash plus its basename.
+
+    Hashing the whole URL avoids collisions between different URLs that share a
+    basename (e.g. `.../2016/BlackMarble.tif` vs `.../2020/BlackMarble.tif`) and
+    handles a URL with an empty path.
+
+    Args:
+        cache: The cache directory.
+        url: The source URL.
+
+    Returns:
+        The path the download is cached at.
+    """
+    basename = Path(urlparse(url).path).name or "download"
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
+    return cache / f"{digest}-{basename}"
+
+
 def _resolve_source(
     source: Any, cache_dir: Any, timeout: float, max_bytes: int = _DEFAULT_MAX_BYTES
 ) -> Path:
@@ -90,7 +110,7 @@ def _resolve_source(
     if parsed.scheme in ("http", "https"):
         cache = Path(cache_dir) if cache_dir is not None else _DEFAULT_CACHE
         cache.mkdir(parents=True, exist_ok=True)
-        target = cache / Path(parsed.path).name
+        target = _cache_path(cache, str(source))
         if not (target.exists() and target.stat().st_size > 0):
             _download(str(source), target, timeout, max_bytes)
         return target

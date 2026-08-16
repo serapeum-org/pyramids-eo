@@ -12,7 +12,7 @@ import pytest
 from pyramids.dataset import Dataset
 
 from pyramids_eo.composites import static_image
-from pyramids_eo.composites.background import _download, _resolve_source
+from pyramids_eo.composites.background import _cache_path, _download, _resolve_source
 from pyramids_eo.errors import EOError
 
 
@@ -116,15 +116,29 @@ class TestResolveSource:
 
         monkeypatch.setattr("pyramids_eo.composites.background._download", _fake_dl)
         out = _resolve_source("https://host/dir/bm.tif", tmp_path / "cache", 5.0)
-        assert out == tmp_path / "cache" / "bm.tif", f"unexpected cache path {out}"
+        assert out == _cache_path(tmp_path / "cache", "https://host/dir/bm.tif")
+        assert out.name.endswith("bm.tif"), f"basename lost in cache key: {out.name}"
         assert out.read_bytes() == b"downloaded", "cache file not written"
         assert calls["n"] == 1, "download should run once"
+
+    def test_same_basename_different_urls_do_not_collide(self, tmp_path):
+        """Two URLs sharing a basename map to distinct cache files."""
+        cache = tmp_path / "cache"
+        a = _cache_path(cache, "https://host/2016/BlackMarble.tif")
+        b = _cache_path(cache, "https://host/2020/BlackMarble.tif")
+        assert a != b, "same-basename URLs must not collide"
+
+    def test_empty_url_path_gets_a_basename(self, tmp_path):
+        """A URL with an empty path still yields a file (not the cache dir itself)."""
+        out = _cache_path(tmp_path / "cache", "https://host")
+        assert out != tmp_path / "cache", "empty basename must not be the cache dir"
+        assert out.name.endswith("download"), f"unexpected fallback name {out.name}"
 
     def test_url_cached_skips_download(self, tmp_path, monkeypatch):
         """A non-empty cached file is reused without re-downloading."""
         cache = tmp_path / "cache"
         cache.mkdir()
-        (cache / "bm.tif").write_bytes(b"cached")
+        _cache_path(cache, "https://host/dir/bm.tif").write_bytes(b"cached")
 
         def _boom(url, target, timeout, max_bytes=None):
             raise AssertionError("download should not run for a cached file")
@@ -142,7 +156,9 @@ class TestResolveSource:
             lambda url, target, timeout, max_bytes=None: Path(target).write_bytes(b"x"),
         )
         out = _resolve_source("https://host/bm.tif", None, 5.0)
-        assert out == default / "bm.tif", f"expected default cache path, got {out}"
+        assert out == _cache_path(default, "https://host/bm.tif"), (
+            f"expected default cache path, got {out}"
+        )
 
     def test_relative_local_path_accepted(self, tmp_path, monkeypatch):
         """A plain relative path is accepted (no satpy absolute-path trap)."""
@@ -194,4 +210,6 @@ class TestStaticImage:
         second = static_image("https://host/bm.tif", cache_dir=cache)
         assert isinstance(first, Dataset) and isinstance(second, Dataset)
         assert calls["n"] == 1, f"download should run once, ran {calls['n']} times"
-        assert (cache / "bm.tif").exists(), "cache file should persist"
+        assert _cache_path(cache, "https://host/bm.tif").exists(), (
+            "cache should persist"
+        )
