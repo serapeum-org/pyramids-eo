@@ -19,3 +19,10 @@ land here as they are implemented.
         show_source: true
         heading_level: 3
         members_order: source
+
+::: pyramids_eo.composites.blend
+    options:
+        show_root_heading: true
+        show_source: true
+        heading_level: 3
+        members_order: source
