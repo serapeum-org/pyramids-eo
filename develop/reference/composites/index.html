@@ -1731,9 +1731,11 @@
 <h1 id="composites"><a class="toclink" href="#composites">composites</a><a class="headerlink" href="#composites" title="Permanent link">#</a></h1>
 <p>Day/night compositing for EO imagery — pyramids-eo's port of satpy's
 <code>true_color_with_night_ir</code> chain, over NumPy + pyramids-gis with no satpy /
-PyTroll dependency. Currently exposes the solar-geometry primitive
-(<code>solar_zenith_angle</code>); the blend, alpha-overlay, and static-image primitives
-land here as they are implemented.</p>
+PyTroll dependency. Covers the solar geometry (<code>solar_zenith_angle</code>,
+<code>cos_solar_zenith_angle</code>), the SZA cross-fade (<code>day_night_blend</code> / <code>day_weight</code>),
+the alpha overlay (<code>alpha_overlay</code>), the static background image (<code>static_image</code>),
+the true-colour composite (<code>true_color</code>), and the full assembly (<code>night_ir</code>,
+<code>true_color_with_night_ir</code>).</p>
 
 
 <div class="doc doc-object doc-module">
