@@ -1133,3 +1133,61 @@ class TestCredentialLifetime:
         assert not path.exists(), (
             "Temp key file not cleaned up after the Dataset is gone"
         )
+
+
+class TestReducerDtype:
+    """Reducer dtype policy: no integer overflow (sum) or truncation (mean/median)."""
+
+    def test_sum_does_not_overflow_int16(self) -> None:
+        """The sum reducer widens instead of wrapping int16.
+
+        Test scenario:
+            Three int16 pixels of 20000 sum to 60000 (not the wrapped -5536).
+        """
+        stack = np.stack([np.full((1, 1), 20000, dtype="int16")] * 3)
+        out = ee_reader._reduce(stack, "sum", None)
+        assert float(out[0, 0]) == 60000.0, f"sum overflowed: {out[0, 0]}"
+
+    def test_mean_is_not_truncated_on_ints(self) -> None:
+        """The mean reducer keeps the fractional result on integer stacks.
+
+        Test scenario:
+            mean(10, 11) is 10.5, not truncated to 10.
+        """
+        stack = np.stack([np.full((1, 1), v, dtype="int16") for v in (10, 11)])
+        out = ee_reader._reduce(stack, "mean", None)
+        assert float(out[0, 0]) == 10.5, f"mean truncated: {out[0, 0]}"
+
+    def test_value_preserving_reducers_keep_int_dtype(self) -> None:
+        """min/max/mode/mosaic keep the integer stack dtype.
+
+        Test scenario:
+            An int16 stack stays int16 through a value-preserving reducer.
+        """
+        stack = np.stack([np.full((1, 1), v, dtype="int16") for v in (10, 20, 30)])
+        assert ee_reader._reduce(stack, "max", None).dtype == np.int16, (
+            "max changed dtype"
+        )
+
+    def test_lazy_wrap_installs_credential_config(self, monkeypatch, tmp_path) -> None:
+        """The lazy whole-asset wrap installs the credential GDAL config (M2).
+
+        Test scenario:
+            A no-bbox read with a service-account key sets
+            GOOGLE_APPLICATION_CREDENTIALS process-wide for the deferred reads.
+        """
+        from osgeo import gdal
+
+        key = tmp_path / "k.json"
+        key.write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(
+            ee_reader, "_open_eedai", lambda a, *, bands, credentials: _synthetic_srtm()
+        )
+        before = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
+        try:
+            from_earthengine("USGS/SRTMGL1_003", credentials=str(key))
+            assert gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) == str(
+                key
+            ), "Lazy wrap should install the credential config for deferred reads"
+        finally:
+            gdal.SetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", before)

@@ -27,7 +27,7 @@ import math
 from typing import NamedTuple
 
 import numpy as np
-from osgeo import gdal
+from osgeo import gdal, gdal_array
 from pyramids.dataset import Dataset, DatasetCollection
 
 from pyramids_eo.earthengine.credentials import CredentialsLike, EarthEngineCredentials
@@ -52,6 +52,11 @@ _STAT_REDUCERS: dict[str, tuple] = {
 
 #: All supported reducer names (statistical + the special ``mode`` / ``mosaic``).
 REDUCERS: frozenset[str] = frozenset(_STAT_REDUCERS) | {"mode", "mosaic"}
+
+#: Reducers that only ever emit values already present in the stack, so the result
+#: can safely be cast back to the input dtype. ``mean`` / ``median`` (fractional)
+#: and ``sum`` (can exceed the range) deliberately keep their widened dtype.
+_VALUE_PRESERVING_REDUCERS: frozenset[str] = frozenset({"min", "max", "mode", "mosaic"})
 
 
 class _Scene(NamedTuple):
@@ -478,7 +483,11 @@ def _reduce(stack: np.ndarray, reducer: str, nodata: float | None) -> np.ndarray
         nodata: Nodata value to mask out before reducing, or ``None``.
 
     Returns:
-        The reduced array (scene axis removed), cast back to the stack dtype.
+        The reduced array (scene axis removed). Value-preserving reducers
+        (``min`` / ``max`` / ``mode`` / ``mosaic``) keep the stack dtype;
+        ``mean`` / ``median`` keep NumPy's (floating) result dtype so they are
+        not truncated, and ``sum`` keeps its widened accumulator dtype so it does
+        not overflow.
 
     Raises:
         ValueError: ``reducer`` is not a known reducer.
@@ -499,7 +508,15 @@ def _reduce(stack: np.ndarray, reducer: str, nodata: float | None) -> np.ndarray
         raise ValueError(
             f"Unknown reducer {reducer!r}; choose from {sorted(REDUCERS)}."
         )
-    return np.asarray(reduced).astype(stack.dtype)
+    reduced = np.asarray(reduced)
+    if reducer in _VALUE_PRESERVING_REDUCERS:
+        # These only ever return values already present in the stack, so casting
+        # back to its dtype is lossless (and keeps e.g. an int band integral).
+        return reduced.astype(stack.dtype)
+    # mean/median (fractional) and sum (can exceed the stack range) return float64
+    # so they are neither truncated nor overflowed (float64 represents integer
+    # sums exactly up to 2**53, well beyond any realistic pixel total).
+    return reduced.astype(np.float64)
 
 
 def _build_like(
@@ -518,7 +535,9 @@ def _build_like(
     if array.ndim == 2:
         array = array[np.newaxis, :, :]
     n_bands, rows, cols = array.shape
-    dtype = template.GetRasterBand(1).DataType
+    # Derive the band dtype from the array (not the template) so a float mean /
+    # median or a widened int sum is stored without truncation or overflow.
+    dtype = gdal_array.NumericTypeCodeToGDALTypeCode(array.dtype)
     out = gdal.GetDriverByName("MEM").Create("", cols, rows, n_bands, dtype)
     out.SetGeoTransform(template.GetGeoTransform())
     out.SetProjection(template.GetProjection())
