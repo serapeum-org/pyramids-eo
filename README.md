@@ -3,28 +3,27 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
-**pyramids-eo** is the GDAL-native, xarray-free **remote-sensing / Earth-observation tier** of the
-pyramids GIS stack. It sits between [pyramids](https://github.com/serapeum-org/pyramids) — the generic
-GDAL raster engine — and provider/orchestration layers.
+**pyramids-eo** is the **Earth-observation layer** of the pyramids GIS stack. It is built on top of
+[pyramids](https://github.com/serapeum-org/pyramids) (`pyramids-gis`, the generic GDAL raster/vector
+engine) and adds the logic that is specific to **Earth-observation data**.
 
 pyramids underneath knows only how to *move rasters around*. pyramids-eo knows what a pixel *means* for a
-given instrument: which subdataset is which channel, how to calibrate it, how to composite it, how to
-resample a swath.
+given instrument or provider: which subdataset is which channel, how to calibrate it, how to composite it,
+how to resample a swath — and how to reach signed EO cloud assets so they stream through GDAL.
 
 ```
-providers          (fetch granules, auth, catalogs, cache, pipelines)
-    │  depends on
-    ▼
-pyramids-eo        (sensors: readers, calibration, indices, composites, resample, masking)
+pyramids-eo        (Earth-observation logic: sensor readers, calibration, indices, composites,
+    │               resample, masking, signed EO provider/STAC access)
     │  depends on
     ▼
 pyramids           (generic GDAL raster / vector engine)
 ```
 
-## Design boundary
+## Scope
 
-pyramids-eo takes a **local file / path / bytes** and decodes + processes it. It does **not** fetch from
-providers (no HTTP, no auth, no product catalogs) — that stays in the orchestration layer above it.
+pyramids-eo is scoped by *domain* — Earth-observation data — not by a restriction on what it may do. It
+covers the EO-specific functionality that sits above the generic raster/vector operations pyramids-gis
+provides.
 
 ## Installation
 
