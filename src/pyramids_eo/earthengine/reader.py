@@ -121,6 +121,93 @@ def _open_eedai(
     return src
 
 
+#: EEDAI serves the raster in 256-pixel blocks. Reading strictly within one block
+#: per ``RasterIO`` call is the only reliably-correct EEDAI read: a window that
+#: spans blocks raises "Access window out of range", and the driver's overviews
+#: are corrupt, so a multi-block read or an overview-backed downsample returns
+#: garbage. We therefore materialise the native window one block at a time.
+_EEDAI_BLOCK = 256
+
+
+def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> gdal.Dataset:
+    """Read the EEDAI window covering ``bbox`` into a clean native-res ``MEM`` raster.
+
+    EEDAI cannot serve a window that crosses a 256-px block boundary, and its
+    overviews are unreliable — so ``gdal.Warp``-ing an EEDAI dataset directly
+    corrupts the result. This reads the source at native resolution one
+    block-aligned tile at a time (each ``RasterIO`` stays inside a single block)
+    and assembles a georeferenced in-memory copy that :func:`_window` can safely
+    warp.
+
+    Args:
+        src: The opened EEDAI source dataset.
+        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``.
+        crs: The CRS ``bbox`` is expressed in.
+
+    Returns:
+        A ``MEM`` dataset in the source CRS covering ``bbox`` (padded one pixel for
+        resampling), holding correct native-resolution pixels for every band.
+    """
+    from osgeo import osr
+
+    geotransform = src.GetGeoTransform()
+    source_srs = osr.SpatialReference()
+    source_srs.ImportFromWkt(src.GetProjection())
+    source_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    target_srs = osr.SpatialReference()
+    target_srs.SetFromUserInput(crs)
+    target_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+
+    min_x, min_y, max_x, max_y = bbox
+    corners = [(min_x, min_y), (min_x, max_y), (max_x, min_y), (max_x, max_y)]
+    if not source_srs.IsSame(target_srs):
+        transform = osr.CoordinateTransformation(target_srs, source_srs)
+        corners = [transform.TransformPoint(x, y)[:2] for x, y in corners]
+    xs = [c[0] for c in corners]
+    ys = [c[1] for c in corners]
+
+    inverse = gdal.InvGeoTransform(geotransform)
+    px_a, py_a = gdal.ApplyGeoTransform(inverse, min(xs), max(ys))
+    px_b, py_b = gdal.ApplyGeoTransform(inverse, max(xs), min(ys))
+    x0 = max(0, int(math.floor(min(px_a, px_b))) - 1)
+    y0 = max(0, int(math.floor(min(py_a, py_b))) - 1)
+    x1 = min(src.RasterXSize, int(math.ceil(max(px_a, px_b))) + 1)
+    y1 = min(src.RasterYSize, int(math.ceil(max(py_a, py_b))) + 1)
+    if x1 <= x0 or y1 <= y0:
+        raise ReaderError(f"AOI {bbox} does not intersect the Earth Engine asset.")
+
+    width, height = x1 - x0, y1 - y0
+    band_count = src.RasterCount
+    out = gdal.GetDriverByName("MEM").Create(
+        "", width, height, band_count, src.GetRasterBand(1).DataType
+    )
+    out.SetProjection(src.GetProjection())
+    out.SetGeoTransform(
+        (
+            geotransform[0] + x0 * geotransform[1],
+            geotransform[1],
+            geotransform[2],
+            geotransform[3] + y0 * geotransform[5],
+            geotransform[4],
+            geotransform[5],
+        )
+    )
+    for band_index in range(band_count):
+        source_band = src.GetRasterBand(band_index + 1)
+        out_band = out.GetRasterBand(band_index + 1)
+        nodata = source_band.GetNoDataValue()
+        if nodata is not None:
+            out_band.SetNoDataValue(nodata)
+        block = _EEDAI_BLOCK
+        for by in range((y0 // block) * block, y1, block):
+            for bx in range((x0 // block) * block, x1, block):
+                rx0, ry0 = max(bx, x0), max(by, y0)
+                rx1, ry1 = min(bx + block, x1), min(by + block, y1)
+                tile = source_band.ReadAsArray(rx0, ry0, rx1 - rx0, ry1 - ry0)
+                out_band.WriteArray(tile, rx0 - x0, ry0 - y0)
+    return out
+
+
 def _window(
     src: gdal.Dataset,
     *,
@@ -129,13 +216,15 @@ def _window(
     scale: float | None,
     shape: tuple[int, int] | None,
 ) -> gdal.Dataset:
-    """Warp ``src`` to ``bbox`` in ``crs`` at the requested resolution/shape.
+    """Read ``src`` over ``bbox`` in ``crs`` at the requested resolution/shape.
 
-    Returns an in-memory (``MEM``) GDAL dataset so the result carries no on-disk or
-    ``/vsimem`` lifetime.
+    The EEDAI window is first materialised block-aligned into a clean native-res
+    in-memory raster (:func:`_materialize`) — reading EEDAI directly through
+    ``gdal.Warp`` corrupts the result — and that copy is then warped to the target
+    grid. Returns an in-memory (``MEM``) GDAL dataset.
 
     Args:
-        src: The source GDAL dataset to window.
+        src: The source EEDAI dataset to window.
         bbox: Output bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
         crs: Target CRS (and the CRS ``bbox`` is expressed in).
         scale: Output pixel size in ``crs`` units, or ``None``.
@@ -145,8 +234,9 @@ def _window(
         The warped in-memory GDAL dataset.
 
     Raises:
-        ReaderError: The warp failed.
+        ReaderError: The read or warp failed.
     """
+    native = _materialize(src, bbox, crs)
     warp_kwargs: dict[str, object] = {
         "format": "MEM",
         "outputBounds": list(bbox),
@@ -161,108 +251,13 @@ def _window(
         warp_kwargs["xRes"] = scale
         warp_kwargs["yRes"] = scale
 
-    out = gdal.Warp("", src, **warp_kwargs)
+    out = gdal.Warp("", native, **warp_kwargs)
     if out is None:
         raise ReaderError(
             f"Earth Engine read failed while windowing to {bbox} in {crs}: "
             f"{gdal.GetLastErrorMsg() or 'no detail'}"
         )
     return out
-
-
-def _tiled_window(
-    src: gdal.Dataset,
-    *,
-    bbox: BBox,
-    crs: str,
-    scale: float | None,
-    shape: tuple[int, int] | None,
-    tile_size: int,
-) -> gdal.Dataset | None:
-    """Read a large window as a grid of tiles and mosaic them, or return ``None``.
-
-    Returns ``None`` when the target grid is unknown (no ``scale``/``shape``) or
-    already within ``tile_size`` on both axes — the caller then does a single
-    :func:`_window`. Otherwise the AOI is split into ``<= tile_size`` px tiles,
-    each read via :func:`_window`, and the tiles are mosaicked (via ``gdal.Warp``)
-    onto the full grid. EEDAI has no hard request cap, so ``tile_size`` bounds
-    local memory/practicality, not an Earth Engine limit.
-
-    Args:
-        src: The opened EEDAI source dataset.
-        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``.
-        crs: Target CRS.
-        scale: Output pixel size in ``crs`` units, or ``None``.
-        shape: Output ``(rows, cols)``, or ``None``.
-        tile_size: Maximum pixels per axis per tile.
-
-    Returns:
-        The mosaicked in-memory GDAL dataset, or ``None`` if tiling does not apply.
-
-    Raises:
-        ReaderError: The mosaic warp failed.
-    """
-    min_x, min_y, max_x, max_y = bbox
-    if shape is not None:
-        rows, cols = shape
-        px_x = (max_x - min_x) / cols
-        px_y = (max_y - min_y) / rows
-    elif scale is not None:
-        px_x = px_y = scale
-        cols = math.ceil((max_x - min_x) / scale)
-        rows = math.ceil((max_y - min_y) / scale)
-    else:
-        return None
-    if max(rows, cols) <= tile_size:
-        return None
-
-    tiles: list[gdal.Dataset] = []
-    for iy in range(math.ceil(rows / tile_size)):
-        tile_max_y = max_y - iy * tile_size * px_y
-        tile_min_y = max(min_y, tile_max_y - tile_size * px_y)
-        for ix in range(math.ceil(cols / tile_size)):
-            tile_min_x = min_x + ix * tile_size * px_x
-            tile_max_x = min(max_x, tile_min_x + tile_size * px_x)
-            # Read each tile straight at the target resolution so the later mosaic
-            # only places tiles onto the grid — a single resampling, not a native
-            # read followed by a re-warp.
-            tile = gdal.Warp(
-                "",
-                src,
-                format="MEM",
-                outputBounds=[tile_min_x, tile_min_y, tile_max_x, tile_max_y],
-                outputBoundsSRS=crs,
-                dstSRS=crs,
-                xRes=px_x,
-                yRes=px_y,
-            )
-            if tile is None:
-                raise ReaderError(
-                    f"Earth Engine tiled read failed for a tile in {crs}: "
-                    f"{gdal.GetLastErrorMsg() or 'no detail'}"
-                )
-            tiles.append(tile)
-    mosaic_kwargs: dict[str, object] = {
-        "format": "MEM",
-        "outputBounds": [min_x, min_y, max_x, max_y],
-        "outputBoundsSRS": crs,
-        "dstSRS": crs,
-    }
-    if shape is not None:
-        # Size the mosaic to the exact requested grid, matching the non-tiled
-        # `_window(shape=...)` path instead of rounding from the pixel size.
-        mosaic_kwargs["width"] = cols
-        mosaic_kwargs["height"] = rows
-    else:
-        mosaic_kwargs["xRes"] = px_x
-        mosaic_kwargs["yRes"] = px_y
-    mosaic = gdal.Warp("", tiles, **mosaic_kwargs)
-    if mosaic is None:
-        raise ReaderError(
-            f"Earth Engine tiled read failed to mosaic to {bbox} in {crs}: "
-            f"{gdal.GetLastErrorMsg() or 'no detail'}"
-        )
-    return mosaic
 
 
 def _iso(value: str) -> str:
@@ -704,7 +699,6 @@ def _composite_read(
     start: str | None,
     end: str | None,
     reducer: str | None,
-    tile_size: int | None,
     geometry: object | None,
     credentials: EarthEngineCredentials,
 ) -> Dataset:
@@ -714,8 +708,8 @@ def _composite_read(
     argument semantics.
 
     Raises:
-        ValueError: ``reducer`` is missing, the ``start``/``end``/``bbox`` trio is
-            incomplete, or ``tile_size`` is combined with the composite mode.
+        ValueError: ``reducer`` is missing or the ``start``/``end``/``bbox`` trio is
+            incomplete.
         ReaderError: The date range + AOI matched no scenes.
     """
     if reducer is None:
@@ -726,11 +720,6 @@ def _composite_read(
     if start is None or end is None or bbox is None:
         raise ValueError(
             "The composite mode requires 'start', 'end', and a 'bbox' or 'geometry'."
-        )
-    if tile_size is not None:
-        raise ValueError(
-            "'tile_size' is only supported for single-Image reads, not the "
-            "composite mode."
         )
     scenes = _discover_scenes(
         asset_id,
@@ -767,7 +756,6 @@ def _single_image_read(
     crs: str,
     scale: float | None,
     shape: tuple[int, int] | None,
-    tile_size: int | None,
     geometry: object | None,
     credentials: EarthEngineCredentials,
 ) -> Dataset:
@@ -798,17 +786,11 @@ def _single_image_read(
         )
 
     # Keep the credential config in effect across the open AND the windowing read
-    # (the EEDAI pixel fetch is the ``gdal.Warp`` in `_window`/`_tiled_window`),
-    # then restore it — no process-global leak for the windowed path.
+    # (the EEDAI pixel fetch is the block-aligned RasterIO inside `_window`), then
+    # restore it — no process-global leak for the windowed path.
     with credentials.activate():
         src = _open_eedai(asset_id, bands=bands, credentials=credentials)
-        windowed_single = None
-        if tile_size is not None:
-            windowed_single = _tiled_window(
-                src, bbox=bbox, crs=crs, scale=scale, shape=shape, tile_size=tile_size
-            )
-        if windowed_single is None:
-            windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
+        windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
         src = None  # release the EEDAI source; the window is a self-contained copy
     windowed_dataset = _apply_geometry(
         Dataset(windowed_single, gdal_env=credentials.gdal_env()), geometry
@@ -825,7 +807,6 @@ def from_earthengine(
     crs: str = _DEFAULT_CRS,
     scale: float | None = None,
     shape: tuple[int, int] | None = None,
-    tile_size: int | None = None,
     start: str | None = None,
     end: str | None = None,
     reducer: str | None = None,
@@ -860,12 +841,6 @@ def from_earthengine(
             ``"EPSG:4326"``.
         scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.
         shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.
-        tile_size: Optional maximum pixels per axis for a single read (single
-            ``Image`` mode only — an error in composite mode). When the target
-            window is larger, the AOI is read as a grid of ``<= tile_size`` px
-            tiles and mosaicked locally. EEDAI has no hard request cap, so this
-            bounds local memory, not an EE limit. Needs ``scale`` or ``shape`` to
-            know the target grid.
         start: Inclusive ISO start of the acquisition window (composite mode).
         end: Inclusive ISO end of the acquisition window (composite mode).
         reducer: Client-side reducer for the composite mode — one of ``"median"``,
@@ -967,7 +942,6 @@ def from_earthengine(
             start=start,
             end=end,
             reducer=reducer,
-            tile_size=tile_size,
             geometry=geometry,
             credentials=creds,
         )
@@ -978,7 +952,6 @@ def from_earthengine(
         crs=crs,
         scale=scale,
         shape=shape,
-        tile_size=tile_size,
         geometry=geometry,
         credentials=creds,
     )

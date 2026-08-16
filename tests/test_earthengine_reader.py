@@ -341,22 +341,13 @@ class TestWindow:
         """A failed warp (``None``) raises ``ReaderError``.
 
         Test scenario:
-            ``gdal.Warp`` returning ``None`` surfaces as ``ReaderError`` naming
-            the bbox and CRS.
+            After the native window is materialised, ``gdal.Warp`` returning
+            ``None`` surfaces as a ``ReaderError`` naming the windowing target.
         """
-
-        class _WarpFails:
-            def Warp(self, dest, src, **kwargs):  # noqa: N802, ARG002
-                return None
-
-            def GetLastErrorMsg(self):  # noqa: N802
-                return "warp failed"
-
-        monkeypatch.setattr(ee_reader, "gdal", _WarpFails())
-        with pytest.raises(ReaderError, match="warp failed"):
-            ee_reader._window(
-                object(), bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None
-            )
+        src = _synthetic_srtm()
+        monkeypatch.setattr(ee_reader.gdal, "Warp", lambda dest, source, **kw: None)
+        with pytest.raises(ReaderError, match="windowing"):
+            ee_reader._window(src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None)
 
 
 class _FakeFeature:
@@ -988,132 +979,6 @@ class TestSpecialReducers:
         assert int(out[0, 0]) == 5, f"Mode should ignore nodata, got {out[0, 0]}"
 
 
-class TestTiledWindow:
-    """Tests for oversize tiling + mosaic (:func:`_tiled_window` / ``tile_size``)."""
-
-    @staticmethod
-    def _ramped_src():
-        """A 200x200 EPSG:4326 raster whose values ramp, so a mosaic is checkable."""
-        from osgeo import gdal, osr
-
-        src = gdal.GetDriverByName("MEM").Create("", 200, 200, 1, gdal.GDT_Int16)
-        src.SetGeoTransform((86.0, 0.01, 0.0, 29.0, 0.0, -0.01))
-        srs = osr.SpatialReference()
-        srs.ImportFromEPSG(4326)
-        src.SetProjection(srs.ExportToWkt())
-        src.GetRasterBand(1).WriteArray(
-            np.arange(200 * 200, dtype="int16").reshape(200, 200)
-        )
-        src.GetRasterBand(1).SetNoDataValue(-32768)
-        return src
-
-    def test_tiled_mosaic_matches_single_read(self) -> None:
-        """A tiled read mosaics back to exactly the single-read result.
-
-        Test scenario:
-            A 40x40 window split at tile_size=16 equals the untiled 40x40 read.
-        """
-        src = self._ramped_src()
-        single = ee_reader._window(
-            src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(40, 40)
-        )
-        tiled = ee_reader._tiled_window(
-            src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(40, 40), tile_size=16
-        )
-        assert (tiled.RasterXSize, tiled.RasterYSize) == (40, 40), "Wrong mosaic size"
-        assert np.array_equal(single.ReadAsArray(), tiled.ReadAsArray()), (
-            "Tiled mosaic differs from the single read"
-        )
-
-    def test_no_tiling_when_within_tile_size(self) -> None:
-        """Tiling is skipped (returns None) when the grid already fits.
-
-        Test scenario:
-            A 10x10 grid with tile_size=16 needs no tiling.
-        """
-        src = self._ramped_src()
-        assert (
-            ee_reader._tiled_window(
-                src,
-                bbox=_BBOX,
-                crs="EPSG:4326",
-                scale=None,
-                shape=(10, 10),
-                tile_size=16,
-            )
-            is None
-        ), "Should not tile a grid within tile_size"
-
-    def test_no_tiling_without_scale_or_shape(self) -> None:
-        """Tiling needs a known grid; returns None without scale/shape.
-
-        Test scenario:
-            No scale/shape → the target grid is unknown → no tiling.
-        """
-        src = self._ramped_src()
-        assert (
-            ee_reader._tiled_window(
-                src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None, tile_size=16
-            )
-            is None
-        ), "Should not tile without a known target grid"
-
-    def test_from_earthengine_uses_tiling(self, patched_eedai) -> None:
-        """``from_earthengine`` mosaics via tiling when ``tile_size`` is small.
-
-        Test scenario:
-            A 40x40 request with tile_size=16 returns the correct 40x40 Dataset.
-        """
-        ds = from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(40, 40), tile_size=16
-        )
-        assert ds.shape == (1, 40, 40), f"Expected (1, 40, 40), got {ds.shape}"
-
-    def test_tiled_mosaic_by_scale(self) -> None:
-        """Tiling works from a ``scale`` (not only ``shape``).
-
-        Test scenario:
-            A scale-based 20px window split at tile_size=16 equals the untiled read.
-        """
-        src = self._ramped_src()
-        single = ee_reader._window(
-            src, bbox=_BBOX, crs="EPSG:4326", scale=0.005, shape=None
-        )
-        tiled = ee_reader._tiled_window(
-            src, bbox=_BBOX, crs="EPSG:4326", scale=0.005, shape=None, tile_size=16
-        )
-        assert tiled is not None, "Expected tiling to engage at scale 0.005"
-        assert np.array_equal(single.ReadAsArray(), tiled.ReadAsArray()), (
-            "Scale-based tiled mosaic differs from the single read"
-        )
-
-    def test_mosaic_warp_failure_raises(self, monkeypatch) -> None:
-        """A failed mosaic warp raises ``ReaderError``.
-
-        Test scenario:
-            ``gdal.Warp`` returning ``None`` for the multi-source mosaic surfaces
-            as ``ReaderError`` (per-tile reads still succeed).
-        """
-        real_warp = ee_reader.gdal.Warp
-
-        def _warp(dest, src, **kwargs):
-            if isinstance(src, list):
-                return None
-            return real_warp(dest, src, **kwargs)
-
-        src = self._ramped_src()
-        monkeypatch.setattr(ee_reader.gdal, "Warp", _warp)
-        with pytest.raises(ReaderError, match="mosaic"):
-            ee_reader._tiled_window(
-                src,
-                bbox=_BBOX,
-                crs="EPSG:4326",
-                scale=None,
-                shape=(40, 40),
-                tile_size=16,
-            )
-
-
 class TestModeAllNodata:
     """Edge case: a pixel that is nodata in every scene."""
 
@@ -1268,25 +1133,6 @@ class TestGeometryCrs:
                 credentials=creds,
             )
 
-    def test_tile_read_failure_raises(self, monkeypatch) -> None:
-        """A failed per-tile read raises ``ReaderError`` (L2 target-res path).
-
-        Test scenario:
-            ``gdal.Warp`` returning None for a single-source tile read surfaces as
-            ``ReaderError``.
-        """
-        src = _synthetic_srtm()
-        monkeypatch.setattr(ee_reader.gdal, "Warp", lambda dest, src, **kw: None)
-        with pytest.raises(ReaderError, match="tile"):
-            ee_reader._tiled_window(
-                src,
-                bbox=_BBOX,
-                crs="EPSG:4326",
-                scale=None,
-                shape=(40, 40),
-                tile_size=16,
-            )
-
 
 def _multiband_scene(n_bands=2, fills=(10, 20), nodatas=(-1, -2)):
     """A small multi-band EPSG:4326 raster with per-band fills and nodata."""
@@ -1337,26 +1183,6 @@ class TestMultibandComposite:
             ee_reader._composite(windowed, "max", creds)
 
 
-class TestTileSizeGuard:
-    """`tile_size` is rejected in composite mode (L4)."""
-
-    def test_tile_size_rejected_in_composite_mode(self) -> None:
-        """Passing tile_size with a reducer raises ValueError.
-
-        Test scenario:
-            tile_size only applies to single-Image reads, not composites.
-        """
-        with pytest.raises(ValueError, match="tile_size.*single-Image"):
-            from_earthengine(
-                "COPERNICUS/S2_SR_HARMONIZED",
-                bbox=_BBOX,
-                start="2024-06-01",
-                end="2024-06-30",
-                reducer="median",
-                tile_size=16,
-            )
-
-
 class TestCredentialScope:
     """The credential config must be in effect during the windowed pixel read (M1)."""
 
@@ -1389,42 +1215,6 @@ class TestCredentialScope:
         assert seen["cfg"] == str(key), "Config must be active during the windowed read"
         assert gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) == before, (
             "Config must be restored after the read (no global leak)"
-        )
-
-
-class TestTiledExactShape:
-    """Tiled output must match the requested non-square shape exactly (L1)."""
-
-    def test_non_square_shape_matches_single_read(self) -> None:
-        """A non-square shape via tiling has exact dims and equals the single read.
-
-        Test scenario:
-            shape=(37, 53) with tile_size=16 yields exactly (37, 53), pixel-equal
-            to the non-tiled read.
-        """
-        from osgeo import gdal, osr
-
-        src = gdal.GetDriverByName("MEM").Create("", 200, 200, 1, gdal.GDT_Int16)
-        src.SetGeoTransform((86.0, 0.01, 0.0, 29.0, 0.0, -0.01))
-        srs = osr.SpatialReference()
-        srs.ImportFromEPSG(4326)
-        src.SetProjection(srs.ExportToWkt())
-        src.GetRasterBand(1).WriteArray(
-            np.arange(200 * 200, dtype="int16").reshape(200, 200)
-        )
-        src.GetRasterBand(1).SetNoDataValue(-32768)
-
-        tiled = ee_reader._tiled_window(
-            src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(37, 53), tile_size=16
-        )
-        single = ee_reader._window(
-            src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(37, 53)
-        )
-        assert (tiled.RasterYSize, tiled.RasterXSize) == (37, 53), (
-            f"Tiled dims not exact: {(tiled.RasterYSize, tiled.RasterXSize)}"
-        )
-        assert np.array_equal(tiled.ReadAsArray(), single.ReadAsArray()), (
-            "Non-square tiled mosaic differs from the single read"
         )
 
 
@@ -1466,4 +1256,90 @@ class TestRound2Coverage:
         out = ee_reader._geometry_in_crs(gdf_3857, "EPSG:4326")
         assert abs(out.total_bounds[0]) < 200, (
             f"Geometry not reprojected to lon/lat: {out.total_bounds[0]}"
+        )
+
+
+def _synthetic_no_nodata():
+    """A 200x200 EPSG:4326 raster with no nodata set on its band."""
+    from osgeo import gdal, osr
+
+    src = gdal.GetDriverByName("MEM").Create("", 200, 200, 1, gdal.GDT_Int16)
+    src.SetGeoTransform((86.0, 0.01, 0.0, 29.0, 0.0, -0.01))
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    src.SetProjection(srs.ExportToWkt())
+    src.GetRasterBand(1).Fill(7)
+    return src
+
+
+class TestMaterialize:
+    """Tests for the block-aligned native materialisation :func:`_materialize`."""
+
+    def test_reprojects_bbox_to_source_crs(self) -> None:
+        """A bbox in another CRS is transformed to the source CRS window.
+
+        Test scenario:
+            A Web-Mercator bbox over a 4326 source still materialises the right
+            constant-fill window.
+        """
+        from osgeo import osr
+
+        src = _synthetic_srtm(fill=42)
+        source = osr.SpatialReference()
+        source.ImportFromEPSG(4326)
+        source.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        target = osr.SpatialReference()
+        target.ImportFromEPSG(3857)
+        target.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        ct = osr.CoordinateTransformation(source, target)
+        (x0, y0, _), (x1, y1, _) = (
+            ct.TransformPoint(86.9, 27.9),
+            ct.TransformPoint(87.0, 28.0),
+        )
+        mem = ee_reader._materialize(src, (x0, y0, x1, y1), "EPSG:3857")
+        assert mem.RasterCount == 1, "Materialised copy should keep the band count"
+        assert int(mem.ReadAsArray().max()) == 42, "Constant fill should be preserved"
+
+    def test_raises_when_aoi_outside_asset(self) -> None:
+        """An AOI that misses the asset raises ``ReaderError``.
+
+        Test scenario:
+            A bbox far from the source extent does not intersect any pixels.
+        """
+        src = _synthetic_srtm()
+        with pytest.raises(ReaderError, match="does not intersect"):
+            ee_reader._materialize(src, (0.0, 0.0, 1.0, 1.0), "EPSG:4326")
+
+    def test_band_without_nodata(self) -> None:
+        """A source band with no nodata materialises without setting one.
+
+        Test scenario:
+            Covers the no-nodata branch; the fill value survives.
+        """
+        mem = ee_reader._materialize(_synthetic_no_nodata(), _BBOX, "EPSG:4326")
+        assert mem.GetRasterBand(1).GetNoDataValue() is None, "No nodata should be set"
+        assert int(mem.ReadAsArray().max()) == 7, "Fill value should be preserved"
+
+
+class TestLivePixelCorrectness:
+    """Live safety net: EEDAI reads must return correct, deterministic pixels."""
+
+    @pytest.mark.live
+    def test_srtm_values_correct_and_deterministic(self) -> None:
+        """A live SRTM read has plausible elevations and repeats identically.
+
+        Test scenario:
+            No int16 garbage (every pixel a plausible elevation) and two calls
+            return byte-identical arrays — the regression guard for the EEDAI
+            block/overview corruption bug.
+        """
+        first = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(96, 96))
+        second = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(96, 96))
+        values = first.read_array()
+        out_of_range = int(((values < -500) | (values > 9000)).sum())
+        assert out_of_range == 0, (
+            f"{out_of_range} corrupted pixels outside a plausible range"
+        )
+        assert np.array_equal(values, second.read_array()), (
+            "Repeated read was not deterministic"
         )
