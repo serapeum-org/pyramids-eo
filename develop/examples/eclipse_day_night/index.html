@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -1940,8 +1940,8 @@ With real EUMETSAT FCI granules the same calls produce the actual eclipse frame.
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dt</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
 <span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s2">"Agg"</span><span class="p">)</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
@@ -1958,8 +1958,8 @@ With real EUMETSAT FCI granules the same calls produce the actual eclipse frame.
 <div class="clipboard-copy-txt" id="cell-1">import datetime as dt
 import sys
 
-import numpy as np
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -2090,7 +2090,9 @@ print("umbra centre SZA (deg):", round(float(sza[uy, ux]), 1), "(&lt; 78 =&gt; d
 <span class="c1"># The umbra sits on the day side, so it must render as darkened true_color</span>
 <span class="c1"># (the day image), not as night city lights.</span>
 <span class="k">assert</span> <span class="n">sza</span><span class="p">[</span><span class="n">uy</span><span class="p">,</span> <span class="n">ux</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">78</span><span class="p">,</span> <span class="s2">"umbra should be on the day side"</span>
-<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">frame</span><span class="p">[:,</span> <span class="n">uy</span><span class="p">,</span> <span class="n">ux</span><span class="p">],</span> <span class="n">day</span><span class="p">[:,</span> <span class="n">uy</span><span class="p">,</span> <span class="n">ux</span><span class="p">]),</span> <span class="s2">"umbra should render via the day path"</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">frame</span><span class="p">[:,</span> <span class="n">uy</span><span class="p">,</span> <span class="n">ux</span><span class="p">],</span> <span class="n">day</span><span class="p">[:,</span> <span class="n">uy</span><span class="p">,</span> <span class="n">ux</span><span class="p">]),</span> <span class="p">(</span>
+    <span class="s2">"umbra should render via the day path"</span>
+<span class="p">)</span>
 
 <span class="n">rgb</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">moveaxis</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>  <span class="c1"># (H, W, 3) for imshow</span>
 <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
@@ -2104,7 +2106,9 @@ print("umbra centre SZA (deg):", round(float(sza[uy, ux]), 1), "(&lt; 78 =&gt; d
 # The umbra sits on the day side, so it must render as darkened true_color
 # (the day image), not as night city lights.
 assert sza[uy, ux] &lt; 78, "umbra should be on the day side"
-assert np.allclose(frame[:, uy, ux], day[:, uy, ux]), "umbra should render via the day path"
+assert np.allclose(frame[:, uy, ux], day[:, uy, ux]), (
+    "umbra should render via the day path"
+)
 
 rgb = np.clip(np.moveaxis(frame, 0, -1), 0.0, 1.0)  # (H, W, 3) for imshow
 fig, ax = plt.subplots(figsize=(6, 4))
