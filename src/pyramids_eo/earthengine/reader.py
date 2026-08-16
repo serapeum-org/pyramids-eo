@@ -24,7 +24,7 @@ import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osg
 # isort: on
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import NamedTuple
 
 import numpy as np
@@ -262,25 +262,40 @@ def _tiled_window(
     return mosaic
 
 
-def _iso(value: str, *, end_of_day: bool = False) -> str:
-    """Normalise a date/datetime string to an ISO datetime for catalog filtering.
+def _iso(value: str) -> str:
+    """Normalise a date/datetime string to an ISO datetime for the lower bound.
 
-    A bare date (``"2024-06-01"``) gains a time component so it compares correctly
-    against the catalog's ``startTime`` datetimes: midnight for a lower bound, or
-    end-of-day for an inclusive upper bound (so scenes acquired any time on the end
-    date are kept).
+    A bare date (``"2024-06-01"``) gains a midnight time component so it compares
+    correctly against the catalog's ``startTime`` datetimes.
 
     Args:
         value: An ISO date or datetime string.
-        end_of_day: When ``value`` is a bare date, use ``23:59:59.999`` instead of
-            midnight — for an inclusive ``end`` bound.
 
     Returns:
         An ISO datetime string (with a ``T`` time component).
     """
-    if "T" in value:
-        return value
-    return f"{value}T23:59:59.999" if end_of_day else f"{value}T00:00:00"
+    return value if "T" in value else f"{value}T00:00:00"
+
+
+def _end_clause(end: str) -> str:
+    """Build the inclusive upper-bound filter fragment for ``startTime``.
+
+    A bare ``end`` date resolves to a **next-day, exclusive** midnight bound
+    (``startTime < <end+1day>T00:00:00``) so every scene acquired on the end date is
+    kept regardless of its sub-second/timezone serialisation — avoiding the lexical
+    edge of comparing against an ``end-of-day`` literal. An explicit ``end``
+    datetime is treated as an inclusive instant (``startTime <= <end>``).
+
+    Args:
+        end: An ISO date or datetime string (already validated).
+
+    Returns:
+        An OGR attribute-filter fragment bounding ``startTime`` from above.
+    """
+    if "T" in end:
+        return f"startTime <= '{end}'"
+    next_day = (datetime.fromisoformat(end) + timedelta(days=1)).date().isoformat()
+    return f"startTime < '{next_day}T00:00:00'"
 
 
 def _require_iso(label: str, value: str) -> None:
@@ -450,12 +465,10 @@ def _discover_scenes(
             f"{gdal.GetLastErrorMsg() or 'no detail'}"
         )
     layer = catalog.GetLayer(0)
-    # Select by acquisition time (``startTime``) inclusively on both dates: a bare
-    # ``end`` date resolves to end-of-day so scenes acquired that day are kept, and
-    # a scene whose interval extends past ``end`` is not dropped for that reason.
-    layer.SetAttributeFilter(
-        f"startTime >= '{_iso(start)}' AND startTime <= '{_iso(end, end_of_day=True)}'"
-    )
+    # Select by acquisition time (``startTime``): lower bound at the start date's
+    # midnight, upper bound as a next-day-exclusive midnight for a bare end date so
+    # every scene acquired on the end date is kept regardless of serialisation.
+    layer.SetAttributeFilter(f"startTime >= '{_iso(start)}' AND {_end_clause(end)}")
     min_x, min_y, max_x, max_y = bbox_4326
     layer.SetSpatialFilterRect(min_x, min_y, max_x, max_y)
     scenes: list[_Scene] = []

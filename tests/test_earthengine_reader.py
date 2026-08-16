@@ -666,10 +666,10 @@ class TestDiscoverScenes:
         assert "2024-06-01T00:00:00" in layer.attribute_filter, (
             f"Attribute filter missing start: {layer.attribute_filter}"
         )
-        # Filters inclusively on acquisition time; the end date is end-of-day so
-        # scenes acquired that day are kept (M3).
-        assert "startTime <= '2024-06-30T23:59:59.999'" in layer.attribute_filter, (
-            f"Filter should bound startTime by end-of-day: {layer.attribute_filter}"
+        # Filters on acquisition time; a bare end date bounds startTime by the
+        # next-day-exclusive midnight so scenes acquired that day are kept (M3/L3).
+        assert "startTime < '2024-07-01T00:00:00'" in layer.attribute_filter, (
+            f"Filter should bound startTime by next-day midnight: {layer.attribute_filter}"
         )
         assert "endTime" not in layer.attribute_filter, (
             f"Filter should not bound by endTime: {layer.attribute_filter}"
@@ -710,9 +710,21 @@ class TestHelpers:
         assert ee_reader._iso("2024-06-01T12:00:00") == "2024-06-01T12:00:00", (
             "datetime unchanged"
         )
+
+    def test_end_clause_next_day_exclusive_for_bare_date(self) -> None:
+        """A bare end date bounds startTime by next-day-exclusive midnight.
+
+        Test scenario:
+            ``_end_clause`` avoids the sub-millisecond lexical edge; an explicit
+            datetime end stays an inclusive ``<=`` bound.
+        """
         assert (
-            ee_reader._iso("2024-06-30", end_of_day=True) == "2024-06-30T23:59:59.999"
-        ), "end-of-day bound should reach the end of the date"
+            ee_reader._end_clause("2024-06-30") == "startTime < '2024-07-01T00:00:00'"
+        ), "bare end date should bound by next-day midnight (exclusive)"
+        assert (
+            ee_reader._end_clause("2024-06-30T12:00:00")
+            == "startTime <= '2024-06-30T12:00:00'"
+        ), "explicit end datetime should be an inclusive bound"
 
     def test_bbox_to_4326_passthrough(self) -> None:
         """A lon/lat bbox is returned unchanged.
