@@ -354,11 +354,11 @@ class TestWindow:
             After the native window is materialised, ``gdal.Warp`` returning
             ``None`` surfaces as a ``ReaderError`` naming the windowing target.
         """
-        src = _synthetic_srtm()
-        monkeypatch.setattr(ee_reader.gdal, "Warp", lambda dest, source, **kw: None)
+        source = Dataset(_synthetic_srtm())
+        monkeypatch.setattr(ee_reader.gdal, "Warp", lambda dest, src, **kw: None)
         with pytest.raises(ReaderError, match="windowing"):
             ee_reader._window(
-                Dataset(src), bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None
+                source, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None
             )
 
 
@@ -1384,9 +1384,9 @@ class TestMaterialize:
         Test scenario:
             A bbox far from the source extent does not intersect any pixels.
         """
-        src = _synthetic_srtm()
+        ee = Dataset(_synthetic_srtm())
         with pytest.raises(ReaderError, match="does not intersect"):
-            ee_reader._materialize(Dataset(src), (0.0, 0.0, 1.0, 1.0), "EPSG:4326")
+            ee_reader._materialize(ee, (0.0, 0.0, 1.0, 1.0), "EPSG:4326")
 
     def test_band_without_nodata(self) -> None:
         """A source band with no nodata materialises without setting one.
@@ -1415,8 +1415,9 @@ class TestMaterialize:
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(4326)
         src.SetProjection(srs.ExportToWkt())
+        ee = Dataset(src)
         with pytest.raises(ReaderError, match="non-invertible"):
-            ee_reader._materialize(Dataset(src), _BBOX, "EPSG:4326")
+            ee_reader._materialize(ee, _BBOX, "EPSG:4326")
 
     def test_raises_when_block_read_returns_none(self) -> None:
         """A failed block read (``None``) raises ``ReaderError``.
