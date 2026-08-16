@@ -10,13 +10,16 @@ satpy / PyTroll dependency. So far:
   night image (satpy `DayNightCompositor`).
 * `alpha_overlay` — the "over" composite of an RGBA foreground on an RGB(A)
   background (satpy `BackgroundCompositor`).
+* `static_image` — load a georeferenced background image (e.g. Black Marble),
+  caching a remote URL and warping it to a target grid (satpy
+  `StaticImageCompositor`).
 
-The remaining primitive (`static_image`) lands alongside these as its sub-issue
-is implemented.
+Together these compose satpy's `true_color_with_night_ir` day/night look.
 """
 
 from __future__ import annotations
 
+from pyramids_eo.composites.background import static_image
 from pyramids_eo.composites.blend import day_night_blend, day_weight
 from pyramids_eo.composites.geometry import solar_zenith_angle
 from pyramids_eo.composites.overlay import alpha_overlay
@@ -26,4 +29,5 @@ __all__ = [
     "day_night_blend",
     "day_weight",
     "solar_zenith_angle",
+    "static_image",
 ]
