@@ -1271,3 +1271,53 @@ class TestGeometryCrs:
                 shape=(40, 40),
                 tile_size=16,
             )
+
+
+def _multiband_scene(n_bands=2, fills=(10, 20), nodatas=(-1, -2)):
+    """A small multi-band EPSG:4326 raster with per-band fills and nodata."""
+    from osgeo import gdal, osr
+
+    src = gdal.GetDriverByName("MEM").Create("", 20, 20, n_bands, gdal.GDT_Int16)
+    src.SetGeoTransform((86.0, 0.01, 0.0, 29.0, 0.0, -0.01))
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    src.SetProjection(srs.ExportToWkt())
+    for band in range(n_bands):
+        src.GetRasterBand(band + 1).Fill(fills[band])
+        src.GetRasterBand(band + 1).SetNoDataValue(nodatas[band])
+    return src
+
+
+class TestMultibandComposite:
+    """Composite handling of multi-band scenes and band-count mismatches (L3)."""
+
+    def test_per_band_nodata_preserved(self) -> None:
+        """Each output band keeps its own source nodata value.
+
+        Test scenario:
+            A 2-band composite stamps the per-band nodata (-1, -2), not band-1's
+            value for both.
+        """
+        windowed = [_multiband_scene() for _ in range(3)]
+        ds = ee_reader._composite(
+            windowed, "max", EarthEngineCredentials.application_default()
+        )
+        assert ds.shape == (2, 20, 20), f"Expected 2 bands, got {ds.shape}"
+        assert tuple(ds.no_data_value) == (-1.0, -2.0), (
+            f"Per-band nodata not preserved: {ds.no_data_value}"
+        )
+
+    def test_mismatched_band_counts_raise(self) -> None:
+        """Scenes with different band counts raise a clear ReaderError.
+
+        Test scenario:
+            A 2-band scene and a 1-band scene cannot be composited.
+        """
+        windowed = [
+            _multiband_scene(2),
+            _multiband_scene(1, fills=(5,), nodatas=(-1,)),
+        ]
+        with pytest.raises(ReaderError, match="mismatched band counts"):
+            ee_reader._composite(
+                windowed, "max", EarthEngineCredentials.application_default()
+            )

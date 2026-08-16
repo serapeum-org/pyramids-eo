@@ -584,14 +584,17 @@ def _reduce(stack: np.ndarray, reducer: str, nodata: float | None) -> np.ndarray
 
 
 def _build_like(
-    template: gdal.Dataset, array: np.ndarray, nodata: float | None
+    template: gdal.Dataset,
+    array: np.ndarray,
+    nodata: float | list[float | None] | None,
 ) -> gdal.Dataset:
     """Build an in-memory GDAL dataset holding ``array`` on ``template``'s grid.
 
     Args:
-        template: The dataset whose geotransform / projection / dtype to copy.
+        template: The dataset whose geotransform / projection to copy.
         array: The pixel data, shaped ``(rows, cols)`` or ``(bands, rows, cols)``.
-        nodata: Nodata value to stamp on each band, or ``None``.
+        nodata: Nodata to stamp on the bands — a scalar applied to every band, or a
+            per-band list (one entry per band, each value or ``None``), or ``None``.
 
     Returns:
         A ``MEM`` GDAL dataset georeferenced like ``template``.
@@ -608,8 +611,9 @@ def _build_like(
     for index in range(n_bands):
         band = out.GetRasterBand(index + 1)
         band.WriteArray(array[index])
-        if nodata is not None:
-            band.SetNoDataValue(nodata)
+        band_nodata = nodata[index] if isinstance(nodata, list) else nodata
+        if band_nodata is not None:
+            band.SetNoDataValue(band_nodata)
     return out
 
 
@@ -629,12 +633,38 @@ def _composite(
 
     Returns:
         A single composite pyramids ``Dataset``.
+
+    Raises:
+        ReaderError: The scenes have mismatched band counts.
     """
+    band_count = windowed[0].RasterCount
+    for scene in windowed[1:]:
+        if scene.RasterCount != band_count:
+            raise ReaderError(
+                "Earth Engine scenes have mismatched band counts "
+                f"({band_count} vs {scene.RasterCount}); cannot composite."
+            )
+    nodatas = [
+        windowed[0].GetRasterBand(index + 1).GetNoDataValue()
+        for index in range(band_count)
+    ]
     stack = np.stack([scene.ReadAsArray() for scene in windowed], axis=0)
-    nodata = windowed[0].GetRasterBand(1).GetNoDataValue()
-    reduced = _reduce(stack, reducer, nodata)
+    if stack.ndim == 4:
+        # (scenes, bands, rows, cols) — reduce each band with its own nodata.
+        reduced = np.stack(
+            [
+                _reduce(stack[:, band], reducer, nodatas[band])
+                for band in range(band_count)
+            ],
+            axis=0,
+        )
+        band_nodata: float | list[float | None] | None = nodatas
+    else:
+        reduced = _reduce(stack, reducer, nodatas[0])
+        band_nodata = nodatas[0]
     composite = Dataset(
-        _build_like(windowed[0], reduced, nodata), gdal_env=credentials.gdal_env()
+        _build_like(windowed[0], reduced, band_nodata),
+        gdal_env=credentials.gdal_env(),
     )
     return _apply_geometry(composite, geometry)
 
