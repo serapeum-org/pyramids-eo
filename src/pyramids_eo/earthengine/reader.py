@@ -180,6 +180,52 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> Dataset:
         for resampling), holding correct native-resolution pixels for every band.
     """
     geotransform = src.GetGeoTransform()
+    x0, y0, x1, y1 = _native_pixel_window(src, geotransform, bbox, crs)
+    # Include the geotransform rotation/shear cross-terms so the sub-window origin
+    # is correct even for a non-north-up source (north-up assets have gt[2]=gt[4]=0).
+    subwindow_geo = (
+        geotransform[0] + x0 * geotransform[1] + y0 * geotransform[2],
+        geotransform[1],
+        geotransform[2],
+        geotransform[3] + x0 * geotransform[4] + y0 * geotransform[5],
+        geotransform[4],
+        geotransform[5],
+    )
+    # An ImageCollection's scenes share one per-band nodata, so the first band's is
+    # representative for the whole asset.
+    nodata = src.GetRasterBand(1).GetNoDataValue()
+    data = _read_native_blocks(src, x0, y0, x1, y1)
+    # Hand the block-stitched native pixels to pyramids to build the georeferenced
+    # raster — no manual MEM driver or per-band juggling. The source projection is
+    # passed through as WKT so a non-EPSG Earth Engine grid round-trips exactly, and
+    # ``no_data_value=None`` leaves the bands without a nodata sentinel.
+    return Dataset.create_from_array(
+        data, geo=subwindow_geo, epsg=src.GetProjection(), no_data_value=nodata
+    )
+
+
+def _native_pixel_window(
+    src: gdal.Dataset, geotransform: tuple, bbox: BBox, crs: str
+) -> tuple[int, int, int, int]:
+    """Map an AOI ``bbox`` in ``crs`` to a block-padded native pixel window.
+
+    The AOI boundary (corners + edge midpoints) is reprojected into the source CRS
+    and inverse-geotransformed to pixel coordinates; the enclosing window is padded
+    one pixel for resampling and clamped to the source extent.
+
+    Args:
+        src: The opened EEDAI source dataset.
+        geotransform: ``src``'s geotransform.
+        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``.
+        crs: The CRS ``bbox`` is expressed in.
+
+    Returns:
+        The pixel window ``(x0, y0, x1, y1)`` — top-left inclusive, bottom-right
+        exclusive.
+
+    Raises:
+        ReaderError: The geotransform is non-invertible, or the AOI misses the asset.
+    """
     source_srs = osr.SpatialReference()
     source_srs.ImportFromWkt(src.GetProjection())
     source_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
@@ -214,24 +260,35 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> Dataset:
     y1 = min(src.RasterYSize, int(math.ceil(max(rows_))) + 1)
     if x1 <= x0 or y1 <= y0:
         raise ReaderError(f"AOI {bbox} does not intersect the Earth Engine asset.")
+    return x0, y0, x1, y1
 
+
+def _read_native_blocks(
+    src: gdal.Dataset, x0: int, y0: int, x1: int, y1: int
+) -> np.ndarray:
+    """Read a native pixel window one block-aligned tile at a time and stitch it.
+
+    Each ``RasterIO`` is kept inside a single EEDAI block (a read that crosses a
+    256-px block boundary corrupts the result), so the window is walked block by
+    block and assembled into one ``(bands, rows, cols)`` array.
+
+    Args:
+        src: The opened EEDAI source dataset.
+        x0: Left pixel of the window (inclusive).
+        y0: Top pixel of the window (inclusive).
+        x1: Right pixel of the window (exclusive).
+        y1: Bottom pixel of the window (exclusive).
+
+    Returns:
+        The stitched native-resolution pixels, shaped ``(bands, y1 - y0, x1 - x0)``.
+
+    Raises:
+        ReaderError: A block read returned ``None``.
+    """
     width, height = x1 - x0, y1 - y0
     band_count = src.RasterCount
-    # Include the geotransform rotation/shear cross-terms so the sub-window origin
-    # is correct even for a non-north-up source (north-up assets have gt[2]=gt[4]=0).
-    subwindow_geo = (
-        geotransform[0] + x0 * geotransform[1] + y0 * geotransform[2],
-        geotransform[1],
-        geotransform[2],
-        geotransform[3] + x0 * geotransform[4] + y0 * geotransform[5],
-        geotransform[4],
-        geotransform[5],
-    )
-    # An ImageCollection's scenes share one per-band nodata, so the first band's is
-    # representative for the whole asset.
-    nodata = src.GetRasterBand(1).GetNoDataValue()
-    data: np.ndarray | None = None
     block = _EEDAI_BLOCK
+    data: np.ndarray | None = None
     for band_index in range(band_count):
         source_band = src.GetRasterBand(band_index + 1)
         for by in range((y0 // block) * block, y1, block):
@@ -247,13 +304,8 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> Dataset:
                 if data is None:
                     data = np.empty((band_count, height, width), dtype=tile.dtype)
                 data[band_index, ry0 - y0 : ry1 - y0, rx0 - x0 : rx1 - x0] = tile
-    # Hand the block-stitched native pixels to pyramids to build the georeferenced
-    # raster — no manual MEM driver or per-band juggling. The source projection is
-    # passed through as WKT so a non-EPSG Earth Engine grid round-trips exactly, and
-    # ``no_data_value=None`` leaves the bands without a nodata sentinel.
-    return Dataset.create_from_array(
-        data, geo=subwindow_geo, epsg=src.GetProjection(), no_data_value=nodata
-    )
+    assert data is not None  # band_count >= 1 over a non-empty window
+    return data
 
 
 def _window(
