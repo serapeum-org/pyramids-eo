@@ -103,11 +103,14 @@ nav:
   - Home: index.md
   - Getting Started:
     - Installation: installation.md
+  - Guides:
+    - STAC provider signers: stac-signers.md
   - Reference:
     - Overview: reference/index.md
     - Readers: reference/readers.md
     - Registry: reference/registry.md
     - Errors: reference/errors.md
+    - STAC signers: reference/stac.md
   - About:
     - Change-log: change-log.md
     - Code of Conduct: CODE_OF_CONDUCT.md

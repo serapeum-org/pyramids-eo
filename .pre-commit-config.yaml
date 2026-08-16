@@ -74,20 +74,29 @@ repos:
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.0
+    # The repo's single secret scanner (matches pyramids). This hook scans staged
+    # changes at commit time; CI runs a full-tree `gitleaks dir` in lint.yml. Both
+    # share the ci/gitleaks.toml allowlist.
     hooks:
       - id: gitleaks
-
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.5.0
-    hooks:
-      - id: detect-secrets
-        exclude: '\.(ipynb|drawio)$'
+        name: "[cred -  check] gitleaks"
+        args: ["--config", "ci/gitleaks.toml"]
 
   - repo: local
     hooks:
       - id: mypy
         name: "[py   -  type] mypy"
         entry: pixi run -e dev mypy
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]
+
+  - repo: local
+    hooks:
+      - id: doctest
+        name: "[py   -  doc] doctest"
+        entry: pixi run -e dev pytest --doctest-modules src/pyramids_eo -p no:cacheprovider
         language: system
         pass_filenames: false
         always_run: true
