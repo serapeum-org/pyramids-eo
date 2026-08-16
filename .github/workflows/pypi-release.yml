@@ -54,7 +54,30 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_branch }}
 
+      - name: Ensure the release is published (skip drafts)
+        # A github-release run cut with `draft: true` still bumps the version and
+        # completes successfully, which would fire this workflow_run and publish an
+        # unreleased version to PyPI (irreversible). The /releases/tags endpoint returns
+        # published releases only, so a draft (or missing) release yields a non-zero
+        # exit and skips publishing.
+        id: gate
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG=$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/')
+          if gh api "repos/${REPO}/releases/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Published release ${TAG} found — proceeding."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No published release for ${TAG} (draft or missing) — skipping publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and publish sdist + pure wheel
+        if: github.event_name == 'workflow_dispatch' || steps.gate.outputs.publish == 'true'
         uses: serapeum-org/github-actions/actions/release/pypi@38c111084f99d5ff5f4a1e63bedce48fe33a10c0  # pypi-release/v1.5.0
         with:
           pypi-username: __token__
