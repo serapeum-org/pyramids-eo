@@ -13,6 +13,8 @@ satpy / PyTroll dependency. So far:
 * `static_image` — load a georeferenced background image (e.g. Black Marble),
   caching a remote URL and warping it to a target grid (satpy
   `StaticImageCompositor`).
+* `true_color` — true-colour RGB from calibrated reflectance bands with a CIMSS
+  synthetic green (no Rayleigh).
 
 Together these compose satpy's `true_color_with_night_ir` day/night look.
 """
@@ -23,6 +25,7 @@ from pyramids_eo.composites.background import static_image
 from pyramids_eo.composites.blend import day_night_blend, day_weight
 from pyramids_eo.composites.geometry import solar_zenith_angle
 from pyramids_eo.composites.overlay import alpha_overlay
+from pyramids_eo.composites.true_color import true_color
 
 __all__ = [
     "alpha_overlay",
@@ -30,4 +33,5 @@ __all__ = [
     "day_weight",
     "solar_zenith_angle",
     "static_image",
+    "true_color",
 ]
