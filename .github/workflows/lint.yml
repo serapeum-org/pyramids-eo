@@ -43,6 +43,32 @@ jobs:
         env:
           SKIP: no-commit-to-branch,gitleaks,pytest-check
 
+  # Src doctests. Need the full `dev` pixi env (typed deps and an importable
+  # package) but are not platform- or Python-version-sensitive, so one runner
+  # covers them.
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: serapeum-org/github-actions/actions/python-setup/pixi@38c111084f99d5ff5f4a1e63bedce48fe33a10c0  # pixi/v1.2.1
+        with:
+          environments: dev
+          activate-environment: dev
+          cache: true
+          version: v0.73.0
+
+      - name: Doctests (src)
+        # MPLBACKEND=Agg forces the headless matplotlib backend so no example opens
+        # a GUI window; -p no:cacheprovider disables the pytest cache plugin.
+        env:
+          MPLBACKEND: Agg
+        run: pixi run -e dev pytest --doctest-modules src -p no:cacheprovider
+
   # The repo's secret gate. gitleaks is the single secret scanner (matches
   # pyramids). The pre-commit hook only scans staged changes, which are empty in
   # CI, so this job scans the whole working tree — every tracked file, notebooks

@@ -11,7 +11,32 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # contents: write is required for the admin-gate step below: the
+    # collaborators/{user}/permission REST endpoint needs push access.
+    permissions:
+      contents: write
     steps:
+      - name: Check actor is a repository admin
+        # Gate the MANUAL publish path only. On `release: published` the publisher
+        # is already whoever has release permission, so gating it would block a
+        # legitimate maintainer auto-publish; only workflow_dispatch is guarded.
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if ! PERMISSION=$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" --jq '.permission'); then
+            echo "::error::could not verify repository permission for ${ACTOR} (GitHub API error)"
+            exit 1
+          fi
+          echo "Permission level for ${ACTOR}: ${PERMISSION}"
+          if [ "${PERMISSION}" != "admin" ]; then
+            echo "::error::${ACTOR} is not a repository admin. Only admins can publish."
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
