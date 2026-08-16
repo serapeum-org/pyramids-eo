@@ -23,7 +23,6 @@ from __future__ import annotations
 import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osgeo)
 # isort: on
 
-import math
 from datetime import datetime, timedelta
 from typing import NamedTuple
 
@@ -179,8 +178,9 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> Dataset:
         A pyramids ``Dataset`` in the source CRS covering ``bbox`` (padded one pixel
         for resampling), holding correct native-resolution pixels for every band.
     """
-    geotransform = src.GetGeoTransform()
-    x0, y0, x1, y1 = _native_pixel_window(src, geotransform, bbox, crs)
+    ee = Dataset(src)
+    geotransform = ee.geotransform
+    x0, y0, x1, y1 = _native_pixel_window(ee, bbox, crs)
     # Include the geotransform rotation/shear cross-terms so the sub-window origin
     # is correct even for a non-north-up source (north-up assets have gt[2]=gt[4]=0).
     subwindow_geo = (
@@ -193,29 +193,31 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> Dataset:
     )
     # An ImageCollection's scenes share one per-band nodata, so the first band's is
     # representative for the whole asset.
-    nodata = src.GetRasterBand(1).GetNoDataValue()
-    data = _read_native_blocks(src, x0, y0, x1, y1)
+    nodata = ee.no_data_value[0]
+    # The block-aligned native read is the one step that must stay on raw GDAL bands
+    # (the EEDAI corruption workaround), so it takes the underlying ``.raster``.
+    data = _read_native_blocks(ee.raster, x0, y0, x1, y1)
     # Hand the block-stitched native pixels to pyramids to build the georeferenced
     # raster — no manual MEM driver or per-band juggling. The source projection is
     # passed through as WKT so a non-EPSG Earth Engine grid round-trips exactly, and
     # ``no_data_value=None`` leaves the bands without a nodata sentinel.
     return Dataset.create_from_array(
-        data, geo=subwindow_geo, epsg=src.GetProjection(), no_data_value=nodata
+        data, geo=subwindow_geo, epsg=ee.crs, no_data_value=nodata
     )
 
 
 def _native_pixel_window(
-    src: gdal.Dataset, geotransform: tuple, bbox: BBox, crs: str
+    ee: Dataset, bbox: BBox, crs: str
 ) -> tuple[int, int, int, int]:
     """Map an AOI ``bbox`` in ``crs`` to a block-padded native pixel window.
 
     The AOI boundary (corners + edge midpoints) is reprojected into the source CRS
-    and inverse-geotransformed to pixel coordinates; the enclosing window is padded
-    one pixel for resampling and clamped to the source extent.
+    and mapped to pixel coordinates with the dataset's own ``rowcol`` (which handles
+    rotated grids); the enclosing window is padded one pixel for resampling and
+    clamped to the source extent.
 
     Args:
-        src: The opened EEDAI source dataset.
-        geotransform: ``src``'s geotransform.
+        ee: The opened EEDAI source wrapped as a pyramids ``Dataset``.
         bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``.
         crs: The CRS ``bbox`` is expressed in.
 
@@ -226,8 +228,15 @@ def _native_pixel_window(
     Raises:
         ReaderError: The geotransform is non-invertible, or the AOI misses the asset.
     """
+    geotransform = ee.geotransform
+    # A zero affine determinant means the grid cannot be inverted to pixel indices.
+    if (
+        abs(geotransform[1] * geotransform[5] - geotransform[2] * geotransform[4])
+        < 1e-15
+    ):
+        raise ReaderError("Earth Engine asset has a non-invertible geotransform.")
     source_srs = osr.SpatialReference()
-    source_srs.ImportFromWkt(src.GetProjection())
+    source_srs.ImportFromWkt(ee.crs)
     source_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
     target_srs = osr.SpatialReference()
     target_srs.SetFromUserInput(crs)
@@ -248,16 +257,13 @@ def _native_pixel_window(
         transform = osr.CoordinateTransformation(target_srs, source_srs)
         boundary = [transform.TransformPoint(x, y)[:2] for x, y in boundary]
 
-    inverse = gdal.InvGeoTransform(geotransform)
-    if inverse is None:
-        raise ReaderError("Earth Engine asset has a non-invertible geotransform.")
-    pixels = [gdal.ApplyGeoTransform(inverse, x, y) for x, y in boundary]
-    cols = [px for px, _ in pixels]
-    rows_ = [py for _, py in pixels]
-    x0 = max(0, int(math.floor(min(cols))) - 1)
-    y0 = max(0, int(math.floor(min(rows_))) - 1)
-    x1 = min(src.RasterXSize, int(math.ceil(max(cols))) + 1)
-    y1 = min(src.RasterYSize, int(math.ceil(max(rows_))) + 1)
+    # Map the boundary to pixel coordinates with the dataset's own rowcol. It floors
+    # to whole pixels, so pad the far edge by an extra pixel to cover the remainder.
+    rows_, cols_ = ee.rowcol([x for x, _ in boundary], [y for _, y in boundary])
+    x0 = max(0, int(np.min(cols_)) - 1)
+    y0 = max(0, int(np.min(rows_)) - 1)
+    x1 = min(ee.columns, int(np.max(cols_)) + 2)
+    y1 = min(ee.rows, int(np.max(rows_)) + 2)
     if x1 <= x0 or y1 <= y0:
         raise ReaderError(f"AOI {bbox} does not intersect the Earth Engine asset.")
     return x0, y0, x1, y1

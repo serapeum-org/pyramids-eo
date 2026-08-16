@@ -1436,7 +1436,7 @@ class TestMaterialize:
 
         src = _NoneReadSrc(_synthetic_srtm())
         with pytest.raises(ReaderError, match="block read failed"):
-            ee_reader._materialize(src, _BBOX, "EPSG:4326")
+            ee_reader._read_native_blocks(src, 0, 0, 200, 200)
 
 
 class TestLivePixelCorrectness:
