@@ -74,15 +74,13 @@ repos:
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.0
+    # The repo's single secret scanner (matches pyramids). This hook scans staged
+    # changes at commit time; CI runs a full-tree `gitleaks dir` in lint.yml. Both
+    # share the ci/gitleaks.toml allowlist.
     hooks:
       - id: gitleaks
-
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.5.0
-    hooks:
-      - id: detect-secrets
-        args: ['--baseline', '.secrets.baseline']
-        exclude: '\.(ipynb|drawio)$'
+        name: "[cred -  check] gitleaks"
+        args: ["--config", "ci/gitleaks.toml"]
 
   - repo: local
     hooks:

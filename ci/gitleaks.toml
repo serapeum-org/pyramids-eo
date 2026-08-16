@@ -1,0 +1,19 @@
+# Gitleaks configuration for the CI secret scan (`gitleaks dir` in lint.yml) and the
+# local gitleaks pre-commit hook. gitleaks is the repo's single secret scanner (it
+# matches pyramids). This keeps gitleaks' full built-in ruleset and only allowlists
+# paths that are registries or fixtures rather than source secrets.
+title = "pyramids-eo"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Non-source paths: working notes and lockfile hashes"
+paths = [
+  # Planning / review notes are working documents, not shipped code.
+  '''(^|/)planning/''',
+  # PR review artifacts written into the repo root are working documents.
+  '''pr-diff-review-.*\.md$''',
+  # The dependency lockfile is package hashes, not credentials.
+  '''pixi\.lock$''',
+]
