@@ -375,9 +375,3 @@ class EarthEngineCredentials:
         if self._owns_path:
             return f"{type(self).__name__}(service_account_info=<redacted>)"
         return f"{type(self).__name__}(service_account_json={str(self._path)!r})"
-
-
-def _ambient_service_account() -> str | None:
-    """Return the ambient ``GOOGLE_APPLICATION_CREDENTIALS`` value, if any."""
-    value = os.environ.get(GOOGLE_APPLICATION_CREDENTIALS)
-    return value or None

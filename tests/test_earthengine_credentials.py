@@ -1,9 +1,9 @@
 """Unit tests for :mod:`pyramids_eo.earthengine.credentials` (no network).
 
 Covers :class:`EarthEngineCredentials` (constructor, named constructors,
-``coerce``, ``gdal_env``, the ``activate`` context manager, ``__repr__``) and the
-module-level :func:`_ambient_service_account` helper. The only GDAL touch is
-``activate``'s config get/set, which is exercised without opening any dataset.
+``coerce``, ``gdal_env``, the ``activate`` context manager, ``__repr__``, and
+inline-JSON credentials). The only GDAL touch is ``activate``'s config get/set,
+which is exercised without opening any dataset.
 """
 
 from __future__ import annotations
@@ -13,10 +13,7 @@ from pathlib import Path
 import pytest
 
 from pyramids_eo.earthengine import EarthEngineCredentials
-from pyramids_eo.earthengine.credentials import (
-    GOOGLE_APPLICATION_CREDENTIALS,
-    _ambient_service_account,
-)
+from pyramids_eo.earthengine.credentials import GOOGLE_APPLICATION_CREDENTIALS
 from pyramids_eo.errors import AuthenticationError
 
 
@@ -224,39 +221,6 @@ class TestEarthEngineCredentials:
         assert text == "EarthEngineCredentials(application_default)", (
             f"Unexpected ADC repr: {text}"
         )
-
-
-class TestAmbientServiceAccount:
-    """Tests for the module-level :func:`_ambient_service_account` helper."""
-
-    def test_returns_env_value_when_set(self, monkeypatch) -> None:
-        """Returns the ambient ``GOOGLE_APPLICATION_CREDENTIALS`` when present.
-
-        Test scenario:
-            A set env var is returned verbatim.
-        """
-        monkeypatch.setenv(GOOGLE_APPLICATION_CREDENTIALS, "/some/key.json")
-        assert _ambient_service_account() == "/some/key.json", (
-            "Should return the exported credential path"
-        )
-
-    def test_returns_none_when_unset(self, monkeypatch) -> None:
-        """Returns ``None`` when the env var is unset.
-
-        Test scenario:
-            No ambient credential → ``None``.
-        """
-        monkeypatch.delenv(GOOGLE_APPLICATION_CREDENTIALS, raising=False)
-        assert _ambient_service_account() is None, "Unset credential should be None"
-
-    def test_returns_none_when_empty(self, monkeypatch) -> None:
-        """Treats an empty string as no credential.
-
-        Test scenario:
-            An empty env value is normalised to ``None``.
-        """
-        monkeypatch.setenv(GOOGLE_APPLICATION_CREDENTIALS, "")
-        assert _ambient_service_account() is None, "Empty credential should be None"
 
 
 class TestFromServiceAccountInfo:
