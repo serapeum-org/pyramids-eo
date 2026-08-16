@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -911,6 +911,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.night_ir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        night_ir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color_with_night_ir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        true_color_with_night_ir
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1056,6 +1078,45 @@
     <span class="md-ellipsis">
       
         true_color
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color_night" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        true_color_night
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="true_color_night">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color_night.night_ir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        night_ir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color_night.true_color_with_night_ir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        true_color_with_night_ir
       
     </span>
   </a>
@@ -1373,6 +1434,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.night_ir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        night_ir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color_with_night_ir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        true_color_with_night_ir
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1529,6 +1612,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color_night" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        true_color_night
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="true_color_night">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color_night.night_ir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        night_ir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color_night.true_color_with_night_ir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        true_color_with_night_ir
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1598,6 +1720,8 @@ satpy / PyTroll dependency. So far:</p>
   <code>StaticImageCompositor</code>).</li>
 <li><code>true_color</code> — true-colour RGB from calibrated reflectance bands with a CIMSS
   synthetic green (no Rayleigh).</li>
+<li><code>night_ir</code> / <code>true_color_with_night_ir</code> — assemble the full day/night image
+  (RGBA IR clouds over city lights, cross-faded against the day image by SZA).</li>
 </ul>
 <p>Together these compose satpy's <code>true_color_with_night_ir</code> day/night look.</p>
 
@@ -3124,6 +3248,423 @@ array-like or <code>Dataset</code>, matching the foreground's <code>(H, W)</code
 <a id="__codelineno-0-84" name="__codelineno-0-84"></a>        <span class="n">out</span> <span class="o">=</span> <span class="n">fg_rgb</span> <span class="o">*</span> <span class="n">fg_a</span> <span class="o">+</span> <span class="n">bg</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">fg_a</span><span class="p">)</span>
 <a id="__codelineno-0-85" name="__codelineno-0-85"></a>
 <a id="__codelineno-0-86" name="__codelineno-0-86"></a>    <span class="k">return</span> <span class="n">_wrap_like</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">foreground</span><span class="p">,</span> <span class="n">background</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyramids_eo.composites.night_ir" class="doc doc-heading"><a href="#pyramids_eo.composites.night_ir" class="toclink">
+            <code class="highlight language-python"><span class="n">night_ir</span><span class="p">(</span><span class="n">red</span><span class="p">,</span> <span class="n">green</span><span class="p">,</span> <span class="n">blue</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</a><a href="#pyramids_eo.composites.night_ir" class="headerlink" title="Permanent link">#</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Stack three IR bands into an RGBA night-cloud image.</p>
+<p>The satpy <code>GenericCompositor(ir_38, ir_105, ir_123)</code> step: stack the three
+IR bands as RGB and attach an alpha channel. The alpha controls where the
+background (city lights) shows through — pass a cloud-derived alpha
+(opaque over cold cloud tops, transparent over clear sky) to reproduce the
+reference look; the default is fully opaque (alpha = 1).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>red</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The IR band mapped to red (e.g. <code>ir_38</code>) — array-like or <code>Dataset</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>green</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The IR band mapped to green (e.g. <code>ir_105</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>blue</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The IR band mapped to blue (e.g. <code>ir_123</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>alpha</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-pixel alpha in <code>[0, 1]</code>, or <code>None</code> for fully opaque.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A <code>(4, H, W)</code> RGBA image — a pyramids <code>Dataset</code> when any input is a</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Dataset</code>, otherwise an ndarray.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pyramids_eo/composites/true_color_night.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-31">31</a></span>
+<span class="normal"><a href="#__codelineno-0-32">32</a></span>
+<span class="normal"><a href="#__codelineno-0-33">33</a></span>
+<span class="normal"><a href="#__codelineno-0-34">34</a></span>
+<span class="normal"><a href="#__codelineno-0-35">35</a></span>
+<span class="normal"><a href="#__codelineno-0-36">36</a></span>
+<span class="normal"><a href="#__codelineno-0-37">37</a></span>
+<span class="normal"><a href="#__codelineno-0-38">38</a></span>
+<span class="normal"><a href="#__codelineno-0-39">39</a></span>
+<span class="normal"><a href="#__codelineno-0-40">40</a></span>
+<span class="normal"><a href="#__codelineno-0-41">41</a></span>
+<span class="normal"><a href="#__codelineno-0-42">42</a></span>
+<span class="normal"><a href="#__codelineno-0-43">43</a></span>
+<span class="normal"><a href="#__codelineno-0-44">44</a></span>
+<span class="normal"><a href="#__codelineno-0-45">45</a></span>
+<span class="normal"><a href="#__codelineno-0-46">46</a></span>
+<span class="normal"><a href="#__codelineno-0-47">47</a></span>
+<span class="normal"><a href="#__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#__codelineno-0-49">49</a></span>
+<span class="normal"><a href="#__codelineno-0-50">50</a></span>
+<span class="normal"><a href="#__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#__codelineno-0-53">53</a></span>
+<span class="normal"><a href="#__codelineno-0-54">54</a></span>
+<span class="normal"><a href="#__codelineno-0-55">55</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-31" name="__codelineno-0-31"></a><span class="k">def</span><span class="w"> </span><span class="nf">night_ir</span><span class="p">(</span><span class="n">red</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">green</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">blue</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">alpha</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Stack three IR bands into an RGBA night-cloud image.</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33"></a>
+<a id="__codelineno-0-34" name="__codelineno-0-34"></a><span class="sd">    The satpy `GenericCompositor(ir_38, ir_105, ir_123)` step: stack the three</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="sd">    IR bands as RGB and attach an alpha channel. The alpha controls where the</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="sd">    background (city lights) shows through — pass a cloud-derived alpha</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37"></a><span class="sd">    (opaque over cold cloud tops, transparent over clear sky) to reproduce the</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="sd">    reference look; the default is fully opaque (alpha = 1).</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39"></a>
+<a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41"></a><span class="sd">        red: The IR band mapped to red (e.g. `ir_38`) — array-like or `Dataset`.</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">        green: The IR band mapped to green (e.g. `ir_105`).</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="sd">        blue: The IR band mapped to blue (e.g. `ir_123`).</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="sd">        alpha: Per-pixel alpha in `[0, 1]`, or `None` for fully opaque.</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45"></a>
+<a id="__codelineno-0-46" name="__codelineno-0-46"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="sd">        A `(4, H, W)` RGBA image — a pyramids `Dataset` when any input is a</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="sd">        `Dataset`, otherwise an ndarray.</span>
+<a id="__codelineno-0-49" name="__codelineno-0-49"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-50" name="__codelineno-0-50"></a>    <span class="n">r</span> <span class="o">=</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">red</span><span class="p">)</span>
+<a id="__codelineno-0-51" name="__codelineno-0-51"></a>    <span class="n">g</span> <span class="o">=</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">green</span><span class="p">)</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52"></a>    <span class="n">b</span> <span class="o">=</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">blue</span><span class="p">)</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53"></a>    <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">if</span> <span class="n">alpha</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54"></a>    <span class="n">rgba</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">r</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">a</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a>    <span class="k">return</span> <span class="n">_wrap_like</span><span class="p">(</span><span class="n">rgba</span><span class="p">,</span> <span class="n">red</span><span class="p">,</span> <span class="n">green</span><span class="p">,</span> <span class="n">blue</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyramids_eo.composites.true_color_with_night_ir" class="doc doc-heading"><a href="#pyramids_eo.composites.true_color_with_night_ir" class="toclink">
+            <code class="highlight language-python"><span class="n">true_color_with_night_ir</span><span class="p">(</span><span class="n">day</span><span class="p">,</span> <span class="n">night_ir_rgba</span><span class="p">,</span> <span class="n">background</span><span class="p">,</span> <span class="n">sza</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">lim_low</span><span class="o">=</span><span class="mf">78.0</span><span class="p">,</span> <span class="n">lim_high</span><span class="o">=</span><span class="mf">88.0</span><span class="p">)</span></code>
+
+</a><a href="#pyramids_eo.composites.true_color_with_night_ir" class="headerlink" title="Permanent link">#</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compose the full <code>true_color_with_night_ir</code> day/night image.</p>
+<p>Overlays the RGBA night-IR clouds on the city-lights <code>background</code>
+(<code>alpha_overlay</code>), then cross-fades that night image against the <code>day</code>
+true-colour image by solar zenith angle (<code>day_night_blend</code>).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>day</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The day image — true-colour RGB <code>(3, H, W)</code> array-like or <code>Dataset</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>night_ir_rgba</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The RGBA night-IR clouds from <code>night_ir</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>background</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The RGB city-lights background (e.g. Black Marble warped to
+the grid via <code>static_image</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>sza</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-pixel solar zenith angle in degrees, from <code>solar_zenith_angle</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lim_low</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>SZA at/below which it is fully day (default 78).</p>
+              </div>
+            </td>
+            <td>
+                  <code>78.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lim_high</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>SZA at/above which it is fully night (default 88).</p>
+              </div>
+            </td>
+            <td>
+                  <code>88.0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The composed day/night image — a pyramids <code>Dataset</code> when the inputs carry</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>one, otherwise an ndarray.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pyramids_eo/composites/true_color_night.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-58">58</a></span>
+<span class="normal"><a href="#__codelineno-0-59">59</a></span>
+<span class="normal"><a href="#__codelineno-0-60">60</a></span>
+<span class="normal"><a href="#__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#__codelineno-0-62">62</a></span>
+<span class="normal"><a href="#__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#__codelineno-0-67">67</a></span>
+<span class="normal"><a href="#__codelineno-0-68">68</a></span>
+<span class="normal"><a href="#__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#__codelineno-0-70">70</a></span>
+<span class="normal"><a href="#__codelineno-0-71">71</a></span>
+<span class="normal"><a href="#__codelineno-0-72">72</a></span>
+<span class="normal"><a href="#__codelineno-0-73">73</a></span>
+<span class="normal"><a href="#__codelineno-0-74">74</a></span>
+<span class="normal"><a href="#__codelineno-0-75">75</a></span>
+<span class="normal"><a href="#__codelineno-0-76">76</a></span>
+<span class="normal"><a href="#__codelineno-0-77">77</a></span>
+<span class="normal"><a href="#__codelineno-0-78">78</a></span>
+<span class="normal"><a href="#__codelineno-0-79">79</a></span>
+<span class="normal"><a href="#__codelineno-0-80">80</a></span>
+<span class="normal"><a href="#__codelineno-0-81">81</a></span>
+<span class="normal"><a href="#__codelineno-0-82">82</a></span>
+<span class="normal"><a href="#__codelineno-0-83">83</a></span>
+<span class="normal"><a href="#__codelineno-0-84">84</a></span>
+<span class="normal"><a href="#__codelineno-0-85">85</a></span>
+<span class="normal"><a href="#__codelineno-0-86">86</a></span>
+<span class="normal"><a href="#__codelineno-0-87">87</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="k">def</span><span class="w"> </span><span class="nf">true_color_with_night_ir</span><span class="p">(</span>
+<a id="__codelineno-0-59" name="__codelineno-0-59"></a>    <span class="n">day</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60"></a>    <span class="n">night_ir_rgba</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-61" name="__codelineno-0-61"></a>    <span class="n">background</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-62" name="__codelineno-0-62"></a>    <span class="n">sza</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-63" name="__codelineno-0-63"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a>    <span class="n">lim_low</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">78.0</span><span class="p">,</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65"></a>    <span class="n">lim_high</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">88.0</span><span class="p">,</span>
+<a id="__codelineno-0-66" name="__codelineno-0-66"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-67" name="__codelineno-0-67"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Compose the full `true_color_with_night_ir` day/night image.</span>
+<a id="__codelineno-0-68" name="__codelineno-0-68"></a>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">    Overlays the RGBA night-IR clouds on the city-lights `background`</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">    (`alpha_overlay`), then cross-fades that night image against the `day`</span>
+<a id="__codelineno-0-71" name="__codelineno-0-71"></a><span class="sd">    true-colour image by solar zenith angle (`day_night_blend`).</span>
+<a id="__codelineno-0-72" name="__codelineno-0-72"></a>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-74" name="__codelineno-0-74"></a><span class="sd">        day: The day image — true-colour RGB `(3, H, W)` array-like or `Dataset`.</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75"></a><span class="sd">        night_ir_rgba: The RGBA night-IR clouds from `night_ir`.</span>
+<a id="__codelineno-0-76" name="__codelineno-0-76"></a><span class="sd">        background: The RGB city-lights background (e.g. Black Marble warped to</span>
+<a id="__codelineno-0-77" name="__codelineno-0-77"></a><span class="sd">            the grid via `static_image`).</span>
+<a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="sd">        sza: Per-pixel solar zenith angle in degrees, from `solar_zenith_angle`.</span>
+<a id="__codelineno-0-79" name="__codelineno-0-79"></a><span class="sd">        lim_low: SZA at/below which it is fully day (default 78).</span>
+<a id="__codelineno-0-80" name="__codelineno-0-80"></a><span class="sd">        lim_high: SZA at/above which it is fully night (default 88).</span>
+<a id="__codelineno-0-81" name="__codelineno-0-81"></a>
+<a id="__codelineno-0-82" name="__codelineno-0-82"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-83" name="__codelineno-0-83"></a><span class="sd">        The composed day/night image — a pyramids `Dataset` when the inputs carry</span>
+<a id="__codelineno-0-84" name="__codelineno-0-84"></a><span class="sd">        one, otherwise an ndarray.</span>
+<a id="__codelineno-0-85" name="__codelineno-0-85"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-86" name="__codelineno-0-86"></a>    <span class="n">night</span> <span class="o">=</span> <span class="n">alpha_overlay</span><span class="p">(</span><span class="n">night_ir_rgba</span><span class="p">,</span> <span class="n">background</span><span class="p">)</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a>    <span class="k">return</span> <span class="n">day_night_blend</span><span class="p">(</span><span class="n">day</span><span class="p">,</span> <span class="n">night</span><span class="p">,</span> <span class="n">sza</span><span class="p">,</span> <span class="n">lim_low</span><span class="o">=</span><span class="n">lim_low</span><span class="p">,</span> <span class="n">lim_high</span><span class="o">=</span><span class="n">lim_high</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -5141,6 +5682,477 @@ over ocean / haze than a Rayleigh-corrected image.</p>
 <a id="__codelineno-0-65" name="__codelineno-0-65"></a>        <span class="n">rgb</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">rgb</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a>
 <a id="__codelineno-0-67" name="__codelineno-0-67"></a>    <span class="k">return</span> <span class="n">_wrap_like</span><span class="p">(</span><span class="n">rgb</span><span class="p">,</span> <span class="n">red</span><span class="p">,</span> <span class="n">blue</span><span class="p">,</span> <span class="n">nir</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h3 id="pyramids_eo.composites.true_color_night" class="doc doc-heading"><a href="#pyramids_eo.composites.true_color_night" class="toclink">
+            <code>pyramids_eo.composites.true_color_night</code>
+
+
+</a><a href="#pyramids_eo.composites.true_color_night" class="headerlink" title="Permanent link">#</a></h3>
+
+    <div class="doc doc-contents first">
+
+        <p>Assemble the <code>true_color_with_night_ir</code> day/night image.</p>
+<p>This wires the compositing primitives into satpy's <code>true_color_with_night_ir</code>
+chain, entirely in pyramids-eo (no satpy):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>true_color_with_night_ir = day_night_blend(
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    day        = true_color,
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    night      = alpha_overlay(night_ir, static_image(BlackMarble)),
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    sza        = solar_zenith_angle(...),
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>)
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>night_ir = GenericCompositor(ir_38, ir_105, ir_123) -&gt; RGB + alpha
+</code></pre></div>
+<p><code>night_ir</code> builds the RGBA night-cloud image (the satpy <code>GenericCompositor</code>
+step); <code>true_color_with_night_ir</code> overlays it on the city-lights background and
+cross-fades against the day image by solar zenith angle.</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyramids_eo.composites.true_color_night.night_ir" class="doc doc-heading"><a href="#pyramids_eo.composites.true_color_night.night_ir" class="toclink">
+            <code class="highlight language-python"><span class="n">night_ir</span><span class="p">(</span><span class="n">red</span><span class="p">,</span> <span class="n">green</span><span class="p">,</span> <span class="n">blue</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</a><a href="#pyramids_eo.composites.true_color_night.night_ir" class="headerlink" title="Permanent link">#</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Stack three IR bands into an RGBA night-cloud image.</p>
+<p>The satpy <code>GenericCompositor(ir_38, ir_105, ir_123)</code> step: stack the three
+IR bands as RGB and attach an alpha channel. The alpha controls where the
+background (city lights) shows through — pass a cloud-derived alpha
+(opaque over cold cloud tops, transparent over clear sky) to reproduce the
+reference look; the default is fully opaque (alpha = 1).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>red</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The IR band mapped to red (e.g. <code>ir_38</code>) — array-like or <code>Dataset</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>green</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The IR band mapped to green (e.g. <code>ir_105</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>blue</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The IR band mapped to blue (e.g. <code>ir_123</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>alpha</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-pixel alpha in <code>[0, 1]</code>, or <code>None</code> for fully opaque.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A <code>(4, H, W)</code> RGBA image — a pyramids <code>Dataset</code> when any input is a</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Dataset</code>, otherwise an ndarray.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pyramids_eo/composites/true_color_night.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-31">31</a></span>
+<span class="normal"><a href="#__codelineno-0-32">32</a></span>
+<span class="normal"><a href="#__codelineno-0-33">33</a></span>
+<span class="normal"><a href="#__codelineno-0-34">34</a></span>
+<span class="normal"><a href="#__codelineno-0-35">35</a></span>
+<span class="normal"><a href="#__codelineno-0-36">36</a></span>
+<span class="normal"><a href="#__codelineno-0-37">37</a></span>
+<span class="normal"><a href="#__codelineno-0-38">38</a></span>
+<span class="normal"><a href="#__codelineno-0-39">39</a></span>
+<span class="normal"><a href="#__codelineno-0-40">40</a></span>
+<span class="normal"><a href="#__codelineno-0-41">41</a></span>
+<span class="normal"><a href="#__codelineno-0-42">42</a></span>
+<span class="normal"><a href="#__codelineno-0-43">43</a></span>
+<span class="normal"><a href="#__codelineno-0-44">44</a></span>
+<span class="normal"><a href="#__codelineno-0-45">45</a></span>
+<span class="normal"><a href="#__codelineno-0-46">46</a></span>
+<span class="normal"><a href="#__codelineno-0-47">47</a></span>
+<span class="normal"><a href="#__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#__codelineno-0-49">49</a></span>
+<span class="normal"><a href="#__codelineno-0-50">50</a></span>
+<span class="normal"><a href="#__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#__codelineno-0-53">53</a></span>
+<span class="normal"><a href="#__codelineno-0-54">54</a></span>
+<span class="normal"><a href="#__codelineno-0-55">55</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-31" name="__codelineno-0-31"></a><span class="k">def</span><span class="w"> </span><span class="nf">night_ir</span><span class="p">(</span><span class="n">red</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">green</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">blue</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">alpha</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Stack three IR bands into an RGBA night-cloud image.</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33"></a>
+<a id="__codelineno-0-34" name="__codelineno-0-34"></a><span class="sd">    The satpy `GenericCompositor(ir_38, ir_105, ir_123)` step: stack the three</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="sd">    IR bands as RGB and attach an alpha channel. The alpha controls where the</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="sd">    background (city lights) shows through — pass a cloud-derived alpha</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37"></a><span class="sd">    (opaque over cold cloud tops, transparent over clear sky) to reproduce the</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="sd">    reference look; the default is fully opaque (alpha = 1).</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39"></a>
+<a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41"></a><span class="sd">        red: The IR band mapped to red (e.g. `ir_38`) — array-like or `Dataset`.</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">        green: The IR band mapped to green (e.g. `ir_105`).</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="sd">        blue: The IR band mapped to blue (e.g. `ir_123`).</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="sd">        alpha: Per-pixel alpha in `[0, 1]`, or `None` for fully opaque.</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45"></a>
+<a id="__codelineno-0-46" name="__codelineno-0-46"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="sd">        A `(4, H, W)` RGBA image — a pyramids `Dataset` when any input is a</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="sd">        `Dataset`, otherwise an ndarray.</span>
+<a id="__codelineno-0-49" name="__codelineno-0-49"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-50" name="__codelineno-0-50"></a>    <span class="n">r</span> <span class="o">=</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">red</span><span class="p">)</span>
+<a id="__codelineno-0-51" name="__codelineno-0-51"></a>    <span class="n">g</span> <span class="o">=</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">green</span><span class="p">)</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52"></a>    <span class="n">b</span> <span class="o">=</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">blue</span><span class="p">)</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53"></a>    <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">if</span> <span class="n">alpha</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54"></a>    <span class="n">rgba</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">r</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">a</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a>    <span class="k">return</span> <span class="n">_wrap_like</span><span class="p">(</span><span class="n">rgba</span><span class="p">,</span> <span class="n">red</span><span class="p">,</span> <span class="n">green</span><span class="p">,</span> <span class="n">blue</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyramids_eo.composites.true_color_night.true_color_with_night_ir" class="doc doc-heading"><a href="#pyramids_eo.composites.true_color_night.true_color_with_night_ir" class="toclink">
+            <code class="highlight language-python"><span class="n">true_color_with_night_ir</span><span class="p">(</span><span class="n">day</span><span class="p">,</span> <span class="n">night_ir_rgba</span><span class="p">,</span> <span class="n">background</span><span class="p">,</span> <span class="n">sza</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">lim_low</span><span class="o">=</span><span class="mf">78.0</span><span class="p">,</span> <span class="n">lim_high</span><span class="o">=</span><span class="mf">88.0</span><span class="p">)</span></code>
+
+</a><a href="#pyramids_eo.composites.true_color_night.true_color_with_night_ir" class="headerlink" title="Permanent link">#</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compose the full <code>true_color_with_night_ir</code> day/night image.</p>
+<p>Overlays the RGBA night-IR clouds on the city-lights <code>background</code>
+(<code>alpha_overlay</code>), then cross-fades that night image against the <code>day</code>
+true-colour image by solar zenith angle (<code>day_night_blend</code>).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>day</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The day image — true-colour RGB <code>(3, H, W)</code> array-like or <code>Dataset</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>night_ir_rgba</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The RGBA night-IR clouds from <code>night_ir</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>background</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The RGB city-lights background (e.g. Black Marble warped to
+the grid via <code>static_image</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>sza</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-pixel solar zenith angle in degrees, from <code>solar_zenith_angle</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lim_low</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>SZA at/below which it is fully day (default 78).</p>
+              </div>
+            </td>
+            <td>
+                  <code>78.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lim_high</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>SZA at/above which it is fully night (default 88).</p>
+              </div>
+            </td>
+            <td>
+                  <code>88.0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The composed day/night image — a pyramids <code>Dataset</code> when the inputs carry</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>one, otherwise an ndarray.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pyramids_eo/composites/true_color_night.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-58">58</a></span>
+<span class="normal"><a href="#__codelineno-0-59">59</a></span>
+<span class="normal"><a href="#__codelineno-0-60">60</a></span>
+<span class="normal"><a href="#__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#__codelineno-0-62">62</a></span>
+<span class="normal"><a href="#__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#__codelineno-0-67">67</a></span>
+<span class="normal"><a href="#__codelineno-0-68">68</a></span>
+<span class="normal"><a href="#__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#__codelineno-0-70">70</a></span>
+<span class="normal"><a href="#__codelineno-0-71">71</a></span>
+<span class="normal"><a href="#__codelineno-0-72">72</a></span>
+<span class="normal"><a href="#__codelineno-0-73">73</a></span>
+<span class="normal"><a href="#__codelineno-0-74">74</a></span>
+<span class="normal"><a href="#__codelineno-0-75">75</a></span>
+<span class="normal"><a href="#__codelineno-0-76">76</a></span>
+<span class="normal"><a href="#__codelineno-0-77">77</a></span>
+<span class="normal"><a href="#__codelineno-0-78">78</a></span>
+<span class="normal"><a href="#__codelineno-0-79">79</a></span>
+<span class="normal"><a href="#__codelineno-0-80">80</a></span>
+<span class="normal"><a href="#__codelineno-0-81">81</a></span>
+<span class="normal"><a href="#__codelineno-0-82">82</a></span>
+<span class="normal"><a href="#__codelineno-0-83">83</a></span>
+<span class="normal"><a href="#__codelineno-0-84">84</a></span>
+<span class="normal"><a href="#__codelineno-0-85">85</a></span>
+<span class="normal"><a href="#__codelineno-0-86">86</a></span>
+<span class="normal"><a href="#__codelineno-0-87">87</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="k">def</span><span class="w"> </span><span class="nf">true_color_with_night_ir</span><span class="p">(</span>
+<a id="__codelineno-0-59" name="__codelineno-0-59"></a>    <span class="n">day</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60"></a>    <span class="n">night_ir_rgba</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-61" name="__codelineno-0-61"></a>    <span class="n">background</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-62" name="__codelineno-0-62"></a>    <span class="n">sza</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-63" name="__codelineno-0-63"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a>    <span class="n">lim_low</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">78.0</span><span class="p">,</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65"></a>    <span class="n">lim_high</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">88.0</span><span class="p">,</span>
+<a id="__codelineno-0-66" name="__codelineno-0-66"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-67" name="__codelineno-0-67"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Compose the full `true_color_with_night_ir` day/night image.</span>
+<a id="__codelineno-0-68" name="__codelineno-0-68"></a>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">    Overlays the RGBA night-IR clouds on the city-lights `background`</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">    (`alpha_overlay`), then cross-fades that night image against the `day`</span>
+<a id="__codelineno-0-71" name="__codelineno-0-71"></a><span class="sd">    true-colour image by solar zenith angle (`day_night_blend`).</span>
+<a id="__codelineno-0-72" name="__codelineno-0-72"></a>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-74" name="__codelineno-0-74"></a><span class="sd">        day: The day image — true-colour RGB `(3, H, W)` array-like or `Dataset`.</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75"></a><span class="sd">        night_ir_rgba: The RGBA night-IR clouds from `night_ir`.</span>
+<a id="__codelineno-0-76" name="__codelineno-0-76"></a><span class="sd">        background: The RGB city-lights background (e.g. Black Marble warped to</span>
+<a id="__codelineno-0-77" name="__codelineno-0-77"></a><span class="sd">            the grid via `static_image`).</span>
+<a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="sd">        sza: Per-pixel solar zenith angle in degrees, from `solar_zenith_angle`.</span>
+<a id="__codelineno-0-79" name="__codelineno-0-79"></a><span class="sd">        lim_low: SZA at/below which it is fully day (default 78).</span>
+<a id="__codelineno-0-80" name="__codelineno-0-80"></a><span class="sd">        lim_high: SZA at/above which it is fully night (default 88).</span>
+<a id="__codelineno-0-81" name="__codelineno-0-81"></a>
+<a id="__codelineno-0-82" name="__codelineno-0-82"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-83" name="__codelineno-0-83"></a><span class="sd">        The composed day/night image — a pyramids `Dataset` when the inputs carry</span>
+<a id="__codelineno-0-84" name="__codelineno-0-84"></a><span class="sd">        one, otherwise an ndarray.</span>
+<a id="__codelineno-0-85" name="__codelineno-0-85"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-86" name="__codelineno-0-86"></a>    <span class="n">night</span> <span class="o">=</span> <span class="n">alpha_overlay</span><span class="p">(</span><span class="n">night_ir_rgba</span><span class="p">,</span> <span class="n">background</span><span class="p">)</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a>    <span class="k">return</span> <span class="n">day_night_blend</span><span class="p">(</span><span class="n">day</span><span class="p">,</span> <span class="n">night</span><span class="p">,</span> <span class="n">sza</span><span class="p">,</span> <span class="n">lim_low</span><span class="o">=</span><span class="n">lim_low</span><span class="p">,</span> <span class="n">lim_high</span><span class="o">=</span><span class="n">lim_high</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
