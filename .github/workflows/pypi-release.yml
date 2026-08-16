@@ -52,6 +52,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # head_branch (not head_sha): github-release pushes the version-bump +
+          # pixi.lock commits AFTER the workflow_run head_sha is captured, so the
+          # branch tip carries the released version while head_sha would not.
           ref: ${{ github.event.workflow_run.head_branch }}
 
       - name: Ensure the release is published (skip drafts)
