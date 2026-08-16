@@ -5,13 +5,13 @@ cycle, calibrates the raw radiance to reflectance / brightness temperature via
 the sensor registry, and returns a geolocated pyramids `Dataset` ready for
 `to_crs` / `warped_view`.
 
-.. warning::
+Warning:
     The default per-chunk extraction assumes each chunk exposes the requested
     channel's radiance as a NetCDF **variable named like the channel**. Real FCI
     L1C FDHSI stores radiance in nested groups
-    (``data/<channel>/measured/effective_radiance``) with the calibration
+    (`data/<channel>/measured/effective_radiance`) with the calibration
     coefficients in group attributes — so for real granules pass a custom
-    `open_chunk` (or the coefficients from metadata). The stitch + calibrate +
+    `open_chunk` (or the coefficients via `coeffs`). The stitch + calibrate +
     geolocate logic is unit-tested on synthetic chunks; the exact FCI variable
     layout still needs validation against a real granule.
 """

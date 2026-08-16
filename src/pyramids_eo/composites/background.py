@@ -8,9 +8,9 @@ optionally warps/crops it to another dataset's grid via pyramids' `align`.
 Unlike satpy's compositor — which only uses a local file when `filename` is an
 **absolute** path and otherwise falls back to a (now dead) bundled URL — this
 takes a plain local **or** remote path and caches a remote one. A live
-Black Marble mirror is:
-``https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144898/BlackMarble_2016_3km_geo.tif``
-(the older ``neo.gsfc.nasa.gov/archive/blackmarble/...`` URLs are 404).
+Black Marble mirror is
+`https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144898/BlackMarble_2016_3km_geo.tif`
+(the older `neo.gsfc.nasa.gov/archive/blackmarble/...` URLs are 404).
 """
 
 from __future__ import annotations

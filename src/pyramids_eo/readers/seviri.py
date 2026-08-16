@@ -4,7 +4,7 @@
 temperature (via the sensor registry) and returns a geolocated pyramids
 `Dataset`.
 
-.. warning::
+Warning:
     The MSG native (`.nat`) format is a **packed binary** (a 15-record header
     followed by line records of 10-bit packed counts) documented in the EUMETSAT
     MSG Level-1.5 native-format spec. A faithful binary parser is **not** bundled
