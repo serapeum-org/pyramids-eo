@@ -323,6 +323,25 @@ def _geometry_bounds(geometry: object) -> BBox:
     return (float(bounds[0]), float(bounds[1]), float(bounds[2]), float(bounds[3]))
 
 
+def _geometry_in_crs(geometry: object, crs: str) -> object:
+    """Reproject a polygon AOI to ``crs`` so its bounds and cutline align.
+
+    A geopandas geometry that carries its own CRS is reprojected to ``crs`` (a
+    no-op when already in it). A geometry without a ``crs`` / ``to_crs`` is
+    assumed to already be in ``crs`` and returned unchanged.
+
+    Args:
+        geometry: The polygon AOI.
+        crs: The target CRS (the reader's ``crs`` argument).
+
+    Returns:
+        The geometry expressed in ``crs``.
+    """
+    if getattr(geometry, "crs", None) is not None and hasattr(geometry, "to_crs"):
+        return geometry.to_crs(crs)
+    return geometry
+
+
 def _apply_geometry(dataset: Dataset, geometry: object | None) -> Dataset:
     """Clip ``dataset`` to a polygon cutline, or return it unchanged.
 
@@ -620,9 +639,10 @@ def from_earthengine(
             materialise a window (single mode) and for the composite mode, unless
             a ``geometry`` is given (its envelope is used as the ``bbox``).
         geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids
-            ``FeatureCollection``) in ``crs``. Its envelope drives the read window
-            and the result is then clipped to the polygon cutline. Takes the place
-            of ``bbox`` when ``bbox`` is omitted.
+            ``FeatureCollection``). A geometry carrying its own CRS is reprojected
+            to ``crs``; one without is assumed to already be in ``crs``. Its
+            envelope drives the read window and the result is then clipped to the
+            polygon cutline. Takes the place of ``bbox`` when ``bbox`` is omitted.
         crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to
             ``"EPSG:4326"``.
         scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.
@@ -703,8 +723,10 @@ def from_earthengine(
         raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
 
     creds = EarthEngineCredentials.coerce(credentials)
-    if bbox is None and geometry is not None:
-        bbox = _geometry_bounds(geometry)
+    if geometry is not None:
+        geometry = _geometry_in_crs(geometry, crs)
+        if bbox is None:
+            bbox = _geometry_bounds(geometry)
 
     if reducer is not None or start is not None or end is not None:
         if reducer is None:
@@ -795,9 +817,10 @@ def collection_from_earthengine(
         bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required (to bound
             scene discovery) unless a ``geometry`` is given.
         geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids
-            ``FeatureCollection``) in ``crs``. Its envelope bounds scene discovery
-            and each scene is clipped to the polygon cutline. Takes the place of
-            ``bbox`` when ``bbox`` is omitted.
+            ``FeatureCollection``). A geometry carrying its own CRS is reprojected
+            to ``crs``; one without is assumed to already be in ``crs``. Its
+            envelope bounds scene discovery and each scene is clipped to the
+            polygon cutline. Takes the place of ``bbox`` when ``bbox`` is omitted.
         bands: Band names to request; ``None`` reads every band.
         crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to
             ``"EPSG:4326"``.
@@ -834,6 +857,8 @@ def collection_from_earthengine(
     """
     if scale is not None and shape is not None:
         raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
+    if geometry is not None:
+        geometry = _geometry_in_crs(geometry, crs)
     if bbox is None:
         if geometry is None:
             raise ValueError("Pass a 'bbox' or a 'geometry'.")

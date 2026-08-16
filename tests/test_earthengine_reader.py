@@ -1202,3 +1202,39 @@ class TestReducerDtype:
             ), "Lazy wrap should install the credential config for deferred reads"
         finally:
             gdal.SetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", before)
+
+
+class TestGeometryCrs:
+    """Tests for reconciling a geometry's CRS with the reader's `crs` (M4)."""
+
+    def test_geometry_reprojected_to_crs(self, patched_eedai) -> None:
+        """A geometry in another CRS is reprojected before deriving the window.
+
+        Test scenario:
+            A Web-Mercator triangle with default crs=EPSG:4326 yields a lon/lat
+            window (small degree values), not raw metre bounds.
+        """
+        import geopandas as gpd
+        from shapely.geometry import Polygon
+
+        tri_4326 = Polygon([(86.9, 27.9), (87.0, 27.9), (86.9, 28.0)])
+        tri_3857 = gpd.GeoDataFrame(geometry=[tri_4326], crs="EPSG:4326").to_crs(
+            "EPSG:3857"
+        )
+        ds = from_earthengine("USGS/SRTMGL1_003", geometry=tri_3857, shape=(8, 8))
+        assert isinstance(ds, Dataset), f"Expected a Dataset, got {type(ds)}"
+        # Envelope came back in lon/lat degrees, not 3857 metres (~9.6e6).
+        assert abs(ds.geotransform[0]) < 200, (
+            f"Window not reprojected to lon/lat: origin {ds.geotransform[0]}"
+        )
+
+    def test_geometry_in_crs_passthrough_without_crs(self) -> None:
+        """A geometry lacking a CRS is returned unchanged.
+
+        Test scenario:
+            An object with no `crs`/`to_crs` is assumed already in `crs`.
+        """
+        sentinel = object()
+        assert ee_reader._geometry_in_crs(sentinel, "EPSG:4326") is sentinel, (
+            "A CRS-less geometry should pass through unchanged"
+        )
