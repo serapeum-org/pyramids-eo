@@ -19,6 +19,10 @@ from pyramids_eo.earthengine.reader import _Scene
 from pyramids_eo.errors import ReaderError
 
 _BBOX = (86.9, 27.9, 87.0, 28.0)
+# A smaller AOI for the live Sentinel-2 tests: at 10 m native this still spans
+# several 256-px blocks (so it exercises the block-crossing read the fix targets)
+# without reading the ~25 blocks the full ``_BBOX`` would.
+_S2_BBOX = (86.90, 27.90, 86.94, 27.94)
 
 
 def _synthetic_srtm(fill: int = 42):
@@ -1343,3 +1347,58 @@ class TestLivePixelCorrectness:
         assert np.array_equal(values, second.read_array()), (
             "Repeated read was not deterministic"
         )
+
+    @pytest.mark.live
+    def test_composite_values_correct_and_deterministic(self) -> None:
+        """A live Sentinel-2 median composite has plausible reflectance and repeats.
+
+        Test scenario:
+            The composite path (discover -> per-scene EEDAI read -> reduce) returns
+            non-negative, plausibly-bounded surface reflectance with no int16
+            garbage, and two composites of the same window are byte-identical.
+        """
+        request = dict(
+            bbox=_S2_BBOX,
+            start="2024-06-05",
+            end="2024-06-08",
+            reducer="median",
+            bands=["B4", "B3", "B2"],
+            shape=(32, 32),
+        )
+        first = from_earthengine("COPERNICUS/S2_SR_HARMONIZED", **request)
+        values = first.read_array()
+        assert (values >= 0).all(), "Composite has negative (garbage) reflectance"
+        assert int(values.max()) < 20000, (
+            f"Composite reflectance implausibly large: {values.max()}"
+        )
+        second = from_earthengine("COPERNICUS/S2_SR_HARMONIZED", **request)
+        assert np.array_equal(values, second.read_array()), (
+            "Repeated composite was not deterministic"
+        )
+
+    @pytest.mark.live
+    def test_collection_scene_values_correct(self) -> None:
+        """Live Sentinel-2 collection scenes have plausible reflectance, no garbage.
+
+        Test scenario:
+            Every per-scene ``Dataset`` in the ``DatasetCollection`` holds
+            non-negative, plausibly-bounded reflectance — the block/overview
+            corruption would show as int16 extremes in one or more scenes.
+        """
+        collection = collection_from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-05",
+            end="2024-06-08",
+            bbox=_S2_BBOX,
+            bands=["B4"],
+            shape=(32, 32),
+        )
+        assert collection.time_length > 0, "Expected at least one scene in the window"
+        for index, scene in enumerate(collection.datasets):
+            values = scene.read_array()
+            assert (values >= 0).all(), (
+                f"Scene {index} has negative (garbage) reflectance"
+            )
+            assert int(values.max()) < 20000, (
+                f"Scene {index} reflectance implausibly large: {values.max()}"
+            )
