@@ -1,0 +1,154 @@
+"""MTG-FCI L1C (FDHSI) reader.
+
+`read_fci` stitches a channel across the ~40 NetCDF chunks of one FCI repeat
+cycle, calibrates the raw radiance to reflectance / brightness temperature via
+the sensor registry, and returns a geolocated pyramids `Dataset` ready for
+`to_crs` / `warped_view`.
+
+.. warning::
+    The default per-chunk extraction assumes each chunk exposes the requested
+    channel's radiance as a NetCDF **variable named like the channel**. Real FCI
+    L1C FDHSI stores radiance in nested groups
+    (``data/<channel>/measured/effective_radiance``) with the calibration
+    coefficients in group attributes — so for real granules pass a custom
+    `open_chunk` (or the coefficients from metadata). The stitch + calibrate +
+    geolocate logic is unit-tested on synthetic chunks; the exact FCI variable
+    layout still needs validation against a real granule.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+import numpy as np
+
+from pyramids_eo.errors import CalibrationError, ReaderError
+from pyramids_eo.registry import (
+    get_sensor,
+    radiance_to_brightness_temperature,
+    radiance_to_reflectance,
+)
+
+
+def _default_open_chunk(path: Any, channel: str) -> Any:
+    """Open one FCI chunk and return the channel's radiance as a `Dataset`.
+
+    Reads `path` with `pyramids.netcdf.NetCDF` and extracts the variable named
+    `channel`. See the module warning: real FCI L1C uses nested groups, so a
+    custom `open_chunk` is expected for real granules.
+
+    Args:
+        path: Path to a chunk NetCDF file.
+        channel: Channel identifier / variable name.
+
+    Returns:
+        A pyramids `Dataset` of the channel's raw radiance.
+    """
+    from pyramids.netcdf import NetCDF
+
+    return NetCDF.read_file(str(path)).get_variable(channel)
+
+
+def _calibrate(
+    radiance: np.ndarray,
+    channel: str,
+    sensor: str,
+    sun_earth_distance: float,
+    cos_sza: Any,
+) -> np.ndarray:
+    """Calibrate stitched radiance for `channel` to a physical quantity.
+
+    Args:
+        radiance: Stitched raw radiance.
+        channel: Channel identifier (looked up in the registry).
+        sensor: Sensor name for the registry lookup.
+        sun_earth_distance: Sun-earth distance (AU) for a solar channel.
+        cos_sza: Cosine of the solar zenith angle, or `None`.
+
+    Returns:
+        Reflectance (solar channel) or brightness temperature (thermal channel).
+
+    Raises:
+        CalibrationError: When the channel lacks the constants its kind needs.
+    """
+    ch = get_sensor(sensor).get_channel(channel)
+    if ch.kind == "solar":
+        if ch.solar_irradiance is None:
+            raise CalibrationError(f"solar channel {channel!r} has no solar_irradiance")
+        return radiance_to_reflectance(
+            radiance, ch.solar_irradiance, sun_earth_distance, cos_sza
+        )
+    if ch.central_wavenumber_cm1 is None:
+        raise CalibrationError(
+            f"thermal channel {channel!r} has no central_wavenumber_cm1"
+        )
+    return radiance_to_brightness_temperature(
+        radiance, ch.central_wavenumber_cm1, ch.alpha or 1.0, ch.beta or 0.0
+    )
+
+
+def read_fci(
+    chunks: Any,
+    channel: str,
+    *,
+    sensor: str = "fci",
+    calibrate: bool = True,
+    sun_earth_distance: float = 1.0,
+    cos_sza: Any = None,
+    open_chunk: Any = None,
+) -> Any:
+    """Read one FCI channel across its chunk set into a calibrated `Dataset`.
+
+    Stitches the channel's radiance across `chunks` (row-wise, in the given
+    order), calibrates it to reflectance (solar) or brightness temperature
+    (thermal) via the registry, and returns a geolocated pyramids `Dataset`
+    carrying the first chunk's CRS + geotransform.
+
+    Args:
+        chunks: An ordered iterable of chunks, each either a pyramids `Dataset`
+            already holding the channel radiance, or a value accepted by
+            `open_chunk` (by default a NetCDF path).
+        channel: Channel identifier (e.g. `"ir_105"`, `"vis_06"`).
+        sensor: Registry sensor name (default `"fci"`).
+        calibrate: When `True` (default), calibrate to a physical quantity; when
+            `False`, return the stitched raw radiance.
+        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.
+        cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle
+            correction, or `None`.
+        open_chunk: Callable `(chunk, channel) -> Dataset` used for chunks that
+            are not already Datasets. Defaults to a NetCDF reader (see the module
+            warning about the FCI layout).
+
+    Returns:
+        A pyramids `Dataset` of the calibrated (or raw) channel on the stitched
+        grid.
+
+    Raises:
+        ReaderError: When `chunks` is empty.
+        CalibrationError: When a channel lacks the constants its kind needs.
+        UnknownSensorError: When the sensor / channel is not in the registry.
+    """
+    chunk_list = list(chunks)
+    if not chunk_list:
+        raise ReaderError("read_fci: no chunks given")
+
+    opener = open_chunk or _default_open_chunk
+    datasets = [
+        chunk if hasattr(chunk, "read_array") else opener(chunk, channel)
+        for chunk in chunk_list
+    ]
+    radiance = np.concatenate(
+        [np.asarray(ds.read_array(), dtype=float) for ds in datasets], axis=0
+    )
+    data = (
+        _calibrate(radiance, channel, sensor, sun_earth_distance, cos_sza)
+        if calibrate
+        else radiance
+    )
+
+    from pyramids.dataset import Dataset
+
+    template = datasets[0]
+    return Dataset.create_from_array(
+        data, geo=template.geotransform, epsg=template.epsg
+    )
