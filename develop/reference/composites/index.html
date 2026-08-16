@@ -1039,6 +1039,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        true_color
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="true_color">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color.true_color" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        true_color
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1473,6 +1501,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        true_color
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="true_color">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.true_color.true_color" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        true_color
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1540,6 +1596,8 @@ satpy / PyTroll dependency. So far:</p>
 <li><code>static_image</code> — load a georeferenced background image (e.g. Black Marble),
   caching a remote URL and warping it to a target grid (satpy
   <code>StaticImageCompositor</code>).</li>
+<li><code>true_color</code> — true-colour RGB from calibrated reflectance bands with a CIMSS
+  synthetic green (no Rayleigh).</li>
 </ul>
 <p>Together these compose satpy's <code>true_color_with_night_ir</code> day/night look.</p>
 
@@ -4770,6 +4828,319 @@ raster (e.g. the Black Marble GeoTIFF).</p>
 <a id="__codelineno-0-112" name="__codelineno-0-112"></a>    <span class="k">if</span> <span class="n">like</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
 <a id="__codelineno-0-113" name="__codelineno-0-113"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">align</span><span class="p">(</span><span class="n">like</span><span class="p">)</span>
 <a id="__codelineno-0-114" name="__codelineno-0-114"></a>    <span class="k">return</span> <span class="n">dataset</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h3 id="pyramids_eo.composites.true_color" class="doc doc-heading"><a href="#pyramids_eo.composites.true_color" class="toclink">
+            <code>pyramids_eo.composites.true_color</code>
+
+
+</a><a href="#pyramids_eo.composites.true_color" class="headerlink" title="Permanent link">#</a></h3>
+
+    <div class="doc doc-contents first">
+
+        <p>True-colour RGB from calibrated reflectance bands.</p>
+<p>FCI / SEVIRI carry no true green band, so <code>true_color</code> synthesises one from the
+red, blue, and near-IR ("veggie") reflectances using the CIMSS weighted recipe,
+then stacks red / synthetic-green / blue into an RGB image.</p>
+<p>This is the <strong>no-Rayleigh</strong> variant (per the pyramids-eo compositing decision):
+it does the band combination only. Atmospheric / Rayleigh correction — satpy
+gets it from <code>pyspectral</code> — is intentionally out of scope here to keep the
+dependency footprint free of the PyTroll stack; the result is slightly flatter
+over ocean / haze than a Rayleigh-corrected image.</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyramids_eo.composites.true_color.true_color" class="doc doc-heading"><a href="#pyramids_eo.composites.true_color.true_color" class="toclink">
+            <code class="highlight language-python"><span class="n">true_color</span><span class="p">(</span><span class="n">red</span><span class="p">,</span> <span class="n">blue</span><span class="p">,</span> <span class="n">nir</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">green_weights</span><span class="o">=</span><span class="n">_DEFAULT_GREEN_WEIGHTS</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">clip</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</a><a href="#pyramids_eo.composites.true_color.true_color" class="headerlink" title="Permanent link">#</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Build a true-colour RGB from red, blue, and near-IR reflectances.</p>
+<p>Synthesises the green channel as
+<code>green = wr*red + wn*nir + wb*blue</code> (the CIMSS recipe), then stacks
+<code>[red, green, blue]</code> into a <code>(3, H, W)</code> image.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>red</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Red-band reflectance — array-like or a pyramids <code>Dataset</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>blue</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Blue-band reflectance, same grid as <code>red</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>nir</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Near-IR ("veggie") reflectance used to synthesise green.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>green_weights</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="float">float</span>, <span title="float">float</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The <code>(red, nir, blue)</code> weights for the synthetic green
+(default the CIMSS <code>(0.45, 0.10, 0.45)</code>).</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="pyramids_eo.composites.true_color._DEFAULT_GREEN_WEIGHTS">_DEFAULT_GREEN_WEIGHTS</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>gamma</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional gamma to apply (<code>value ** (1 / gamma)</code>), or <code>None</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>clip</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>When <code>True</code>, clip the output to <code>[0, 1]</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The <code>(3, H, W)</code> RGB image. A pyramids <code>Dataset</code> (carrying an input</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Dataset</code>'s geotransform + CRS) when any input is a <code>Dataset</code>, otherwise</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>an ndarray.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pyramids_eo/composites/true_color.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-26">26</a></span>
+<span class="normal"><a href="#__codelineno-0-27">27</a></span>
+<span class="normal"><a href="#__codelineno-0-28">28</a></span>
+<span class="normal"><a href="#__codelineno-0-29">29</a></span>
+<span class="normal"><a href="#__codelineno-0-30">30</a></span>
+<span class="normal"><a href="#__codelineno-0-31">31</a></span>
+<span class="normal"><a href="#__codelineno-0-32">32</a></span>
+<span class="normal"><a href="#__codelineno-0-33">33</a></span>
+<span class="normal"><a href="#__codelineno-0-34">34</a></span>
+<span class="normal"><a href="#__codelineno-0-35">35</a></span>
+<span class="normal"><a href="#__codelineno-0-36">36</a></span>
+<span class="normal"><a href="#__codelineno-0-37">37</a></span>
+<span class="normal"><a href="#__codelineno-0-38">38</a></span>
+<span class="normal"><a href="#__codelineno-0-39">39</a></span>
+<span class="normal"><a href="#__codelineno-0-40">40</a></span>
+<span class="normal"><a href="#__codelineno-0-41">41</a></span>
+<span class="normal"><a href="#__codelineno-0-42">42</a></span>
+<span class="normal"><a href="#__codelineno-0-43">43</a></span>
+<span class="normal"><a href="#__codelineno-0-44">44</a></span>
+<span class="normal"><a href="#__codelineno-0-45">45</a></span>
+<span class="normal"><a href="#__codelineno-0-46">46</a></span>
+<span class="normal"><a href="#__codelineno-0-47">47</a></span>
+<span class="normal"><a href="#__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#__codelineno-0-49">49</a></span>
+<span class="normal"><a href="#__codelineno-0-50">50</a></span>
+<span class="normal"><a href="#__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#__codelineno-0-53">53</a></span>
+<span class="normal"><a href="#__codelineno-0-54">54</a></span>
+<span class="normal"><a href="#__codelineno-0-55">55</a></span>
+<span class="normal"><a href="#__codelineno-0-56">56</a></span>
+<span class="normal"><a href="#__codelineno-0-57">57</a></span>
+<span class="normal"><a href="#__codelineno-0-58">58</a></span>
+<span class="normal"><a href="#__codelineno-0-59">59</a></span>
+<span class="normal"><a href="#__codelineno-0-60">60</a></span>
+<span class="normal"><a href="#__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#__codelineno-0-62">62</a></span>
+<span class="normal"><a href="#__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#__codelineno-0-67">67</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-26" name="__codelineno-0-26"></a><span class="k">def</span><span class="w"> </span><span class="nf">true_color</span><span class="p">(</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27"></a>    <span class="n">red</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28"></a>    <span class="n">blue</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29"></a>    <span class="n">nir</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31"></a>    <span class="n">green_weights</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">_DEFAULT_GREEN_WEIGHTS</span><span class="p">,</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32"></a>    <span class="n">gamma</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33"></a>    <span class="n">clip</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a true-colour RGB from red, blue, and near-IR reflectances.</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36"></a>
+<a id="__codelineno-0-37" name="__codelineno-0-37"></a><span class="sd">    Synthesises the green channel as</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="sd">    `green = wr*red + wn*nir + wb*blue` (the CIMSS recipe), then stacks</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39"></a><span class="sd">    `[red, green, blue]` into a `(3, H, W)` image.</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40"></a>
+<a id="__codelineno-0-41" name="__codelineno-0-41"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">        red: Red-band reflectance — array-like or a pyramids `Dataset`.</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="sd">        blue: Blue-band reflectance, same grid as `red`.</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="sd">        nir: Near-IR (&quot;veggie&quot;) reflectance used to synthesise green.</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45"></a><span class="sd">        green_weights: The `(red, nir, blue)` weights for the synthetic green</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46"></a><span class="sd">            (default the CIMSS `(0.45, 0.10, 0.45)`).</span>
+<a id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="sd">        gamma: Optional gamma to apply (`value ** (1 / gamma)`), or `None`.</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="sd">        clip: When `True`, clip the output to `[0, 1]`.</span>
+<a id="__codelineno-0-49" name="__codelineno-0-49"></a>
+<a id="__codelineno-0-50" name="__codelineno-0-50"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-51" name="__codelineno-0-51"></a><span class="sd">        The `(3, H, W)` RGB image. A pyramids `Dataset` (carrying an input</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52"></a><span class="sd">        `Dataset`&#39;s geotransform + CRS) when any input is a `Dataset`, otherwise</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="sd">        an ndarray.</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a>    <span class="n">r</span> <span class="o">=</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">red</span><span class="p">)</span>
+<a id="__codelineno-0-56" name="__codelineno-0-56"></a>    <span class="n">b</span> <span class="o">=</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">blue</span><span class="p">)</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57"></a>    <span class="n">n</span> <span class="o">=</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">nir</span><span class="p">)</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58"></a>    <span class="n">wr</span><span class="p">,</span> <span class="n">wn</span><span class="p">,</span> <span class="n">wb</span> <span class="o">=</span> <span class="n">green_weights</span>
+<a id="__codelineno-0-59" name="__codelineno-0-59"></a>    <span class="n">green</span> <span class="o">=</span> <span class="n">wr</span> <span class="o">*</span> <span class="n">r</span> <span class="o">+</span> <span class="n">wn</span> <span class="o">*</span> <span class="n">n</span> <span class="o">+</span> <span class="n">wb</span> <span class="o">*</span> <span class="n">b</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60"></a>    <span class="n">rgb</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">r</span><span class="p">,</span> <span class="n">green</span><span class="p">,</span> <span class="n">b</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<a id="__codelineno-0-61" name="__codelineno-0-61"></a>
+<a id="__codelineno-0-62" name="__codelineno-0-62"></a>    <span class="k">if</span> <span class="n">gamma</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-63" name="__codelineno-0-63"></a>        <span class="n">rgb</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">rgb</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">rgb</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">gamma</span><span class="p">)</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a>    <span class="k">if</span> <span class="n">clip</span><span class="p">:</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65"></a>        <span class="n">rgb</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">rgb</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+<a id="__codelineno-0-66" name="__codelineno-0-66"></a>
+<a id="__codelineno-0-67" name="__codelineno-0-67"></a>    <span class="k">return</span> <span class="n">_wrap_like</span><span class="p">(</span><span class="n">rgb</span><span class="p">,</span> <span class="n">red</span><span class="p">,</span> <span class="n">blue</span><span class="p">,</span> <span class="n">nir</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
