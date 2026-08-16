@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 from typing import NamedTuple
 
 import numpy as np
-from osgeo import gdal, gdal_array
+from osgeo import gdal, gdal_array, osr
 from pyramids.dataset import Dataset, DatasetCollection
 
 from pyramids_eo.earthengine.credentials import CredentialsLike, EarthEngineCredentials
@@ -179,8 +179,6 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> gdal.Dataset:
         A ``MEM`` dataset in the source CRS covering ``bbox`` (padded one pixel for
         resampling), holding correct native-resolution pixels for every band.
     """
-    from osgeo import osr
-
     geotransform = src.GetGeoTransform()
     source_srs = osr.SpatialReference()
     source_srs.ImportFromWkt(src.GetProjection())
@@ -384,8 +382,6 @@ def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
     """
     if crs.upper() in (_DEFAULT_CRS, "WGS84"):
         return bbox
-    from osgeo import osr
-
     source = osr.SpatialReference()
     source.SetFromUserInput(crs)
     source.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
@@ -707,6 +703,10 @@ def _composite(
     geometry: object | None = None,
 ) -> Dataset:
     """Reduce aligned scenes into a single composite ``Dataset``.
+
+    The per-band nodata is taken from the **first** scene and applied to every
+    band of the composite — an ``ImageCollection``'s scenes share a per-band nodata
+    by construction, so this holds for real collections.
 
     Args:
         windowed: Aligned windowed scene datasets (all on the same grid).
