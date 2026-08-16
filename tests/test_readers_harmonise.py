@@ -43,11 +43,15 @@ class TestHarmonise:
         out = harmonise([_grid((4, 4), cell=1.0)], reference, method="nearest")
         assert (out[0].rows, out[0].columns) == (2, 2), "nearest should align exactly"
 
-    def test_bilinear_method_uses_warped_view(self):
-        """A non-nearest method resamples onto the reference CRS via warped_view."""
+    def test_bilinear_method_reproduces_reference_grid(self):
+        """A non-nearest method resamples onto the reference's exact grid."""
         reference = _grid((2, 2), cell=2.0)
-        out = harmonise([_grid((4, 4), cell=1.0)], reference, method="bilinear")
-        assert out[0].epsg == reference.epsg, "warped result should keep the CRS"
+        out = harmonise([_grid((4, 4), cell=1.0)], reference, method="bilinear")[0]
+        assert out.epsg == reference.epsg, "warped result should keep the CRS"
+        assert (out.rows, out.columns) == (reference.rows, reference.columns), (
+            "warped grid should match the reference rows/columns"
+        )
+        assert out.geotransform == reference.geotransform, "geotransform should match"
 
     def test_none_reference_raises(self):
         """A missing reference grid is a ReaderError."""

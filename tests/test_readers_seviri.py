@@ -8,6 +8,7 @@ from pyramids.dataset import Dataset
 
 from pyramids_eo.errors import CalibrationError, ReaderError, UnknownSensorError
 from pyramids_eo.readers import read_seviri
+from pyramids_eo.readers._common import calibrate_channel
 from pyramids_eo.readers.seviri import _default_parse
 from pyramids_eo.registry import (
     Channel,
@@ -76,6 +77,36 @@ class TestReadSeviri:
         """An unknown channel surfaces UnknownSensorError."""
         with pytest.raises(UnknownSensorError, match="has no channel"):
             read_seviri(_ds(np.ones((2, 2))), "NOPE")
+
+    def test_coeffs_override_thermal_constants(self):
+        """Per-granule coeffs override the registry Planck constants."""
+        radiance = np.full((2, 2), 80.0)
+        out = read_seviri(
+            _ds(radiance),
+            "IR_108",
+            coeffs={"central_wavenumber_cm1": 900.0, "alpha": 0.99, "beta": 0.5},
+        )
+        expected = radiance_to_brightness_temperature(radiance, 900.0, 0.99, 0.5)
+        assert np.allclose(out.read_array(), expected), "coeffs not preferred"
+
+
+class TestCalibrateChannelCoeffs:
+    """`calibrate_channel` lets coeffs override the channel's radiometric kind."""
+
+    def test_kind_override_forces_solar_path(self):
+        """A coeffs kind='solar' routes a registry-thermal channel to reflectance."""
+        radiance = np.full((2, 2), 50.0)
+        out = calibrate_channel(
+            radiance,
+            "IR_108",
+            "seviri",
+            1.0,
+            None,
+            coeffs={"kind": "solar", "solar_irradiance": 100.0},
+        )
+        assert np.allclose(out, radiance_to_reflectance(radiance, 100.0)), (
+            "kind override should take the solar path"
+        )
 
     def test_missing_calibration_constant_raises(self, monkeypatch):
         """A channel missing its constants raises CalibrationError."""
