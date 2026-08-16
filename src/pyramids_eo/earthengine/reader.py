@@ -923,7 +923,9 @@ def from_earthengine(
             output grid — one of ``"nearest"`` (default), ``"bilinear"``,
             ``"cubic"``, ``"average"``, ``"mode"``. The default is nearest-neighbour;
             for continuous imagery that is downsampled, ``"average"`` or
-            ``"bilinear"`` give a more representative result.
+            ``"bilinear"`` give a more representative result. (``"mode"`` here is a
+            *resampling* algorithm — distinct from the ``"mode"`` composite
+            ``reducer``.)
         start: Inclusive ISO start of the acquisition window (composite mode).
         end: Inclusive ISO end of the acquisition window (composite mode).
         reducer: Client-side reducer for the composite mode — one of ``"median"``,
@@ -1091,6 +1093,9 @@ def collection_from_earthengine(
             When both are omitted the first scene's native windowed grid is used
             for every scene.
         shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.
+        resample: Resampling algorithm for the per-scene warp — one of
+            ``"nearest"`` (default), ``"bilinear"``, ``"cubic"``, ``"average"``,
+            ``"mode"``. See :func:`from_earthengine`.
         credentials: An
             :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a
             path to a service-account JSON key, or ``None`` for ADC.
