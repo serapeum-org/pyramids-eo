@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -2207,16 +2207,19 @@ the module warning).</p>
 cycle, calibrates the raw radiance to reflectance / brightness temperature via
 the sensor registry, and returns a geolocated pyramids <code>Dataset</code> ready for
 <code>to_crs</code> / <code>warped_view</code>.</p>
-<p>.. warning::
-    The default per-chunk extraction assumes each chunk exposes the requested
-    channel's radiance as a NetCDF <strong>variable named like the channel</strong>. Real FCI
-    L1C FDHSI stores radiance in nested groups
-    (<code>data/&lt;channel&gt;/measured/effective_radiance</code>) with the calibration
-    coefficients in group attributes — so for real granules pass a custom
-    <code>open_chunk</code> (or the coefficients from metadata). The stitch + calibrate +
-    geolocate logic is unit-tested on synthetic chunks; the exact FCI variable
-    layout still needs validation against a real granule.</p>
 
+
+<details class="warning" open>
+  <summary>Warning</summary>
+  <p>The default per-chunk extraction assumes each chunk exposes the requested
+channel's radiance as a NetCDF <strong>variable named like the channel</strong>. Real FCI
+L1C FDHSI stores radiance in nested groups
+(<code>data/&lt;channel&gt;/measured/effective_radiance</code>) with the calibration
+coefficients in group attributes — so for real granules pass a custom
+<code>open_chunk</code> (or the coefficients via <code>coeffs</code>). The stitch + calibrate +
+geolocate logic is unit-tested on synthetic chunks; the exact FCI variable
+layout still needs validation against a real granule.</p>
+</details>
 
 
 
@@ -2666,15 +2669,18 @@ warning about the FCI layout).</p>
 <p><code>read_seviri</code> calibrates a SEVIRI channel to reflectance / brightness
 temperature (via the sensor registry) and returns a geolocated pyramids
 <code>Dataset</code>.</p>
-<p>.. warning::
-    The MSG native (<code>.nat</code>) format is a <strong>packed binary</strong> (a 15-record header
-    followed by line records of 10-bit packed counts) documented in the EUMETSAT
-    MSG Level-1.5 native-format spec. A faithful binary parser is <strong>not</strong> bundled
-    here: the default <code>parse</code> raises <code>NotImplementedError</code>. Pass a <code>parse</code>
-    callable (or a pyramids <code>Dataset</code> already holding the channel radiance) —
-    the calibrate + geolocate orchestration below is real and unit-tested; only
-    the raw <code>.nat</code> byte decoding needs the format spec + a real granule.</p>
 
+
+<details class="warning" open>
+  <summary>Warning</summary>
+  <p>The MSG native (<code>.nat</code>) format is a <strong>packed binary</strong> (a 15-record header
+followed by line records of 10-bit packed counts) documented in the EUMETSAT
+MSG Level-1.5 native-format spec. A faithful binary parser is <strong>not</strong> bundled
+here: the default <code>parse</code> raises <code>NotImplementedError</code>. Pass a <code>parse</code>
+callable (or a pyramids <code>Dataset</code> already holding the channel radiance) —
+the calibrate + geolocate orchestration below is real and unit-tested; only
+the raw <code>.nat</code> byte decoding needs the format spec + a real granule.</p>
+</details>
 
 
 
