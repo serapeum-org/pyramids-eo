@@ -8,9 +8,11 @@ constants a reader falls back to when the granule metadata does not carry them.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import yaml
@@ -52,7 +54,7 @@ class Sensor:
     """A named sensor and its channel table."""
 
     name: str
-    channels: dict[str, Channel]
+    channels: Mapping[str, Channel]
 
     def get_channel(self, name: str) -> Channel:
         """Return the channel named `name`.
@@ -103,4 +105,5 @@ def get_sensor(name: str) -> Sensor:
         key: Channel(name=key, **value)
         for key, value in raw.get("channels", {}).items()
     }
-    return Sensor(name=raw.get("name", name), channels=channels)
+    # A read-only view so the cached Sensor cannot be mutated by a caller.
+    return Sensor(name=raw.get("name", name), channels=MappingProxyType(channels))

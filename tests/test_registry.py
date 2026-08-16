@@ -169,3 +169,8 @@ class TestSensorChannel:
         ch = get_sensor("fci").get_channel("ir_105")
         with pytest.raises((AttributeError, TypeError)):
             ch.name = "changed"  # type: ignore[misc]
+
+    def test_channels_mapping_is_read_only(self):
+        """The cached channels mapping cannot be mutated by a caller."""
+        with pytest.raises(TypeError):
+            get_sensor("fci").channels["hacked"] = None  # type: ignore[index]
