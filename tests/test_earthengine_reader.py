@@ -516,7 +516,7 @@ class TestFromEarthengineComposite:
         Test scenario:
             Any missing member of the trio raises ``ValueError``.
         """
-        with pytest.raises(ValueError, match="requires 'start', 'end', and 'bbox'"):
+        with pytest.raises(ValueError, match="requires 'start', 'end', and"):
             from_earthengine("COPERNICUS/S2_SR_HARMONIZED", **kwargs)
 
     def test_no_scenes_raises_reader_error(self, monkeypatch) -> None:
@@ -796,3 +796,106 @@ class TestHelpers:
         assert int(out.GetRasterBand(2).ReadAsArray()[0, 0]) == 2, (
             "Second band not written"
         )
+
+
+class TestGeometryClip:
+    """Tests for the polygon-cutline (`geometry`) support."""
+
+    @staticmethod
+    def _triangle():
+        """Half-of-the-bbox triangle GeoDataFrame in EPSG:4326."""
+        import geopandas as gpd
+        from shapely.geometry import Polygon
+
+        return gpd.GeoDataFrame(
+            geometry=[Polygon([(86.9, 27.9), (87.0, 27.9), (86.9, 28.0)])],
+            crs="EPSG:4326",
+        )
+
+    def test_from_earthengine_clips_to_polygon(self, patched_eedai) -> None:
+        """A polygon cutline masks cells outside the polygon.
+
+        Test scenario:
+            A triangle covering ~half the bbox leaves roughly half the window
+            masked with the nodata value.
+        """
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", bbox=_BBOX, geometry=self._triangle(), shape=(10, 10)
+        )
+        arr = ds.read_array()
+        nodata = ds.no_data_value[0]
+        masked = int((arr == nodata).sum())
+        assert masked > 0, "Expected some cells masked outside the polygon"
+        assert masked < arr.size, "Expected some cells kept inside the polygon"
+
+    def test_geometry_without_bbox_derives_window(self, patched_eedai) -> None:
+        """A geometry with no bbox uses the geometry's envelope as the window.
+
+        Test scenario:
+            Passing only `geometry` yields a Dataset (window derived from bounds).
+        """
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", geometry=self._triangle(), shape=(8, 8)
+        )
+        assert isinstance(ds, Dataset), f"Expected a Dataset, got {type(ds)}"
+
+    def test_geometry_bounds_requires_total_bounds(self) -> None:
+        """A geometry lacking `total_bounds` raises `ReaderError`.
+
+        Test scenario:
+            An object with no `total_bounds` cannot yield a window.
+        """
+        with pytest.raises(ReaderError, match="total_bounds"):
+            ee_reader._geometry_bounds(object())
+
+    def test_composite_clips_to_polygon(self, three_scenes) -> None:
+        """The composite mode clips its output to the polygon.
+
+        Args:
+            three_scenes: Fixture patching discovery/open.
+
+        Test scenario:
+            A triangle geometry masks part of the median composite.
+        """
+        ds = from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            bbox=_BBOX,
+            geometry=self._triangle(),
+            start="2024-06-01",
+            end="2024-06-30",
+            reducer="median",
+            shape=(10, 10),
+        )
+        arr = ds.read_array()
+        assert int((arr == ds.no_data_value[0]).sum()) > 0, "Composite not clipped"
+
+    def test_collection_clips_each_scene(self, three_scenes) -> None:
+        """Each collection scene is clipped to the polygon.
+
+        Args:
+            three_scenes: Fixture patching discovery/open.
+
+        Test scenario:
+            Every timestep has masked cells from the triangle cutline.
+        """
+        dc = collection_from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            geometry=self._triangle(),
+            shape=(10, 10),
+        )
+        for ds in dc.datasets:
+            arr = ds.read_array()
+            assert int((arr == ds.no_data_value[0]).sum()) > 0, "Scene not clipped"
+
+    def test_collection_requires_bbox_or_geometry(self) -> None:
+        """The collection reader requires a bbox or a geometry.
+
+        Test scenario:
+            Neither given → ValueError before any read.
+        """
+        with pytest.raises(ValueError, match="'bbox' or a 'geometry'"):
+            collection_from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED", start="2024-06-01", end="2024-06-30"
+            )

@@ -204,6 +204,44 @@ def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
     return (min(xs), min(ys), max(xs), max(ys))
 
 
+def _geometry_bounds(geometry: object) -> BBox:
+    """Return the ``(min_x, min_y, max_x, max_y)`` envelope of a polygon AOI.
+
+    Args:
+        geometry: A polygon AOI exposing ``total_bounds`` (a geopandas
+            ``GeoDataFrame`` / ``GeoSeries``).
+
+    Returns:
+        The geometry's bounding box.
+
+    Raises:
+        ReaderError: The geometry does not expose ``total_bounds``.
+    """
+    bounds = getattr(geometry, "total_bounds", None)
+    if bounds is None:
+        raise ReaderError(
+            "Pass a 'bbox', or a 'geometry' exposing 'total_bounds' (e.g. a "
+            "geopandas GeoDataFrame)."
+        )
+    return (float(bounds[0]), float(bounds[1]), float(bounds[2]), float(bounds[3]))
+
+
+def _apply_geometry(dataset: Dataset, geometry: object | None) -> Dataset:
+    """Clip ``dataset`` to a polygon cutline, or return it unchanged.
+
+    Args:
+        dataset: The windowed dataset.
+        geometry: A polygon mask (geopandas ``GeoDataFrame`` / pyramids
+            ``FeatureCollection``), or ``None`` for no clip.
+
+    Returns:
+        The clipped dataset, or ``dataset`` when ``geometry`` is ``None``.
+    """
+    if geometry is None:
+        return dataset
+    return dataset.crop(mask=geometry)
+
+
 def _discover_scenes(
     asset_id: str,
     *,
@@ -358,6 +396,7 @@ def _composite(
     windowed: list[gdal.Dataset],
     reducer: str,
     credentials: EarthEngineCredentials,
+    geometry: object | None = None,
 ) -> Dataset:
     """Reduce aligned scenes into a single composite ``Dataset``.
 
@@ -365,6 +404,7 @@ def _composite(
         windowed: Aligned windowed scene datasets (all on the same grid).
         reducer: The client-side reducer to apply over the scene axis.
         credentials: Resolved credentials (carried onto the returned ``Dataset``).
+        geometry: Optional polygon cutline to clip the composite to.
 
     Returns:
         A single composite pyramids ``Dataset``.
@@ -372,9 +412,10 @@ def _composite(
     stack = np.stack([scene.ReadAsArray() for scene in windowed], axis=0)
     nodata = windowed[0].GetRasterBand(1).GetNoDataValue()
     reduced = _reduce(stack, reducer, nodata)
-    return Dataset(
+    composite = Dataset(
         _build_like(windowed[0], reduced, nodata), gdal_env=credentials.gdal_env()
     )
+    return _apply_geometry(composite, geometry)
 
 
 def from_earthengine(
@@ -382,6 +423,7 @@ def from_earthengine(
     *,
     bands: list[str] | None = None,
     bbox: BBox | None = None,
+    geometry: object | None = None,
     crs: str = "EPSG:4326",
     scale: float | None = None,
     shape: tuple[int, int] | None = None,
@@ -408,7 +450,12 @@ def from_earthengine(
             ``"COPERNICUS/S2_SR_HARMONIZED"``.
         bands: Band names to request; ``None`` reads every band.
         bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required to
-            materialise a window (single mode) and for the composite mode.
+            materialise a window (single mode) and for the composite mode, unless
+            a ``geometry`` is given (its envelope is used as the ``bbox``).
+        geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids
+            ``FeatureCollection``) in ``crs``. Its envelope drives the read window
+            and the result is then clipped to the polygon cutline. Takes the place
+            of ``bbox`` when ``bbox`` is omitted.
         crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to
             ``"EPSG:4326"``.
         scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.
@@ -457,6 +504,14 @@ def from_earthengine(
             ... )
 
             ```
+        - Clip to a polygon AOI instead of a bbox (skipped offline):
+            ```python
+            >>> import geopandas as gpd  # doctest: +SKIP
+            >>> from pyramids_eo import from_earthengine
+            >>> aoi = gpd.read_file("basin.geojson")  # doctest: +SKIP
+            >>> ds = from_earthengine("USGS/SRTMGL1_003", geometry=aoi)  # doctest: +SKIP
+
+            ```
         - Passing both ``scale`` and ``shape`` is rejected before any read:
             ```python
             >>> from pyramids_eo import from_earthengine
@@ -476,6 +531,8 @@ def from_earthengine(
         raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
 
     creds = EarthEngineCredentials.coerce(credentials)
+    if bbox is None and geometry is not None:
+        bbox = _geometry_bounds(geometry)
 
     if reducer is not None or start is not None or end is not None:
         if reducer is None:
@@ -485,7 +542,10 @@ def from_earthengine(
                 "DatasetCollection."
             )
         if start is None or end is None or bbox is None:
-            raise ValueError("The composite mode requires 'start', 'end', and 'bbox'.")
+            raise ValueError(
+                "The composite mode requires 'start', 'end', and a 'bbox' or "
+                "'geometry'."
+            )
         scenes = _discover_scenes(
             asset_id,
             start=start,
@@ -506,7 +566,7 @@ def from_earthengine(
             bands=bands,
             credentials=creds,
         )
-        return _composite(windowed, reducer, creds)
+        return _composite(windowed, reducer, creds, geometry)
 
     src = _open_eedai(asset_id, bands=bands, credentials=creds)
     if bbox is None:
@@ -518,7 +578,9 @@ def from_earthengine(
         return Dataset(src, gdal_env=creds.gdal_env())
 
     windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
-    return Dataset(windowed_single, gdal_env=creds.gdal_env())
+    return _apply_geometry(
+        Dataset(windowed_single, gdal_env=creds.gdal_env()), geometry
+    )
 
 
 def collection_from_earthengine(
@@ -526,7 +588,8 @@ def collection_from_earthengine(
     *,
     start: str,
     end: str,
-    bbox: BBox,
+    bbox: BBox | None = None,
+    geometry: object | None = None,
     bands: list[str] | None = None,
     crs: str = "EPSG:4326",
     scale: float | None = None,
@@ -543,8 +606,12 @@ def collection_from_earthengine(
         asset_id: EE ``ImageCollection`` id (e.g. ``"COPERNICUS/S2_SR_HARMONIZED"``).
         start: Inclusive ISO start of the acquisition window.
         end: Inclusive ISO end of the acquisition window.
-        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required, to bound
-            scene discovery.
+        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required (to bound
+            scene discovery) unless a ``geometry`` is given.
+        geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids
+            ``FeatureCollection``) in ``crs``. Its envelope bounds scene discovery
+            and each scene is clipped to the polygon cutline. Takes the place of
+            ``bbox`` when ``bbox`` is omitted.
         bands: Band names to request; ``None`` reads every band.
         crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to
             ``"EPSG:4326"``.
@@ -561,7 +628,8 @@ def collection_from_earthengine(
         scene, with the acquisition times as its time axis.
 
     Raises:
-        ValueError: ``scale`` and ``shape`` are both given.
+        ValueError: ``scale`` and ``shape`` are both given, or neither ``bbox``
+            nor ``geometry`` is given.
         ReaderError: The catalog could not be opened, or the date range + AOI
             matched no scenes.
 
@@ -580,6 +648,10 @@ def collection_from_earthengine(
     """
     if scale is not None and shape is not None:
         raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
+    if bbox is None:
+        if geometry is None:
+            raise ValueError("Pass a 'bbox' or a 'geometry'.")
+        bbox = _geometry_bounds(geometry)
 
     creds = EarthEngineCredentials.coerce(credentials)
     scenes = _discover_scenes(
@@ -603,7 +675,9 @@ def collection_from_earthengine(
         credentials=creds,
     )
     env = creds.gdal_env()
-    datasets = [Dataset(scene, gdal_env=env) for scene in windowed]
+    datasets = [
+        _apply_geometry(Dataset(scene, gdal_env=env), geometry) for scene in windowed
+    ]
     return DatasetCollection(
         datasets[0],
         time_length=len(datasets),
