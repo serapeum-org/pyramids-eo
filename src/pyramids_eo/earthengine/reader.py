@@ -246,19 +246,25 @@ def _tiled_window(
     return mosaic
 
 
-def _iso(value: str) -> str:
+def _iso(value: str, *, end_of_day: bool = False) -> str:
     """Normalise a date/datetime string to an ISO datetime for catalog filtering.
 
-    A bare date (``"2024-06-01"``) gains a midnight time component so it compares
-    correctly against the catalog's ``startTime`` / ``endTime`` datetimes.
+    A bare date (``"2024-06-01"``) gains a time component so it compares correctly
+    against the catalog's ``startTime`` datetimes: midnight for a lower bound, or
+    end-of-day for an inclusive upper bound (so scenes acquired any time on the end
+    date are kept).
 
     Args:
         value: An ISO date or datetime string.
+        end_of_day: When ``value`` is a bare date, use ``23:59:59.999`` instead of
+            midnight — for an inclusive ``end`` bound.
 
     Returns:
         An ISO datetime string (with a ``T`` time component).
     """
-    return value if "T" in value else f"{value}T00:00:00"
+    if "T" in value:
+        return value
+    return f"{value}T23:59:59.999" if end_of_day else f"{value}T00:00:00"
 
 
 def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
@@ -384,8 +390,11 @@ def _discover_scenes(
             f"{gdal.GetLastErrorMsg() or 'no detail'}"
         )
     layer = catalog.GetLayer(0)
+    # Select by acquisition time (``startTime``) inclusively on both dates: a bare
+    # ``end`` date resolves to end-of-day so scenes acquired that day are kept, and
+    # a scene whose interval extends past ``end`` is not dropped for that reason.
     layer.SetAttributeFilter(
-        f"startTime >= '{_iso(start)}' AND endTime <= '{_iso(end)}'"
+        f"startTime >= '{_iso(start)}' AND startTime <= '{_iso(end, end_of_day=True)}'"
     )
     min_x, min_y, max_x, max_y = bbox_4326
     layer.SetSpatialFilterRect(min_x, min_y, max_x, max_y)
