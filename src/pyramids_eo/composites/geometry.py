@@ -145,3 +145,30 @@ def solar_zenith_angle(
     return np.asarray(
         np.rad2deg(np.arccos(np.clip(cos_zenith, -1.0, 1.0))), dtype=float
     )
+
+
+def cos_solar_zenith_angle(
+    time: _dt.datetime,
+    *,
+    lat: Any = None,
+    lon: Any = None,
+    grid: Any = None,
+) -> np.ndarray:
+    """Per-pixel cosine of the solar zenith angle (satpy `get_cos_sza`).
+
+    A thin wrapper over `solar_zenith_angle` returning `cos(SZA)` directly — the
+    form the readers' and `radiance_to_reflectance`'s `cos_sza` arguments expect
+    (note `solar_zenith_angle` itself returns the angle in *degrees*). Same
+    arguments as `solar_zenith_angle`.
+
+    Args:
+        time: Observation time (a naive datetime is treated as UTC).
+        lat: Latitude(s) in degrees north, paired with `lon`.
+        lon: Longitude(s) in degrees east, paired with `lat`.
+        grid: A pyramids `Dataset` grid (EPSG:4326), mutually exclusive with
+            `lat` / `lon`.
+
+    Returns:
+        The cosine of the solar zenith angle, same shape as the coordinates.
+    """
+    return np.cos(np.deg2rad(solar_zenith_angle(time, lat=lat, lon=lon, grid=grid)))

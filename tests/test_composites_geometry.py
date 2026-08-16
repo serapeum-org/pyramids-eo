@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from pyramids.dataset import Dataset
 
-from pyramids_eo.composites import solar_zenith_angle
+from pyramids_eo.composites import cos_solar_zenith_angle, solar_zenith_angle
 from pyramids_eo.composites.geometry import _to_utc
 
 # Equinox solar noon at Greenwich: the subsolar point sits near (0degN, 0degE),
@@ -118,6 +118,27 @@ class TestSolarZenithAngle:
         """lat without lon is an error."""
         with pytest.raises(ValueError, match="provide"):
             solar_zenith_angle(_EQUINOX_NOON, lat=0.0)
+
+
+class TestCosSolarZenithAngle:
+    """`cos_solar_zenith_angle` returns the cosine of the SZA."""
+
+    def test_equals_cos_of_sza(self):
+        """The result equals cos(deg2rad(solar_zenith_angle))."""
+        sza = solar_zenith_angle(_EQUINOX_NOON, lat=10.0, lon=20.0)
+        cos = cos_solar_zenith_angle(_EQUINOX_NOON, lat=10.0, lon=20.0)
+        assert float(cos) == pytest.approx(np.cos(np.deg2rad(float(sza))))
+
+    def test_subsolar_point_is_near_one(self):
+        """cos(SZA) is ~1 where the Sun is overhead."""
+        assert float(cos_solar_zenith_angle(_EQUINOX_NOON, lat=0.0, lon=0.0)) > 0.99
+
+    def test_grid_path(self):
+        """The grid path returns a (rows, columns) array."""
+        grid = Dataset.create_from_array(
+            np.zeros((2, 3)), top_left_corner=(0.0, 0.0), cell_size=1.0, epsg=4326
+        )
+        assert cos_solar_zenith_angle(_EQUINOX_NOON, grid=grid).shape == (2, 3)
 
 
 class TestToUtc:
