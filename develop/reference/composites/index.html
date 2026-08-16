@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -890,6 +890,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.cos_solar_zenith_angle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cos_solar_zenith_angle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pyramids_eo.composites.solar_zenith_angle" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -955,6 +966,17 @@
     <span class="md-ellipsis">
       
         solar_zenith_angle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.geometry.cos_solar_zenith_angle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cos_solar_zenith_angle
       
     </span>
   </a>
@@ -1413,6 +1435,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.cos_solar_zenith_angle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cos_solar_zenith_angle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pyramids_eo.composites.solar_zenith_angle" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1478,6 +1511,17 @@
     <span class="md-ellipsis">
       
         solar_zenith_angle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.composites.geometry.cos_solar_zenith_angle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cos_solar_zenith_angle
       
     </span>
   </a>
@@ -1709,8 +1753,9 @@ land here as they are implemented.</p>
 <code>true_color_with_night_ir</code> look), implemented over NumPy + pyramids-gis with no
 satpy / PyTroll dependency. So far:</p>
 <ul>
-<li><code>solar_zenith_angle</code> — per-pixel solar zenith angle (satpy <code>get_cos_sza</code>
-  equivalent), the geometry the day/night blend keys off.</li>
+<li><code>solar_zenith_angle</code> / <code>cos_solar_zenith_angle</code> — per-pixel solar zenith angle
+  (degrees) and its cosine (the <code>cos_sza</code> form the readers expect), the geometry
+  the day/night blend keys off.</li>
 <li><code>day_night_blend</code> / <code>day_weight</code> — the SZA-weighted cross-fade of a day and a
   night image (satpy <code>DayNightCompositor</code>).</li>
 <li><code>alpha_overlay</code> — the "over" composite of an RGBA foreground on an RGB(A)
@@ -2547,6 +2592,184 @@ through the twilight band between them — the DayNightCompositor curve.</p>
 <a id="__codelineno-0-57" name="__codelineno-0-57"></a>    <span class="n">coszen</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sza</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)))</span>
 <a id="__codelineno-0-58" name="__codelineno-0-58"></a>    <span class="n">weight</span> <span class="o">=</span> <span class="p">(</span><span class="n">coszen</span> <span class="o">-</span> <span class="nb">min</span><span class="p">(</span><span class="n">low</span><span class="p">,</span> <span class="n">high</span><span class="p">))</span> <span class="o">/</span> <span class="nb">abs</span><span class="p">(</span><span class="n">low</span> <span class="o">-</span> <span class="n">high</span><span class="p">)</span>
 <a id="__codelineno-0-59" name="__codelineno-0-59"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyramids_eo.composites.cos_solar_zenith_angle" class="doc doc-heading"><a href="#pyramids_eo.composites.cos_solar_zenith_angle" class="toclink">
+            <code class="highlight language-python"><span class="n">cos_solar_zenith_angle</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lon</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</a><a href="#pyramids_eo.composites.cos_solar_zenith_angle" class="headerlink" title="Permanent link">#</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Per-pixel cosine of the solar zenith angle (satpy <code>get_cos_sza</code>).</p>
+<p>A thin wrapper over <code>solar_zenith_angle</code> returning <code>cos(SZA)</code> directly — the
+form the readers' and <code>radiance_to_reflectance</code>'s <code>cos_sza</code> arguments expect
+(note <code>solar_zenith_angle</code> itself returns the angle in <em>degrees</em>). Same
+arguments as <code>solar_zenith_angle</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>time</code>
+            </td>
+            <td>
+                  <code><span title="datetime.datetime">datetime</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Observation time (a naive datetime is treated as UTC).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lat</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Latitude(s) in degrees north, paired with <code>lon</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lon</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Longitude(s) in degrees east, paired with <code>lat</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>grid</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A pyramids <code>Dataset</code> grid (EPSG:4326), mutually exclusive with
+<code>lat</code> / <code>lon</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The cosine of the solar zenith angle, same shape as the coordinates.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pyramids_eo/composites/geometry.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-150">150</a></span>
+<span class="normal"><a href="#__codelineno-0-151">151</a></span>
+<span class="normal"><a href="#__codelineno-0-152">152</a></span>
+<span class="normal"><a href="#__codelineno-0-153">153</a></span>
+<span class="normal"><a href="#__codelineno-0-154">154</a></span>
+<span class="normal"><a href="#__codelineno-0-155">155</a></span>
+<span class="normal"><a href="#__codelineno-0-156">156</a></span>
+<span class="normal"><a href="#__codelineno-0-157">157</a></span>
+<span class="normal"><a href="#__codelineno-0-158">158</a></span>
+<span class="normal"><a href="#__codelineno-0-159">159</a></span>
+<span class="normal"><a href="#__codelineno-0-160">160</a></span>
+<span class="normal"><a href="#__codelineno-0-161">161</a></span>
+<span class="normal"><a href="#__codelineno-0-162">162</a></span>
+<span class="normal"><a href="#__codelineno-0-163">163</a></span>
+<span class="normal"><a href="#__codelineno-0-164">164</a></span>
+<span class="normal"><a href="#__codelineno-0-165">165</a></span>
+<span class="normal"><a href="#__codelineno-0-166">166</a></span>
+<span class="normal"><a href="#__codelineno-0-167">167</a></span>
+<span class="normal"><a href="#__codelineno-0-168">168</a></span>
+<span class="normal"><a href="#__codelineno-0-169">169</a></span>
+<span class="normal"><a href="#__codelineno-0-170">170</a></span>
+<span class="normal"><a href="#__codelineno-0-171">171</a></span>
+<span class="normal"><a href="#__codelineno-0-172">172</a></span>
+<span class="normal"><a href="#__codelineno-0-173">173</a></span>
+<span class="normal"><a href="#__codelineno-0-174">174</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-150" name="__codelineno-0-150"></a><span class="k">def</span><span class="w"> </span><span class="nf">cos_solar_zenith_angle</span><span class="p">(</span>
+<a id="__codelineno-0-151" name="__codelineno-0-151"></a>    <span class="n">time</span><span class="p">:</span> <span class="n">_dt</span><span class="o">.</span><span class="n">datetime</span><span class="p">,</span>
+<a id="__codelineno-0-152" name="__codelineno-0-152"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-153" name="__codelineno-0-153"></a>    <span class="n">lat</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-154" name="__codelineno-0-154"></a>    <span class="n">lon</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-155" name="__codelineno-0-155"></a>    <span class="n">grid</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-156" name="__codelineno-0-156"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Per-pixel cosine of the solar zenith angle (satpy `get_cos_sza`).</span>
+<a id="__codelineno-0-158" name="__codelineno-0-158"></a>
+<a id="__codelineno-0-159" name="__codelineno-0-159"></a><span class="sd">    A thin wrapper over `solar_zenith_angle` returning `cos(SZA)` directly — the</span>
+<a id="__codelineno-0-160" name="__codelineno-0-160"></a><span class="sd">    form the readers&#39; and `radiance_to_reflectance`&#39;s `cos_sza` arguments expect</span>
+<a id="__codelineno-0-161" name="__codelineno-0-161"></a><span class="sd">    (note `solar_zenith_angle` itself returns the angle in *degrees*). Same</span>
+<a id="__codelineno-0-162" name="__codelineno-0-162"></a><span class="sd">    arguments as `solar_zenith_angle`.</span>
+<a id="__codelineno-0-163" name="__codelineno-0-163"></a>
+<a id="__codelineno-0-164" name="__codelineno-0-164"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-165" name="__codelineno-0-165"></a><span class="sd">        time: Observation time (a naive datetime is treated as UTC).</span>
+<a id="__codelineno-0-166" name="__codelineno-0-166"></a><span class="sd">        lat: Latitude(s) in degrees north, paired with `lon`.</span>
+<a id="__codelineno-0-167" name="__codelineno-0-167"></a><span class="sd">        lon: Longitude(s) in degrees east, paired with `lat`.</span>
+<a id="__codelineno-0-168" name="__codelineno-0-168"></a><span class="sd">        grid: A pyramids `Dataset` grid (EPSG:4326), mutually exclusive with</span>
+<a id="__codelineno-0-169" name="__codelineno-0-169"></a><span class="sd">            `lat` / `lon`.</span>
+<a id="__codelineno-0-170" name="__codelineno-0-170"></a>
+<a id="__codelineno-0-171" name="__codelineno-0-171"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-172" name="__codelineno-0-172"></a><span class="sd">        The cosine of the solar zenith angle, same shape as the coordinates.</span>
+<a id="__codelineno-0-173" name="__codelineno-0-173"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-174" name="__codelineno-0-174"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">solar_zenith_angle</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="n">lat</span><span class="p">,</span> <span class="n">lon</span><span class="o">=</span><span class="n">lon</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">)))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -4113,6 +4336,184 @@ both are given, or when <code>grid</code> is not geographic (EPSG:4326).</p>
 <a id="__codelineno-0-145" name="__codelineno-0-145"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
 <a id="__codelineno-0-146" name="__codelineno-0-146"></a>        <span class="n">np</span><span class="o">.</span><span class="n">rad2deg</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arccos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">cos_zenith</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span>
 <a id="__codelineno-0-147" name="__codelineno-0-147"></a>    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyramids_eo.composites.geometry.cos_solar_zenith_angle" class="doc doc-heading"><a href="#pyramids_eo.composites.geometry.cos_solar_zenith_angle" class="toclink">
+            <code class="highlight language-python"><span class="n">cos_solar_zenith_angle</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lon</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</a><a href="#pyramids_eo.composites.geometry.cos_solar_zenith_angle" class="headerlink" title="Permanent link">#</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Per-pixel cosine of the solar zenith angle (satpy <code>get_cos_sza</code>).</p>
+<p>A thin wrapper over <code>solar_zenith_angle</code> returning <code>cos(SZA)</code> directly — the
+form the readers' and <code>radiance_to_reflectance</code>'s <code>cos_sza</code> arguments expect
+(note <code>solar_zenith_angle</code> itself returns the angle in <em>degrees</em>). Same
+arguments as <code>solar_zenith_angle</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>time</code>
+            </td>
+            <td>
+                  <code><span title="datetime.datetime">datetime</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Observation time (a naive datetime is treated as UTC).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lat</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Latitude(s) in degrees north, paired with <code>lon</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lon</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Longitude(s) in degrees east, paired with <code>lat</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>grid</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A pyramids <code>Dataset</code> grid (EPSG:4326), mutually exclusive with
+<code>lat</code> / <code>lon</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The cosine of the solar zenith angle, same shape as the coordinates.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pyramids_eo/composites/geometry.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-150">150</a></span>
+<span class="normal"><a href="#__codelineno-0-151">151</a></span>
+<span class="normal"><a href="#__codelineno-0-152">152</a></span>
+<span class="normal"><a href="#__codelineno-0-153">153</a></span>
+<span class="normal"><a href="#__codelineno-0-154">154</a></span>
+<span class="normal"><a href="#__codelineno-0-155">155</a></span>
+<span class="normal"><a href="#__codelineno-0-156">156</a></span>
+<span class="normal"><a href="#__codelineno-0-157">157</a></span>
+<span class="normal"><a href="#__codelineno-0-158">158</a></span>
+<span class="normal"><a href="#__codelineno-0-159">159</a></span>
+<span class="normal"><a href="#__codelineno-0-160">160</a></span>
+<span class="normal"><a href="#__codelineno-0-161">161</a></span>
+<span class="normal"><a href="#__codelineno-0-162">162</a></span>
+<span class="normal"><a href="#__codelineno-0-163">163</a></span>
+<span class="normal"><a href="#__codelineno-0-164">164</a></span>
+<span class="normal"><a href="#__codelineno-0-165">165</a></span>
+<span class="normal"><a href="#__codelineno-0-166">166</a></span>
+<span class="normal"><a href="#__codelineno-0-167">167</a></span>
+<span class="normal"><a href="#__codelineno-0-168">168</a></span>
+<span class="normal"><a href="#__codelineno-0-169">169</a></span>
+<span class="normal"><a href="#__codelineno-0-170">170</a></span>
+<span class="normal"><a href="#__codelineno-0-171">171</a></span>
+<span class="normal"><a href="#__codelineno-0-172">172</a></span>
+<span class="normal"><a href="#__codelineno-0-173">173</a></span>
+<span class="normal"><a href="#__codelineno-0-174">174</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-150" name="__codelineno-0-150"></a><span class="k">def</span><span class="w"> </span><span class="nf">cos_solar_zenith_angle</span><span class="p">(</span>
+<a id="__codelineno-0-151" name="__codelineno-0-151"></a>    <span class="n">time</span><span class="p">:</span> <span class="n">_dt</span><span class="o">.</span><span class="n">datetime</span><span class="p">,</span>
+<a id="__codelineno-0-152" name="__codelineno-0-152"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-153" name="__codelineno-0-153"></a>    <span class="n">lat</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-154" name="__codelineno-0-154"></a>    <span class="n">lon</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-155" name="__codelineno-0-155"></a>    <span class="n">grid</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-156" name="__codelineno-0-156"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Per-pixel cosine of the solar zenith angle (satpy `get_cos_sza`).</span>
+<a id="__codelineno-0-158" name="__codelineno-0-158"></a>
+<a id="__codelineno-0-159" name="__codelineno-0-159"></a><span class="sd">    A thin wrapper over `solar_zenith_angle` returning `cos(SZA)` directly — the</span>
+<a id="__codelineno-0-160" name="__codelineno-0-160"></a><span class="sd">    form the readers&#39; and `radiance_to_reflectance`&#39;s `cos_sza` arguments expect</span>
+<a id="__codelineno-0-161" name="__codelineno-0-161"></a><span class="sd">    (note `solar_zenith_angle` itself returns the angle in *degrees*). Same</span>
+<a id="__codelineno-0-162" name="__codelineno-0-162"></a><span class="sd">    arguments as `solar_zenith_angle`.</span>
+<a id="__codelineno-0-163" name="__codelineno-0-163"></a>
+<a id="__codelineno-0-164" name="__codelineno-0-164"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-165" name="__codelineno-0-165"></a><span class="sd">        time: Observation time (a naive datetime is treated as UTC).</span>
+<a id="__codelineno-0-166" name="__codelineno-0-166"></a><span class="sd">        lat: Latitude(s) in degrees north, paired with `lon`.</span>
+<a id="__codelineno-0-167" name="__codelineno-0-167"></a><span class="sd">        lon: Longitude(s) in degrees east, paired with `lat`.</span>
+<a id="__codelineno-0-168" name="__codelineno-0-168"></a><span class="sd">        grid: A pyramids `Dataset` grid (EPSG:4326), mutually exclusive with</span>
+<a id="__codelineno-0-169" name="__codelineno-0-169"></a><span class="sd">            `lat` / `lon`.</span>
+<a id="__codelineno-0-170" name="__codelineno-0-170"></a>
+<a id="__codelineno-0-171" name="__codelineno-0-171"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-172" name="__codelineno-0-172"></a><span class="sd">        The cosine of the solar zenith angle, same shape as the coordinates.</span>
+<a id="__codelineno-0-173" name="__codelineno-0-173"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-174" name="__codelineno-0-174"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">solar_zenith_angle</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="n">lat</span><span class="p">,</span> <span class="n">lon</span><span class="o">=</span><span class="n">lon</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">)))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
