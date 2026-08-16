@@ -141,8 +141,8 @@ def _validate_chunk_grid(datasets: list) -> None:
     for ds in datasets[1:]:
         if ds.epsg != first.epsg:
             raise ReaderError("read_fci: chunks have mixed CRS")
-        if ds.geotransform[1] != first.geotransform[1] or (
-            ds.geotransform[5] != first.geotransform[5]
+        if not np.isclose(ds.geotransform[1], first.geotransform[1]) or (
+            not np.isclose(ds.geotransform[5], first.geotransform[5])
         ):
             raise ReaderError("read_fci: chunks have mixed cell size")
         if ds.columns != first.columns:
