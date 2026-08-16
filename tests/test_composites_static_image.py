@@ -13,6 +13,7 @@ from pyramids.dataset import Dataset
 
 from pyramids_eo.composites import static_image
 from pyramids_eo.composites.background import _download, _resolve_source
+from pyramids_eo.errors import EOError
 
 
 def _make_tif(path: Path, shape=(4, 4), epsg=4326, cell=1.0, tlc=(0.0, 4.0)) -> Path:
@@ -56,6 +57,40 @@ class TestDownload:
             ".part file should be gone"
         )
 
+    def test_size_cap_aborts_and_cleans_part(self, tmp_path, monkeypatch):
+        """A download over the byte cap raises and leaves no .part file."""
+        monkeypatch.setattr(
+            urllib.request,
+            "urlopen",
+            lambda req, timeout=None: _FakeUrlopen(b"x" * 100),
+        )
+        target = tmp_path / "img.tif"
+        with pytest.raises(EOError, match="download cap"):
+            _download("https://example.com/img.tif", target, 5.0, max_bytes=10)
+        assert not target.exists(), "oversized download should not be kept"
+        assert not target.with_name("img.tif.part").exists(), ".part not cleaned"
+
+    def test_part_removed_on_stream_error(self, tmp_path, monkeypatch):
+        """A mid-stream read error leaves no orphan .part file."""
+
+        class _Boom:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self, size=-1):
+                raise OSError("boom")
+
+        monkeypatch.setattr(
+            urllib.request, "urlopen", lambda req, timeout=None: _Boom()
+        )
+        target = tmp_path / "img.tif"
+        with pytest.raises(OSError, match="boom"):
+            _download("https://example.com/img.tif", target, 5.0)
+        assert not target.with_name("img.tif.part").exists(), ".part not cleaned"
+
 
 class TestResolveSource:
     """`_resolve_source` returns a local path, downloading a URL on demand."""
@@ -75,7 +110,7 @@ class TestResolveSource:
         """A URL is downloaded into cache_dir under its basename."""
         calls = {"n": 0}
 
-        def _fake_dl(url, target, timeout):
+        def _fake_dl(url, target, timeout, max_bytes=None):
             calls["n"] += 1
             Path(target).write_bytes(b"downloaded")
 
@@ -91,7 +126,7 @@ class TestResolveSource:
         cache.mkdir()
         (cache / "bm.tif").write_bytes(b"cached")
 
-        def _boom(url, target, timeout):
+        def _boom(url, target, timeout, max_bytes=None):
             raise AssertionError("download should not run for a cached file")
 
         monkeypatch.setattr("pyramids_eo.composites.background._download", _boom)
@@ -104,7 +139,7 @@ class TestResolveSource:
         monkeypatch.setattr("pyramids_eo.composites.background._DEFAULT_CACHE", default)
         monkeypatch.setattr(
             "pyramids_eo.composites.background._download",
-            lambda url, target, timeout: Path(target).write_bytes(b"x"),
+            lambda url, target, timeout, max_bytes=None: Path(target).write_bytes(b"x"),
         )
         out = _resolve_source("https://host/bm.tif", None, 5.0)
         assert out == default / "bm.tif", f"expected default cache path, got {out}"
@@ -149,7 +184,7 @@ class TestStaticImage:
         fixture = _make_tif(tmp_path / "fixture.tif", shape=(3, 3))
         calls = {"n": 0}
 
-        def _fake_dl(url, target, timeout):
+        def _fake_dl(url, target, timeout, max_bytes=None):
             calls["n"] += 1
             shutil.copyfile(fixture, target)
 

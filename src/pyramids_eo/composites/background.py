@@ -16,35 +16,61 @@ Black Marble mirror is:
 from __future__ import annotations
 
 import os
-import shutil
 import urllib.request
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from pyramids_eo.errors import EOError
+
 #: Default cache directory for downloaded static images.
 _DEFAULT_CACHE = Path.home() / ".cache" / "pyramids-eo"
+#: Default cap on a single cached download (bytes) — guards against disk fill.
+_DEFAULT_MAX_BYTES = 1_000_000_000
+#: Read block size for streamed downloads.
+_BLOCK = 65536
 
 
-def _download(url: str, target: Path, timeout: float) -> None:
+def _download(
+    url: str, target: Path, timeout: float, max_bytes: int = _DEFAULT_MAX_BYTES
+) -> None:
     """Stream `url` to `target`, writing atomically via a `.part` temp file.
+
+    Streams in blocks with a running size cap and removes the `.part` file on any
+    failure, so a partial/oversized download never lingers in the cache.
 
     Args:
         url: The http/https source URL.
         target: Destination path for the downloaded file.
         timeout: Per-request timeout in seconds.
+        max_bytes: Maximum bytes to accept before aborting (default ~1 GB).
+
+    Raises:
+        EOError: When the download exceeds `max_bytes`.
     """
     request = urllib.request.Request(url)
     part = target.with_name(target.name + ".part")
-    with (
-        urllib.request.urlopen(request, timeout=timeout) as response,  # nosec B310 - scheme restricted to http/https by _resolve_source
-        open(part, "wb") as handle,
-    ):
-        shutil.copyfileobj(response, handle)
-    os.replace(part, target)
+    try:
+        total = 0
+        with (
+            urllib.request.urlopen(request, timeout=timeout) as response,  # nosec B310 - scheme restricted to http/https by _resolve_source
+            open(part, "wb") as handle,
+        ):
+            while block := response.read(_BLOCK):
+                total += len(block)
+                if total > max_bytes:
+                    raise EOError(
+                        f"static image exceeds the {max_bytes}-byte download cap: {url}"
+                    )
+                handle.write(block)
+        os.replace(part, target)
+    finally:
+        part.unlink(missing_ok=True)
 
 
-def _resolve_source(source: Any, cache_dir: Any, timeout: float) -> Path:
+def _resolve_source(
+    source: Any, cache_dir: Any, timeout: float, max_bytes: int = _DEFAULT_MAX_BYTES
+) -> Path:
     """Return a local path for `source`, downloading + caching a URL if needed.
 
     Args:
@@ -52,6 +78,7 @@ def _resolve_source(source: Any, cache_dir: Any, timeout: float) -> Path:
             URL.
         cache_dir: Directory to cache a downloaded URL (default `_DEFAULT_CACHE`).
         timeout: Per-request timeout in seconds for a download.
+        max_bytes: Maximum bytes to accept for a download.
 
     Returns:
         The path to the local (possibly just-cached) file.
@@ -65,7 +92,7 @@ def _resolve_source(source: Any, cache_dir: Any, timeout: float) -> Path:
         cache.mkdir(parents=True, exist_ok=True)
         target = cache / Path(parsed.path).name
         if not (target.exists() and target.stat().st_size > 0):
-            _download(str(source), target, timeout)
+            _download(str(source), target, timeout, max_bytes)
         return target
     path = Path(source)
     if not path.exists():
@@ -79,6 +106,7 @@ def static_image(
     like: Any = None,
     cache_dir: Any = None,
     timeout: float = 60.0,
+    max_bytes: int = _DEFAULT_MAX_BYTES,
 ) -> Any:
     """Load a georeferenced image, caching a remote URL and warping to a grid.
 
@@ -96,6 +124,8 @@ def static_image(
         cache_dir: Directory used to cache a downloaded URL. Defaults to
             `~/.cache/pyramids-eo`. Ignored for a local `source`.
         timeout: Per-request download timeout in seconds (default 60).
+        max_bytes: Cap on a URL download in bytes (default ~1 GB) — guards against
+            an oversized/hostile URL filling the cache.
 
     Returns:
         A pyramids `Dataset` — aligned to `like`'s grid when `like` is given,
@@ -103,8 +133,9 @@ def static_image(
 
     Raises:
         FileNotFoundError: When a local `source` does not exist.
+        EOError: When a URL download exceeds `max_bytes`.
     """
-    path = _resolve_source(source, cache_dir, timeout)
+    path = _resolve_source(source, cache_dir, timeout, max_bytes)
 
     from pyramids.dataset import Dataset
 
