@@ -14,7 +14,11 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _get_version
 
-from pyramids_eo.earthengine import EarthEngineCredentials, from_earthengine
+from pyramids_eo.earthengine import (
+    EarthEngineCredentials,
+    collection_from_earthengine,
+    from_earthengine,
+)
 
 try:
     __version__ = _get_version("pyramids-eo")
@@ -24,5 +28,6 @@ except PackageNotFoundError:  # pragma: no cover
 __all__ = [
     "EarthEngineCredentials",
     "__version__",
+    "collection_from_earthengine",
     "from_earthengine",
 ]
