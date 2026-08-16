@@ -61,7 +61,11 @@ def radiance_to_reflectance(
         np.pi * np.asarray(radiance, dtype=float) * sun_earth_distance**2
     ) / solar_irradiance
     if cos_sza is not None:
-        reflectance = reflectance / np.asarray(cos_sza, dtype=float)
+        cos = np.asarray(cos_sza, dtype=float)
+        # At/below the terminator (cos_sza <= 0) the sun-angle correction is
+        # undefined; map those pixels to NaN instead of emitting inf + a warning.
+        with np.errstate(invalid="ignore", divide="ignore"):
+            reflectance = np.where(cos > 0, reflectance / cos, np.nan)
     return np.asarray(reflectance, dtype=float)
 
 

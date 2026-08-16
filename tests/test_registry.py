@@ -52,6 +52,19 @@ class TestRadianceToReflectance:
         with pytest.raises(CalibrationError, match="solar_irradiance"):
             radiance_to_reflectance(10.0, solar_irradiance=0.0)
 
+    def test_cos_sza_zero_is_nan_not_inf(self):
+        """cos_sza = 0 (the terminator) yields NaN, not inf/RuntimeWarning."""
+        out = radiance_to_reflectance(10.0, solar_irradiance=50.0, cos_sza=0.0)
+        assert np.isnan(out), f"terminator reflectance should be NaN, got {out}"
+
+    def test_cos_sza_array_masks_only_nonpositive(self):
+        """Only non-positive cos_sza pixels become NaN; positive ones stay finite."""
+        out = radiance_to_reflectance(
+            np.full(3, 10.0), solar_irradiance=50.0, cos_sza=np.array([0.5, 0.0, -0.2])
+        )
+        assert np.isfinite(out[0]), "positive cos_sza should stay finite"
+        assert np.isnan(out[1]) and np.isnan(out[2]), "non-positive should be NaN"
+
 
 class TestRadianceToBrightnessTemperature:
     """Thermal-channel radiance -> brightness temperature (inverse Planck)."""
