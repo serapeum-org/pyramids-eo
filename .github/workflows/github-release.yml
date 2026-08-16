@@ -36,7 +36,11 @@ on:
         default: false
 
 jobs:
+  pure-wheel-test:
+    uses: ./.github/workflows/pure-wheel-test.yml
+
   release:
+    needs: pure-wheel-test
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -66,6 +70,7 @@ jobs:
           prerelease-type: ${{ github.event.inputs.prerelease_type }}
           draft: ${{ github.event.inputs.draft }}
           package-manager: pixi
+          package-manager-version: v0.73.0
           install-groups: "dev"
 
       - name: Update lockfile after version bump
