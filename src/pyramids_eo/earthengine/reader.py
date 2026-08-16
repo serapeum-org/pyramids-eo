@@ -519,6 +519,9 @@ def _read_scenes_aligned(
             windowed.append(
                 _window(src, bbox=bbox, crs=crs, scale=scale, shape=target_shape)
             )
+        # The windowed result is a self-contained MEM copy; release the EEDAI
+        # source handle now rather than leaving it for GC.
+        src = None
     return windowed
 
 
@@ -899,6 +902,7 @@ def from_earthengine(
             )
         if windowed_single is None:
             windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
+        src = None  # release the EEDAI source; the window is a self-contained copy
     return _retain_credentials(
         _apply_geometry(Dataset(windowed_single, gdal_env=creds.gdal_env()), geometry),
         creds,
