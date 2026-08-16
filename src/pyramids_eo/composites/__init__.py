@@ -15,6 +15,8 @@ satpy / PyTroll dependency. So far:
   `StaticImageCompositor`).
 * `true_color` — true-colour RGB from calibrated reflectance bands with a CIMSS
   synthetic green (no Rayleigh).
+* `night_ir` / `true_color_with_night_ir` — assemble the full day/night image
+  (RGBA IR clouds over city lights, cross-faded against the day image by SZA).
 
 Together these compose satpy's `true_color_with_night_ir` day/night look.
 """
@@ -26,12 +28,18 @@ from pyramids_eo.composites.blend import day_night_blend, day_weight
 from pyramids_eo.composites.geometry import solar_zenith_angle
 from pyramids_eo.composites.overlay import alpha_overlay
 from pyramids_eo.composites.true_color import true_color
+from pyramids_eo.composites.true_color_night import (
+    night_ir,
+    true_color_with_night_ir,
+)
 
 __all__ = [
     "alpha_overlay",
     "day_night_blend",
     "day_weight",
+    "night_ir",
     "solar_zenith_angle",
     "static_image",
     "true_color",
+    "true_color_with_night_ir",
 ]
