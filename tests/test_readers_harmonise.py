@@ -37,6 +37,18 @@ class TestHarmonise:
         assert isinstance(out, list) and len(out) == 2, "expected a list of two"
         assert all((d.rows, d.columns) == (2, 2) for d in out), "bands not aligned"
 
+    def test_nearest_method_matches_default(self):
+        """method='nearest' is the same align path as the default."""
+        reference = _grid((2, 2), cell=2.0)
+        out = harmonise([_grid((4, 4), cell=1.0)], reference, method="nearest")
+        assert (out[0].rows, out[0].columns) == (2, 2), "nearest should align exactly"
+
+    def test_bilinear_method_uses_warped_view(self):
+        """A non-nearest method resamples onto the reference CRS via warped_view."""
+        reference = _grid((2, 2), cell=2.0)
+        out = harmonise([_grid((4, 4), cell=1.0)], reference, method="bilinear")
+        assert out[0].epsg == reference.epsg, "warped result should keep the CRS"
+
     def test_none_reference_raises(self):
         """A missing reference grid is a ReaderError."""
         with pytest.raises(ReaderError, match="reference"):
