@@ -153,6 +153,7 @@ class TestFromEarthengine:
             {"scale": 0.01},
             {"shape": (5, 5)},
             {"crs": "EPSG:3857"},
+            {"resample": "cubic"},
         ],
     )
     def test_windowing_options_require_bbox(self, patched_eedai, kwargs) -> None:
@@ -1507,6 +1508,16 @@ class TestResample:
         """
         with pytest.raises(ValueError, match="Unknown resample"):
             ee_reader._resample_alg("bogus")
+
+    def test_invalid_resample_rejected_before_network(self) -> None:
+        """A bad ``resample`` name fails up front, before any EEDAI open.
+
+        Test scenario:
+            ``from_earthengine`` validates ``resample`` before touching the driver
+            (no ``_open_eedai`` monkeypatch is needed — it never reaches it).
+        """
+        with pytest.raises(ValueError, match="Unknown resample"):
+            from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, resample="neareset")
 
     def test_from_earthengine_honours_resample(self, patched_eedai) -> None:
         """A non-default ``resample`` is accepted end-to-end.

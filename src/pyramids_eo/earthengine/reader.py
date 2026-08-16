@@ -836,10 +836,16 @@ def _single_image_read(
             could not be opened / windowed.
     """
     if bbox is None:
-        if scale is not None or shape is not None or crs != _DEFAULT_CRS:
+        if (
+            scale is not None
+            or shape is not None
+            or crs != _DEFAULT_CRS
+            or resample != "nearest"
+        ):
             raise ReaderError(
                 "A 'bbox' is required to window an Earth Engine asset when "
-                "'crs', 'scale', or 'shape' is set (assets are global/huge)."
+                "'crs', 'scale', 'shape', or 'resample' is set (assets are "
+                "global/huge)."
             )
         src = _open_eedai(asset_id, bands=bands, credentials=credentials)
         # The whole-asset wrap is read lazily, so pixel reads happen after this
@@ -1011,6 +1017,7 @@ def from_earthengine(
     """
     if scale is not None and shape is not None:
         raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
+    _resample_alg(resample)  # validate up front, before any network call
 
     creds = EarthEngineCredentials.coerce(credentials)
     if geometry is not None:
@@ -1113,6 +1120,7 @@ def collection_from_earthengine(
     """
     if scale is not None and shape is not None:
         raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
+    _resample_alg(resample)  # validate up front, before any network call
     if geometry is not None:
         geometry = _geometry_in_crs(geometry, crs)
     if bbox is None:
