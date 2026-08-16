@@ -8,17 +8,21 @@ satpy / PyTroll dependency. So far:
   equivalent), the geometry the day/night blend keys off.
 * `day_night_blend` / `day_weight` — the SZA-weighted cross-fade of a day and a
   night image (satpy `DayNightCompositor`).
+* `alpha_overlay` — the "over" composite of an RGBA foreground on an RGB(A)
+  background (satpy `BackgroundCompositor`).
 
-The remaining primitives (`alpha_overlay`, `static_image`) land alongside these
-as their sub-issues are implemented.
+The remaining primitive (`static_image`) lands alongside these as its sub-issue
+is implemented.
 """
 
 from __future__ import annotations
 
 from pyramids_eo.composites.blend import day_night_blend, day_weight
 from pyramids_eo.composites.geometry import solar_zenith_angle
+from pyramids_eo.composites.overlay import alpha_overlay
 
 __all__ = [
+    "alpha_overlay",
     "day_night_blend",
     "day_weight",
     "solar_zenith_angle",

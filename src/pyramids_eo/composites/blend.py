@@ -14,21 +14,9 @@ from typing import Any
 
 import numpy as np
 
+from pyramids_eo.composites._common import _as_array, _wrap_like
+
 _MODES = ("day_night", "day_only", "night_only")
-
-
-def _as_array(value: Any) -> np.ndarray:
-    """Return `value` as a float ndarray, reading a pyramids `Dataset` if given.
-
-    Args:
-        value: An ndarray-like, or a pyramids `Dataset` (read via `read_array`).
-
-    Returns:
-        A float ndarray.
-    """
-    if hasattr(value, "read_array"):
-        return np.asarray(value.read_array(), dtype=float)
-    return np.asarray(value, dtype=float)
 
 
 def day_weight(sza: Any, lim_low: float = 78.0, lim_high: float = 88.0) -> np.ndarray:
@@ -133,19 +121,4 @@ def day_night_blend(
         out = _as_array(night) * (1.0 - weight)
     else:
         out = day_arr * weight + _as_array(night) * (1.0 - weight)
-    out = np.asarray(out, dtype=float)
-
-    template = next(
-        (
-            candidate
-            for candidate in (day, night)
-            if hasattr(candidate, "read_array") and hasattr(candidate, "geotransform")
-        ),
-        None,
-    )
-    if template is None:
-        return out
-
-    from pyramids.dataset import Dataset
-
-    return Dataset.create_from_array(out, geo=template.geotransform, epsg=template.epsg)
+    return _wrap_like(out, day, night)
