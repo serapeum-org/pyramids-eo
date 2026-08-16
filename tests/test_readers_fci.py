@@ -66,12 +66,55 @@ class TestReadFci:
         out = read_fci([_chunk(radiance)], "ir_105", calibrate=False)
         assert np.allclose(out.read_array(), 42.0), "raw radiance should pass through"
 
-    def test_geolocation_from_first_chunk(self):
-        """The result carries the first chunk's CRS + geotransform."""
-        first = _chunk(np.ones((2, 2)), tlc=(0.0, 4.0))
-        out = read_fci([first, _chunk(np.ones((2, 2)), tlc=(0.0, 2.0))], "ir_105")
+    def test_geolocation_from_northernmost_chunk(self):
+        """The result carries the northernmost chunk's CRS + geotransform."""
+        north = _chunk(np.ones((2, 2)), tlc=(0.0, 4.0))
+        out = read_fci([north, _chunk(np.ones((2, 2)), tlc=(0.0, 2.0))], "ir_105")
         assert out.epsg == 4326, f"CRS not preserved, got {out.epsg}"
-        assert out.geotransform == first.geotransform, "geotransform not preserved"
+        assert out.geotransform == north.geotransform, "geotransform not from north"
+
+    def test_reverse_order_chunks_still_geolocate_correctly(self):
+        """Chunks passed south-first are reordered north -> south (M1 footgun)."""
+        south = _chunk(np.full((2, 3), 9.0), tlc=(0.0, 2.0))
+        north = _chunk(np.full((2, 3), 5.0), tlc=(0.0, 4.0))
+        out = read_fci([south, north], "ir_105", calibrate=False)
+        arr = out.read_array()
+        assert np.allclose(arr[:2], 5.0) and np.allclose(arr[2:], 9.0), "not reordered"
+        assert out.geotransform == north.geotransform, (
+            "origin should be the north chunk"
+        )
+
+    def test_mixed_crs_chunks_raise(self):
+        """Chunks with different CRS are rejected."""
+        a = _chunk(np.ones((2, 2)), tlc=(0.0, 4.0))
+        b = Dataset.create_from_array(
+            np.ones((2, 2)), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=3857
+        )
+        with pytest.raises(ReaderError, match="mixed CRS"):
+            read_fci([a, b], "ir_105")
+
+    def test_mixed_cell_size_chunks_raise(self):
+        """Chunks with different cell sizes are rejected."""
+        a = _chunk(np.ones((2, 2)), tlc=(0.0, 4.0))
+        b = Dataset.create_from_array(
+            np.ones((2, 2)), top_left_corner=(0.0, 2.0), cell_size=2.0, epsg=4326
+        )
+        with pytest.raises(ReaderError, match="cell size"):
+            read_fci([a, b], "ir_105")
+
+    def test_mixed_column_count_chunks_raise(self):
+        """Chunks with different widths are rejected."""
+        a = _chunk(np.ones((2, 3)), tlc=(0.0, 4.0))
+        b = _chunk(np.ones((2, 2)), tlc=(0.0, 2.0))
+        with pytest.raises(ReaderError, match="column count"):
+            read_fci([a, b], "ir_105")
+
+    def test_non_contiguous_chunks_raise(self):
+        """A vertical gap between chunks is rejected."""
+        top = _chunk(np.ones((2, 2)), tlc=(0.0, 4.0))
+        gapped = _chunk(np.ones((2, 2)), tlc=(0.0, -5.0))
+        with pytest.raises(ReaderError, match="contiguous"):
+            read_fci([top, gapped], "ir_105")
 
     def test_unknown_channel_raises(self):
         """An unknown channel surfaces UnknownSensorError from the registry."""

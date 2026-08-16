@@ -58,10 +58,12 @@ def read_fci(
 ) -> Any:
     """Read one FCI channel across its chunk set into a calibrated `Dataset`.
 
-    Stitches the channel's radiance across `chunks` (row-wise, in the given
-    order), calibrates it to reflectance (solar) or brightness temperature
-    (thermal) via the registry, and returns a geolocated pyramids `Dataset`
-    carrying the first chunk's CRS + geotransform.
+    Orders the chunks north -> south by their top-left latitude (so the caller
+    may pass them in any order), stitches the channel's radiance row-wise,
+    calibrates it to reflectance (solar) or brightness temperature (thermal),
+    and returns a geolocated pyramids `Dataset` carrying the northernmost chunk's
+    CRS + geotransform. The chunks must share a CRS, cell size and column count
+    and be vertically contiguous (validated).
 
     Args:
         chunks: An ordered iterable of chunks, each either a pyramids `Dataset`
@@ -98,8 +100,14 @@ def read_fci(
         chunk if hasattr(chunk, "read_array") else opener(chunk, channel)
         for chunk in chunk_list
     ]
+    _validate_chunk_grid(datasets)
+
+    # Order the chunks north -> south by their top-left latitude/y so the stitch
+    # and geolocation are correct regardless of the order chunks were passed in
+    # (FCI files are commonly numbered south -> north).
+    ordered = sorted(datasets, key=lambda ds: ds.geotransform[3], reverse=True)
     radiance = np.concatenate(
-        [np.asarray(ds.read_array(), dtype=float) for ds in datasets], axis=0
+        [np.asarray(ds.read_array(), dtype=float) for ds in ordered], axis=0
     )
     data = (
         calibrate_channel(
@@ -111,7 +119,33 @@ def read_fci(
 
     from pyramids.dataset import Dataset
 
-    template = datasets[0]
-    return Dataset.create_from_array(
-        data, geo=template.geotransform, epsg=template.epsg
-    )
+    north = ordered[0]
+    return Dataset.create_from_array(data, geo=north.geotransform, epsg=north.epsg)
+
+
+def _validate_chunk_grid(datasets: list) -> None:
+    """Check the chunks share a CRS / cell size / width and are contiguous.
+
+    Args:
+        datasets: The per-chunk pyramids `Dataset`s (in any vertical order).
+
+    Raises:
+        ReaderError: When the chunks have a mixed CRS, cell size or column count,
+            or are not vertically contiguous once ordered north -> south.
+    """
+    first = datasets[0]
+    for ds in datasets[1:]:
+        if ds.epsg != first.epsg:
+            raise ReaderError("read_fci: chunks have mixed CRS")
+        if ds.geotransform[1] != first.geotransform[1] or (
+            ds.geotransform[5] != first.geotransform[5]
+        ):
+            raise ReaderError("read_fci: chunks have mixed cell size")
+        if ds.columns != first.columns:
+            raise ReaderError("read_fci: chunks have mixed column count")
+
+    ordered = sorted(datasets, key=lambda ds: ds.geotransform[3], reverse=True)
+    for upper, lower in zip(ordered, ordered[1:]):
+        upper_bottom = upper.geotransform[3] + upper.rows * upper.geotransform[5]
+        if not np.isclose(upper_bottom, lower.geotransform[3]):
+            raise ReaderError("read_fci: chunks are not vertically contiguous")
