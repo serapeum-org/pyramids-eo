@@ -54,6 +54,21 @@ class TestDayWeight:
         out = day_weight(np.zeros((3, 4)))
         assert out.shape == (3, 4), f"expected (3, 4), got {out.shape}"
 
+    def test_scalar_returns_zero_dim_array(self):
+        """A scalar SZA yields a 0-d weight array."""
+        out = day_weight(0.0)
+        assert out.shape == (), f"expected scalar (0-d), got shape {out.shape}"
+
+    def test_nan_sza_propagates_to_nan_weight(self):
+        """A NaN SZA yields a NaN weight (no silent clipping to 0/1)."""
+        assert np.isnan(day_weight(np.nan)), "NaN SZA should give NaN weight"
+
+    def test_does_not_mutate_input(self):
+        """Computing the weight leaves the SZA array unchanged."""
+        sza = np.array([70.0, 83.0, 95.0])
+        day_weight(sza)
+        assert np.array_equal(sza, [70.0, 83.0, 95.0]), "input SZA was mutated"
+
 
 class TestDayNightBlend:
     """`day_night_blend` mixes day and night by the SZA day weight."""
@@ -134,6 +149,19 @@ class TestDayNightBlend:
                 lim_high=80,
             )
 
+    def test_does_not_mutate_inputs(self):
+        """The blend is pure — day and night arrays are left unchanged."""
+        day = np.ones((2, 2))
+        night = np.zeros((2, 2))
+        day_night_blend(day, night, np.full((2, 2), 83.0))
+        assert np.array_equal(day, np.ones((2, 2))), "day was mutated"
+        assert np.array_equal(night, np.zeros((2, 2))), "night was mutated"
+
+    def test_mismatched_day_night_shapes_raise(self):
+        """Incompatible day/night shapes raise a broadcasting ValueError."""
+        with pytest.raises(ValueError):
+            day_night_blend(np.ones((2, 2)), np.ones((3, 3)), np.full((2, 2), 83.0))
+
 
 class TestDayNightBlendDataset:
     """When given pyramids Datasets the blend returns a georeferenced Dataset."""
@@ -158,6 +186,14 @@ class TestDayNightBlendDataset:
         """Plain arrays return an ndarray, not a Dataset."""
         out = day_night_blend(np.ones((2, 2)), np.zeros((2, 2)), np.zeros((2, 2)))
         assert isinstance(out, np.ndarray), f"expected ndarray, got {type(out)}"
+
+    def test_night_dataset_makes_result_a_dataset(self):
+        """A Dataset supplied only as `night` still georeferences the result."""
+        night = self._ds(9.0)
+        out = day_night_blend(np.ones((2, 2)), night, np.full((2, 2), 180.0))
+        assert isinstance(out, Dataset), f"expected a Dataset, got {type(out)}"
+        assert out.epsg == 4326, f"CRS should be preserved, got {out.epsg}"
+        assert np.allclose(out.read_array(), 9.0), "all-night blend should equal night"
 
 
 class TestAsArray:
