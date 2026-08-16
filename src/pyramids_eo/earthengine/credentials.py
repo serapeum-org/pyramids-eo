@@ -40,8 +40,9 @@ CredentialsLike = Union["EarthEngineCredentials", str, Path, dict, None]
 def _write_secret_json(text: str) -> Path:
     """Write service-account JSON to a private temp file and return its path.
 
-    The file is created with owner-only permissions (0600 on POSIX) so the key
-    material is not world-readable. Contents are never logged.
+    On POSIX the file is created with owner-only permissions (0600). On Windows
+    POSIX mode bits are largely ignored, so the protection there is the per-user
+    temporary directory rather than the mode. Contents are never logged.
 
     Args:
         text: The service-account JSON payload.
