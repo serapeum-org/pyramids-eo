@@ -24,6 +24,7 @@ import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osg
 # isort: on
 
 import math
+from datetime import datetime
 from typing import NamedTuple
 
 import numpy as np
@@ -267,6 +268,28 @@ def _iso(value: str, *, end_of_day: bool = False) -> str:
     return f"{value}T23:59:59.999" if end_of_day else f"{value}T00:00:00"
 
 
+def _require_iso(label: str, value: str) -> None:
+    """Reject a non-ISO ``start``/``end`` before it reaches the catalog filter.
+
+    Validating the date/datetime (it is interpolated into an OGR attribute-filter
+    string) both catches typos early and blocks a stray quote from altering the
+    filter.
+
+    Args:
+        label: The parameter name, for the error message.
+        value: The candidate ISO date/datetime string.
+
+    Raises:
+        ReaderError: ``value`` is not a valid ISO date/datetime.
+    """
+    try:
+        datetime.fromisoformat(value)
+    except (ValueError, TypeError) as exc:
+        raise ReaderError(
+            f"{label!r} must be an ISO date or datetime, got {value!r}."
+        ) from exc
+
+
 def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
     """Reproject an AOI to EPSG:4326 for the EEDA catalog spatial filter.
 
@@ -395,8 +418,11 @@ def _discover_scenes(
         Scenes intersecting the AOI within the window, sorted by acquisition time.
 
     Raises:
-        ReaderError: The EEDA collection could not be opened.
+        ReaderError: The EEDA collection could not be opened, or ``start`` / ``end``
+            is not a valid ISO date/datetime.
     """
+    _require_iso("start", start)
+    _require_iso("end", end)
     with credentials.activate():
         catalog = gdal.OpenEx(
             _EEDA_PREFIX,

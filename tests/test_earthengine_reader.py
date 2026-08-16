@@ -1238,3 +1238,18 @@ class TestGeometryCrs:
         assert ee_reader._geometry_in_crs(sentinel, "EPSG:4326") is sentinel, (
             "A CRS-less geometry should pass through unchanged"
         )
+
+    def test_rejects_non_iso_dates(self) -> None:
+        """A non-ISO or quote-bearing date is rejected before the filter (L1).
+
+        Test scenario:
+            An injection-style start value raises ReaderError, not a broken query.
+        """
+        with pytest.raises(ReaderError, match="ISO date"):
+            ee_reader._discover_scenes(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                start="2024' OR '1'='1",
+                end="2024-06-30",
+                bbox_4326=(0.0, 0.0, 1.0, 1.0),
+                credentials=EarthEngineCredentials.application_default(),
+            )
