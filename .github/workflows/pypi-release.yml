@@ -1,9 +1,15 @@
 name: pypi-release
 
+# A release cut by `github-release` runs under GITHUB_TOKEN, and GitHub does not let
+# a GITHUB_TOKEN-created event trigger another workflow — so a `release: published`
+# trigger here would never fire on the automated path. `workflow_run` is exempt from
+# that restriction (it fires when another workflow *completes*), so it is the signal
+# that actually works, mirroring github-pages-mkdocs.yml.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+  workflow_run:
+    workflows: ['github-release']
+    types: [completed]
 
 permissions:
   contents: read
@@ -11,15 +17,17 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # contents: write is required for the admin-gate step below: the
-    # collaborators/{user}/permission REST endpoint needs push access.
+    # workflow_run fires on completion regardless of outcome; only publish when the
+    # github-release run succeeded (manual dispatch is always allowed).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # contents: write is required for the admin-gate step's collaborators/{actor}/permission
+    # REST call (needs push access).
     permissions:
       contents: write
     steps:
       - name: Check actor is a repository admin
-        # Gate the MANUAL publish path only. On `release: published` the publisher
-        # is already whoever has release permission, so gating it would block a
-        # legitimate maintainer auto-publish; only workflow_dispatch is guarded.
+        # Gate the MANUAL publish path only. The workflow_run path is already tied to
+        # github-release, which is itself admin-gated.
         if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
