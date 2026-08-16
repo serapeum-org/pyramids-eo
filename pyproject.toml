@@ -188,7 +188,7 @@ main = { cmd = "pytest -vvv --cov=src/pyramids_eo -sv -m 'not plot and not live'
 plot = { cmd = "pytest -vvv --cov=src/pyramids_eo --cov-append -sv -m 'plot' --cov-report=xml", description = "Run plot test suite" }
 test-all = { cmd = "pytest -vvv --cov=src/pyramids_eo -sv --cov-report=xml --cov-report=term-missing", description = "Run all tests" }
 doctest = { cmd = "pytest --doctest-modules src/pyramids_eo -p no:cacheprovider", description = "Run the docstring doctests" }
-notebooks = { cmd = "pytest --nbval --nbval-lax --verbose docs/examples", description = "check example notebooks" }
+notebooks = { cmd = "pytest --nbval --nbval-lax --verbose docs/examples", description = "check example notebooks (the Earth Engine example needs live Google credentials + network)" }
 jupyter = { cmd = "jupyter lab --no-browser --IdentityProvider.token='' --ServerApp.password='' --port=8889", description = "launch JupyterLab to run the example notebooks — run with `-e dev`" }
 build-dist = { cmd = "python -m build", description = "Build sdist and pure wheel for PyPI" }
 publish-pypi = { cmd = "twine upload --non-interactive --repository pypi dist/*", depends-on = ["build-dist"], description = "Build and upload package to PyPI" }
