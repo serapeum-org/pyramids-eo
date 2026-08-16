@@ -20,7 +20,11 @@ a secret); it only checks that the path exists so a typo fails early with a clea
 from __future__ import annotations
 
 import contextlib
+import json
 import os
+import stat
+import tempfile
+import weakref
 from pathlib import Path
 from typing import Union
 
@@ -30,22 +34,57 @@ from pyramids_eo.errors import AuthenticationError
 #: key path for the EEDAI/EEDA drivers' ADC handshake.
 GOOGLE_APPLICATION_CREDENTIALS = "GOOGLE_APPLICATION_CREDENTIALS"
 
-CredentialsLike = Union["EarthEngineCredentials", str, Path, None]
+CredentialsLike = Union["EarthEngineCredentials", str, Path, dict, None]
+
+
+def _write_secret_json(text: str) -> Path:
+    """Write service-account JSON to a private temp file and return its path.
+
+    The file is created with owner-only permissions (0600 on POSIX) so the key
+    material is not world-readable. Contents are never logged.
+
+    Args:
+        text: The service-account JSON payload.
+
+    Returns:
+        Path to the newly written temp file.
+    """
+    fd, name = tempfile.mkstemp(prefix="ee-sa-", suffix=".json")
+    try:
+        os.write(fd, text.encode("utf-8"))
+    finally:
+        os.close(fd)
+    with contextlib.suppress(OSError):
+        os.chmod(name, stat.S_IRUSR | stat.S_IWUSR)
+    return Path(name)
+
+
+def _unlink_quiet(path: Path) -> None:
+    """Delete ``path`` if it exists, ignoring errors (used as a GC finalizer)."""
+    with contextlib.suppress(OSError):
+        Path(path).unlink()
 
 
 class EarthEngineCredentials:
     """Application Default Credentials for the Earth Engine GDAL drivers.
 
-    Two modes:
+    Three modes:
 
-    * **service account** — an explicit Google service-account JSON key file,
-      surfaced to GDAL as ``GOOGLE_APPLICATION_CREDENTIALS``.
+    * **service-account file** — an explicit Google service-account JSON key
+      file, surfaced to GDAL as ``GOOGLE_APPLICATION_CREDENTIALS``
+      (:meth:`from_service_account`).
+    * **service-account info (inline JSON)** — the key material as a JSON string
+      or mapping; it is written to a private temp file (owner-only, cleaned up
+      when the credentials are garbage-collected) and used as the key path
+      (:meth:`from_service_account_info`). Useful when the key comes from a secret
+      store rather than a file on disk.
     * **application default** — no explicit key; GDAL resolves ambient ADC
       (an already-exported ``GOOGLE_APPLICATION_CREDENTIALS`` or ``gcloud``
       login). :meth:`gdal_env` is empty in this mode.
 
     Prefer the named constructors :meth:`from_service_account` /
-    :meth:`application_default` over the raw initializer.
+    :meth:`from_service_account_info` / :meth:`application_default` over the raw
+    initializer.
 
     Args:
         service_account_json: Path to a service-account JSON key, or ``None`` for
@@ -75,6 +114,8 @@ class EarthEngineCredentials:
     """
 
     def __init__(self, service_account_json: str | Path | None = None) -> None:
+        self._finalizer: weakref.finalize | None = None
+        self._owns_path = False
         if service_account_json is None:
             self._path: Path | None = None
             return
@@ -84,6 +125,71 @@ class EarthEngineCredentials:
                 f"Earth Engine service-account key file not found: {path}"
             )
         self._path = path
+
+    @classmethod
+    def from_service_account_info(cls, info: str | dict) -> EarthEngineCredentials:
+        """Build credentials from inline service-account JSON (string or mapping).
+
+        The key material is written to a private, owner-only temp file that is
+        removed when the returned credentials are garbage-collected. The contents
+        are never logged.
+
+        Args:
+            info: The service-account key as a JSON string or a mapping.
+
+        Returns:
+            Credentials backed by a temp key file; :meth:`gdal_env` points GDAL at
+            it.
+
+        Raises:
+            AuthenticationError: ``info`` is not valid JSON, or not a string /
+                mapping.
+
+        Examples:
+            - Build from a mapping and confirm a key file is materialised:
+                ```python
+                >>> from pyramids_eo.earthengine import EarthEngineCredentials
+                >>> creds = EarthEngineCredentials.from_service_account_info(
+                ...     {"type": "service_account"}
+                ... )
+                >>> creds.service_account_path.is_file()
+                True
+                >>> creds.gdal_env()["GOOGLE_APPLICATION_CREDENTIALS"] == str(
+                ...     creds.service_account_path
+                ... )
+                True
+
+                ```
+            - Invalid JSON is rejected:
+                ```python
+                >>> from pyramids_eo.errors import AuthenticationError
+                >>> try:
+                ...     EarthEngineCredentials.from_service_account_info("{not json")
+                ... except AuthenticationError as exc:
+                ...     print("not valid JSON" in str(exc))
+                True
+
+                ```
+        """
+        if isinstance(info, dict):
+            text = json.dumps(info)
+        elif isinstance(info, str):
+            try:
+                json.loads(info)
+            except (ValueError, TypeError) as exc:
+                raise AuthenticationError(
+                    "Earth Engine service-account info is not valid JSON."
+                ) from exc
+            text = info
+        else:
+            raise AuthenticationError(
+                "Earth Engine service-account info must be a JSON string or mapping."
+            )
+        path = _write_secret_json(text)
+        creds = cls(path)
+        creds._owns_path = True
+        creds._finalizer = weakref.finalize(creds, _unlink_quiet, path)
+        return creds
 
     @classmethod
     def from_service_account(cls, path: str | Path) -> EarthEngineCredentials:
@@ -159,7 +265,8 @@ class EarthEngineCredentials:
 
         Args:
             credentials: An :class:`EarthEngineCredentials`, a path-like pointing
-                at a service-account key, or ``None`` for application-default.
+                at a service-account key, a mapping of inline service-account JSON,
+                or ``None`` for application-default.
 
         Returns:
             An :class:`EarthEngineCredentials` instance.
@@ -185,6 +292,8 @@ class EarthEngineCredentials:
             return credentials
         if credentials is None:
             return cls.application_default()
+        if isinstance(credentials, dict):
+            return cls.from_service_account_info(credentials)
         return cls.from_service_account(credentials)
 
     @property
@@ -263,6 +372,8 @@ class EarthEngineCredentials:
     def __repr__(self) -> str:
         if self._path is None:
             return f"{type(self).__name__}(application_default)"
+        if self._owns_path:
+            return f"{type(self).__name__}(service_account_info=<redacted>)"
         return f"{type(self).__name__}(service_account_json={str(self._path)!r})"
 
 

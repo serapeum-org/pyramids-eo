@@ -257,3 +257,99 @@ class TestAmbientServiceAccount:
         """
         monkeypatch.setenv(GOOGLE_APPLICATION_CREDENTIALS, "")
         assert _ambient_service_account() is None, "Empty credential should be None"
+
+
+class TestFromServiceAccountInfo:
+    """Tests for inline-JSON credentials (:meth:`from_service_account_info`)."""
+
+    def test_from_dict_materialises_key_file(self) -> None:
+        """A mapping is written to a temp key file exposed via ``gdal_env``.
+
+        Test scenario:
+            The temp file exists, holds the JSON, and drives ``gdal_env``.
+        """
+        creds = EarthEngineCredentials.from_service_account_info(
+            {"type": "service_account"}
+        )
+        path = creds.service_account_path
+        assert path is not None and path.is_file(), f"Key file not materialised: {path}"
+        assert creds.gdal_env() == {GOOGLE_APPLICATION_CREDENTIALS: str(path)}, (
+            f"Unexpected gdal_env: {creds.gdal_env()}"
+        )
+        import json
+
+        assert json.loads(path.read_text(encoding="utf-8")) == {
+            "type": "service_account"
+        }, "Temp key file does not hold the supplied JSON"
+
+    def test_from_json_string(self) -> None:
+        """A JSON string is accepted and materialised.
+
+        Test scenario:
+            A valid JSON string produces a readable temp key file.
+        """
+        creds = EarthEngineCredentials.from_service_account_info(
+            '{"type": "service_account"}'
+        )
+        assert creds.service_account_path.is_file(), (
+            "Key file not materialised from JSON string"
+        )
+
+    def test_invalid_json_raises(self) -> None:
+        """An invalid JSON string is rejected.
+
+        Test scenario:
+            Malformed JSON raises ``AuthenticationError``.
+        """
+        with pytest.raises(AuthenticationError, match="not valid JSON"):
+            EarthEngineCredentials.from_service_account_info("{not json")
+
+    def test_non_str_or_mapping_raises(self) -> None:
+        """A non-string/non-mapping payload is rejected.
+
+        Test scenario:
+            An integer payload raises ``AuthenticationError``.
+        """
+        with pytest.raises(AuthenticationError, match="JSON string or mapping"):
+            EarthEngineCredentials.from_service_account_info(1234)  # type: ignore[arg-type]
+
+    def test_temp_file_cleaned_up_on_gc(self) -> None:
+        """The temp key file is removed when the credentials are collected.
+
+        Test scenario:
+            After dropping the last reference and forcing GC, the file is gone.
+        """
+        import gc
+
+        creds = EarthEngineCredentials.from_service_account_info(
+            {"type": "service_account"}
+        )
+        path = creds.service_account_path
+        assert path.is_file(), "precondition: key file exists"
+        del creds
+        gc.collect()
+        assert not path.exists(), f"Temp key file was not cleaned up: {path}"
+
+    def test_repr_redacts_inline_info(self) -> None:
+        """``__repr__`` never leaks an inline key path.
+
+        Test scenario:
+            The inline repr is redacted rather than showing the temp path.
+        """
+        creds = EarthEngineCredentials.from_service_account_info(
+            {"type": "service_account"}
+        )
+        assert (
+            repr(creds) == "EarthEngineCredentials(service_account_info=<redacted>)"
+        ), f"Inline repr should be redacted, got: {creds!r}"
+
+    def test_coerce_dict_builds_inline(self) -> None:
+        """``coerce`` routes a mapping to inline credentials.
+
+        Test scenario:
+            ``coerce({...})`` materialises a temp key file.
+        """
+        creds = EarthEngineCredentials.coerce({"type": "service_account"})
+        assert creds.service_account_path.is_file(), (
+            "coerce(dict) should build inline credentials"
+        )
