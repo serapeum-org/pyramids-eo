@@ -3,9 +3,9 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
-**pyramids-eo** is the GDAL-native, xarray-free **remote-sensing / Earth-observation tier** of the
+**pyramids-eo** is the **remote-sensing / Earth-observation tier** of the
 pyramids GIS stack. It sits between [pyramids](https://github.com/serapeum-org/pyramids) — the generic
-GDAL raster engine — and provider/orchestration layers.
+raster engine — and provider/orchestration layers.
 
 pyramids underneath knows only how to *move rasters around*. pyramids-eo knows what a pixel *means* for a
 given instrument: which subdataset is which channel, how to calibrate it, how to composite it, how to
@@ -18,7 +18,7 @@ providers          (fetch granules, auth, catalogs, cache, pipelines)
 pyramids-eo        (sensors: readers, calibration, indices, composites, resample, masking)
     │  depends on
     ▼
-pyramids           (generic GDAL raster / vector engine)
+pyramids           (generic raster / vector engine)
 ```
 
 ## Design boundary

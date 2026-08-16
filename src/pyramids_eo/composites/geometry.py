@@ -2,8 +2,8 @@
 
 `solar_zenith_angle` gives the per-pixel solar zenith angle (SZA) from a UTC
 time and a lon/lat grid, computed directly with the NOAA solar-position
-algorithm over NumPy — **no pyorbital dependency**. The SZA drives the day/night
-cross-fade (`day_night_blend`),
+algorithm over NumPy. The SZA drives the day/night cross-fade
+(`day_night_blend`),
 which keys off the Sun's *geometric* position rather than how dark a pixel looks
 (the property that renders an eclipse shadow as day, not night).
 """
@@ -46,8 +46,8 @@ def solar_zenith_angle(
 ) -> np.ndarray:
     """Per-pixel solar zenith angle (degrees) for a UTC time and a lon/lat grid.
 
-    Computed directly with the NOAA solar-position algorithm (no pyorbital).
-    Provide the geographic coordinates either as `lat`
+    Computed directly with the NOAA solar-position algorithm. Provide the
+    geographic coordinates either as `lat`
     and `lon` arrays/scalars, or as a `grid` (a pyramids `Dataset` in EPSG:4326,
     whose `lat` / `lon` cell-centre axes are meshed to 2-D).
 

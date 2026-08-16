@@ -1,11 +1,11 @@
 [project]
 name = "pyramids-eo"
 version = "0.1.0"
-description = "GDAL-native, remote-sensing / Earth-observation tier for the pyramids GIS stack"
+description = "Remote-sensing / Earth-observation tier for the pyramids GIS stack"
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [{ name = "Mostafa Farrag", email = "moah.farag@gmail.com" }]
 license = {text = "GNU General Public License v3"}
-keywords = ["GIS", "remote sensing", "earth observation", "satellite", "gdal", "pyramids"]
+keywords = ["GIS", "remote sensing", "earth observation", "satellite", "pyramids"]
 
 classifiers = [
     "Development Status :: 3 - Alpha",
