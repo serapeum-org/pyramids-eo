@@ -67,7 +67,7 @@ jobs:
         # a GUI window; -p no:cacheprovider disables the pytest cache plugin.
         env:
           MPLBACKEND: Agg
-        run: pixi run -e dev pytest --doctest-modules src -p no:cacheprovider
+        run: pixi run -e dev pytest --doctest-modules src/pyramids_eo -p no:cacheprovider
 
   # The repo's secret gate. gitleaks is the single secret scanner (matches
   # pyramids). The pre-commit hook only scans staged changes, which are empty in
