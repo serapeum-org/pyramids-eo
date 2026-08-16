@@ -21,9 +21,9 @@ def _resample_to(band: Any, reference: Any, method: str | None) -> Any:
         band: The band `Dataset` to resample.
         reference: The reference-grid `Dataset`.
         method: `None` / `"nearest"` uses `Dataset.align` (exact reference grid,
-            nearest-neighbour); any other value uses `warped_view` onto the
-            reference's CRS + cell size + bbox (e.g. `"bilinear"`, `"cubic"` for
-            continuous radiometric bands).
+            nearest-neighbour); any other value (e.g. `"bilinear"`, `"cubic"` for
+            continuous radiometric bands) warps with `warped_view` and then snaps
+            to the reference's exact grid via `align`.
 
     Returns:
         The resampled `Dataset`.
@@ -31,12 +31,17 @@ def _resample_to(band: Any, reference: Any, method: str | None) -> Any:
     if method is None or method == "nearest":
         return band.align(reference)
     crs = reference.epsg if reference.epsg is not None else reference.crs
-    return band.warped_view(
+    warped = band.warped_view(
         crs,
         method=method,
         cell_size=reference.cell_size,
         bbox=tuple(reference.bbox),
     )
+    # warped_view derives its grid from bbox + cell size, which can land off the
+    # reference by a pixel for non-integer ratios / rounding; align snaps it to
+    # the reference's exact rows/columns so multi-band harmonisation stays
+    # co-registered.
+    return warped.align(reference)
 
 
 def harmonise(bands: Any, reference: Any, *, method: str | None = None) -> Any:

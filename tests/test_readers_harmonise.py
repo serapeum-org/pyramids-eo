@@ -53,6 +53,15 @@ class TestHarmonise:
         )
         assert out.geotransform == reference.geotransform, "geotransform should match"
 
+    def test_bilinear_non_integer_ratio_matches_reference_grid(self):
+        """Even a non-integer resolution ratio lands on the reference's exact grid."""
+        reference = _grid((3, 3), cell=2.0)
+        out = harmonise([_grid((5, 5), cell=1.2)], reference, method="bilinear")[0]
+        assert (out.rows, out.columns) == (reference.rows, reference.columns), (
+            "non-integer-ratio warp should be snapped to the reference grid"
+        )
+        assert out.geotransform == reference.geotransform, "geotransform should match"
+
     def test_none_reference_raises(self):
         """A missing reference grid is a ReaderError."""
         with pytest.raises(ReaderError, match="reference"):
