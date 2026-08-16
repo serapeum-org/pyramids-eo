@@ -161,20 +161,30 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> gdal.Dataset:
     target_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
 
     min_x, min_y, max_x, max_y = bbox
-    corners = [(min_x, min_y), (min_x, max_y), (max_x, min_y), (max_x, max_y)]
+    # Sample the AOI boundary (corners + edge midpoints) rather than just the four
+    # corners, so a reprojected / distorted envelope is captured — for a large or
+    # high-distortion AOI the true envelope can bulge past the corners on an edge.
+    steps = [index / 4 for index in range(5)]
+    boundary = (
+        [(min_x + s * (max_x - min_x), min_y) for s in steps]
+        + [(min_x + s * (max_x - min_x), max_y) for s in steps]
+        + [(min_x, min_y + s * (max_y - min_y)) for s in steps]
+        + [(max_x, min_y + s * (max_y - min_y)) for s in steps]
+    )
     if not source_srs.IsSame(target_srs):
         transform = osr.CoordinateTransformation(target_srs, source_srs)
-        corners = [transform.TransformPoint(x, y)[:2] for x, y in corners]
-    xs = [c[0] for c in corners]
-    ys = [c[1] for c in corners]
+        boundary = [transform.TransformPoint(x, y)[:2] for x, y in boundary]
 
     inverse = gdal.InvGeoTransform(geotransform)
-    px_a, py_a = gdal.ApplyGeoTransform(inverse, min(xs), max(ys))
-    px_b, py_b = gdal.ApplyGeoTransform(inverse, max(xs), min(ys))
-    x0 = max(0, int(math.floor(min(px_a, px_b))) - 1)
-    y0 = max(0, int(math.floor(min(py_a, py_b))) - 1)
-    x1 = min(src.RasterXSize, int(math.ceil(max(px_a, px_b))) + 1)
-    y1 = min(src.RasterYSize, int(math.ceil(max(py_a, py_b))) + 1)
+    if inverse is None:
+        raise ReaderError("Earth Engine asset has a non-invertible geotransform.")
+    pixels = [gdal.ApplyGeoTransform(inverse, x, y) for x, y in boundary]
+    cols = [px for px, _ in pixels]
+    rows_ = [py for _, py in pixels]
+    x0 = max(0, int(math.floor(min(cols))) - 1)
+    y0 = max(0, int(math.floor(min(rows_))) - 1)
+    x1 = min(src.RasterXSize, int(math.ceil(max(cols))) + 1)
+    y1 = min(src.RasterYSize, int(math.ceil(max(rows_))) + 1)
     if x1 <= x0 or y1 <= y0:
         raise ReaderError(f"AOI {bbox} does not intersect the Earth Engine asset.")
 
@@ -184,12 +194,14 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> gdal.Dataset:
         "", width, height, band_count, src.GetRasterBand(1).DataType
     )
     out.SetProjection(src.GetProjection())
+    # Include the geotransform rotation/shear cross-terms so the sub-window origin
+    # is correct even for a non-north-up source (north-up assets have gt[2]=gt[4]=0).
     out.SetGeoTransform(
         (
-            geotransform[0] + x0 * geotransform[1],
+            geotransform[0] + x0 * geotransform[1] + y0 * geotransform[2],
             geotransform[1],
             geotransform[2],
-            geotransform[3] + y0 * geotransform[5],
+            geotransform[3] + x0 * geotransform[4] + y0 * geotransform[5],
             geotransform[4],
             geotransform[5],
         )
