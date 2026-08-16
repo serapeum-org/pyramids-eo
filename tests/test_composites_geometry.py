@@ -9,6 +9,7 @@ import pytest
 from pyramids.dataset import Dataset
 
 from pyramids_eo.composites import solar_zenith_angle
+from pyramids_eo.composites.geometry import _to_utc
 
 # Equinox solar noon at Greenwich: the subsolar point sits near (0degN, 0degE),
 # so SZA is ~0 there and ~180 at the antipode. A fixed instant keeps it deterministic.
@@ -42,7 +43,42 @@ class TestSolarZenithAngle:
         lat = np.array([[0.0], [10.0]])
         lon = np.array([[0.0, 20.0, 40.0]])
         out = solar_zenith_angle(_EQUINOX_NOON, lat=lat, lon=lon)
-        assert out.shape == (2, 3)
+        assert out.shape == (2, 3), f"expected (2, 3), got {out.shape}"
+
+    def test_scalar_inputs_return_zero_dim_array(self):
+        """Scalar lat/lon yield a 0-d float array (a single angle)."""
+        out = solar_zenith_angle(_EQUINOX_NOON, lat=0.0, lon=0.0)
+        assert out.shape == (), f"expected scalar (0-d) result, got shape {out.shape}"
+        assert np.isfinite(float(out)), f"result should be finite, got {out}"
+
+    @pytest.mark.parametrize(
+        "when, north_is_sunnier",
+        [
+            (dt.datetime(2024, 6, 21, 12, 0, tzinfo=dt.timezone.utc), True),
+            (dt.datetime(2024, 12, 21, 12, 0, tzinfo=dt.timezone.utc), False),
+        ],
+    )
+    def test_declination_sign_by_season(self, when, north_is_sunnier):
+        """Solar declination tilts the Sun north in June and south in December.
+
+        Args:
+            when: A solstice instant (UTC).
+            north_is_sunnier: True when +23degN should have the smaller SZA.
+
+        Test scenario:
+            At identical time/longitude, +23degN vs -23degN differ only by
+            `2*sin(23deg)*sin(decl)` in cos(zenith); the sign of `decl` (positive
+            in June, negative in December) decides which hemisphere is sunnier,
+            independent of the hour angle.
+        """
+        north = float(solar_zenith_angle(when, lat=23.44, lon=0.0))
+        south = float(solar_zenith_angle(when, lat=-23.44, lon=0.0))
+        if north_is_sunnier:
+            assert north < south, f"June: north SZA {north} should be < south {south}"
+        else:
+            assert north > south, (
+                f"December: north SZA {north} should be > south {south}"
+            )
 
     def test_result_bounds(self):
         """Every SZA lies within the physical 0..180 range."""
@@ -82,6 +118,45 @@ class TestSolarZenithAngle:
         """lat without lon is an error."""
         with pytest.raises(ValueError, match="provide"):
             solar_zenith_angle(_EQUINOX_NOON, lat=0.0)
+
+
+class TestToUtc:
+    """Tests for the `_to_utc` time-normalisation helper."""
+
+    def test_naive_datetime_stamped_as_utc(self):
+        """A naive datetime keeps its wall clock and gains a UTC tzinfo.
+
+        Test scenario:
+            `datetime(2024, 3, 20, 12)` with no tzinfo returns the same fields
+            tagged UTC (naive input is assumed to already be UTC).
+        """
+        out = _to_utc(dt.datetime(2024, 3, 20, 12, 0, 0))
+        assert out.tzinfo is dt.timezone.utc, f"expected UTC tzinfo, got {out.tzinfo}"
+        assert out.hour == 12, f"wall-clock hour should be unchanged, got {out.hour}"
+
+    def test_aware_datetime_converted_to_utc(self):
+        """An offset datetime is converted to the equivalent UTC instant.
+
+        Test scenario:
+            14:00 at +02:00 becomes 12:00 UTC.
+        """
+        aware = dt.datetime(
+            2024, 3, 20, 14, 0, 0, tzinfo=dt.timezone(dt.timedelta(hours=2))
+        )
+        out = _to_utc(aware)
+        assert out.hour == 12, f"expected 12:00 UTC, got {out.hour}:00"
+        assert out.utcoffset() == dt.timedelta(0), "result should be UTC"
+
+    def test_already_utc_is_unchanged(self):
+        """A UTC datetime round-trips to the same instant."""
+        out = _to_utc(_EQUINOX_NOON)
+        assert out == _EQUINOX_NOON, f"UTC input should be unchanged, got {out}"
+
+    def test_non_datetime_raises_type_error(self):
+        """A non-datetime argument raises TypeError naming the expected type."""
+        with pytest.raises(TypeError, match="datetime") as exc:
+            _to_utc("2024-03-20")
+        assert "datetime" in str(exc.value), f"unexpected message: {exc.value}"
 
 
 class TestSolarZenithAngleGrid:
