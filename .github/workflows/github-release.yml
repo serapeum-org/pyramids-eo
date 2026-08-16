@@ -54,15 +54,21 @@ jobs:
           ref: ${{ inputs.release-branch }}
 
       - name: Check actor is a repository admin
-        run: |
-          PERMISSION=$(gh api repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission --jq '.permission')
-          echo "Permission level for ${{ github.actor }}: $PERMISSION"
-          if [ "$PERMISSION" != "admin" ]; then
-            echo "::error::${{ github.actor }} is not a repository admin. Only admins can trigger releases."
-            exit 1
-          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if ! PERMISSION=$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" --jq '.permission'); then
+            echo "::error::could not verify repository permission for ${ACTOR} (GitHub API error)"
+            exit 1
+          fi
+          echo "Permission level for ${ACTOR}: ${PERMISSION}"
+          if [ "${PERMISSION}" != "admin" ]; then
+            echo "::error::${ACTOR} is not a repository admin. Only admins can trigger releases."
+            exit 1
+          fi
 
       - name: Create GitHub Release with Commitizen
         uses: serapeum-org/github-actions/actions/release/github@38c111084f99d5ff5f4a1e63bedce48fe33a10c0  # github-release/v1.5.0
