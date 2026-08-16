@@ -823,40 +823,50 @@ def from_earthengine(
             raise ReaderError(
                 f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over {bbox}."
             )
-        windowed = _read_scenes_aligned(
-            scenes,
-            bbox=bbox,
-            crs=crs,
-            scale=scale,
-            shape=shape,
-            bands=bands,
-            credentials=creds,
-        )
+        # Keep the credential config in effect across the scene reads (the EEDAI
+        # pixel fetch is the ``gdal.Warp`` inside `_read_scenes_aligned`, not just
+        # the open), then restore it — no process-global leak.
+        with creds.activate():
+            windowed = _read_scenes_aligned(
+                scenes,
+                bbox=bbox,
+                crs=crs,
+                scale=scale,
+                shape=shape,
+                bands=bands,
+                credentials=creds,
+            )
         return _retain_credentials(
             _composite(windowed, reducer, creds, geometry), creds
         )
 
-    src = _open_eedai(asset_id, bands=bands, credentials=creds)
     if bbox is None:
         if scale is not None or shape is not None or crs != "EPSG:4326":
             raise ReaderError(
                 "A 'bbox' is required to window an Earth Engine asset when "
                 "'crs', 'scale', or 'shape' is set (assets are global/huge)."
             )
+        src = _open_eedai(asset_id, bands=bands, credentials=creds)
         # The whole-asset wrap is read lazily, so pixel reads happen after this
         # returns — outside any `activate()` block. Install the credential config
-        # process-wide so those deferred EEDAI reads still authenticate.
+        # process-wide so those deferred EEDAI reads still authenticate. This is the
+        # one path that mutates global GDAL config (see the note in the docstring).
         for config_key, config_value in creds.gdal_env().items():
             gdal.SetConfigOption(config_key, config_value)
         return _retain_credentials(Dataset(src, gdal_env=creds.gdal_env()), creds)
 
-    windowed_single = None
-    if tile_size is not None:
-        windowed_single = _tiled_window(
-            src, bbox=bbox, crs=crs, scale=scale, shape=shape, tile_size=tile_size
-        )
-    if windowed_single is None:
-        windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
+    # Keep the credential config in effect across the open AND the windowing read
+    # (the EEDAI pixel fetch is the ``gdal.Warp`` in `_window`/`_tiled_window`),
+    # then restore it — no process-global leak for the windowed path.
+    with creds.activate():
+        src = _open_eedai(asset_id, bands=bands, credentials=creds)
+        windowed_single = None
+        if tile_size is not None:
+            windowed_single = _tiled_window(
+                src, bbox=bbox, crs=crs, scale=scale, shape=shape, tile_size=tile_size
+            )
+        if windowed_single is None:
+            windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
     return _retain_credentials(
         _apply_geometry(Dataset(windowed_single, gdal_env=creds.gdal_env()), geometry),
         creds,
@@ -948,15 +958,17 @@ def collection_from_earthengine(
         raise ReaderError(
             f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over {bbox}."
         )
-    windowed = _read_scenes_aligned(
-        scenes,
-        bbox=bbox,
-        crs=crs,
-        scale=scale,
-        shape=shape,
-        bands=bands,
-        credentials=creds,
-    )
+    # Keep the credential config in effect across the scene reads, then restore it.
+    with creds.activate():
+        windowed = _read_scenes_aligned(
+            scenes,
+            bbox=bbox,
+            crs=crs,
+            scale=scale,
+            shape=shape,
+            bands=bands,
+            credentials=creds,
+        )
     env = creds.gdal_env()
     datasets = [
         _retain_credentials(

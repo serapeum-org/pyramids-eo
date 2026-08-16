@@ -1341,3 +1341,38 @@ class TestTileSizeGuard:
                 reducer="median",
                 tile_size=16,
             )
+
+
+class TestCredentialScope:
+    """The credential config must be in effect during the windowed pixel read (M1)."""
+
+    def test_config_active_during_windowed_read(self, monkeypatch, tmp_path) -> None:
+        """The scoped config is set during `_window` and restored afterward.
+
+        Test scenario:
+            A service-account read has GOOGLE_APPLICATION_CREDENTIALS set while the
+            windowing read runs, and cleared back to its prior value after.
+        """
+        from osgeo import gdal
+
+        key = tmp_path / "k.json"
+        key.write_text("{}", encoding="utf-8")
+        seen = {}
+        real_window = ee_reader._window
+
+        def _spy(src, **kwargs):
+            seen["cfg"] = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
+            return real_window(src, **kwargs)
+
+        monkeypatch.setattr(
+            ee_reader, "_open_eedai", lambda a, *, bands, credentials: _synthetic_srtm()
+        )
+        monkeypatch.setattr(ee_reader, "_window", _spy)
+        before = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
+        from_earthengine(
+            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), credentials=str(key)
+        )
+        assert seen["cfg"] == str(key), "Config must be active during the windowed read"
+        assert gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) == before, (
+            "Config must be restored after the read (no global leak)"
+        )
