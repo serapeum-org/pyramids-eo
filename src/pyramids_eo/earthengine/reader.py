@@ -693,6 +693,129 @@ def _composite(
     return _apply_geometry(composite, geometry)
 
 
+def _composite_read(
+    asset_id: str,
+    *,
+    bands: list[str] | None,
+    bbox: BBox | None,
+    crs: str,
+    scale: float | None,
+    shape: tuple[int, int] | None,
+    start: str | None,
+    end: str | None,
+    reducer: str | None,
+    tile_size: int | None,
+    geometry: object | None,
+    credentials: EarthEngineCredentials,
+) -> Dataset:
+    """Reduce an ``ImageCollection`` over a date range into one composite ``Dataset``.
+
+    The ``ImageCollection`` branch of :func:`from_earthengine`; see it for the
+    argument semantics.
+
+    Raises:
+        ValueError: ``reducer`` is missing, the ``start``/``end``/``bbox`` trio is
+            incomplete, or ``tile_size`` is combined with the composite mode.
+        ReaderError: The date range + AOI matched no scenes.
+    """
+    if reducer is None:
+        raise ValueError(
+            "'start'/'end' select an ImageCollection; pass 'reducer' for a single "
+            "composite, or use collection_from_earthengine() for a DatasetCollection."
+        )
+    if start is None or end is None or bbox is None:
+        raise ValueError(
+            "The composite mode requires 'start', 'end', and a 'bbox' or 'geometry'."
+        )
+    if tile_size is not None:
+        raise ValueError(
+            "'tile_size' is only supported for single-Image reads, not the "
+            "composite mode."
+        )
+    scenes = _discover_scenes(
+        asset_id,
+        start=start,
+        end=end,
+        bbox_4326=_bbox_to_4326(bbox, crs),
+        credentials=credentials,
+    )
+    if not scenes:
+        raise ReaderError(
+            f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over {bbox}."
+        )
+    # Keep the credential config in effect across the scene reads (the EEDAI pixel
+    # fetch is the ``gdal.Warp`` inside `_read_scenes_aligned`), then restore it.
+    with credentials.activate():
+        windowed = _read_scenes_aligned(
+            scenes,
+            bbox=bbox,
+            crs=crs,
+            scale=scale,
+            shape=shape,
+            bands=bands,
+            credentials=credentials,
+        )
+    composite = _composite(windowed, reducer, credentials, geometry)
+    return _retain_credentials(composite, credentials)
+
+
+def _single_image_read(
+    asset_id: str,
+    *,
+    bands: list[str] | None,
+    bbox: BBox | None,
+    crs: str,
+    scale: float | None,
+    shape: tuple[int, int] | None,
+    tile_size: int | None,
+    geometry: object | None,
+    credentials: EarthEngineCredentials,
+) -> Dataset:
+    """Read a single EE ``Image`` asset into a ``Dataset``.
+
+    The single-``Image`` branch of :func:`from_earthengine`; see it for the
+    argument semantics.
+
+    Raises:
+        ReaderError: A windowing option is set without a ``bbox``, or the asset
+            could not be opened / windowed.
+    """
+    if bbox is None:
+        if scale is not None or shape is not None or crs != _DEFAULT_CRS:
+            raise ReaderError(
+                "A 'bbox' is required to window an Earth Engine asset when "
+                "'crs', 'scale', or 'shape' is set (assets are global/huge)."
+            )
+        src = _open_eedai(asset_id, bands=bands, credentials=credentials)
+        # The whole-asset wrap is read lazily, so pixel reads happen after this
+        # returns — outside any `activate()` block. Install the credential config
+        # process-wide so those deferred EEDAI reads still authenticate. This is the
+        # one path that mutates global GDAL config (see the note in the docstring).
+        for config_key, config_value in credentials.gdal_env().items():
+            gdal.SetConfigOption(config_key, config_value)
+        return _retain_credentials(
+            Dataset(src, gdal_env=credentials.gdal_env()), credentials
+        )
+
+    # Keep the credential config in effect across the open AND the windowing read
+    # (the EEDAI pixel fetch is the ``gdal.Warp`` in `_window`/`_tiled_window`),
+    # then restore it — no process-global leak for the windowed path.
+    with credentials.activate():
+        src = _open_eedai(asset_id, bands=bands, credentials=credentials)
+        windowed_single = None
+        if tile_size is not None:
+            windowed_single = _tiled_window(
+                src, bbox=bbox, crs=crs, scale=scale, shape=shape, tile_size=tile_size
+            )
+        if windowed_single is None:
+            windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
+        src = None  # release the EEDAI source; the window is a self-contained copy
+    windowed_dataset = _apply_geometry(
+        Dataset(windowed_single, gdal_env=credentials.gdal_env()), geometry
+    )
+    return _retain_credentials(windowed_dataset, credentials)
+
+
 def from_earthengine(
     asset_id: str,
     *,
@@ -834,81 +957,30 @@ def from_earthengine(
             bbox = _geometry_bounds(geometry)
 
     if reducer is not None or start is not None or end is not None:
-        if reducer is None:
-            raise ValueError(
-                "'start'/'end' select an ImageCollection; pass 'reducer' for a "
-                "single composite, or use collection_from_earthengine() for a "
-                "DatasetCollection."
-            )
-        if start is None or end is None or bbox is None:
-            raise ValueError(
-                "The composite mode requires 'start', 'end', and a 'bbox' or "
-                "'geometry'."
-            )
-        if tile_size is not None:
-            raise ValueError(
-                "'tile_size' is only supported for single-Image reads, not the "
-                "composite mode."
-            )
-        scenes = _discover_scenes(
+        return _composite_read(
             asset_id,
+            bands=bands,
+            bbox=bbox,
+            crs=crs,
+            scale=scale,
+            shape=shape,
             start=start,
             end=end,
-            bbox_4326=_bbox_to_4326(bbox, crs),
+            reducer=reducer,
+            tile_size=tile_size,
+            geometry=geometry,
             credentials=creds,
         )
-        if not scenes:
-            raise ReaderError(
-                f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over {bbox}."
-            )
-        # Keep the credential config in effect across the scene reads (the EEDAI
-        # pixel fetch is the ``gdal.Warp`` inside `_read_scenes_aligned`, not just
-        # the open), then restore it — no process-global leak.
-        with creds.activate():
-            windowed = _read_scenes_aligned(
-                scenes,
-                bbox=bbox,
-                crs=crs,
-                scale=scale,
-                shape=shape,
-                bands=bands,
-                credentials=creds,
-            )
-        return _retain_credentials(
-            _composite(windowed, reducer, creds, geometry), creds
-        )
-
-    if bbox is None:
-        if scale is not None or shape is not None or crs != _DEFAULT_CRS:
-            raise ReaderError(
-                "A 'bbox' is required to window an Earth Engine asset when "
-                "'crs', 'scale', or 'shape' is set (assets are global/huge)."
-            )
-        src = _open_eedai(asset_id, bands=bands, credentials=creds)
-        # The whole-asset wrap is read lazily, so pixel reads happen after this
-        # returns — outside any `activate()` block. Install the credential config
-        # process-wide so those deferred EEDAI reads still authenticate. This is the
-        # one path that mutates global GDAL config (see the note in the docstring).
-        for config_key, config_value in creds.gdal_env().items():
-            gdal.SetConfigOption(config_key, config_value)
-        return _retain_credentials(Dataset(src, gdal_env=creds.gdal_env()), creds)
-
-    # Keep the credential config in effect across the open AND the windowing read
-    # (the EEDAI pixel fetch is the ``gdal.Warp`` in `_window`/`_tiled_window`),
-    # then restore it — no process-global leak for the windowed path.
-    with creds.activate():
-        src = _open_eedai(asset_id, bands=bands, credentials=creds)
-        windowed_single = None
-        if tile_size is not None:
-            windowed_single = _tiled_window(
-                src, bbox=bbox, crs=crs, scale=scale, shape=shape, tile_size=tile_size
-            )
-        if windowed_single is None:
-            windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
-        src = None  # release the EEDAI source; the window is a self-contained copy
-    return _retain_credentials(
-        _apply_geometry(Dataset(windowed_single, gdal_env=creds.gdal_env()), geometry),
-        creds,
+    return _single_image_read(
+        asset_id,
+        bands=bands,
+        bbox=bbox,
+        crs=crs,
+        scale=scale,
+        shape=shape,
+        tile_size=tile_size,
+        geometry=geometry,
+        credentials=creds,
     )
 
 
