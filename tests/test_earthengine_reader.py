@@ -1424,3 +1424,44 @@ class TestTiledExactShape:
         assert np.array_equal(tiled.ReadAsArray(), single.ReadAsArray()), (
             "Non-square tiled mosaic differs from the single read"
         )
+
+
+class TestRound2Coverage:
+    """Extra tests closing gaps the round-2 review noted."""
+
+    def test_multiband_mean_composite_is_float(self) -> None:
+        """A multi-band mean composite is float and keeps per-band nodata.
+
+        Test scenario:
+            Two int16 bands (fills 10/20, nodata -1/-2) reduce by mean to a float
+            Dataset that preserves each band's nodata.
+        """
+        windowed = [
+            _multiband_scene(fills=(10, 20), nodatas=(-1, -2)) for _ in range(3)
+        ]
+        ds = ee_reader._composite(
+            windowed, "mean", EarthEngineCredentials.application_default()
+        )
+        assert ds.shape == (2, 20, 20), f"Expected 2 bands, got {ds.shape}"
+        assert ds.read_array().dtype.kind == "f", "mean composite should be floating"
+        assert tuple(ds.no_data_value) == (-1.0, -2.0), (
+            f"Per-band nodata not preserved: {ds.no_data_value}"
+        )
+
+    def test_geometry_in_crs_reprojects_gdf(self) -> None:
+        """`_geometry_in_crs` reprojects a GeoDataFrame carrying a CRS.
+
+        Test scenario:
+            A Web-Mercator box is reprojected to EPSG:4326, so its bounds become
+            lon/lat degrees.
+        """
+        import geopandas as gpd
+        from shapely.geometry import box
+
+        gdf_3857 = gpd.GeoDataFrame(
+            geometry=[box(86.9, 27.9, 87.0, 28.0)], crs="EPSG:4326"
+        ).to_crs("EPSG:3857")
+        out = ee_reader._geometry_in_crs(gdf_3857, "EPSG:4326")
+        assert abs(out.total_bounds[0]) < 200, (
+            f"Geometry not reprojected to lon/lat: {out.total_bounds[0]}"
+        )
