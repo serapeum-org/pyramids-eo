@@ -1,8 +1,8 @@
 """Alpha overlay of one image over another.
 
-`alpha_overlay` is the pyramids-eo port of satpy's `BackgroundCompositor`: it
-composites an RGBA *foreground* over an RGB or RGBA *background* with the
-standard "over" operator. In the day/night chain the foreground is the night-IR
+`alpha_overlay` composites an RGBA *foreground* over an RGB or RGBA *background*
+with the standard "over" operator. In the day/night chain the foreground is the
+night-IR
 cloud RGBA (transparent where there are no clouds) and the background is the
 Black Marble city lights, so the lights show through the gaps.
 """

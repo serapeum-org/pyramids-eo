@@ -1,25 +1,24 @@
 """Day/night compositing for EO imagery.
 
-pyramids-eo's port of satpy's day/night composite chain (the
-`true_color_with_night_ir` look), implemented over NumPy + pyramids-gis with no
-satpy / PyTroll dependency. So far:
+The pyramids-eo day/night composite chain (the `true_color_with_night_ir`
+look), implemented over NumPy + pyramids-gis with no third-party compositing
+dependency. So far:
 
 * `solar_zenith_angle` / `cos_solar_zenith_angle` — per-pixel solar zenith angle
   (degrees) and its cosine (the `cos_sza` form the readers expect), the geometry
   the day/night blend keys off.
 * `day_night_blend` / `day_weight` — the SZA-weighted cross-fade of a day and a
-  night image (satpy `DayNightCompositor`).
+  night image.
 * `alpha_overlay` — the "over" composite of an RGBA foreground on an RGB(A)
-  background (satpy `BackgroundCompositor`).
+  background.
 * `static_image` — load a georeferenced background image (e.g. Black Marble),
-  caching a remote URL and warping it to a target grid (satpy
-  `StaticImageCompositor`).
+  caching a remote URL and warping it to a target grid.
 * `true_color` — true-colour RGB from calibrated reflectance bands with a CIMSS
   synthetic green (no Rayleigh).
 * `night_ir` / `true_color_with_night_ir` — assemble the full day/night image
   (RGBA IR clouds over city lights, cross-faded against the day image by SZA).
 
-Together these compose satpy's `true_color_with_night_ir` day/night look.
+Together these compose the `true_color_with_night_ir` day/night look.
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 """Assemble the `true_color_with_night_ir` day/night image.
 
-This wires the compositing primitives into satpy's `true_color_with_night_ir`
-chain, entirely in pyramids-eo (no satpy):
+This wires the compositing primitives into the `true_color_with_night_ir`
+chain, entirely in pyramids-eo:
 
 ```
 true_color_with_night_ir = day_night_blend(
@@ -9,11 +9,11 @@ true_color_with_night_ir = day_night_blend(
     night      = alpha_overlay(night_ir, static_image(BlackMarble)),
     sza        = solar_zenith_angle(...),
 )
-night_ir = GenericCompositor(ir_38, ir_105, ir_123) -> RGB + alpha
+night_ir = stack(ir_38, ir_105, ir_123) -> RGB + alpha
 ```
 
-`night_ir` builds the RGBA night-cloud image (the satpy `GenericCompositor`
-step); `true_color_with_night_ir` overlays it on the city-lights background and
+`night_ir` builds the RGBA night-cloud image (the IR-stack step);
+`true_color_with_night_ir` overlays it on the city-lights background and
 cross-fades against the day image by solar zenith angle.
 """
 
@@ -31,8 +31,8 @@ from pyramids_eo.composites.overlay import alpha_overlay
 def night_ir(red: Any, green: Any, blue: Any, *, alpha: Any = None) -> Any:
     """Stack three IR bands into an RGBA night-cloud image.
 
-    The satpy `GenericCompositor(ir_38, ir_105, ir_123)` step: stack the three
-    IR bands as RGB and attach an alpha channel. The alpha controls where the
+    Stack the three IR bands (e.g. `ir_38`, `ir_105`, `ir_123`) as RGB and
+    attach an alpha channel. The alpha controls where the
     background (city lights) shows through — pass a cloud-derived alpha
     (opaque over cold cloud tops, transparent over clear sky) to reproduce the
     reference look; the default is fully opaque (alpha = 1).

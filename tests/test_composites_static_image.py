@@ -177,7 +177,7 @@ class TestResolveSource:
         )
 
     def test_relative_local_path_accepted(self, tmp_path, monkeypatch):
-        """A plain relative path is accepted (no satpy absolute-path trap)."""
+        """A plain relative path is accepted."""
         monkeypatch.chdir(tmp_path)
         (tmp_path / "bm.tif").write_bytes(b"data")
         assert _resolve_source("bm.tif", None, 5.0) == Path("bm.tif"), (

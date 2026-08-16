@@ -5,10 +5,9 @@ red, blue, and near-IR ("veggie") reflectances using the CIMSS weighted recipe,
 then stacks red / synthetic-green / blue into an RGB image.
 
 This is the **no-Rayleigh** variant (per the pyramids-eo compositing decision):
-it does the band combination only. Atmospheric / Rayleigh correction — satpy
-gets it from `pyspectral` — is intentionally out of scope here to keep the
-dependency footprint free of the PyTroll stack; the result is slightly flatter
-over ocean / haze than a Rayleigh-corrected image.
+it does the band combination only. Atmospheric / Rayleigh correction is
+intentionally out of scope here to keep the dependency footprint small; the
+result is slightly flatter over ocean / haze than a Rayleigh-corrected image.
 """
 
 from __future__ import annotations

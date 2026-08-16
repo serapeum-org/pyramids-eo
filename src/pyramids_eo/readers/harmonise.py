@@ -1,9 +1,9 @@
 """Harmonise multi-resolution L1 bands onto a common grid.
 
 FCI / SEVIRI channels arrive at different native resolutions (FCI: 0.5 / 1 / 2
-km). `harmonise` warps/crops each band onto one target grid — the equivalent of
-satpy's `Scene.resample` — by delegating to pyramids' `align` (which copies the
-reference's CRS, rows/columns, and cell size and resamples the band onto it). No
+km). `harmonise` warps/crops each band onto one target grid by delegating to
+pyramids' `align` (which copies the reference's CRS, rows/columns, and cell size
+and resamples the band onto it). No
 new reprojection code; the reference grid decides the output.
 """
 

@@ -1,13 +1,11 @@
 """Static georeferenced background images for compositing.
 
-`static_image` is the pyramids-eo port of satpy's `StaticImageCompositor`: it
-loads a georeferenced raster (e.g. the NASA **Black Marble** city lights that
-back the night-IR clouds), caching it locally when the source is a URL, and
-optionally warps/crops it to another dataset's grid via pyramids' `align`.
+`static_image` loads a georeferenced raster (e.g. the NASA **Black Marble** city
+lights that back the night-IR clouds), caching it locally when the source is a
+URL, and optionally warps/crops it to another dataset's grid via pyramids'
+`align`.
 
-Unlike satpy's compositor — which only uses a local file when `filename` is an
-**absolute** path and otherwise falls back to a (now dead) bundled URL — this
-takes a plain local **or** remote path and caches a remote one. A live
+It takes a plain local **or** remote path and caches a remote one. A live
 Black Marble mirror is
 `https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144898/BlackMarble_2016_3km_geo.tif`
 (the older `neo.gsfc.nasa.gov/archive/blackmarble/...` URLs are 404).
@@ -138,7 +136,7 @@ def static_image(
 ) -> Any:
     """Load a georeferenced image, caching a remote URL and warping to a grid.
 
-    Port of satpy's `StaticImageCompositor`. `source` may be a local path
+    Loads a georeferenced background image. `source` may be a local path
     (relative or absolute) or an http/https URL; a URL is downloaded once and
     cached under `cache_dir`. When `like` is given, the loaded image is warped
     and cropped onto that dataset's grid (CRS + rows/columns + cell size) via

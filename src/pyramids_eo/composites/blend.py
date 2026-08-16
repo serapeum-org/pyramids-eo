@@ -1,9 +1,8 @@
 """Solar-zenith-angle day/night blending.
 
-`day_night_blend` is the pyramids-eo port of satpy's `DayNightCompositor`: it
-cross-fades a *day* image and a *night* image by the per-pixel solar zenith
-angle (SZA), producing the smooth twilight transition of the
-`true_color_with_night_ir` look. The blend keys off the Sun's geometric
+`day_night_blend` cross-fades a *day* image and a *night* image by the
+per-pixel solar zenith angle (SZA), producing the smooth twilight transition of
+the `true_color_with_night_ir` look. The blend keys off the Sun's geometric
 position (from `solar_zenith_angle`), not on how dark a pixel looks — which is
 why an eclipse shadow is rendered as day, not night.
 """
@@ -70,8 +69,8 @@ def day_night_blend(
 ) -> Any:
     """Cross-fade a day and a night image by solar zenith angle.
 
-    Port of satpy's `DayNightCompositor`. Computes a per-pixel day weight from
-    `sza` (see `day_weight`) and mixes: `day * weight + night * (1 - weight)`.
+    Computes a per-pixel day weight from `sza` (see `day_weight`) and mixes:
+    `day * weight + night * (1 - weight)`.
     `day` / `night` may be `(H, W)` or `(band, H, W)` arrays, or pyramids
     `Dataset` objects; the weight broadcasts across bands.
 
