@@ -328,6 +328,20 @@ def _apply_geometry(dataset: Dataset, geometry: object | None) -> Dataset:
     return dataset.crop(mask=geometry)
 
 
+def _retain_credentials(obj: object, credentials: EarthEngineCredentials) -> object:
+    """Pin ``credentials`` onto a returned object so its resources outlive it.
+
+    An inline-JSON :class:`EarthEngineCredentials` owns a temp key file removed by
+    a finalizer when the credentials are collected. The returned
+    ``Dataset``/``DatasetCollection`` only captures ``gdal_env()`` (the path
+    string), so without this the file would vanish while the object still names
+    it. Attaching the credentials keeps them (and the file) alive for the object's
+    lifetime.
+    """
+    obj._ee_credentials = credentials  # type: ignore[attr-defined]
+    return obj
+
+
 def _discover_scenes(
     asset_id: str,
     *,
@@ -696,7 +710,9 @@ def from_earthengine(
             bands=bands,
             credentials=creds,
         )
-        return _composite(windowed, reducer, creds, geometry)
+        return _retain_credentials(
+            _composite(windowed, reducer, creds, geometry), creds
+        )
 
     src = _open_eedai(asset_id, bands=bands, credentials=creds)
     if bbox is None:
@@ -705,7 +721,12 @@ def from_earthengine(
                 "A 'bbox' is required to window an Earth Engine asset when "
                 "'crs', 'scale', or 'shape' is set (assets are global/huge)."
             )
-        return Dataset(src, gdal_env=creds.gdal_env())
+        # The whole-asset wrap is read lazily, so pixel reads happen after this
+        # returns — outside any `activate()` block. Install the credential config
+        # process-wide so those deferred EEDAI reads still authenticate.
+        for config_key, config_value in creds.gdal_env().items():
+            gdal.SetConfigOption(config_key, config_value)
+        return _retain_credentials(Dataset(src, gdal_env=creds.gdal_env()), creds)
 
     windowed_single = None
     if tile_size is not None:
@@ -714,8 +735,9 @@ def from_earthengine(
         )
     if windowed_single is None:
         windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
-    return _apply_geometry(
-        Dataset(windowed_single, gdal_env=creds.gdal_env()), geometry
+    return _retain_credentials(
+        _apply_geometry(Dataset(windowed_single, gdal_env=creds.gdal_env()), geometry),
+        creds,
     )
 
 
@@ -812,12 +834,16 @@ def collection_from_earthengine(
     )
     env = creds.gdal_env()
     datasets = [
-        _apply_geometry(Dataset(scene, gdal_env=env), geometry) for scene in windowed
+        _retain_credentials(
+            _apply_geometry(Dataset(scene, gdal_env=env), geometry), creds
+        )
+        for scene in windowed
     ]
-    return DatasetCollection(
+    collection = DatasetCollection(
         datasets[0],
         time_length=len(datasets),
         datasets=datasets,
         time=[scene.time for scene in scenes],
         gdal_env=env,
     )
+    return _retain_credentials(collection, creds)

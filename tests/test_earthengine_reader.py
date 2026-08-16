@@ -1104,3 +1104,32 @@ class TestModeAllNodata:
         assert int(out[0, 0]) == -1, (
             f"All-nodata pixel should stay nodata, got {out[0, 0]}"
         )
+
+
+class TestCredentialLifetime:
+    """Inline-JSON credentials must outlive the transient EarthEngineCredentials."""
+
+    def test_inline_credentials_pinned_to_dataset(self, monkeypatch) -> None:
+        """The returned Dataset keeps the inline key file alive (H1).
+
+        Test scenario:
+            After `from_earthengine(..., credentials={...})` returns and GC runs,
+            the temp key file still exists while the Dataset is alive, and is
+            cleaned up only once the Dataset is dropped.
+        """
+        import gc
+
+        monkeypatch.setattr(
+            ee_reader, "_open_eedai", lambda a, *, bands, credentials: _synthetic_srtm()
+        )
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", bbox=_BBOX, credentials={"type": "service_account"}
+        )
+        path = ds._ee_credentials.service_account_path
+        gc.collect()
+        assert path.is_file(), "Temp key file deleted while the Dataset is alive"
+        del ds
+        gc.collect()
+        assert not path.exists(), (
+            "Temp key file not cleaned up after the Dataset is gone"
+        )
