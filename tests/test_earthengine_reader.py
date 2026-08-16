@@ -451,7 +451,15 @@ class TestFromEarthengineComposite:
 
     @pytest.mark.parametrize(
         "reducer, expected",
-        [("median", 20), ("mean", 20), ("min", 10), ("max", 30)],
+        [
+            ("median", 20),
+            ("mean", 20),
+            ("min", 10),
+            ("max", 30),
+            ("sum", 60),
+            ("mode", 10),
+            ("mosaic", 10),
+        ],
     )
     def test_reducer_composites_scene_stack(
         self, three_scenes, reducer, expected
@@ -899,3 +907,200 @@ class TestGeometryClip:
             collection_from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED", start="2024-06-01", end="2024-06-30"
             )
+
+
+class TestSpecialReducers:
+    """Tests for the ``mode`` / ``mosaic`` reducers (with and without nodata)."""
+
+    def test_mosaic_takes_first_valid(self) -> None:
+        """Mosaic returns the first non-nodata value down the scene axis.
+
+        Test scenario:
+            A masked pixel in the first scene falls through to the next scene.
+        """
+        stack = np.stack(
+            [
+                np.array([[10, -1]], dtype="int16"),
+                np.array([[20, 20]], dtype="int16"),
+                np.array([[30, 30]], dtype="int16"),
+            ]
+        )
+        out = ee_reader._reduce(stack, "mosaic", nodata=-1)
+        assert out.tolist() == [[10, 20]], f"Unexpected mosaic: {out.tolist()}"
+
+    def test_mosaic_without_nodata_is_first_scene(self) -> None:
+        """With no nodata, mosaic is simply the first scene.
+
+        Test scenario:
+            The plain path returns scene 0 unchanged.
+        """
+        stack = np.stack([np.full((2, 2), v, dtype="int16") for v in (7, 8, 9)])
+        out = ee_reader._reduce(stack, "mosaic", nodata=None)
+        assert (out == 7).all(), f"Expected all 7, got {out.tolist()}"
+
+    def test_mode_ties_resolve_to_smallest(self) -> None:
+        """Mode returns the most frequent value; ties pick the smallest.
+
+        Test scenario:
+            A 2-2 tie between 10 and 20 resolves to 10.
+        """
+        stack = np.stack([np.full((1, 1), v, dtype="int16") for v in (10, 10, 20, 20)])
+        out = ee_reader._reduce(stack, "mode", nodata=None)
+        assert int(out[0, 0]) == 10, f"Tie should pick smallest, got {out[0, 0]}"
+
+    def test_mode_ignores_nodata(self) -> None:
+        """Mode ignores masked values per pixel.
+
+        Test scenario:
+            A nodata sample in one scene does not become the mode.
+        """
+        stack = np.stack(
+            [
+                np.array([[5]], dtype="int16"),
+                np.array([[-1]], dtype="int16"),
+                np.array([[5]], dtype="int16"),
+            ]
+        )
+        out = ee_reader._reduce(stack, "mode", nodata=-1)
+        assert int(out[0, 0]) == 5, f"Mode should ignore nodata, got {out[0, 0]}"
+
+
+class TestTiledWindow:
+    """Tests for oversize tiling + mosaic (:func:`_tiled_window` / ``tile_size``)."""
+
+    @staticmethod
+    def _ramped_src():
+        """A 200x200 EPSG:4326 raster whose values ramp, so a mosaic is checkable."""
+        from osgeo import gdal, osr
+
+        src = gdal.GetDriverByName("MEM").Create("", 200, 200, 1, gdal.GDT_Int16)
+        src.SetGeoTransform((86.0, 0.01, 0.0, 29.0, 0.0, -0.01))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        src.SetProjection(srs.ExportToWkt())
+        src.GetRasterBand(1).WriteArray(
+            np.arange(200 * 200, dtype="int16").reshape(200, 200)
+        )
+        src.GetRasterBand(1).SetNoDataValue(-32768)
+        return src
+
+    def test_tiled_mosaic_matches_single_read(self) -> None:
+        """A tiled read mosaics back to exactly the single-read result.
+
+        Test scenario:
+            A 40x40 window split at tile_size=16 equals the untiled 40x40 read.
+        """
+        src = self._ramped_src()
+        single = ee_reader._window(
+            src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(40, 40)
+        )
+        tiled = ee_reader._tiled_window(
+            src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(40, 40), tile_size=16
+        )
+        assert (tiled.RasterXSize, tiled.RasterYSize) == (40, 40), "Wrong mosaic size"
+        assert np.array_equal(single.ReadAsArray(), tiled.ReadAsArray()), (
+            "Tiled mosaic differs from the single read"
+        )
+
+    def test_no_tiling_when_within_tile_size(self) -> None:
+        """Tiling is skipped (returns None) when the grid already fits.
+
+        Test scenario:
+            A 10x10 grid with tile_size=16 needs no tiling.
+        """
+        src = self._ramped_src()
+        assert (
+            ee_reader._tiled_window(
+                src,
+                bbox=_BBOX,
+                crs="EPSG:4326",
+                scale=None,
+                shape=(10, 10),
+                tile_size=16,
+            )
+            is None
+        ), "Should not tile a grid within tile_size"
+
+    def test_no_tiling_without_scale_or_shape(self) -> None:
+        """Tiling needs a known grid; returns None without scale/shape.
+
+        Test scenario:
+            No scale/shape → the target grid is unknown → no tiling.
+        """
+        src = self._ramped_src()
+        assert (
+            ee_reader._tiled_window(
+                src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None, tile_size=16
+            )
+            is None
+        ), "Should not tile without a known target grid"
+
+    def test_from_earthengine_uses_tiling(self, patched_eedai) -> None:
+        """``from_earthengine`` mosaics via tiling when ``tile_size`` is small.
+
+        Test scenario:
+            A 40x40 request with tile_size=16 returns the correct 40x40 Dataset.
+        """
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(40, 40), tile_size=16
+        )
+        assert ds.shape == (1, 40, 40), f"Expected (1, 40, 40), got {ds.shape}"
+
+    def test_tiled_mosaic_by_scale(self) -> None:
+        """Tiling works from a ``scale`` (not only ``shape``).
+
+        Test scenario:
+            A scale-based 20px window split at tile_size=16 equals the untiled read.
+        """
+        src = self._ramped_src()
+        single = ee_reader._window(
+            src, bbox=_BBOX, crs="EPSG:4326", scale=0.005, shape=None
+        )
+        tiled = ee_reader._tiled_window(
+            src, bbox=_BBOX, crs="EPSG:4326", scale=0.005, shape=None, tile_size=16
+        )
+        assert tiled is not None, "Expected tiling to engage at scale 0.005"
+        assert np.array_equal(single.ReadAsArray(), tiled.ReadAsArray()), (
+            "Scale-based tiled mosaic differs from the single read"
+        )
+
+    def test_mosaic_warp_failure_raises(self, monkeypatch) -> None:
+        """A failed mosaic warp raises ``ReaderError``.
+
+        Test scenario:
+            ``gdal.Warp`` returning ``None`` for the multi-source mosaic surfaces
+            as ``ReaderError`` (per-tile reads still succeed).
+        """
+        real_warp = ee_reader.gdal.Warp
+
+        def _warp(dest, src, **kwargs):
+            if isinstance(src, list):
+                return None
+            return real_warp(dest, src, **kwargs)
+
+        monkeypatch.setattr(ee_reader.gdal, "Warp", _warp)
+        with pytest.raises(ReaderError, match="mosaic"):
+            ee_reader._tiled_window(
+                self._ramped_src(),
+                bbox=_BBOX,
+                crs="EPSG:4326",
+                scale=None,
+                shape=(40, 40),
+                tile_size=16,
+            )
+
+
+class TestModeAllNodata:
+    """Edge case: a pixel that is nodata in every scene."""
+
+    def test_mode_all_nodata_returns_nodata(self) -> None:
+        """Mode returns nodata when a pixel has no valid samples.
+
+        Test scenario:
+            Every scene is nodata at the pixel → the mode is nodata.
+        """
+        stack = np.stack([np.array([[-1]], dtype="int16")] * 3)
+        out = ee_reader._reduce(stack, "mode", nodata=-1)
+        assert int(out[0, 0]) == -1, (
+            f"All-nodata pixel should stay nodata, got {out[0, 0]}"
+        )

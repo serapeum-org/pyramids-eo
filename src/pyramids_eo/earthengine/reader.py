@@ -23,6 +23,7 @@ from __future__ import annotations
 import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osgeo)
 # isort: on
 
+import math
 from typing import NamedTuple
 
 import numpy as np
@@ -38,14 +39,19 @@ BBox = tuple[float, float, float, float]
 _EEDAI_PREFIX = "EEDAI:"
 _EEDA_PREFIX = "EEDA:"
 
-#: Client-side reducers for the ``ImageCollection`` → composite path. Each maps to
-#: a nodata-aware (masked) and a plain NumPy reduction over the scene axis.
-_REDUCERS: dict[str, tuple] = {
+#: Statistical client-side reducers for the ``ImageCollection`` → composite path.
+#: Each maps to a nodata-aware (masked) and a plain NumPy reduction over the scene
+#: axis.
+_STAT_REDUCERS: dict[str, tuple] = {
     "median": (np.ma.median, np.median),
     "mean": (np.ma.mean, np.mean),
     "min": (np.ma.min, np.min),
     "max": (np.ma.max, np.max),
+    "sum": (np.ma.sum, np.sum),
 }
+
+#: All supported reducer names (statistical + the special ``mode`` / ``mosaic``).
+REDUCERS: frozenset[str] = frozenset(_STAT_REDUCERS) | {"mode", "mosaic"}
 
 
 class _Scene(NamedTuple):
@@ -153,6 +159,86 @@ def _window(
             f"{gdal.GetLastErrorMsg() or 'no detail'}"
         )
     return out
+
+
+def _tiled_window(
+    src: gdal.Dataset,
+    *,
+    bbox: BBox,
+    crs: str,
+    scale: float | None,
+    shape: tuple[int, int] | None,
+    tile_size: int,
+) -> gdal.Dataset | None:
+    """Read a large window as a grid of tiles and mosaic them, or return ``None``.
+
+    Returns ``None`` when the target grid is unknown (no ``scale``/``shape``) or
+    already within ``tile_size`` on both axes — the caller then does a single
+    :func:`_window`. Otherwise the AOI is split into ``<= tile_size`` px tiles,
+    each read via :func:`_window`, and the tiles are mosaicked (via ``gdal.Warp``)
+    onto the full grid. EEDAI has no hard request cap, so ``tile_size`` bounds
+    local memory/practicality, not an Earth Engine limit.
+
+    Args:
+        src: The opened EEDAI source dataset.
+        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``.
+        crs: Target CRS.
+        scale: Output pixel size in ``crs`` units, or ``None``.
+        shape: Output ``(rows, cols)``, or ``None``.
+        tile_size: Maximum pixels per axis per tile.
+
+    Returns:
+        The mosaicked in-memory GDAL dataset, or ``None`` if tiling does not apply.
+
+    Raises:
+        ReaderError: The mosaic warp failed.
+    """
+    min_x, min_y, max_x, max_y = bbox
+    if shape is not None:
+        rows, cols = shape
+        px_x = (max_x - min_x) / cols
+        px_y = (max_y - min_y) / rows
+    elif scale is not None:
+        px_x = px_y = scale
+        cols = math.ceil((max_x - min_x) / scale)
+        rows = math.ceil((max_y - min_y) / scale)
+    else:
+        return None
+    if max(rows, cols) <= tile_size:
+        return None
+
+    tiles: list[gdal.Dataset] = []
+    for iy in range(math.ceil(rows / tile_size)):
+        tile_max_y = max_y - iy * tile_size * px_y
+        tile_min_y = max(min_y, tile_max_y - tile_size * px_y)
+        for ix in range(math.ceil(cols / tile_size)):
+            tile_min_x = min_x + ix * tile_size * px_x
+            tile_max_x = min(max_x, tile_min_x + tile_size * px_x)
+            tiles.append(
+                _window(
+                    src,
+                    bbox=(tile_min_x, tile_min_y, tile_max_x, tile_max_y),
+                    crs=crs,
+                    scale=None,
+                    shape=None,
+                )
+            )
+    mosaic = gdal.Warp(
+        "",
+        tiles,
+        format="MEM",
+        outputBounds=[min_x, min_y, max_x, max_y],
+        outputBoundsSRS=crs,
+        dstSRS=crs,
+        xRes=px_x,
+        yRes=px_y,
+    )
+    if mosaic is None:
+        raise ReaderError(
+            f"Earth Engine tiled read failed to mosaic to {bbox} in {crs}: "
+            f"{gdal.GetLastErrorMsg() or 'no detail'}"
+        )
+    return mosaic
 
 
 def _iso(value: str) -> str:
@@ -335,13 +421,46 @@ def _read_scenes_aligned(
     return windowed
 
 
+def _reduce_mosaic(stack: np.ndarray, nodata: float | None) -> np.ndarray:
+    """Mosaic reducer: per pixel, the first non-nodata value down the scene axis."""
+    if nodata is None:
+        return np.asarray(stack[0])
+    masked = np.ma.masked_equal(stack, nodata)
+    result = np.ma.masked_all(stack.shape[1:], dtype=stack.dtype)
+    for index in range(stack.shape[0]):
+        fill = result.mask & ~np.ma.getmaskarray(masked)[index]
+        result[fill] = masked[index][fill]
+    return np.ma.filled(result, nodata)
+
+
+def _reduce_mode(stack: np.ndarray, nodata: float | None) -> np.ndarray:
+    """Mode reducer: per pixel, the most frequent (non-nodata) value.
+
+    Ties resolve to the smallest value. Windows are small, so a per-pixel
+    ``Counter`` over the scene axis is fast enough.
+    """
+    from collections import Counter
+
+    def _pick(values: np.ndarray) -> object:
+        kept = [v for v in values.tolist() if nodata is None or v != nodata]
+        if not kept:
+            # ``kept`` is only empty when every sample equals ``nodata`` (with
+            # ``nodata`` unset, the filter keeps everything).
+            return nodata
+        counts = Counter(kept)
+        top = max(counts.values())
+        return min(v for v, c in counts.items() if c == top)
+
+    return np.apply_along_axis(_pick, 0, stack)
+
+
 def _reduce(stack: np.ndarray, reducer: str, nodata: float | None) -> np.ndarray:
     """Reduce a scene stack over its leading (scene) axis.
 
     Args:
         stack: Array shaped ``(scenes, ...)`` — the aligned scene stack.
-        reducer: One of :data:`_REDUCERS` (``"median"`` / ``"mean"`` / ``"min"`` /
-            ``"max"``).
+        reducer: One of :data:`REDUCERS` (``"median"`` / ``"mean"`` / ``"min"`` /
+            ``"max"`` / ``"sum"`` / ``"mode"`` / ``"mosaic"``).
         nodata: Nodata value to mask out before reducing, or ``None``.
 
     Returns:
@@ -350,16 +469,21 @@ def _reduce(stack: np.ndarray, reducer: str, nodata: float | None) -> np.ndarray
     Raises:
         ValueError: ``reducer`` is not a known reducer.
     """
-    if reducer not in _REDUCERS:
-        raise ValueError(
-            f"Unknown reducer {reducer!r}; choose from {sorted(_REDUCERS)}."
-        )
-    masked_fn, plain_fn = _REDUCERS[reducer]
-    if nodata is None:
-        reduced = plain_fn(stack, axis=0)
+    if reducer in _STAT_REDUCERS:
+        masked_fn, plain_fn = _STAT_REDUCERS[reducer]
+        if nodata is None:
+            reduced = plain_fn(stack, axis=0)
+        else:
+            reduced = np.ma.filled(
+                masked_fn(np.ma.masked_equal(stack, nodata), axis=0), nodata
+            )
+    elif reducer == "mosaic":
+        reduced = _reduce_mosaic(stack, nodata)
+    elif reducer == "mode":
+        reduced = _reduce_mode(stack, nodata)
     else:
-        reduced = np.ma.filled(
-            masked_fn(np.ma.masked_equal(stack, nodata), axis=0), nodata
+        raise ValueError(
+            f"Unknown reducer {reducer!r}; choose from {sorted(REDUCERS)}."
         )
     return np.asarray(reduced).astype(stack.dtype)
 
@@ -427,6 +551,7 @@ def from_earthengine(
     crs: str = "EPSG:4326",
     scale: float | None = None,
     shape: tuple[int, int] | None = None,
+    tile_size: int | None = None,
     start: str | None = None,
     end: str | None = None,
     reducer: str | None = None,
@@ -460,10 +585,15 @@ def from_earthengine(
             ``"EPSG:4326"``.
         scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.
         shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.
+        tile_size: Optional maximum pixels per axis for a single read (single
+            ``Image`` mode). When the target window is larger, the AOI is read as a
+            grid of ``<= tile_size`` px tiles and mosaicked locally. EEDAI has no
+            hard request cap, so this bounds local memory, not an EE limit. Needs
+            ``scale`` or ``shape`` to know the target grid.
         start: Inclusive ISO start of the acquisition window (composite mode).
         end: Inclusive ISO end of the acquisition window (composite mode).
         reducer: Client-side reducer for the composite mode — one of ``"median"``,
-            ``"mean"``, ``"min"``, ``"max"``.
+            ``"mean"``, ``"min"``, ``"max"``, ``"sum"``, ``"mode"``, ``"mosaic"``.
         credentials: An
             :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a
             path to a service-account JSON key, or ``None`` for ADC.
@@ -577,7 +707,13 @@ def from_earthengine(
             )
         return Dataset(src, gdal_env=creds.gdal_env())
 
-    windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
+    windowed_single = None
+    if tile_size is not None:
+        windowed_single = _tiled_window(
+            src, bbox=bbox, crs=crs, scale=scale, shape=shape, tile_size=tile_size
+        )
+    if windowed_single is None:
+        windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
     return _apply_geometry(
         Dataset(windowed_single, gdal_env=creds.gdal_env()), geometry
     )
