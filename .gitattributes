@@ -3,3 +3,7 @@ pixi.lock merge=binary linguist-language=YAML linguist-generated=true
 
 # Shell scripts must use LF line endings even on Windows checkouts.
 *.sh text eol=lf
+
+# Notebooks are JSON normalised with LF by the pretty-format-json / ruff hooks;
+# force LF so the checked-out file matches what CI's hooks produce.
+*.ipynb text eol=lf
