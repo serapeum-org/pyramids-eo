@@ -1326,6 +1326,52 @@ class TestMaterialize:
         assert mem.GetRasterBand(1).GetNoDataValue() is None, "No nodata should be set"
         assert int(mem.ReadAsArray().max()) == 7, "Fill value should be preserved"
 
+    def test_raises_on_non_invertible_geotransform(self) -> None:
+        """A non-invertible source geotransform raises ``ReaderError``.
+
+        Test scenario:
+            A degenerate (zero-scale) geotransform cannot map coordinates to pixels.
+        """
+        from osgeo import gdal, osr
+
+        src = gdal.GetDriverByName("MEM").Create("", 10, 10, 1, gdal.GDT_Int16)
+        src.SetGeoTransform((0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        src.SetProjection(srs.ExportToWkt())
+        with pytest.raises(ReaderError, match="non-invertible"):
+            ee_reader._materialize(src, _BBOX, "EPSG:4326")
+
+    def test_raises_when_block_read_returns_none(self) -> None:
+        """A failed block read (``None``) raises ``ReaderError``.
+
+        Test scenario:
+            A source band whose ``ReadAsArray`` returns ``None`` surfaces as a
+            ``ReaderError``.
+        """
+
+        class _NoneReadSrc:
+            def __init__(self, real):
+                self._real = real
+
+            def __getattr__(self, name):
+                return getattr(self._real, name)
+
+            def GetRasterBand(self, index):  # noqa: N802
+                real_band = self._real.GetRasterBand(index)
+
+                class _Band:
+                    def GetNoDataValue(self):  # noqa: N802
+                        return real_band.GetNoDataValue()
+
+                    def ReadAsArray(self, *args, **kwargs):  # noqa: N802, ARG002
+                        return None
+
+                return _Band()
+
+        with pytest.raises(ReaderError, match="block read failed"):
+            ee_reader._materialize(_NoneReadSrc(_synthetic_srtm()), _BBOX, "EPSG:4326")
+
 
 class TestLivePixelCorrectness:
     """Live safety net: EEDAI reads must return correct, deterministic pixels."""

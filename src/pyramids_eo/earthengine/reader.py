@@ -218,6 +218,11 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> gdal.Dataset:
                 rx0, ry0 = max(bx, x0), max(by, y0)
                 rx1, ry1 = min(bx + block, x1), min(by + block, y1)
                 tile = source_band.ReadAsArray(rx0, ry0, rx1 - rx0, ry1 - ry0)
+                if tile is None:
+                    raise ReaderError(
+                        "Earth Engine block read failed at "
+                        f"({rx0}, {ry0}): {gdal.GetLastErrorMsg() or 'no detail'}"
+                    )
                 out_band.WriteArray(tile, rx0 - x0, ry0 - y0)
     return out
 
@@ -523,17 +528,19 @@ def _read_scenes_aligned(
     target_shape = shape
     for scene in scenes:
         src = _open_eedai(scene.connection, bands=bands, credentials=credentials)
-        if target_shape is None and scale is None:
-            first = _window(src, bbox=bbox, crs=crs, scale=None, shape=None)
-            target_shape = (first.RasterYSize, first.RasterXSize)
-            windowed.append(first)
-        else:
-            windowed.append(
-                _window(src, bbox=bbox, crs=crs, scale=scale, shape=target_shape)
-            )
-        # The windowed result is a self-contained MEM copy; release the EEDAI
-        # source handle now rather than leaving it for GC.
-        src = None
+        # Release the EEDAI source handle whether the window succeeds or raises;
+        # the windowed result is a self-contained MEM copy that no longer needs it.
+        try:
+            if target_shape is None and scale is None:
+                first = _window(src, bbox=bbox, crs=crs, scale=None, shape=None)
+                target_shape = (first.RasterYSize, first.RasterXSize)
+                windowed.append(first)
+            else:
+                windowed.append(
+                    _window(src, bbox=bbox, crs=crs, scale=scale, shape=target_shape)
+                )
+        finally:
+            src = None
     return windowed
 
 
@@ -804,8 +811,10 @@ def _single_image_read(
     # restore it — no process-global leak for the windowed path.
     with credentials.activate():
         src = _open_eedai(asset_id, bands=bands, credentials=credentials)
-        windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
-        src = None  # release the EEDAI source; the window is a self-contained copy
+        try:
+            windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
+        finally:
+            src = None  # release the EEDAI source whether the window succeeds or not
     windowed_dataset = _apply_geometry(
         Dataset(windowed_single, gdal_env=credentials.gdal_env()), geometry
     )
