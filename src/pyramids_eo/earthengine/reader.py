@@ -104,7 +104,9 @@ def _open_eedai(
         if asset_or_connection.startswith(_EEDAI_PREFIX)
         else _EEDAI_PREFIX + asset_or_connection
     )
-    open_options: list[str] = []
+    # Pin the block size the block-aligned read in `_materialize` relies on, so a
+    # future driver default cannot silently reintroduce cross-block reads.
+    open_options: list[str] = [f"BLOCK_SIZE={_EEDAI_BLOCK}"]
     if bands:
         open_options.append("BANDS=" + ",".join(bands))
     with credentials.activate():

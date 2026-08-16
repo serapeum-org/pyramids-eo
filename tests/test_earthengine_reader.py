@@ -303,13 +303,15 @@ class TestOpenEedai:
         assert result is sentinel, "Should return the driver's open result"
         conn, options = fake.calls[0]
         assert conn == "EEDAI:USGS/SRTMGL1_003", f"Unexpected connection string: {conn}"
-        assert options == ["BANDS=B4,B3"], f"Unexpected open options: {options}"
+        assert options == ["BLOCK_SIZE=256", "BANDS=B4,B3"], (
+            f"Unexpected open options: {options}"
+        )
 
     def test_no_bands_option_when_bands_none(self, monkeypatch) -> None:
         """No ``BANDS`` option is emitted when ``bands`` is ``None``.
 
         Test scenario:
-            ``bands=None`` opens with an empty open-option list.
+            ``bands=None`` opens with only the pinned ``BLOCK_SIZE`` option.
         """
         fake = _FakeGdal(object())
         monkeypatch.setattr(ee_reader, "gdal", fake)
@@ -319,7 +321,7 @@ class TestOpenEedai:
             credentials=EarthEngineCredentials.application_default(),
         )
         _conn, options = fake.calls[0]
-        assert options == [], f"Expected no open options, got {options}"
+        assert options == ["BLOCK_SIZE=256"], f"Unexpected open options: {options}"
 
     def test_raises_reader_error_on_open_failure(self, monkeypatch) -> None:
         """A ``None`` driver result raises ``ReaderError`` with the GDAL message.
