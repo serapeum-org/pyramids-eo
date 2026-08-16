@@ -62,6 +62,35 @@ REDUCERS: frozenset[str] = frozenset(_STAT_REDUCERS) | {"mode", "mosaic"}
 #: and ``sum`` (can exceed the range) deliberately keep their widened dtype.
 _VALUE_PRESERVING_REDUCERS: frozenset[str] = frozenset({"min", "max", "mode", "mosaic"})
 
+#: Resampling algorithms accepted by the reader, mapped to their GDAL constants.
+_RESAMPLERS: dict[str, int] = {
+    "nearest": gdal.GRA_NearestNeighbour,
+    "bilinear": gdal.GRA_Bilinear,
+    "cubic": gdal.GRA_Cubic,
+    "average": gdal.GRA_Average,
+    "mode": gdal.GRA_Mode,
+}
+
+
+def _resample_alg(resample: str) -> int:
+    """Resolve a resampling name to its GDAL constant.
+
+    Args:
+        resample: One of :data:`_RESAMPLERS` (``"nearest"`` / ``"bilinear"`` /
+            ``"cubic"`` / ``"average"`` / ``"mode"``).
+
+    Returns:
+        The GDAL ``GRA_*`` resampling constant.
+
+    Raises:
+        ValueError: ``resample`` is not a known algorithm.
+    """
+    if resample not in _RESAMPLERS:
+        raise ValueError(
+            f"Unknown resample {resample!r}; choose from {sorted(_RESAMPLERS)}."
+        )
+    return _RESAMPLERS[resample]
+
 
 class _Scene(NamedTuple):
     """A single discovered ``ImageCollection`` scene.
@@ -234,6 +263,7 @@ def _window(
     crs: str,
     scale: float | None,
     shape: tuple[int, int] | None,
+    resample: str = "nearest",
 ) -> gdal.Dataset:
     """Read ``src`` over ``bbox`` in ``crs`` at the requested resolution/shape.
 
@@ -248,6 +278,7 @@ def _window(
         crs: Target CRS (and the CRS ``bbox`` is expressed in).
         scale: Output pixel size in ``crs`` units, or ``None``.
         shape: Output ``(rows, cols)``, or ``None``.
+        resample: Resampling algorithm for the warp — see :func:`_resample_alg`.
 
     Returns:
         The warped in-memory GDAL dataset.
@@ -261,6 +292,7 @@ def _window(
         "outputBounds": list(bbox),
         "outputBoundsSRS": crs,
         "dstSRS": crs,
+        "resampleAlg": _resample_alg(resample),
     }
     if shape is not None:
         rows, cols = shape
@@ -505,6 +537,7 @@ def _read_scenes_aligned(
     shape: tuple[int, int] | None,
     bands: list[str] | None,
     credentials: EarthEngineCredentials,
+    resample: str = "nearest",
 ) -> list[gdal.Dataset]:
     """Read every scene windowed to one common grid.
 
@@ -520,6 +553,7 @@ def _read_scenes_aligned(
         shape: Output ``(rows, cols)``, or ``None``.
         bands: Band names to request, or ``None`` for all.
         credentials: Resolved credentials.
+        resample: Resampling algorithm for the warp.
 
     Returns:
         One windowed in-memory GDAL dataset per scene, all on the same grid.
@@ -532,12 +566,21 @@ def _read_scenes_aligned(
         # the windowed result is a self-contained MEM copy that no longer needs it.
         try:
             if target_shape is None and scale is None:
-                first = _window(src, bbox=bbox, crs=crs, scale=None, shape=None)
+                first = _window(
+                    src, bbox=bbox, crs=crs, scale=None, shape=None, resample=resample
+                )
                 target_shape = (first.RasterYSize, first.RasterXSize)
                 windowed.append(first)
             else:
                 windowed.append(
-                    _window(src, bbox=bbox, crs=crs, scale=scale, shape=target_shape)
+                    _window(
+                        src,
+                        bbox=bbox,
+                        crs=crs,
+                        scale=scale,
+                        shape=target_shape,
+                        resample=resample,
+                    )
                 )
         finally:
             src = None
@@ -717,6 +760,7 @@ def _composite_read(
     crs: str,
     scale: float | None,
     shape: tuple[int, int] | None,
+    resample: str,
     start: str | None,
     end: str | None,
     reducer: str | None,
@@ -764,6 +808,7 @@ def _composite_read(
             shape=shape,
             bands=bands,
             credentials=credentials,
+            resample=resample,
         )
     composite = _composite(windowed, reducer, credentials, geometry)
     return _retain_credentials(composite, credentials)
@@ -777,6 +822,7 @@ def _single_image_read(
     crs: str,
     scale: float | None,
     shape: tuple[int, int] | None,
+    resample: str,
     geometry: object | None,
     credentials: EarthEngineCredentials,
 ) -> Dataset:
@@ -812,7 +858,9 @@ def _single_image_read(
     with credentials.activate():
         src = _open_eedai(asset_id, bands=bands, credentials=credentials)
         try:
-            windowed_single = _window(src, bbox=bbox, crs=crs, scale=scale, shape=shape)
+            windowed_single = _window(
+                src, bbox=bbox, crs=crs, scale=scale, shape=shape, resample=resample
+            )
         finally:
             src = None  # release the EEDAI source whether the window succeeds or not
     windowed_dataset = _apply_geometry(
@@ -830,6 +878,7 @@ def from_earthengine(
     crs: str = _DEFAULT_CRS,
     scale: float | None = None,
     shape: tuple[int, int] | None = None,
+    resample: str = "nearest",
     start: str | None = None,
     end: str | None = None,
     reducer: str | None = None,
@@ -864,6 +913,11 @@ def from_earthengine(
             ``"EPSG:4326"``.
         scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.
         shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.
+        resample: Resampling algorithm used when the native window is warped to the
+            output grid — one of ``"nearest"`` (default), ``"bilinear"``,
+            ``"cubic"``, ``"average"``, ``"mode"``. The default is nearest-neighbour;
+            for continuous imagery that is downsampled, ``"average"`` or
+            ``"bilinear"`` give a more representative result.
         start: Inclusive ISO start of the acquisition window (composite mode).
         end: Inclusive ISO end of the acquisition window (composite mode).
         reducer: Client-side reducer for the composite mode — one of ``"median"``,
@@ -893,11 +947,12 @@ def from_earthengine(
     Note:
         **Performance.** The EEDAI driver's overviews are unreliable, so the reader
         always fetches the AOI at the asset's **native resolution** (block by
-        block) and downsamples locally. A small ``shape``/``scale`` output from a
-        fine-resolution asset over a wide AOI therefore still transfers the full
-        native window — e.g. a 32x32 read of 10 m Sentinel-2 over a 0.1° box pulls
-        ~1100x1100 native pixels. It is correct but can be slow/data-heavy; keep
-        the AOI tight for fine-resolution assets.
+        block) and downsamples locally with ``resample`` (nearest by default). A
+        small ``shape``/``scale`` output from a fine-resolution asset over a wide
+        AOI therefore still transfers the full native window — e.g. a 32x32 read of
+        10 m Sentinel-2 over a 0.1° box pulls ~1100x1100 native pixels. It is
+        correct but can be slow/data-heavy; keep the AOI tight for fine-resolution
+        assets.
 
     Raises:
         ValueError: ``scale`` and ``shape`` are both given; or ``start`` / ``end``
@@ -971,6 +1026,7 @@ def from_earthengine(
             crs=crs,
             scale=scale,
             shape=shape,
+            resample=resample,
             start=start,
             end=end,
             reducer=reducer,
@@ -984,6 +1040,7 @@ def from_earthengine(
         crs=crs,
         scale=scale,
         shape=shape,
+        resample=resample,
         geometry=geometry,
         credentials=creds,
     )
@@ -1000,6 +1057,7 @@ def collection_from_earthengine(
     crs: str = _DEFAULT_CRS,
     scale: float | None = None,
     shape: tuple[int, int] | None = None,
+    resample: str = "nearest",
     credentials: CredentialsLike = None,
 ) -> DatasetCollection:
     """Read an Earth Engine ``ImageCollection`` into a ``DatasetCollection``.
@@ -1084,6 +1142,7 @@ def collection_from_earthengine(
             shape=shape,
             bands=bands,
             credentials=creds,
+            resample=resample,
         )
     env = creds.gdal_env()
     datasets = [

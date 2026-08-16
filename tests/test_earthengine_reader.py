@@ -1452,3 +1452,27 @@ class TestLivePixelCorrectness:
             assert int(values.max()) < 20000, (
                 f"Scene {index} reflectance implausibly large: {values.max()}"
             )
+
+
+class TestResample:
+    """Tests for the ``resample`` option (:func:`_resample_alg`)."""
+
+    def test_unknown_resample_raises(self) -> None:
+        """An unknown resampling name is rejected.
+
+        Test scenario:
+            ``_resample_alg`` raises ``ValueError`` for an unsupported algorithm.
+        """
+        with pytest.raises(ValueError, match="Unknown resample"):
+            ee_reader._resample_alg("bogus")
+
+    def test_from_earthengine_honours_resample(self, patched_eedai) -> None:
+        """A non-default ``resample`` is accepted end-to-end.
+
+        Test scenario:
+            ``resample="average"`` reads without error and returns a Dataset.
+        """
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), resample="average"
+        )
+        assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
