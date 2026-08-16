@@ -40,6 +40,9 @@ BBox = tuple[float, float, float, float]
 _EEDAI_PREFIX = "EEDAI:"
 _EEDA_PREFIX = "EEDA:"
 
+#: Default output CRS when the caller does not specify one.
+_DEFAULT_CRS = "EPSG:4326"
+
 #: Statistical client-side reducers for the ``ImageCollection`` → composite path.
 #: Each maps to a nodata-aware (masked) and a plain NumPy reduction over the scene
 #: axis.
@@ -333,7 +336,7 @@ def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
     Returns:
         The AOI's envelope in EPSG:4326 lon/lat.
     """
-    if crs.upper() in ("EPSG:4326", "WGS84"):
+    if crs.upper() in (_DEFAULT_CRS, "WGS84"):
         return bbox
     from osgeo import osr
 
@@ -696,7 +699,7 @@ def from_earthengine(
     bands: list[str] | None = None,
     bbox: BBox | None = None,
     geometry: object | None = None,
-    crs: str = "EPSG:4326",
+    crs: str = _DEFAULT_CRS,
     scale: float | None = None,
     shape: tuple[int, int] | None = None,
     tile_size: int | None = None,
@@ -876,7 +879,7 @@ def from_earthengine(
         )
 
     if bbox is None:
-        if scale is not None or shape is not None or crs != "EPSG:4326":
+        if scale is not None or shape is not None or crs != _DEFAULT_CRS:
             raise ReaderError(
                 "A 'bbox' is required to window an Earth Engine asset when "
                 "'crs', 'scale', or 'shape' is set (assets are global/huge)."
@@ -917,7 +920,7 @@ def collection_from_earthengine(
     bbox: BBox | None = None,
     geometry: object | None = None,
     bands: list[str] | None = None,
-    crs: str = "EPSG:4326",
+    crs: str = _DEFAULT_CRS,
     scale: float | None = None,
     shape: tuple[int, int] | None = None,
     credentials: CredentialsLike = None,
