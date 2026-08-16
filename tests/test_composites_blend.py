@@ -125,6 +125,25 @@ class TestDayNightBlend:
         )
         assert out[0, 1] == pytest.approx(0.0), "weighted-out NaN should not leak"
 
+    def test_nan_sza_pixel_stays_nan(self):
+        """A NaN SZA (undefined geometry) keeps the pixel masked, not black."""
+        out = day_night_blend(
+            np.array([[1.0, 1.0]]), np.array([[0.0, 0.0]]), np.array([[0.0, np.nan]])
+        )
+        assert out[0, 0] == pytest.approx(1.0), "defined pixel should blend normally"
+        assert np.isnan(out[0, 1]), "NaN SZA pixel should stay NaN, not 0"
+
+    def test_night_only_suppresses_nan_day_region(self):
+        """night_only zeros the day side even when night is NaN there."""
+        out = day_night_blend(
+            np.array([[0.0, 0.0]]),
+            np.array([[np.nan, 5.0]]),
+            np.array([[0.0, 180.0]]),
+            mode="night_only",
+        )
+        assert out[0, 0] == pytest.approx(0.0), "weighted-out NaN should not leak"
+        assert out[0, 1] == pytest.approx(5.0), "night side should be the night image"
+
     def test_multiband_weight_broadcasts_over_bands(self):
         """A 2-D SZA weight applies to every band of a (band, H, W) image."""
         day = np.ones((3, 2, 2))

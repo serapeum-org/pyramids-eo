@@ -128,4 +128,8 @@ def day_night_blend(
         day_term = np.where(weight > 0, day_arr * weight, 0.0)
         night_term = np.where(weight < 1, night_arr * (1.0 - weight), 0.0)
         out = day_term + night_term
+    # A NaN weight means the SZA (day/night geometry) is undefined, so keep the
+    # pixel masked as NaN rather than collapsing it to 0 — matching day_weight's
+    # NaN propagation (the weight-zeroing above only handles image-side NaN).
+    out = np.where(np.isnan(weight), np.nan, out)
     return _wrap_like(out, day, night)
