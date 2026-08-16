@@ -145,7 +145,12 @@ def _validate_chunk_grid(datasets: list) -> None:
             raise ReaderError("read_fci: chunks have mixed column count")
 
     ordered = sorted(datasets, key=lambda ds: ds.geotransform[3], reverse=True)
+    # Tolerance is a small fraction of the pixel height, so it scales with the
+    # grid rather than depending on the coordinate magnitude (geostationary
+    # metres are ~5.4e6, where np.isclose's absolute default would be far too
+    # tight).
+    atol = abs(first.geotransform[5]) * 1e-3
     for upper, lower in zip(ordered, ordered[1:]):
         upper_bottom = upper.geotransform[3] + upper.rows * upper.geotransform[5]
-        if not np.isclose(upper_bottom, lower.geotransform[3]):
+        if not np.isclose(upper_bottom, lower.geotransform[3], rtol=0.0, atol=atol):
             raise ReaderError("read_fci: chunks are not vertically contiguous")
