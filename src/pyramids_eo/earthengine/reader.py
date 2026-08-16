@@ -151,14 +151,30 @@ def from_earthengine(
         ReaderError: The asset could not be opened or windowed.
 
     Examples:
-        Read a small SRTM window (requires Earth Engine credentials, so skipped
-        offline):
-
+        - Read a small SRTM window (requires Earth Engine credentials, so
+          skipped offline):
+            ```python
             >>> from pyramids_eo import from_earthengine
             >>> ds = from_earthengine(  # doctest: +SKIP
             ...     "USGS/SRTMGL1_003",
             ...     bbox=(86.9, 27.9, 87.0, 28.0),
             ... )
+
+            ```
+        - Passing both ``scale`` and ``shape`` is rejected before any read:
+            ```python
+            >>> from pyramids_eo import from_earthengine
+            >>> from_earthengine(
+            ...     "USGS/SRTMGL1_003",
+            ...     bbox=(86.9, 27.9, 87.0, 28.0),
+            ...     scale=0.01,
+            ...     shape=(5, 5),
+            ... )
+            Traceback (most recent call last):
+                ...
+            ValueError: Pass at most one of 'scale' or 'shape', not both.
+
+            ```
     """
     if scale is not None and shape is not None:
         raise ValueError("Pass at most one of 'scale' or 'shape', not both.")

@@ -95,6 +95,31 @@ class EarthEngineCredentials:
 
         Returns:
             The credentials, whose :meth:`gdal_env` points GDAL at ``path``.
+
+        Examples:
+            - Build from an existing key file and read the stored path back:
+                ```python
+                >>> import tempfile
+                >>> from pathlib import Path
+                >>> from pyramids_eo.earthengine import EarthEngineCredentials
+                >>> key = Path(tempfile.mkdtemp()) / "sa.json"
+                >>> _ = key.write_text("{}")
+                >>> creds = EarthEngineCredentials.from_service_account(key)
+                >>> creds.service_account_path == key
+                True
+
+                ```
+            - A missing key path is rejected early:
+                ```python
+                >>> from pyramids_eo.earthengine import EarthEngineCredentials
+                >>> EarthEngineCredentials.from_service_account(  # doctest: +ELLIPSIS
+                ...     "/no/such/key.json"
+                ... )
+                Traceback (most recent call last):
+                    ...
+                pyramids_eo.errors.AuthenticationError: ...not found...
+
+                ```
         """
         return cls(service_account_json=path)
 
@@ -106,6 +131,25 @@ class EarthEngineCredentials:
             Credentials with an empty :meth:`gdal_env`; GDAL resolves an
             already-exported ``GOOGLE_APPLICATION_CREDENTIALS`` or ``gcloud``
             login at read time.
+
+        Examples:
+            - Application-default credentials hold no explicit key:
+                ```python
+                >>> from pyramids_eo.earthengine import EarthEngineCredentials
+                >>> creds = EarthEngineCredentials.application_default()
+                >>> creds.service_account_path is None
+                True
+                >>> creds.gdal_env()
+                {}
+
+                ```
+            - They report their mode in ``repr``:
+                ```python
+                >>> from pyramids_eo.earthengine import EarthEngineCredentials
+                >>> repr(EarthEngineCredentials.application_default())
+                'EarthEngineCredentials(application_default)'
+
+                ```
         """
         return cls(service_account_json=None)
 
@@ -119,6 +163,23 @@ class EarthEngineCredentials:
 
         Returns:
             An :class:`EarthEngineCredentials` instance.
+
+        Examples:
+            - ``None`` becomes application-default:
+                ```python
+                >>> from pyramids_eo.earthengine import EarthEngineCredentials
+                >>> EarthEngineCredentials.coerce(None).service_account_path is None
+                True
+
+                ```
+            - An existing instance passes through unchanged:
+                ```python
+                >>> from pyramids_eo.earthengine import EarthEngineCredentials
+                >>> creds = EarthEngineCredentials.application_default()
+                >>> EarthEngineCredentials.coerce(creds) is creds
+                True
+
+                ```
         """
         if isinstance(credentials, EarthEngineCredentials):
             return credentials
@@ -137,6 +198,28 @@ class EarthEngineCredentials:
         Returns:
             ``{"GOOGLE_APPLICATION_CREDENTIALS": <path>}`` for a service account,
             or an empty mapping for application-default (ambient) resolution.
+
+        Examples:
+            - Application-default carries no explicit config:
+                ```python
+                >>> from pyramids_eo.earthengine import EarthEngineCredentials
+                >>> EarthEngineCredentials.application_default().gdal_env()
+                {}
+
+                ```
+            - A service account surfaces its key path for GDAL:
+                ```python
+                >>> import tempfile
+                >>> from pathlib import Path
+                >>> from pyramids_eo.earthengine import EarthEngineCredentials
+                >>> key = Path(tempfile.mkdtemp()) / "sa.json"
+                >>> _ = key.write_text("{}")
+                >>> EarthEngineCredentials.from_service_account(key).gdal_env() == {
+                ...     "GOOGLE_APPLICATION_CREDENTIALS": str(key)
+                ... }
+                True
+
+                ```
         """
         if self._path is None:
             return {}
@@ -152,6 +235,17 @@ class EarthEngineCredentials:
 
         Yields:
             This :class:`EarthEngineCredentials` instance.
+
+        Examples:
+            - Application-default activation is a no-op that yields the credentials:
+                ```python
+                >>> from pyramids_eo.earthengine import EarthEngineCredentials
+                >>> creds = EarthEngineCredentials.application_default()
+                >>> with creds.activate() as active:
+                ...     active is creds
+                True
+
+                ```
         """
         from osgeo import gdal
 
