@@ -1349,6 +1349,52 @@ class TestMaterialize:
             "Stitched block tiles differ from a direct read"
         )
 
+    def test_preserves_rotated_geotransform_cross_terms(self) -> None:
+        """A rotated source grid keeps its skew terms and stays registered.
+
+        Test scenario:
+            Over a 400x400 gradient with non-zero geotransform cross terms
+            (``gt[2]``/``gt[4]``), the materialised copy carries the same skew and
+            its data equals the source sub-window at the copy's origin pixel — the
+            regression guard for the cross-term handling. If the skew were dropped,
+            the copy's origin would map to a different source pixel and the arrays
+            would diverge.
+        """
+        from osgeo import gdal, osr
+
+        size = 400
+        src = gdal.GetDriverByName("MEM").Create("", size, size, 1, gdal.GDT_Int32)
+        gt = (100.0, 0.01, 0.002, 50.0, 0.003, -0.01)
+        src.SetGeoTransform(gt)
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        src.SetProjection(srs.ExportToWkt())
+        src.GetRasterBand(1).WriteArray(
+            np.arange(size * size, dtype="int32").reshape(size, size)
+        )
+
+        def world(col: int, row: int) -> tuple[float, float]:
+            return gdal.ApplyGeoTransform(gt, col, row)
+
+        corners = [world(100, 100), world(300, 100), world(100, 300), world(300, 300)]
+        xs = [c[0] for c in corners]
+        ys = [c[1] for c in corners]
+        bbox = (min(xs), min(ys), max(xs), max(ys))
+
+        mem = ee_reader._materialize(src, bbox, "EPSG:4326")
+        mem_gt = mem.GetGeoTransform()
+        assert (mem_gt[2], mem_gt[4]) == (gt[2], gt[4]), (
+            "Rotation/skew cross terms must be preserved"
+        )
+        inverse = gdal.InvGeoTransform(gt)
+        origin_col, origin_row = gdal.ApplyGeoTransform(inverse, mem_gt[0], mem_gt[3])
+        reference = src.GetRasterBand(1).ReadAsArray(
+            round(origin_col), round(origin_row), mem.RasterXSize, mem.RasterYSize
+        )
+        assert np.array_equal(mem.ReadAsArray(), reference), (
+            "Rotated sub-window is mis-registered — cross-term math is wrong"
+        )
+
     def test_raises_when_aoi_outside_asset(self) -> None:
         """An AOI that misses the asset raises ``ReaderError``.
 
@@ -1529,3 +1575,31 @@ class TestResample:
             "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), resample="average"
         )
         assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
+
+    def test_resample_changes_downsampled_pixels(self) -> None:
+        """The algorithm reaches the warp — nearest and average differ on downsample.
+
+        Test scenario:
+            Downsampling a 100x100 gradient to 10x10 with ``resample="nearest"``
+            (pick one source pixel per cell) versus ``resample="average"`` (mean of
+            the 10x10 block) yields different arrays, proving ``resample`` is applied
+            in the warp rather than silently ignored.
+        """
+        from osgeo import gdal, osr
+
+        size = 100
+        src = gdal.GetDriverByName("MEM").Create("", size, size, 1, gdal.GDT_Int32)
+        src.SetGeoTransform((86.0, 0.001, 0.0, 29.0, 0.0, -0.001))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        src.SetProjection(srs.ExportToWkt())
+        src.GetRasterBand(1).WriteArray(
+            np.arange(size * size, dtype="int32").reshape(size, size)
+        )
+        bbox = (86.0, 29.0 - size * 0.001, 86.0 + size * 0.001, 29.0)
+        common = {"bbox": bbox, "crs": "EPSG:4326", "scale": None, "shape": (10, 10)}
+        nearest = ee_reader._window(src, resample="nearest", **common).ReadAsArray()
+        average = ee_reader._window(src, resample="average", **common).ReadAsArray()
+        assert not np.array_equal(nearest, average), (
+            "nearest and average must differ — resample is not reaching the warp"
+        )
