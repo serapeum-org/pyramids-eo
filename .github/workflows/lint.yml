@@ -41,7 +41,7 @@ jobs:
       - name: Run pre-commit hooks
         run: pre-commit run --all-files --show-diff-on-failure --color=always
         env:
-          SKIP: no-commit-to-branch,gitleaks,pytest-check
+          SKIP: no-commit-to-branch,gitleaks,pytest-check,doctest
 
   # Src doctests. Need the full `dev` pixi env (typed deps and an importable
   # package) but are not platform- or Python-version-sensitive, so one runner
