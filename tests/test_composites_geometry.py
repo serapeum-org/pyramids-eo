@@ -208,6 +208,16 @@ class TestSolarZenithAngleGrid:
         with pytest.raises(ValueError, match="geographic"):
             solar_zenith_angle(_EQUINOX_NOON, grid=self._grid(epsg=3857))
 
+    def test_grid_without_epsg_raises(self):
+        """A grid with no EPSG (e.g. geostationary) is rejected, not assumed 4326."""
+        import types
+
+        fake = types.SimpleNamespace(
+            epsg=None, lon=np.array([0.0, 1.0]), lat=np.array([0.0, -1.0])
+        )
+        with pytest.raises(ValueError, match="geographic"):
+            solar_zenith_angle(_EQUINOX_NOON, grid=fake)
+
     def test_grid_and_latlon_together_raises(self):
         """Passing both grid and lat/lon is an error."""
         with pytest.raises(ValueError, match="not both"):

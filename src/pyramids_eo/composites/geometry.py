@@ -94,10 +94,11 @@ def solar_zenith_angle(
         if lat is not None or lon is not None:
             raise ValueError("pass either `grid` or (`lat`, `lon`), not both")
         epsg = getattr(grid, "epsg", None)
-        if epsg is not None and int(epsg) != 4326:
+        if epsg is None or int(epsg) != 4326:
             raise ValueError(
-                f"grid must be geographic (EPSG:4326); got EPSG:{epsg}. "
-                "Reproject it with to_crs(4326) first."
+                f"grid must be geographic (EPSG:4326); got EPSG:{epsg}. A grid "
+                "with no EPSG (e.g. geostationary) is not lon/lat — reproject it "
+                "with to_crs(4326) first."
             )
         lon2d, lat2d = np.meshgrid(
             np.asarray(grid.lon, dtype=float), np.asarray(grid.lat, dtype=float)
