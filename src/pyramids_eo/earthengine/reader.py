@@ -723,6 +723,8 @@ def from_earthengine(
         end: Inclusive ISO end of the acquisition window (composite mode).
         reducer: Client-side reducer for the composite mode — one of ``"median"``,
             ``"mean"``, ``"min"``, ``"max"``, ``"sum"``, ``"mode"``, ``"mosaic"``.
+            ``mode`` is computed per pixel in Python, so it is slower than the
+            others over a large AOI.
         credentials: An
             :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a
             path to a service-account JSON key, or ``None`` for ADC.
@@ -730,6 +732,18 @@ def from_earthengine(
     Returns:
         A pyramids :class:`~pyramids.dataset.Dataset` — the windowed image or the
         reduced composite.
+
+    Note:
+        The windowed and composite paths scope the credential config to the read
+        and restore it afterward. The **no-bbox lazy wrap** is the exception: its
+        pixels are read after this returns, so a service-account credential is
+        installed into the **process-global** GDAL config with no restore. That
+        means a later no-bbox call with a *different* service account overwrites it
+        (an earlier still-open lazy ``Dataset`` would then read with the newer
+        credential), and the option leaks into unrelated GDAL work. Prefer passing a
+        ``bbox``/``geometry`` when using a service-account key; ADC mode is
+        unaffected. See also the thread-safety note on
+        :meth:`EarthEngineCredentials.activate`.
 
     Raises:
         ValueError: ``scale`` and ``shape`` are both given; or ``start`` / ``end``

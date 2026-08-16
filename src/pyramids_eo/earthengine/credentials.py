@@ -343,6 +343,13 @@ class EarthEngineCredentials:
         previous value (or clears it) on exit, so the process-wide GDAL config is
         left untouched afterwards.
 
+        Note:
+            GDAL config options are **process-global**, so this save/restore is not
+            thread-safe: two threads activating different service-account
+            credentials concurrently would clobber each other's
+            ``GOOGLE_APPLICATION_CREDENTIALS``. The reader is intended for
+            single-threaded, single-credential use per process.
+
         Yields:
             This :class:`EarthEngineCredentials` instance.
 
