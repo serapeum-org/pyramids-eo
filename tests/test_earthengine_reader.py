@@ -1376,3 +1376,39 @@ class TestCredentialScope:
         assert gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) == before, (
             "Config must be restored after the read (no global leak)"
         )
+
+
+class TestTiledExactShape:
+    """Tiled output must match the requested non-square shape exactly (L1)."""
+
+    def test_non_square_shape_matches_single_read(self) -> None:
+        """A non-square shape via tiling has exact dims and equals the single read.
+
+        Test scenario:
+            shape=(37, 53) with tile_size=16 yields exactly (37, 53), pixel-equal
+            to the non-tiled read.
+        """
+        from osgeo import gdal, osr
+
+        src = gdal.GetDriverByName("MEM").Create("", 200, 200, 1, gdal.GDT_Int16)
+        src.SetGeoTransform((86.0, 0.01, 0.0, 29.0, 0.0, -0.01))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        src.SetProjection(srs.ExportToWkt())
+        src.GetRasterBand(1).WriteArray(
+            np.arange(200 * 200, dtype="int16").reshape(200, 200)
+        )
+        src.GetRasterBand(1).SetNoDataValue(-32768)
+
+        tiled = ee_reader._tiled_window(
+            src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(37, 53), tile_size=16
+        )
+        single = ee_reader._window(
+            src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(37, 53)
+        )
+        assert (tiled.RasterYSize, tiled.RasterXSize) == (37, 53), (
+            f"Tiled dims not exact: {(tiled.RasterYSize, tiled.RasterXSize)}"
+        )
+        assert np.array_equal(tiled.ReadAsArray(), single.ReadAsArray()), (
+            "Non-square tiled mosaic differs from the single read"
+        )

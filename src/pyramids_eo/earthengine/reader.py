@@ -239,16 +239,21 @@ def _tiled_window(
                     f"{gdal.GetLastErrorMsg() or 'no detail'}"
                 )
             tiles.append(tile)
-    mosaic = gdal.Warp(
-        "",
-        tiles,
-        format="MEM",
-        outputBounds=[min_x, min_y, max_x, max_y],
-        outputBoundsSRS=crs,
-        dstSRS=crs,
-        xRes=px_x,
-        yRes=px_y,
-    )
+    mosaic_kwargs: dict[str, object] = {
+        "format": "MEM",
+        "outputBounds": [min_x, min_y, max_x, max_y],
+        "outputBoundsSRS": crs,
+        "dstSRS": crs,
+    }
+    if shape is not None:
+        # Size the mosaic to the exact requested grid, matching the non-tiled
+        # `_window(shape=...)` path instead of rounding from the pixel size.
+        mosaic_kwargs["width"] = cols
+        mosaic_kwargs["height"] = rows
+    else:
+        mosaic_kwargs["xRes"] = px_x
+        mosaic_kwargs["yRes"] = px_y
+    mosaic = gdal.Warp("", tiles, **mosaic_kwargs)
     if mosaic is None:
         raise ReaderError(
             f"Earth Engine tiled read failed to mosaic to {bbox} in {crs}: "
