@@ -63,7 +63,8 @@ class TestRadianceToReflectance:
             np.full(3, 10.0), solar_irradiance=50.0, cos_sza=np.array([0.5, 0.0, -0.2])
         )
         assert np.isfinite(out[0]), "positive cos_sza should stay finite"
-        assert np.isnan(out[1]) and np.isnan(out[2]), "non-positive should be NaN"
+        assert np.isnan(out[1]), "cos_sza 0 (terminator) should be NaN"
+        assert np.isnan(out[2]), "negative cos_sza should be NaN"
 
 
 class TestRadianceToBrightnessTemperature:
@@ -97,7 +98,8 @@ class TestRadianceToBrightnessTemperature:
     def test_non_positive_radiance_is_nan(self):
         """Zero or negative radiance yields NaN, not a crash."""
         out = radiance_to_brightness_temperature(np.array([0.0, -1.0, 5.0]), 930.647)
-        assert np.isnan(out[0]) and np.isnan(out[1]), f"got {out}"
+        assert np.isnan(out[0]), f"zero radiance should be NaN, got {out}"
+        assert np.isnan(out[1]), f"negative radiance should be NaN, got {out}"
         assert np.isfinite(out[2]), "positive radiance should be finite"
 
     def test_non_positive_wavenumber_raises(self):
@@ -117,8 +119,10 @@ class TestGetSensor:
     def test_fci_loads_expected_channels(self):
         """The FCI table exposes its solar and thermal channels."""
         fci = get_sensor("fci")
-        assert isinstance(fci, Sensor) and fci.name == "fci"
-        assert "ir_105" in fci.channels and "vis_06" in fci.channels
+        assert isinstance(fci, Sensor), f"expected a Sensor, got {type(fci)}"
+        assert fci.name == "fci", f"expected name 'fci', got {fci.name}"
+        assert "ir_105" in fci.channels, "ir_105 should be present"
+        assert "vis_06" in fci.channels, "vis_06 should be present"
 
     def test_seviri_loads(self):
         """The SEVIRI table loads and carries the IR_108 Planck constants."""
@@ -147,8 +151,9 @@ class TestGetSensor:
     def test_solar_channel_has_irradiance(self):
         """A solar channel carries a solar irradiance and no wavenumber."""
         vis = get_sensor("fci").get_channel("vis_06")
-        assert vis.kind == "solar" and vis.solar_irradiance is not None
-        assert vis.central_wavenumber_cm1 is None
+        assert vis.kind == "solar", f"expected solar, got {vis.kind}"
+        assert vis.solar_irradiance is not None, "solar channel should carry E0"
+        assert vis.central_wavenumber_cm1 is None, "solar channel has no wavenumber"
 
 
 class TestSensorChannel:
@@ -157,12 +162,14 @@ class TestSensorChannel:
     def test_get_channel_returns_record(self):
         """A known channel returns its Channel record."""
         ch = get_sensor("fci").get_channel("ir_105")
-        assert isinstance(ch, Channel) and ch.name == "ir_105"
+        assert isinstance(ch, Channel), f"expected a Channel, got {type(ch)}"
+        assert ch.name == "ir_105", f"expected name 'ir_105', got {ch.name}"
 
     def test_unknown_channel_raises(self):
         """An unknown channel lists the known ones."""
+        fci = get_sensor("fci")
         with pytest.raises(UnknownSensorError, match="has no channel"):
-            get_sensor("fci").get_channel("does_not_exist")
+            fci.get_channel("does_not_exist")
 
     def test_channel_is_frozen(self):
         """Channel records are immutable."""

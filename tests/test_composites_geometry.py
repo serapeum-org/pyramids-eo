@@ -86,7 +86,8 @@ class TestSolarZenithAngle:
         lon = np.linspace(-180, 180, 9)
         lon2d, lat2d = np.meshgrid(lon, lat)
         out = solar_zenith_angle(_EQUINOX_NOON, lat=lat2d, lon=lon2d)
-        assert out.min() >= 0.0 and out.max() <= 180.0
+        assert out.min() >= 0.0, f"SZA below 0 degrees: {out.min()}"
+        assert out.max() <= 180.0, f"SZA above 180 degrees: {out.max()}"
 
     def test_naive_time_treated_as_utc(self):
         """A naive datetime yields the same result as the equivalent UTC-aware one."""
@@ -205,8 +206,9 @@ class TestSolarZenithAngleGrid:
 
     def test_non_geographic_grid_raises(self):
         """A projected (non-4326) grid is rejected with a clear message."""
+        grid = self._grid(epsg=3857)
         with pytest.raises(ValueError, match="geographic"):
-            solar_zenith_angle(_EQUINOX_NOON, grid=self._grid(epsg=3857))
+            solar_zenith_angle(_EQUINOX_NOON, grid=grid)
 
     def test_grid_without_epsg_raises(self):
         """A grid with no EPSG (e.g. geostationary) is rejected, not assumed 4326."""
@@ -220,5 +222,6 @@ class TestSolarZenithAngleGrid:
 
     def test_grid_and_latlon_together_raises(self):
         """Passing both grid and lat/lon is an error."""
+        grid = self._grid()
         with pytest.raises(ValueError, match="not both"):
-            solar_zenith_angle(_EQUINOX_NOON, grid=self._grid(), lat=0.0, lon=0.0)
+            solar_zenith_angle(_EQUINOX_NOON, grid=grid, lat=0.0, lon=0.0)

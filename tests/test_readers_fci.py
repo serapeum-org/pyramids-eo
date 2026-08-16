@@ -38,9 +38,8 @@ class TestReadFci:
         out = read_fci([top, bottom], "ir_105", calibrate=False)
         assert out.shape[-2:] == (4, 3), f"expected 4 stitched rows, got {out.shape}"
         arr = out.read_array()
-        assert np.allclose(arr[:2], 5.0) and np.allclose(arr[2:], 9.0), (
-            "row order wrong"
-        )
+        assert np.allclose(arr[:2], 5.0), "top rows should be the first chunk"
+        assert np.allclose(arr[2:], 9.0), "bottom rows should be the second chunk"
 
     def test_thermal_channel_calibrated_to_bt(self):
         """A thermal channel is calibrated to brightness temperature."""
@@ -86,7 +85,8 @@ class TestReadFci:
         north = _chunk(np.full((2, 3), 5.0), tlc=(0.0, 4.0))
         out = read_fci([south, north], "ir_105", calibrate=False)
         arr = out.read_array()
-        assert np.allclose(arr[:2], 5.0) and np.allclose(arr[2:], 9.0), "not reordered"
+        assert np.allclose(arr[:2], 5.0), "top rows should be the north chunk"
+        assert np.allclose(arr[2:], 9.0), "bottom rows should be the south chunk"
         assert out.geotransform == north.geotransform, (
             "origin should be the north chunk"
         )
@@ -125,8 +125,9 @@ class TestReadFci:
 
     def test_unknown_channel_raises(self):
         """An unknown channel surfaces UnknownSensorError from the registry."""
+        chunk = _chunk(np.ones((2, 2)))
         with pytest.raises(UnknownSensorError, match="has no channel"):
-            read_fci([_chunk(np.ones((2, 2)))], "not_a_channel")
+            read_fci([chunk], "not_a_channel")
 
     def test_coeffs_override_solar_irradiance(self):
         """Per-granule coeffs override the registry solar irradiance."""
@@ -147,8 +148,9 @@ class TestReadFci:
 
     def test_coeffs_alpha_zero_not_coerced_to_one(self):
         """A coeffs alpha of 0 surfaces the invalid-alpha error (not silently 1.0)."""
+        chunk = _chunk(np.ones((2, 2)))
         with pytest.raises(CalibrationError, match="alpha"):
-            read_fci([_chunk(np.ones((2, 2)))], "ir_105", coeffs={"alpha": 0.0})
+            read_fci([chunk], "ir_105", coeffs={"alpha": 0.0})
 
     def test_open_chunk_used_for_non_dataset(self):
         """A non-Dataset chunk is opened via the injected open_chunk callable."""
@@ -171,8 +173,9 @@ class TestReadFci:
         monkeypatch.setattr(
             "pyramids_eo.readers._common.get_sensor", lambda name: broken
         )
+        chunk = _chunk(np.ones((2, 2)))
         with pytest.raises(CalibrationError, match="solar_irradiance"):
-            read_fci([_chunk(np.ones((2, 2)))], "x")
+            read_fci([chunk], "x")
 
     def test_thermal_channel_missing_wavenumber_raises(self, monkeypatch):
         """A thermal channel without a central wavenumber raises CalibrationError."""
@@ -185,8 +188,9 @@ class TestReadFci:
         monkeypatch.setattr(
             "pyramids_eo.readers._common.get_sensor", lambda name: broken
         )
+        chunk = _chunk(np.ones((2, 2)))
         with pytest.raises(CalibrationError, match="central_wavenumber"):
-            read_fci([_chunk(np.ones((2, 2)))], "y")
+            read_fci([chunk], "y")
 
 
 class TestDefaultOpenChunk:

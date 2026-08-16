@@ -73,7 +73,8 @@ class TestTrueColor:
             np.full((1, 1), 0.5),
             clip=True,
         )
-        assert out.max() <= 1.0 and out.min() >= 0.0, f"not clipped: {out.ravel()}"
+        assert out.max() <= 1.0, f"not clipped high: {out.ravel()}"
+        assert out.min() >= 0.0, f"not clipped low: {out.ravel()}"
 
     def test_dataset_inputs_return_dataset(self):
         """Dataset inputs yield a georeferenced Dataset."""

@@ -224,7 +224,8 @@ class TestStaticImage:
         cache = tmp_path / "cache"
         first = static_image("https://host/bm.tif", cache_dir=cache)
         second = static_image("https://host/bm.tif", cache_dir=cache)
-        assert isinstance(first, Dataset) and isinstance(second, Dataset)
+        assert isinstance(first, Dataset), f"first load not a Dataset: {type(first)}"
+        assert isinstance(second, Dataset), f"second load not a Dataset: {type(second)}"
         assert calls["n"] == 1, f"download should run once, ran {calls['n']} times"
         assert _cache_path(cache, "https://host/bm.tif").exists(), (
             "cache should persist"

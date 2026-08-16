@@ -95,18 +95,21 @@ class TestAlphaOverlay:
 
     def test_foreground_without_alpha_raises(self):
         """A 3-band (no alpha) foreground is rejected."""
+        foreground, background = _rgb(1, 0, 0), _rgb(0, 0, 1)
         with pytest.raises(ValueError, match="foreground"):
-            alpha_overlay(_rgb(1, 0, 0), _rgb(0, 0, 1))
+            alpha_overlay(foreground, background)
 
     def test_foreground_not_3d_raises(self):
         """A 2-D foreground is rejected."""
+        foreground, background = np.ones((4, 4)), _rgb(0, 0, 1)
         with pytest.raises(ValueError, match="foreground"):
-            alpha_overlay(np.ones((4, 4)), _rgb(0, 0, 1))
+            alpha_overlay(foreground, background)
 
     def test_background_wrong_band_count_raises(self):
         """A background with an unsupported band count is rejected."""
+        foreground, background = _rgba(1, 0, 0, 0.5), np.ones((2, 1, 1))
         with pytest.raises(ValueError, match="background"):
-            alpha_overlay(_rgba(1, 0, 0, 0.5), np.ones((2, 1, 1)))
+            alpha_overlay(foreground, background)
 
 
 class TestAlphaOverlayDataset:

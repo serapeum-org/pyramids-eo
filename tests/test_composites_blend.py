@@ -151,7 +151,8 @@ class TestDayNightBlend:
         sza = np.array([[0.0, 180.0], [0.0, 180.0]])
         out = day_night_blend(day, night, sza)
         assert out.shape == (3, 2, 2), f"expected (3, 2, 2), got {out.shape}"
-        assert np.allclose(out[:, :, 0], 1.0) and np.allclose(out[:, :, 1], 0.0)
+        assert np.allclose(out[:, :, 0], 1.0), "day column should be the day image"
+        assert np.allclose(out[:, :, 1], 0.0), "night column should be the night image"
 
     def test_day_only_mode_ignores_night(self):
         """day_only returns day * weight, so the night side goes to zero."""
@@ -159,7 +160,8 @@ class TestDayNightBlend:
         night = np.full((1, 2), 9.0)
         sza = np.array([[0.0, 180.0]])
         out = day_night_blend(day, night, sza, mode="day_only")
-        assert out[0, 0] == pytest.approx(4.0) and out[0, 1] == pytest.approx(0.0)
+        assert out[0, 0] == pytest.approx(4.0), "day side should keep the day value"
+        assert out[0, 1] == pytest.approx(0.0), "night side should be zeroed"
 
     def test_night_only_mode_ignores_day(self):
         """night_only returns night * (1 - weight), so the day side goes to zero."""
@@ -167,7 +169,8 @@ class TestDayNightBlend:
         night = np.full((1, 2), 9.0)
         sza = np.array([[0.0, 180.0]])
         out = day_night_blend(day, night, sza, mode="night_only")
-        assert out[0, 0] == pytest.approx(0.0) and out[0, 1] == pytest.approx(9.0)
+        assert out[0, 0] == pytest.approx(0.0), "day side should be zeroed"
+        assert out[0, 1] == pytest.approx(9.0), "night side should keep the night value"
 
     def test_unknown_mode_raises(self):
         """An unknown blend mode is rejected."""

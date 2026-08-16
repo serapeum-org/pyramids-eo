@@ -34,7 +34,8 @@ class TestHarmonise:
         """An iterable of bands returns a list aligned to the reference grid."""
         reference = _grid((2, 2), cell=2.0)
         out = harmonise([_grid((4, 4), cell=1.0), _grid((2, 2), cell=2.0)], reference)
-        assert isinstance(out, list) and len(out) == 2, "expected a list of two"
+        assert isinstance(out, list), f"expected a list, got {type(out)}"
+        assert len(out) == 2, f"expected two bands, got {len(out)}"
         assert all((d.rows, d.columns) == (2, 2) for d in out), "bands not aligned"
 
     def test_nearest_method_matches_default(self):
@@ -64,15 +65,18 @@ class TestHarmonise:
 
     def test_none_reference_raises(self):
         """A missing reference grid is a ReaderError."""
+        band = _grid((2, 2))
         with pytest.raises(ReaderError, match="reference"):
-            harmonise([_grid((2, 2))], None)
+            harmonise([band], None)
 
     def test_empty_dict_raises(self):
         """An empty mapping of bands is a ReaderError."""
+        reference = _grid((2, 2))
         with pytest.raises(ReaderError, match="no bands"):
-            harmonise({}, _grid((2, 2)))
+            harmonise({}, reference)
 
     def test_empty_list_raises(self):
         """An empty iterable of bands is a ReaderError."""
+        reference = _grid((2, 2))
         with pytest.raises(ReaderError, match="no bands"):
-            harmonise([], _grid((2, 2)))
+            harmonise([], reference)

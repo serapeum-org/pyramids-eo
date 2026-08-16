@@ -59,7 +59,8 @@ class TestReadSeviri:
         """The result carries the source CRS + geotransform."""
         src = _ds(np.ones((2, 2)))
         out = read_seviri(src, "IR_108")
-        assert out.epsg == 4326 and out.geotransform == src.geotransform
+        assert out.epsg == 4326, f"CRS should be preserved, got {out.epsg}"
+        assert out.geotransform == src.geotransform, "geotransform should be preserved"
 
     def test_parse_used_for_non_dataset(self):
         """A non-Dataset source is decoded via the injected `parse` callable."""
@@ -75,8 +76,9 @@ class TestReadSeviri:
 
     def test_unknown_channel_raises(self):
         """An unknown channel surfaces UnknownSensorError."""
+        src = _ds(np.ones((2, 2)))
         with pytest.raises(UnknownSensorError, match="has no channel"):
-            read_seviri(_ds(np.ones((2, 2))), "NOPE")
+            read_seviri(src, "NOPE")
 
     def test_coeffs_override_thermal_constants(self):
         """Per-granule coeffs override the registry Planck constants."""
@@ -119,8 +121,9 @@ class TestCalibrateChannelCoeffs:
         monkeypatch.setattr(
             "pyramids_eo.readers._common.get_sensor", lambda name: broken
         )
+        src = _ds(np.ones((2, 2)))
         with pytest.raises(CalibrationError, match="central_wavenumber"):
-            read_seviri(_ds(np.ones((2, 2))), "z")
+            read_seviri(src, "z")
 
 
 class TestDefaultParse:
