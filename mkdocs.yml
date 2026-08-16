@@ -106,7 +106,10 @@ nav:
   - Guides:
     - STAC provider signers: stac-signers.md
   - Examples:
-    - Day/night compositing: examples/eclipse_day_night.ipynb
+    - Sensor registry & calibration: examples/registry_calibration.ipynb
+    - FCI / SEVIRI readers & harmonise: examples/readers_fci_seviri_harmonise.ipynb
+    - Day/night compositing primitives: examples/day_night_compositing.ipynb
+    - Day/night + eclipse (end to end): examples/eclipse_day_night.ipynb
   - Reference:
     - Overview: reference/index.md
     - Readers: reference/readers.md
