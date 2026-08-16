@@ -105,6 +105,8 @@ nav:
     - Installation: installation.md
   - Guides:
     - STAC provider signers: stac-signers.md
+  - Examples:
+    - Day/night compositing: examples/eclipse_day_night.ipynb
   - Reference:
     - Overview: reference/index.md
     - Readers: reference/readers.md
