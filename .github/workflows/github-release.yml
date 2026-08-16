@@ -38,6 +38,8 @@ on:
 jobs:
   pure-wheel-test:
     uses: ./.github/workflows/pure-wheel-test.yml
+    with:
+      branch: ${{ inputs.release-branch }}
 
   release:
     needs: pure-wheel-test

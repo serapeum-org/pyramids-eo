@@ -14,6 +14,12 @@ on:
         default: ""
         type: string
   workflow_call:
+    inputs:
+      branch:
+        description: "Ref to build and test (passed by the calling workflow)"
+        required: false
+        default: ""
+        type: string
 
 jobs:
   build-wheel:
