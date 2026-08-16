@@ -1306,6 +1306,48 @@ class TestMaterialize:
         assert mem.RasterCount == 1, "Materialised copy should keep the band count"
         assert int(mem.ReadAsArray().max()) == 42, "Constant fill should be preserved"
 
+    def test_stitches_tiles_across_block_boundary(self) -> None:
+        """A window spanning several 256-px blocks is stitched exactly.
+
+        Test scenario:
+            Over a 600x600 gradient source (so no block is constant and the window
+            crosses the 256/512 boundaries), the materialised array equals the
+            source's exact sub-window — the regression guard for the block-stitch
+            math that the corruption fix relies on.
+        """
+        from osgeo import gdal, osr
+
+        size = 600
+        src = gdal.GetDriverByName("MEM").Create("", size, size, 1, gdal.GDT_Int32)
+        src.SetGeoTransform((86.0, 0.001, 0.0, 29.0, 0.0, -0.001))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        src.SetProjection(srs.ExportToWkt())
+        src.GetRasterBand(1).WriteArray(
+            np.arange(size * size, dtype="int32").reshape(size, size)
+        )
+        # bbox covering native pixels ~[100, 500) on each axis -> a ~400 px window
+        # that straddles the 256 and 512 block boundaries.
+        bbox = (
+            86.0 + 100 * 0.001,
+            29.0 - 500 * 0.001,
+            86.0 + 500 * 0.001,
+            29.0 - 100 * 0.001,
+        )
+        mem = ee_reader._materialize(src, bbox, "EPSG:4326")
+        assert mem.RasterXSize > 256 and mem.RasterYSize > 256, (
+            "window must span more than one 256-px block to exercise the stitch"
+        )
+        inverse = gdal.InvGeoTransform(src.GetGeoTransform())
+        mem_gt = mem.GetGeoTransform()
+        origin_col, origin_row = gdal.ApplyGeoTransform(inverse, mem_gt[0], mem_gt[3])
+        reference = src.GetRasterBand(1).ReadAsArray(
+            round(origin_col), round(origin_row), mem.RasterXSize, mem.RasterYSize
+        )
+        assert np.array_equal(mem.ReadAsArray(), reference), (
+            "Stitched block tiles differ from a direct read"
+        )
+
     def test_raises_when_aoi_outside_asset(self) -> None:
         """An AOI that misses the asset raises ``ReaderError``.
 
