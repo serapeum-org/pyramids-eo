@@ -44,7 +44,7 @@ def _synthetic_srtm(fill: int = 42):
     return src
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def patched_eedai(monkeypatch):
     """Replace the EEDAI open seam with the synthetic raster.
 
@@ -210,7 +210,8 @@ class TestFromEarthengine:
         assert isinstance(ds, Dataset), f"Expected a Dataset, got {type(ds)}"
         assert ds.epsg == 4326, f"Expected EPSG:4326, got {ds.epsg}"
         _bands, rows, cols = ds.shape
-        assert rows > 0 and cols > 0, f"Expected a non-empty window, got {rows}x{cols}"
+        assert rows > 0, f"Expected a non-empty window, got {rows} rows"
+        assert cols > 0, f"Expected a non-empty window, got {cols} cols"
 
     @pytest.mark.live
     def test_live_median_composite(self) -> None:
@@ -261,7 +262,7 @@ class TestCollectionFromEarthengineLive:
         )
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def key_tmp(tmp_path):
     """Provide a dummy service-account key path.
 
@@ -325,12 +326,9 @@ class TestOpenEedai:
         """
         fake = _FakeGdal(None, last_error="permission denied")
         monkeypatch.setattr(ee_reader, "gdal", fake)
+        creds = EarthEngineCredentials.application_default()
         with pytest.raises(ReaderError, match="permission denied") as exc_info:
-            ee_reader._open_eedai(
-                "USGS/SRTMGL1_003",
-                bands=None,
-                credentials=EarthEngineCredentials.application_default(),
-            )
+            ee_reader._open_eedai("USGS/SRTMGL1_003", bands=None, credentials=creds)
         assert "USGS/SRTMGL1_003" in str(exc_info.value), (
             f"Error should name the asset, got: {exc_info.value}"
         )
@@ -418,7 +416,7 @@ class _FakeEeda:
         return self._last_error
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def three_scenes(monkeypatch):
     """Patch scene discovery to return three fixed scenes and stub the raster open.
 
@@ -685,13 +683,14 @@ class TestDiscoverScenes:
             ``OpenEx`` returning ``None`` surfaces the GDAL error as ``ReaderError``.
         """
         monkeypatch.setattr(ee_reader, "gdal", _FakeEeda(None, last_error="no access"))
+        creds = EarthEngineCredentials.application_default()
         with pytest.raises(ReaderError, match="no access"):
             ee_reader._discover_scenes(
                 "COPERNICUS/S2_SR_HARMONIZED",
                 start="2024-06-01",
                 end="2024-06-30",
                 bbox_4326=(0.0, 0.0, 1.0, 1.0),
-                credentials=EarthEngineCredentials.application_default(),
+                credentials=creds,
             )
 
 
@@ -876,8 +875,9 @@ class TestGeometryClip:
         Test scenario:
             An object with no `total_bounds` cannot yield a window.
         """
+        no_bounds = object()
         with pytest.raises(ReaderError, match="total_bounds"):
-            ee_reader._geometry_bounds(object())
+            ee_reader._geometry_bounds(no_bounds)
 
     def test_composite_clips_to_polygon(self, three_scenes) -> None:
         """The composite mode clips its output to the polygon.
@@ -1101,10 +1101,11 @@ class TestTiledWindow:
                 return None
             return real_warp(dest, src, **kwargs)
 
+        src = self._ramped_src()
         monkeypatch.setattr(ee_reader.gdal, "Warp", _warp)
         with pytest.raises(ReaderError, match="mosaic"):
             ee_reader._tiled_window(
-                self._ramped_src(),
+                src,
                 bbox=_BBOX,
                 crs="EPSG:4326",
                 scale=None,
@@ -1257,13 +1258,14 @@ class TestGeometryCrs:
         Test scenario:
             An injection-style start value raises ReaderError, not a broken query.
         """
+        creds = EarthEngineCredentials.application_default()
         with pytest.raises(ReaderError, match="ISO date"):
             ee_reader._discover_scenes(
                 "COPERNICUS/S2_SR_HARMONIZED",
                 start="2024' OR '1'='1",
                 end="2024-06-30",
                 bbox_4326=(0.0, 0.0, 1.0, 1.0),
-                credentials=EarthEngineCredentials.application_default(),
+                credentials=creds,
             )
 
     def test_tile_read_failure_raises(self, monkeypatch) -> None:
@@ -1273,10 +1275,11 @@ class TestGeometryCrs:
             ``gdal.Warp`` returning None for a single-source tile read surfaces as
             ``ReaderError``.
         """
+        src = _synthetic_srtm()
         monkeypatch.setattr(ee_reader.gdal, "Warp", lambda dest, src, **kw: None)
         with pytest.raises(ReaderError, match="tile"):
             ee_reader._tiled_window(
-                _synthetic_srtm(),
+                src,
                 bbox=_BBOX,
                 crs="EPSG:4326",
                 scale=None,
@@ -1329,10 +1332,9 @@ class TestMultibandComposite:
             _multiband_scene(2),
             _multiband_scene(1, fills=(5,), nodatas=(-1,)),
         ]
+        creds = EarthEngineCredentials.application_default()
         with pytest.raises(ReaderError, match="mismatched band counts"):
-            ee_reader._composite(
-                windowed, "max", EarthEngineCredentials.application_default()
-            )
+            ee_reader._composite(windowed, "max", creds)
 
 
 class TestTileSizeGuard:

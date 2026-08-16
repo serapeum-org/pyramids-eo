@@ -17,7 +17,7 @@ from pyramids_eo.earthengine.credentials import GOOGLE_APPLICATION_CREDENTIALS
 from pyramids_eo.errors import AuthenticationError
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def key_file(tmp_path: Path) -> Path:
     """Create a dummy service-account JSON key file.
 
@@ -236,7 +236,8 @@ class TestFromServiceAccountInfo:
             {"type": "service_account"}
         )
         path = creds.service_account_path
-        assert path is not None and path.is_file(), f"Key file not materialised: {path}"
+        assert path is not None, "Key file path should be set"
+        assert path.is_file(), f"Key file not materialised: {path}"
         assert creds.gdal_env() == {GOOGLE_APPLICATION_CREDENTIALS: str(path)}, (
             f"Unexpected gdal_env: {creds.gdal_env()}"
         )
