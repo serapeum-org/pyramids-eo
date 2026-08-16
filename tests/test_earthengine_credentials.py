@@ -317,3 +317,13 @@ class TestFromServiceAccountInfo:
         assert creds.service_account_path.is_file(), (
             "coerce(dict) should build inline credentials"
         )
+
+    def test_non_serialisable_dict_raises(self) -> None:
+        """A dict with a non-JSON value is wrapped as AuthenticationError.
+
+        Test scenario:
+            ``{"k": {1, 2}}`` (a set value) raises AuthenticationError, not a raw
+            TypeError.
+        """
+        with pytest.raises(AuthenticationError, match="not JSON-serialisable"):
+            EarthEngineCredentials.from_service_account_info({"k": {1, 2}})

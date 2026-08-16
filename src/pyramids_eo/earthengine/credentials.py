@@ -173,7 +173,12 @@ class EarthEngineCredentials:
                 ```
         """
         if isinstance(info, dict):
-            text = json.dumps(info)
+            try:
+                text = json.dumps(info)
+            except (TypeError, ValueError) as exc:
+                raise AuthenticationError(
+                    "Earth Engine service-account info is not JSON-serialisable."
+                ) from exc
         elif isinstance(info, str):
             try:
                 json.loads(info)
