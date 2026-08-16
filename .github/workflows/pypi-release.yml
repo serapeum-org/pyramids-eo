@@ -71,12 +71,17 @@ jobs:
         run: |
           set -euo pipefail
           TAG=$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/')
-          if gh api "repos/${REPO}/releases/tags/${TAG}" >/dev/null 2>&1; then
+          ERR="${RUNNER_TEMP}/gh-release-check.err"
+          if gh api "repos/${REPO}/releases/tags/${TAG}" >/dev/null 2>"${ERR}"; then
             echo "Published release ${TAG} found — proceeding."
             echo "publish=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "No published release for ${TAG} (draft or missing) — skipping publish."
+          elif grep -q 'HTTP 404' "${ERR}"; then
+            echo "No published release for ${TAG} (draft or not yet published) — skipping publish."
             echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::could not verify release ${TAG} (GitHub API error, not a 404)"
+            cat "${ERR}"
+            exit 1
           fi
 
       - name: Build and publish sdist + pure wheel
