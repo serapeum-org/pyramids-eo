@@ -99,4 +99,8 @@ def read_seviri(
 
     from pyramids.dataset import Dataset
 
-    return Dataset.create_from_array(data, geo=dataset.geotransform, epsg=dataset.epsg)
+    # Calibration can produce NaN (terminator reflectance / non-positive
+    # radiance), so declare NaN as nodata rather than the default -9999.
+    return Dataset.create_from_array(
+        data, geo=dataset.geotransform, epsg=dataset.epsg, no_data_value=np.nan
+    )

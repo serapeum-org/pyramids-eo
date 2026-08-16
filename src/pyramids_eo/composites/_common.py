@@ -48,4 +48,8 @@ def _wrap_like(out: np.ndarray, *candidates: Any) -> Any:
 
     from pyramids.dataset import Dataset
 
-    return Dataset.create_from_array(out, geo=template.geotransform, epsg=template.epsg)
+    # Composited data can legitimately hold NaN (masked terminator / gaps), so
+    # declare NaN as the nodata value rather than the default -9999 sentinel.
+    return Dataset.create_from_array(
+        out, geo=template.geotransform, epsg=template.epsg, no_data_value=np.nan
+    )

@@ -120,7 +120,11 @@ def read_fci(
     from pyramids.dataset import Dataset
 
     north = ordered[0]
-    return Dataset.create_from_array(data, geo=north.geotransform, epsg=north.epsg)
+    # Calibration can produce NaN (terminator reflectance / non-positive
+    # radiance), so declare NaN as nodata rather than the default -9999.
+    return Dataset.create_from_array(
+        data, geo=north.geotransform, epsg=north.epsg, no_data_value=np.nan
+    )
 
 
 def _validate_chunk_grid(datasets: list) -> None:

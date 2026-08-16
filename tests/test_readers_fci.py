@@ -66,6 +66,13 @@ class TestReadFci:
         out = read_fci([_chunk(radiance)], "ir_105", calibrate=False)
         assert np.allclose(out.read_array(), 42.0), "raw radiance should pass through"
 
+    def test_output_declares_nan_nodata(self):
+        """The calibrated output declares NaN as its nodata (not the -9999 default)."""
+        out = read_fci([_chunk(np.ones((2, 2)))], "ir_105")
+        assert np.isnan(out.no_data_value[0]), (
+            f"nodata should be NaN: {out.no_data_value}"
+        )
+
     def test_geolocation_from_northernmost_chunk(self):
         """The result carries the northernmost chunk's CRS + geotransform."""
         north = _chunk(np.ones((2, 2)), tlc=(0.0, 4.0))
