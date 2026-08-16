@@ -89,7 +89,11 @@ def _cache_path(cache: Path, url: str) -> Path:
 
 
 def _resolve_source(
-    source: Any, cache_dir: Any, timeout: float, max_bytes: int = _DEFAULT_MAX_BYTES
+    source: Any,
+    cache_dir: Any,
+    timeout: float,
+    max_bytes: int = _DEFAULT_MAX_BYTES,
+    refresh: bool = False,
 ) -> Path:
     """Return a local path for `source`, downloading + caching a URL if needed.
 
@@ -99,6 +103,9 @@ def _resolve_source(
         cache_dir: Directory to cache a downloaded URL (default `_DEFAULT_CACHE`).
         timeout: Per-request timeout in seconds for a download.
         max_bytes: Maximum bytes to accept for a download.
+        refresh: When `True`, re-download a URL even if a cached copy exists
+            (cache reuse is otherwise size-only, so a changed remote is not
+            picked up).
 
     Returns:
         The path to the local (possibly just-cached) file.
@@ -111,7 +118,7 @@ def _resolve_source(
         cache = Path(cache_dir) if cache_dir is not None else _DEFAULT_CACHE
         cache.mkdir(parents=True, exist_ok=True)
         target = _cache_path(cache, str(source))
-        if not (target.exists() and target.stat().st_size > 0):
+        if refresh or not (target.exists() and target.stat().st_size > 0):
             _download(str(source), target, timeout, max_bytes)
         return target
     path = Path(source)
@@ -127,6 +134,7 @@ def static_image(
     cache_dir: Any = None,
     timeout: float = 60.0,
     max_bytes: int = _DEFAULT_MAX_BYTES,
+    refresh: bool = False,
 ) -> Any:
     """Load a georeferenced image, caching a remote URL and warping to a grid.
 
@@ -146,6 +154,8 @@ def static_image(
         timeout: Per-request download timeout in seconds (default 60).
         max_bytes: Cap on a URL download in bytes (default ~1 GB) — guards against
             an oversized/hostile URL filling the cache.
+        refresh: When `True`, re-download a URL even if it is already cached
+            (the cache is otherwise reused whenever the file is present).
 
     Returns:
         A pyramids `Dataset` — aligned to `like`'s grid when `like` is given,
@@ -155,7 +165,7 @@ def static_image(
         FileNotFoundError: When a local `source` does not exist.
         EOError: When a URL download exceeds `max_bytes`.
     """
-    path = _resolve_source(source, cache_dir, timeout, max_bytes)
+    path = _resolve_source(source, cache_dir, timeout, max_bytes, refresh)
 
     from pyramids.dataset import Dataset
 

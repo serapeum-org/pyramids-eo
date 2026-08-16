@@ -147,6 +147,22 @@ class TestResolveSource:
         out = _resolve_source("https://host/dir/bm.tif", cache, 5.0)
         assert out.read_bytes() == b"cached", "cached file should be reused"
 
+    def test_refresh_forces_redownload(self, tmp_path, monkeypatch):
+        """refresh=True re-downloads even when a cached file exists."""
+        cache = tmp_path / "cache"
+        cache.mkdir()
+        _cache_path(cache, "https://host/bm.tif").write_bytes(b"stale")
+        calls = {"n": 0}
+
+        def _fake_dl(url, target, timeout, max_bytes=None):
+            calls["n"] += 1
+            Path(target).write_bytes(b"fresh")
+
+        monkeypatch.setattr("pyramids_eo.composites.background._download", _fake_dl)
+        out = _resolve_source("https://host/bm.tif", cache, 5.0, refresh=True)
+        assert calls["n"] == 1, "refresh should force a re-download"
+        assert out.read_bytes() == b"fresh", "cache should hold the fresh bytes"
+
     def test_default_cache_used_when_cache_dir_none(self, tmp_path, monkeypatch):
         """With cache_dir=None the module's default cache directory is used."""
         default = tmp_path / "default-cache"
