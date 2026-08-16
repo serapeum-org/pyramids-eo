@@ -111,6 +111,7 @@ nav:
     - Registry: reference/registry.md
     - Errors: reference/errors.md
     - STAC signers: reference/stac.md
+    - Composites: reference/composites.md
   - About:
     - Change-log: change-log.md
     - Code of Conduct: CODE_OF_CONDUCT.md

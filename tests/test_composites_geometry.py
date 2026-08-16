@@ -1,0 +1,118 @@
+"""Unit tests for `pyramids_eo.composites.solar_zenith_angle` (offline, deterministic)."""
+
+from __future__ import annotations
+
+import datetime as dt
+
+import numpy as np
+import pytest
+from pyramids.dataset import Dataset
+
+from pyramids_eo.composites import solar_zenith_angle
+
+# Equinox solar noon at Greenwich: the subsolar point sits near (0degN, 0degE),
+# so SZA is ~0 there and ~180 at the antipode. A fixed instant keeps it deterministic.
+_EQUINOX_NOON = dt.datetime(2024, 3, 20, 12, 0, 0, tzinfo=dt.timezone.utc)
+
+
+class TestSolarZenithAngle:
+    """The NOAA solar-position port returns per-pixel zenith angles in degrees."""
+
+    def test_subsolar_point_is_near_zero(self):
+        """At equinox noon the Sun is nearly overhead at (0, 0), so SZA ~ 0."""
+        assert float(solar_zenith_angle(_EQUINOX_NOON, lat=0.0, lon=0.0)) < 5.0
+
+    def test_antisolar_point_is_near_180(self):
+        """The antipode of the subsolar point is in deep night (SZA ~ 180)."""
+        assert float(solar_zenith_angle(_EQUINOX_NOON, lat=0.0, lon=180.0)) > 175.0
+
+    def test_terminator_is_near_90(self):
+        """Ninety degrees of longitude from the subsolar meridian sits on the terminator."""
+        sza = float(solar_zenith_angle(_EQUINOX_NOON, lat=0.0, lon=90.0))
+        assert 80.0 < sza < 100.0
+
+    def test_sza_increases_away_from_subsolar_point(self):
+        """SZA grows monotonically as longitude moves off the subsolar meridian."""
+        lons = np.array([0.0, 30.0, 60.0, 90.0])
+        szas = solar_zenith_angle(_EQUINOX_NOON, lat=0.0, lon=lons)
+        assert np.all(np.diff(szas) > 0)
+
+    def test_array_inputs_broadcast(self):
+        """lat/lon broadcast to a common shape."""
+        lat = np.array([[0.0], [10.0]])
+        lon = np.array([[0.0, 20.0, 40.0]])
+        out = solar_zenith_angle(_EQUINOX_NOON, lat=lat, lon=lon)
+        assert out.shape == (2, 3)
+
+    def test_result_bounds(self):
+        """Every SZA lies within the physical 0..180 range."""
+        lat = np.linspace(-80, 80, 9)
+        lon = np.linspace(-180, 180, 9)
+        lon2d, lat2d = np.meshgrid(lon, lat)
+        out = solar_zenith_angle(_EQUINOX_NOON, lat=lat2d, lon=lon2d)
+        assert out.min() >= 0.0 and out.max() <= 180.0
+
+    def test_naive_time_treated_as_utc(self):
+        """A naive datetime yields the same result as the equivalent UTC-aware one."""
+        naive = dt.datetime(2024, 3, 20, 12, 0, 0)
+        assert float(solar_zenith_angle(naive, lat=10.0, lon=20.0)) == pytest.approx(
+            float(solar_zenith_angle(_EQUINOX_NOON, lat=10.0, lon=20.0))
+        )
+
+    def test_timezone_aware_time_converted_to_utc(self):
+        """A +02:00 wall-clock time equals its UTC instant."""
+        plus2 = dt.datetime(
+            2024, 3, 20, 14, 0, 0, tzinfo=dt.timezone(dt.timedelta(hours=2))
+        )
+        assert float(solar_zenith_angle(plus2, lat=10.0, lon=20.0)) == pytest.approx(
+            float(solar_zenith_angle(_EQUINOX_NOON, lat=10.0, lon=20.0))
+        )
+
+    def test_non_datetime_time_raises(self):
+        """A non-datetime `time` is rejected."""
+        with pytest.raises(TypeError, match="datetime"):
+            solar_zenith_angle("2024-03-20", lat=0.0, lon=0.0)
+
+    def test_missing_coordinates_raises(self):
+        """Neither grid nor lat/lon is an error."""
+        with pytest.raises(ValueError, match="provide"):
+            solar_zenith_angle(_EQUINOX_NOON)
+
+    def test_lat_without_lon_raises(self):
+        """lat without lon is an error."""
+        with pytest.raises(ValueError, match="provide"):
+            solar_zenith_angle(_EQUINOX_NOON, lat=0.0)
+
+
+class TestSolarZenithAngleGrid:
+    """The `grid` path derives lat/lon from a pyramids Dataset in EPSG:4326."""
+
+    @staticmethod
+    def _grid(epsg: int = 4326) -> Dataset:
+        return Dataset.create_from_array(
+            np.zeros((2, 3)), top_left_corner=(0.0, 0.0), cell_size=1.0, epsg=epsg
+        )
+
+    def test_grid_returns_row_col_shape(self):
+        """A grid yields a (rows, columns) array."""
+        out = solar_zenith_angle(_EQUINOX_NOON, grid=self._grid())
+        assert out.shape == (2, 3)
+
+    def test_grid_matches_meshgrid_of_lat_lon(self):
+        """The grid path equals meshing the dataset's lat/lon axes explicitly."""
+        grid = self._grid()
+        lon2d, lat2d = np.meshgrid(grid.lon, grid.lat)
+        assert np.allclose(
+            solar_zenith_angle(_EQUINOX_NOON, grid=grid),
+            solar_zenith_angle(_EQUINOX_NOON, lat=lat2d, lon=lon2d),
+        )
+
+    def test_non_geographic_grid_raises(self):
+        """A projected (non-4326) grid is rejected with a clear message."""
+        with pytest.raises(ValueError, match="geographic"):
+            solar_zenith_angle(_EQUINOX_NOON, grid=self._grid(epsg=3857))
+
+    def test_grid_and_latlon_together_raises(self):
+        """Passing both grid and lat/lon is an error."""
+        with pytest.raises(ValueError, match="not both"):
+            solar_zenith_angle(_EQUINOX_NOON, grid=self._grid(), lat=0.0, lon=0.0)
