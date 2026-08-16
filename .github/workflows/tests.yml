@@ -52,4 +52,5 @@ jobs:
           use_oidc: true
 
       - name: test Jupyter notebooks
-        run: pixi run -e ${{ matrix.environment }} notebooks
+        shell: bash
+        run: pixi run -e ${{ matrix.environment }} notebooks || [ $? -eq 5 ]
