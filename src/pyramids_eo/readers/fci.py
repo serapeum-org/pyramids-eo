@@ -22,12 +22,8 @@ from typing import Any
 
 import numpy as np
 
-from pyramids_eo.errors import CalibrationError, ReaderError
-from pyramids_eo.registry import (
-    get_sensor,
-    radiance_to_brightness_temperature,
-    radiance_to_reflectance,
-)
+from pyramids_eo.errors import ReaderError
+from pyramids_eo.readers._common import calibrate_channel
 
 
 def _default_open_chunk(path: Any, channel: str) -> Any:
@@ -47,44 +43,6 @@ def _default_open_chunk(path: Any, channel: str) -> Any:
     from pyramids.netcdf import NetCDF
 
     return NetCDF.read_file(str(path)).get_variable(channel)
-
-
-def _calibrate(
-    radiance: np.ndarray,
-    channel: str,
-    sensor: str,
-    sun_earth_distance: float,
-    cos_sza: Any,
-) -> np.ndarray:
-    """Calibrate stitched radiance for `channel` to a physical quantity.
-
-    Args:
-        radiance: Stitched raw radiance.
-        channel: Channel identifier (looked up in the registry).
-        sensor: Sensor name for the registry lookup.
-        sun_earth_distance: Sun-earth distance (AU) for a solar channel.
-        cos_sza: Cosine of the solar zenith angle, or `None`.
-
-    Returns:
-        Reflectance (solar channel) or brightness temperature (thermal channel).
-
-    Raises:
-        CalibrationError: When the channel lacks the constants its kind needs.
-    """
-    ch = get_sensor(sensor).get_channel(channel)
-    if ch.kind == "solar":
-        if ch.solar_irradiance is None:
-            raise CalibrationError(f"solar channel {channel!r} has no solar_irradiance")
-        return radiance_to_reflectance(
-            radiance, ch.solar_irradiance, sun_earth_distance, cos_sza
-        )
-    if ch.central_wavenumber_cm1 is None:
-        raise CalibrationError(
-            f"thermal channel {channel!r} has no central_wavenumber_cm1"
-        )
-    return radiance_to_brightness_temperature(
-        radiance, ch.central_wavenumber_cm1, ch.alpha or 1.0, ch.beta or 0.0
-    )
 
 
 def read_fci(
@@ -141,7 +99,7 @@ def read_fci(
         [np.asarray(ds.read_array(), dtype=float) for ds in datasets], axis=0
     )
     data = (
-        _calibrate(radiance, channel, sensor, sun_earth_distance, cos_sza)
+        calibrate_channel(radiance, channel, sensor, sun_earth_distance, cos_sza)
         if calibrate
         else radiance
     )

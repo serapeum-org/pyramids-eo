@@ -96,7 +96,9 @@ class TestReadFci:
             name="fci",
             channels={"x": Channel("x", 0.6, 1000, "solar", solar_irradiance=None)},
         )
-        monkeypatch.setattr("pyramids_eo.readers.fci.get_sensor", lambda name: broken)
+        monkeypatch.setattr(
+            "pyramids_eo.readers._common.get_sensor", lambda name: broken
+        )
         with pytest.raises(CalibrationError, match="solar_irradiance"):
             read_fci([_chunk(np.ones((2, 2)))], "x")
 
@@ -108,7 +110,9 @@ class TestReadFci:
                 "y": Channel("y", 10.5, 2000, "thermal", central_wavenumber_cm1=None)
             },
         )
-        monkeypatch.setattr("pyramids_eo.readers.fci.get_sensor", lambda name: broken)
+        monkeypatch.setattr(
+            "pyramids_eo.readers._common.get_sensor", lambda name: broken
+        )
         with pytest.raises(CalibrationError, match="central_wavenumber"):
             read_fci([_chunk(np.ones((2, 2)))], "y")
 
