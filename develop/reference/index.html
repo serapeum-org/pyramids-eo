@@ -3331,16 +3331,7 @@ matched no scenes.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/earthengine/reader.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-763">763</a></span>
-<span class="normal"><a href="#__codelineno-0-764">764</a></span>
-<span class="normal"><a href="#__codelineno-0-765">765</a></span>
-<span class="normal"><a href="#__codelineno-0-766">766</a></span>
-<span class="normal"><a href="#__codelineno-0-767">767</a></span>
-<span class="normal"><a href="#__codelineno-0-768">768</a></span>
-<span class="normal"><a href="#__codelineno-0-769">769</a></span>
-<span class="normal"><a href="#__codelineno-0-770">770</a></span>
-<span class="normal"><a href="#__codelineno-0-771">771</a></span>
-<span class="normal"><a href="#__codelineno-0-772">772</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-772">772</a></span>
 <span class="normal"><a href="#__codelineno-0-773">773</a></span>
 <span class="normal"><a href="#__codelineno-0-774">774</a></span>
 <span class="normal"><a href="#__codelineno-0-775">775</a></span>
@@ -3436,112 +3427,121 @@ matched no scenes.</p>
 <span class="normal"><a href="#__codelineno-0-865">865</a></span>
 <span class="normal"><a href="#__codelineno-0-866">866</a></span>
 <span class="normal"><a href="#__codelineno-0-867">867</a></span>
-<span class="normal"><a href="#__codelineno-0-868">868</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-763" name="__codelineno-0-763"></a><span class="k">def</span><span class="w"> </span><span class="nf">collection_from_earthengine</span><span class="p">(</span>
-<a id="__codelineno-0-764" name="__codelineno-0-764"></a>    <span class="n">asset_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-765" name="__codelineno-0-765"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-766" name="__codelineno-0-766"></a>    <span class="n">start</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-767" name="__codelineno-0-767"></a>    <span class="n">end</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-768" name="__codelineno-0-768"></a>    <span class="n">bbox</span><span class="p">:</span> <span class="n">BBox</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-769" name="__codelineno-0-769"></a>    <span class="n">geometry</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-770" name="__codelineno-0-770"></a>    <span class="n">bands</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-771" name="__codelineno-0-771"></a>    <span class="n">crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;EPSG:4326&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-772" name="__codelineno-0-772"></a>    <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-773" name="__codelineno-0-773"></a>    <span class="n">shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-774" name="__codelineno-0-774"></a>    <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-775" name="__codelineno-0-775"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DatasetCollection</span><span class="p">:</span>
-<a id="__codelineno-0-776" name="__codelineno-0-776"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Read an Earth Engine ``ImageCollection`` into a ``DatasetCollection``.</span>
-<a id="__codelineno-0-777" name="__codelineno-0-777"></a>
-<a id="__codelineno-0-778" name="__codelineno-0-778"></a><span class="sd">    Discovers the collection&#39;s scenes over the AOI + date range via the GDAL EEDA</span>
-<a id="__codelineno-0-779" name="__codelineno-0-779"></a><span class="sd">    catalog driver, then reads each one (EEDAI) windowed to a common grid — one</span>
-<a id="__codelineno-0-780" name="__codelineno-0-780"></a><span class="sd">    aligned :class:`~pyramids.dataset.Dataset` per scene, in acquisition order.</span>
-<a id="__codelineno-0-781" name="__codelineno-0-781"></a>
-<a id="__codelineno-0-782" name="__codelineno-0-782"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-783" name="__codelineno-0-783"></a><span class="sd">        asset_id: EE ``ImageCollection`` id (e.g. ``&quot;COPERNICUS/S2_SR_HARMONIZED&quot;``).</span>
-<a id="__codelineno-0-784" name="__codelineno-0-784"></a><span class="sd">        start: Inclusive ISO start of the acquisition window.</span>
-<a id="__codelineno-0-785" name="__codelineno-0-785"></a><span class="sd">        end: Inclusive ISO end of the acquisition window.</span>
-<a id="__codelineno-0-786" name="__codelineno-0-786"></a><span class="sd">        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required (to bound</span>
-<a id="__codelineno-0-787" name="__codelineno-0-787"></a><span class="sd">            scene discovery) unless a ``geometry`` is given.</span>
-<a id="__codelineno-0-788" name="__codelineno-0-788"></a><span class="sd">        geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids</span>
-<a id="__codelineno-0-789" name="__codelineno-0-789"></a><span class="sd">            ``FeatureCollection``) in ``crs``. Its envelope bounds scene discovery</span>
-<a id="__codelineno-0-790" name="__codelineno-0-790"></a><span class="sd">            and each scene is clipped to the polygon cutline. Takes the place of</span>
-<a id="__codelineno-0-791" name="__codelineno-0-791"></a><span class="sd">            ``bbox`` when ``bbox`` is omitted.</span>
-<a id="__codelineno-0-792" name="__codelineno-0-792"></a><span class="sd">        bands: Band names to request; ``None`` reads every band.</span>
-<a id="__codelineno-0-793" name="__codelineno-0-793"></a><span class="sd">        crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to</span>
-<a id="__codelineno-0-794" name="__codelineno-0-794"></a><span class="sd">            ``&quot;EPSG:4326&quot;``.</span>
-<a id="__codelineno-0-795" name="__codelineno-0-795"></a><span class="sd">        scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.</span>
-<a id="__codelineno-0-796" name="__codelineno-0-796"></a><span class="sd">            When both are omitted the first scene&#39;s native windowed grid is used</span>
-<a id="__codelineno-0-797" name="__codelineno-0-797"></a><span class="sd">            for every scene.</span>
-<a id="__codelineno-0-798" name="__codelineno-0-798"></a><span class="sd">        shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.</span>
-<a id="__codelineno-0-799" name="__codelineno-0-799"></a><span class="sd">        credentials: An</span>
-<a id="__codelineno-0-800" name="__codelineno-0-800"></a><span class="sd">            :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a</span>
-<a id="__codelineno-0-801" name="__codelineno-0-801"></a><span class="sd">            path to a service-account JSON key, or ``None`` for ADC.</span>
-<a id="__codelineno-0-802" name="__codelineno-0-802"></a>
-<a id="__codelineno-0-803" name="__codelineno-0-803"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-804" name="__codelineno-0-804"></a><span class="sd">        A pyramids :class:`~pyramids.dataset.DatasetCollection`, one timestep per</span>
-<a id="__codelineno-0-805" name="__codelineno-0-805"></a><span class="sd">        scene, with the acquisition times as its time axis.</span>
-<a id="__codelineno-0-806" name="__codelineno-0-806"></a>
-<a id="__codelineno-0-807" name="__codelineno-0-807"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-808" name="__codelineno-0-808"></a><span class="sd">        ValueError: ``scale`` and ``shape`` are both given, or neither ``bbox``</span>
-<a id="__codelineno-0-809" name="__codelineno-0-809"></a><span class="sd">            nor ``geometry`` is given.</span>
-<a id="__codelineno-0-810" name="__codelineno-0-810"></a><span class="sd">        ReaderError: The catalog could not be opened, or the date range + AOI</span>
-<a id="__codelineno-0-811" name="__codelineno-0-811"></a><span class="sd">            matched no scenes.</span>
-<a id="__codelineno-0-812" name="__codelineno-0-812"></a>
-<a id="__codelineno-0-813" name="__codelineno-0-813"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-814" name="__codelineno-0-814"></a><span class="sd">        - Read a Sentinel-2 collection over a date range (skipped offline):</span>
-<a id="__codelineno-0-815" name="__codelineno-0-815"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-816" name="__codelineno-0-816"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import collection_from_earthengine</span>
-<a id="__codelineno-0-817" name="__codelineno-0-817"></a><span class="sd">            &gt;&gt;&gt; collection = collection_from_earthengine(  # doctest: +SKIP</span>
-<a id="__codelineno-0-818" name="__codelineno-0-818"></a><span class="sd">            ...     &quot;COPERNICUS/S2_SR_HARMONIZED&quot;,</span>
-<a id="__codelineno-0-819" name="__codelineno-0-819"></a><span class="sd">            ...     start=&quot;2024-06-01&quot;,</span>
-<a id="__codelineno-0-820" name="__codelineno-0-820"></a><span class="sd">            ...     end=&quot;2024-06-10&quot;,</span>
-<a id="__codelineno-0-821" name="__codelineno-0-821"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
-<a id="__codelineno-0-822" name="__codelineno-0-822"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-823" name="__codelineno-0-823"></a>
-<a id="__codelineno-0-824" name="__codelineno-0-824"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-825" name="__codelineno-0-825"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-826" name="__codelineno-0-826"></a>    <span class="k">if</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-827" name="__codelineno-0-827"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Pass at most one of &#39;scale&#39; or &#39;shape&#39;, not both.&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-828" name="__codelineno-0-828"></a>    <span class="k">if</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-829" name="__codelineno-0-829"></a>        <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-830" name="__codelineno-0-830"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Pass a &#39;bbox&#39; or a &#39;geometry&#39;.&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-831" name="__codelineno-0-831"></a>        <span class="n">bbox</span> <span class="o">=</span> <span class="n">_geometry_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-868">868</a></span>
+<span class="normal"><a href="#__codelineno-0-869">869</a></span>
+<span class="normal"><a href="#__codelineno-0-870">870</a></span>
+<span class="normal"><a href="#__codelineno-0-871">871</a></span>
+<span class="normal"><a href="#__codelineno-0-872">872</a></span>
+<span class="normal"><a href="#__codelineno-0-873">873</a></span>
+<span class="normal"><a href="#__codelineno-0-874">874</a></span>
+<span class="normal"><a href="#__codelineno-0-875">875</a></span>
+<span class="normal"><a href="#__codelineno-0-876">876</a></span>
+<span class="normal"><a href="#__codelineno-0-877">877</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-772" name="__codelineno-0-772"></a><span class="k">def</span><span class="w"> </span><span class="nf">collection_from_earthengine</span><span class="p">(</span>
+<a id="__codelineno-0-773" name="__codelineno-0-773"></a>    <span class="n">asset_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-774" name="__codelineno-0-774"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-775" name="__codelineno-0-775"></a>    <span class="n">start</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-776" name="__codelineno-0-776"></a>    <span class="n">end</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-777" name="__codelineno-0-777"></a>    <span class="n">bbox</span><span class="p">:</span> <span class="n">BBox</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-778" name="__codelineno-0-778"></a>    <span class="n">geometry</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-779" name="__codelineno-0-779"></a>    <span class="n">bands</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-780" name="__codelineno-0-780"></a>    <span class="n">crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;EPSG:4326&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-781" name="__codelineno-0-781"></a>    <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-782" name="__codelineno-0-782"></a>    <span class="n">shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-783" name="__codelineno-0-783"></a>    <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-784" name="__codelineno-0-784"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DatasetCollection</span><span class="p">:</span>
+<a id="__codelineno-0-785" name="__codelineno-0-785"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Read an Earth Engine ``ImageCollection`` into a ``DatasetCollection``.</span>
+<a id="__codelineno-0-786" name="__codelineno-0-786"></a>
+<a id="__codelineno-0-787" name="__codelineno-0-787"></a><span class="sd">    Discovers the collection&#39;s scenes over the AOI + date range via the GDAL EEDA</span>
+<a id="__codelineno-0-788" name="__codelineno-0-788"></a><span class="sd">    catalog driver, then reads each one (EEDAI) windowed to a common grid — one</span>
+<a id="__codelineno-0-789" name="__codelineno-0-789"></a><span class="sd">    aligned :class:`~pyramids.dataset.Dataset` per scene, in acquisition order.</span>
+<a id="__codelineno-0-790" name="__codelineno-0-790"></a>
+<a id="__codelineno-0-791" name="__codelineno-0-791"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-792" name="__codelineno-0-792"></a><span class="sd">        asset_id: EE ``ImageCollection`` id (e.g. ``&quot;COPERNICUS/S2_SR_HARMONIZED&quot;``).</span>
+<a id="__codelineno-0-793" name="__codelineno-0-793"></a><span class="sd">        start: Inclusive ISO start of the acquisition window.</span>
+<a id="__codelineno-0-794" name="__codelineno-0-794"></a><span class="sd">        end: Inclusive ISO end of the acquisition window.</span>
+<a id="__codelineno-0-795" name="__codelineno-0-795"></a><span class="sd">        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required (to bound</span>
+<a id="__codelineno-0-796" name="__codelineno-0-796"></a><span class="sd">            scene discovery) unless a ``geometry`` is given.</span>
+<a id="__codelineno-0-797" name="__codelineno-0-797"></a><span class="sd">        geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids</span>
+<a id="__codelineno-0-798" name="__codelineno-0-798"></a><span class="sd">            ``FeatureCollection``) in ``crs``. Its envelope bounds scene discovery</span>
+<a id="__codelineno-0-799" name="__codelineno-0-799"></a><span class="sd">            and each scene is clipped to the polygon cutline. Takes the place of</span>
+<a id="__codelineno-0-800" name="__codelineno-0-800"></a><span class="sd">            ``bbox`` when ``bbox`` is omitted.</span>
+<a id="__codelineno-0-801" name="__codelineno-0-801"></a><span class="sd">        bands: Band names to request; ``None`` reads every band.</span>
+<a id="__codelineno-0-802" name="__codelineno-0-802"></a><span class="sd">        crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to</span>
+<a id="__codelineno-0-803" name="__codelineno-0-803"></a><span class="sd">            ``&quot;EPSG:4326&quot;``.</span>
+<a id="__codelineno-0-804" name="__codelineno-0-804"></a><span class="sd">        scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.</span>
+<a id="__codelineno-0-805" name="__codelineno-0-805"></a><span class="sd">            When both are omitted the first scene&#39;s native windowed grid is used</span>
+<a id="__codelineno-0-806" name="__codelineno-0-806"></a><span class="sd">            for every scene.</span>
+<a id="__codelineno-0-807" name="__codelineno-0-807"></a><span class="sd">        shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.</span>
+<a id="__codelineno-0-808" name="__codelineno-0-808"></a><span class="sd">        credentials: An</span>
+<a id="__codelineno-0-809" name="__codelineno-0-809"></a><span class="sd">            :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a</span>
+<a id="__codelineno-0-810" name="__codelineno-0-810"></a><span class="sd">            path to a service-account JSON key, or ``None`` for ADC.</span>
+<a id="__codelineno-0-811" name="__codelineno-0-811"></a>
+<a id="__codelineno-0-812" name="__codelineno-0-812"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-813" name="__codelineno-0-813"></a><span class="sd">        A pyramids :class:`~pyramids.dataset.DatasetCollection`, one timestep per</span>
+<a id="__codelineno-0-814" name="__codelineno-0-814"></a><span class="sd">        scene, with the acquisition times as its time axis.</span>
+<a id="__codelineno-0-815" name="__codelineno-0-815"></a>
+<a id="__codelineno-0-816" name="__codelineno-0-816"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-817" name="__codelineno-0-817"></a><span class="sd">        ValueError: ``scale`` and ``shape`` are both given, or neither ``bbox``</span>
+<a id="__codelineno-0-818" name="__codelineno-0-818"></a><span class="sd">            nor ``geometry`` is given.</span>
+<a id="__codelineno-0-819" name="__codelineno-0-819"></a><span class="sd">        ReaderError: The catalog could not be opened, or the date range + AOI</span>
+<a id="__codelineno-0-820" name="__codelineno-0-820"></a><span class="sd">            matched no scenes.</span>
+<a id="__codelineno-0-821" name="__codelineno-0-821"></a>
+<a id="__codelineno-0-822" name="__codelineno-0-822"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-823" name="__codelineno-0-823"></a><span class="sd">        - Read a Sentinel-2 collection over a date range (skipped offline):</span>
+<a id="__codelineno-0-824" name="__codelineno-0-824"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-825" name="__codelineno-0-825"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import collection_from_earthengine</span>
+<a id="__codelineno-0-826" name="__codelineno-0-826"></a><span class="sd">            &gt;&gt;&gt; collection = collection_from_earthengine(  # doctest: +SKIP</span>
+<a id="__codelineno-0-827" name="__codelineno-0-827"></a><span class="sd">            ...     &quot;COPERNICUS/S2_SR_HARMONIZED&quot;,</span>
+<a id="__codelineno-0-828" name="__codelineno-0-828"></a><span class="sd">            ...     start=&quot;2024-06-01&quot;,</span>
+<a id="__codelineno-0-829" name="__codelineno-0-829"></a><span class="sd">            ...     end=&quot;2024-06-10&quot;,</span>
+<a id="__codelineno-0-830" name="__codelineno-0-830"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
+<a id="__codelineno-0-831" name="__codelineno-0-831"></a><span class="sd">            ... )</span>
 <a id="__codelineno-0-832" name="__codelineno-0-832"></a>
-<a id="__codelineno-0-833" name="__codelineno-0-833"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
-<a id="__codelineno-0-834" name="__codelineno-0-834"></a>    <span class="n">scenes</span> <span class="o">=</span> <span class="n">_discover_scenes</span><span class="p">(</span>
-<a id="__codelineno-0-835" name="__codelineno-0-835"></a>        <span class="n">asset_id</span><span class="p">,</span>
-<a id="__codelineno-0-836" name="__codelineno-0-836"></a>        <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
-<a id="__codelineno-0-837" name="__codelineno-0-837"></a>        <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
-<a id="__codelineno-0-838" name="__codelineno-0-838"></a>        <span class="n">bbox_4326</span><span class="o">=</span><span class="n">_bbox_to_4326</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="n">crs</span><span class="p">),</span>
-<a id="__codelineno-0-839" name="__codelineno-0-839"></a>        <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
-<a id="__codelineno-0-840" name="__codelineno-0-840"></a>    <span class="p">)</span>
-<a id="__codelineno-0-841" name="__codelineno-0-841"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">scenes</span><span class="p">:</span>
-<a id="__codelineno-0-842" name="__codelineno-0-842"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
-<a id="__codelineno-0-843" name="__codelineno-0-843"></a>            <span class="sa">f</span><span class="s2">&quot;No Earth Engine scenes for </span><span class="si">{</span><span class="n">asset_id</span><span class="si">!r}</span><span class="s2"> in [</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">] over </span><span class="si">{</span><span class="n">bbox</span><span class="si">}</span><span class="s2">.&quot;</span>
-<a id="__codelineno-0-844" name="__codelineno-0-844"></a>        <span class="p">)</span>
-<a id="__codelineno-0-845" name="__codelineno-0-845"></a>    <span class="n">windowed</span> <span class="o">=</span> <span class="n">_read_scenes_aligned</span><span class="p">(</span>
-<a id="__codelineno-0-846" name="__codelineno-0-846"></a>        <span class="n">scenes</span><span class="p">,</span>
-<a id="__codelineno-0-847" name="__codelineno-0-847"></a>        <span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span>
-<a id="__codelineno-0-848" name="__codelineno-0-848"></a>        <span class="n">crs</span><span class="o">=</span><span class="n">crs</span><span class="p">,</span>
-<a id="__codelineno-0-849" name="__codelineno-0-849"></a>        <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span>
-<a id="__codelineno-0-850" name="__codelineno-0-850"></a>        <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
-<a id="__codelineno-0-851" name="__codelineno-0-851"></a>        <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span>
-<a id="__codelineno-0-852" name="__codelineno-0-852"></a>        <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
-<a id="__codelineno-0-853" name="__codelineno-0-853"></a>    <span class="p">)</span>
-<a id="__codelineno-0-854" name="__codelineno-0-854"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span>
-<a id="__codelineno-0-855" name="__codelineno-0-855"></a>    <span class="n">datasets</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-0-856" name="__codelineno-0-856"></a>        <span class="n">_retain_credentials</span><span class="p">(</span>
-<a id="__codelineno-0-857" name="__codelineno-0-857"></a>            <span class="n">_apply_geometry</span><span class="p">(</span><span class="n">Dataset</span><span class="p">(</span><span class="n">scene</span><span class="p">,</span> <span class="n">gdal_env</span><span class="o">=</span><span class="n">env</span><span class="p">),</span> <span class="n">geometry</span><span class="p">),</span> <span class="n">creds</span>
-<a id="__codelineno-0-858" name="__codelineno-0-858"></a>        <span class="p">)</span>
-<a id="__codelineno-0-859" name="__codelineno-0-859"></a>        <span class="k">for</span> <span class="n">scene</span> <span class="ow">in</span> <span class="n">windowed</span>
-<a id="__codelineno-0-860" name="__codelineno-0-860"></a>    <span class="p">]</span>
-<a id="__codelineno-0-861" name="__codelineno-0-861"></a>    <span class="n">collection</span> <span class="o">=</span> <span class="n">DatasetCollection</span><span class="p">(</span>
-<a id="__codelineno-0-862" name="__codelineno-0-862"></a>        <span class="n">datasets</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
-<a id="__codelineno-0-863" name="__codelineno-0-863"></a>        <span class="n">time_length</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">datasets</span><span class="p">),</span>
-<a id="__codelineno-0-864" name="__codelineno-0-864"></a>        <span class="n">datasets</span><span class="o">=</span><span class="n">datasets</span><span class="p">,</span>
-<a id="__codelineno-0-865" name="__codelineno-0-865"></a>        <span class="n">time</span><span class="o">=</span><span class="p">[</span><span class="n">scene</span><span class="o">.</span><span class="n">time</span> <span class="k">for</span> <span class="n">scene</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">],</span>
-<a id="__codelineno-0-866" name="__codelineno-0-866"></a>        <span class="n">gdal_env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
-<a id="__codelineno-0-867" name="__codelineno-0-867"></a>    <span class="p">)</span>
-<a id="__codelineno-0-868" name="__codelineno-0-868"></a>    <span class="k">return</span> <span class="n">_retain_credentials</span><span class="p">(</span><span class="n">collection</span><span class="p">,</span> <span class="n">creds</span><span class="p">)</span>
+<a id="__codelineno-0-833" name="__codelineno-0-833"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-834" name="__codelineno-0-834"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-835" name="__codelineno-0-835"></a>    <span class="k">if</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-836" name="__codelineno-0-836"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Pass at most one of &#39;scale&#39; or &#39;shape&#39;, not both.&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-837" name="__codelineno-0-837"></a>    <span class="k">if</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-838" name="__codelineno-0-838"></a>        <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-839" name="__codelineno-0-839"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Pass a &#39;bbox&#39; or a &#39;geometry&#39;.&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-840" name="__codelineno-0-840"></a>        <span class="n">bbox</span> <span class="o">=</span> <span class="n">_geometry_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
+<a id="__codelineno-0-841" name="__codelineno-0-841"></a>
+<a id="__codelineno-0-842" name="__codelineno-0-842"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
+<a id="__codelineno-0-843" name="__codelineno-0-843"></a>    <span class="n">scenes</span> <span class="o">=</span> <span class="n">_discover_scenes</span><span class="p">(</span>
+<a id="__codelineno-0-844" name="__codelineno-0-844"></a>        <span class="n">asset_id</span><span class="p">,</span>
+<a id="__codelineno-0-845" name="__codelineno-0-845"></a>        <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
+<a id="__codelineno-0-846" name="__codelineno-0-846"></a>        <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
+<a id="__codelineno-0-847" name="__codelineno-0-847"></a>        <span class="n">bbox_4326</span><span class="o">=</span><span class="n">_bbox_to_4326</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="n">crs</span><span class="p">),</span>
+<a id="__codelineno-0-848" name="__codelineno-0-848"></a>        <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
+<a id="__codelineno-0-849" name="__codelineno-0-849"></a>    <span class="p">)</span>
+<a id="__codelineno-0-850" name="__codelineno-0-850"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">scenes</span><span class="p">:</span>
+<a id="__codelineno-0-851" name="__codelineno-0-851"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
+<a id="__codelineno-0-852" name="__codelineno-0-852"></a>            <span class="sa">f</span><span class="s2">&quot;No Earth Engine scenes for </span><span class="si">{</span><span class="n">asset_id</span><span class="si">!r}</span><span class="s2"> in [</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">] over </span><span class="si">{</span><span class="n">bbox</span><span class="si">}</span><span class="s2">.&quot;</span>
+<a id="__codelineno-0-853" name="__codelineno-0-853"></a>        <span class="p">)</span>
+<a id="__codelineno-0-854" name="__codelineno-0-854"></a>    <span class="n">windowed</span> <span class="o">=</span> <span class="n">_read_scenes_aligned</span><span class="p">(</span>
+<a id="__codelineno-0-855" name="__codelineno-0-855"></a>        <span class="n">scenes</span><span class="p">,</span>
+<a id="__codelineno-0-856" name="__codelineno-0-856"></a>        <span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span>
+<a id="__codelineno-0-857" name="__codelineno-0-857"></a>        <span class="n">crs</span><span class="o">=</span><span class="n">crs</span><span class="p">,</span>
+<a id="__codelineno-0-858" name="__codelineno-0-858"></a>        <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span>
+<a id="__codelineno-0-859" name="__codelineno-0-859"></a>        <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+<a id="__codelineno-0-860" name="__codelineno-0-860"></a>        <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span>
+<a id="__codelineno-0-861" name="__codelineno-0-861"></a>        <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
+<a id="__codelineno-0-862" name="__codelineno-0-862"></a>    <span class="p">)</span>
+<a id="__codelineno-0-863" name="__codelineno-0-863"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span>
+<a id="__codelineno-0-864" name="__codelineno-0-864"></a>    <span class="n">datasets</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-0-865" name="__codelineno-0-865"></a>        <span class="n">_retain_credentials</span><span class="p">(</span>
+<a id="__codelineno-0-866" name="__codelineno-0-866"></a>            <span class="n">_apply_geometry</span><span class="p">(</span><span class="n">Dataset</span><span class="p">(</span><span class="n">scene</span><span class="p">,</span> <span class="n">gdal_env</span><span class="o">=</span><span class="n">env</span><span class="p">),</span> <span class="n">geometry</span><span class="p">),</span> <span class="n">creds</span>
+<a id="__codelineno-0-867" name="__codelineno-0-867"></a>        <span class="p">)</span>
+<a id="__codelineno-0-868" name="__codelineno-0-868"></a>        <span class="k">for</span> <span class="n">scene</span> <span class="ow">in</span> <span class="n">windowed</span>
+<a id="__codelineno-0-869" name="__codelineno-0-869"></a>    <span class="p">]</span>
+<a id="__codelineno-0-870" name="__codelineno-0-870"></a>    <span class="n">collection</span> <span class="o">=</span> <span class="n">DatasetCollection</span><span class="p">(</span>
+<a id="__codelineno-0-871" name="__codelineno-0-871"></a>        <span class="n">datasets</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+<a id="__codelineno-0-872" name="__codelineno-0-872"></a>        <span class="n">time_length</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">datasets</span><span class="p">),</span>
+<a id="__codelineno-0-873" name="__codelineno-0-873"></a>        <span class="n">datasets</span><span class="o">=</span><span class="n">datasets</span><span class="p">,</span>
+<a id="__codelineno-0-874" name="__codelineno-0-874"></a>        <span class="n">time</span><span class="o">=</span><span class="p">[</span><span class="n">scene</span><span class="o">.</span><span class="n">time</span> <span class="k">for</span> <span class="n">scene</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">],</span>
+<a id="__codelineno-0-875" name="__codelineno-0-875"></a>        <span class="n">gdal_env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
+<a id="__codelineno-0-876" name="__codelineno-0-876"></a>    <span class="p">)</span>
+<a id="__codelineno-0-877" name="__codelineno-0-877"></a>    <span class="k">return</span> <span class="n">_retain_credentials</span><span class="p">(</span><span class="n">collection</span><span class="p">,</span> <span class="n">creds</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -3908,16 +3908,7 @@ date range + AOI matched no scenes.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/earthengine/reader.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-578">578</a></span>
-<span class="normal"><a href="#__codelineno-0-579">579</a></span>
-<span class="normal"><a href="#__codelineno-0-580">580</a></span>
-<span class="normal"><a href="#__codelineno-0-581">581</a></span>
-<span class="normal"><a href="#__codelineno-0-582">582</a></span>
-<span class="normal"><a href="#__codelineno-0-583">583</a></span>
-<span class="normal"><a href="#__codelineno-0-584">584</a></span>
-<span class="normal"><a href="#__codelineno-0-585">585</a></span>
-<span class="normal"><a href="#__codelineno-0-586">586</a></span>
-<span class="normal"><a href="#__codelineno-0-587">587</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-587">587</a></span>
 <span class="normal"><a href="#__codelineno-0-588">588</a></span>
 <span class="normal"><a href="#__codelineno-0-589">589</a></span>
 <span class="normal"><a href="#__codelineno-0-590">590</a></span>
@@ -4090,189 +4081,198 @@ date range + AOI matched no scenes.</p>
 <span class="normal"><a href="#__codelineno-0-757">757</a></span>
 <span class="normal"><a href="#__codelineno-0-758">758</a></span>
 <span class="normal"><a href="#__codelineno-0-759">759</a></span>
-<span class="normal"><a href="#__codelineno-0-760">760</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-578" name="__codelineno-0-578"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_earthengine</span><span class="p">(</span>
-<a id="__codelineno-0-579" name="__codelineno-0-579"></a>    <span class="n">asset_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-580" name="__codelineno-0-580"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-581" name="__codelineno-0-581"></a>    <span class="n">bands</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-582" name="__codelineno-0-582"></a>    <span class="n">bbox</span><span class="p">:</span> <span class="n">BBox</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-583" name="__codelineno-0-583"></a>    <span class="n">geometry</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-584" name="__codelineno-0-584"></a>    <span class="n">crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;EPSG:4326&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-585" name="__codelineno-0-585"></a>    <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-586" name="__codelineno-0-586"></a>    <span class="n">shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-587" name="__codelineno-0-587"></a>    <span class="n">tile_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-588" name="__codelineno-0-588"></a>    <span class="n">start</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-589" name="__codelineno-0-589"></a>    <span class="n">end</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-590" name="__codelineno-0-590"></a>    <span class="n">reducer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-591" name="__codelineno-0-591"></a>    <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-592" name="__codelineno-0-592"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dataset</span><span class="p">:</span>
-<a id="__codelineno-0-593" name="__codelineno-0-593"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Read an Earth Engine ``Image`` (or reduced ``ImageCollection``) into a ``Dataset``.</span>
-<a id="__codelineno-0-594" name="__codelineno-0-594"></a>
-<a id="__codelineno-0-595" name="__codelineno-0-595"></a><span class="sd">    Two modes:</span>
-<a id="__codelineno-0-596" name="__codelineno-0-596"></a>
-<a id="__codelineno-0-597" name="__codelineno-0-597"></a><span class="sd">    * **Single ``Image``** (default): opens ``asset_id`` through the GDAL EEDAI</span>
-<a id="__codelineno-0-598" name="__codelineno-0-598"></a><span class="sd">      driver and, when a ``bbox`` is given, warps it to ``crs`` at the requested</span>
-<a id="__codelineno-0-599" name="__codelineno-0-599"></a><span class="sd">      resolution.</span>
-<a id="__codelineno-0-600" name="__codelineno-0-600"></a><span class="sd">    * **``ImageCollection`` composite**: when ``start`` / ``end`` + ``reducer`` are</span>
-<a id="__codelineno-0-601" name="__codelineno-0-601"></a><span class="sd">      given, discovers the collection&#39;s scenes over the AOI + date range (EEDA),</span>
-<a id="__codelineno-0-602" name="__codelineno-0-602"></a><span class="sd">      reads them aligned, and reduces them **client-side** into one composite</span>
-<a id="__codelineno-0-603" name="__codelineno-0-603"></a><span class="sd">      ``Dataset``. Server-side EE reducers are out of scope.</span>
-<a id="__codelineno-0-604" name="__codelineno-0-604"></a>
-<a id="__codelineno-0-605" name="__codelineno-0-605"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-606" name="__codelineno-0-606"></a><span class="sd">        asset_id: EE image asset id (single mode) or ``ImageCollection`` id</span>
-<a id="__codelineno-0-607" name="__codelineno-0-607"></a><span class="sd">            (composite mode), e.g. ``&quot;USGS/SRTMGL1_003&quot;`` /</span>
-<a id="__codelineno-0-608" name="__codelineno-0-608"></a><span class="sd">            ``&quot;COPERNICUS/S2_SR_HARMONIZED&quot;``.</span>
-<a id="__codelineno-0-609" name="__codelineno-0-609"></a><span class="sd">        bands: Band names to request; ``None`` reads every band.</span>
-<a id="__codelineno-0-610" name="__codelineno-0-610"></a><span class="sd">        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required to</span>
-<a id="__codelineno-0-611" name="__codelineno-0-611"></a><span class="sd">            materialise a window (single mode) and for the composite mode, unless</span>
-<a id="__codelineno-0-612" name="__codelineno-0-612"></a><span class="sd">            a ``geometry`` is given (its envelope is used as the ``bbox``).</span>
-<a id="__codelineno-0-613" name="__codelineno-0-613"></a><span class="sd">        geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids</span>
-<a id="__codelineno-0-614" name="__codelineno-0-614"></a><span class="sd">            ``FeatureCollection``) in ``crs``. Its envelope drives the read window</span>
-<a id="__codelineno-0-615" name="__codelineno-0-615"></a><span class="sd">            and the result is then clipped to the polygon cutline. Takes the place</span>
-<a id="__codelineno-0-616" name="__codelineno-0-616"></a><span class="sd">            of ``bbox`` when ``bbox`` is omitted.</span>
-<a id="__codelineno-0-617" name="__codelineno-0-617"></a><span class="sd">        crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to</span>
-<a id="__codelineno-0-618" name="__codelineno-0-618"></a><span class="sd">            ``&quot;EPSG:4326&quot;``.</span>
-<a id="__codelineno-0-619" name="__codelineno-0-619"></a><span class="sd">        scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.</span>
-<a id="__codelineno-0-620" name="__codelineno-0-620"></a><span class="sd">        shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.</span>
-<a id="__codelineno-0-621" name="__codelineno-0-621"></a><span class="sd">        tile_size: Optional maximum pixels per axis for a single read (single</span>
-<a id="__codelineno-0-622" name="__codelineno-0-622"></a><span class="sd">            ``Image`` mode). When the target window is larger, the AOI is read as a</span>
-<a id="__codelineno-0-623" name="__codelineno-0-623"></a><span class="sd">            grid of ``&lt;= tile_size`` px tiles and mosaicked locally. EEDAI has no</span>
-<a id="__codelineno-0-624" name="__codelineno-0-624"></a><span class="sd">            hard request cap, so this bounds local memory, not an EE limit. Needs</span>
-<a id="__codelineno-0-625" name="__codelineno-0-625"></a><span class="sd">            ``scale`` or ``shape`` to know the target grid.</span>
-<a id="__codelineno-0-626" name="__codelineno-0-626"></a><span class="sd">        start: Inclusive ISO start of the acquisition window (composite mode).</span>
-<a id="__codelineno-0-627" name="__codelineno-0-627"></a><span class="sd">        end: Inclusive ISO end of the acquisition window (composite mode).</span>
-<a id="__codelineno-0-628" name="__codelineno-0-628"></a><span class="sd">        reducer: Client-side reducer for the composite mode — one of ``&quot;median&quot;``,</span>
-<a id="__codelineno-0-629" name="__codelineno-0-629"></a><span class="sd">            ``&quot;mean&quot;``, ``&quot;min&quot;``, ``&quot;max&quot;``, ``&quot;sum&quot;``, ``&quot;mode&quot;``, ``&quot;mosaic&quot;``.</span>
-<a id="__codelineno-0-630" name="__codelineno-0-630"></a><span class="sd">        credentials: An</span>
-<a id="__codelineno-0-631" name="__codelineno-0-631"></a><span class="sd">            :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a</span>
-<a id="__codelineno-0-632" name="__codelineno-0-632"></a><span class="sd">            path to a service-account JSON key, or ``None`` for ADC.</span>
-<a id="__codelineno-0-633" name="__codelineno-0-633"></a>
-<a id="__codelineno-0-634" name="__codelineno-0-634"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-635" name="__codelineno-0-635"></a><span class="sd">        A pyramids :class:`~pyramids.dataset.Dataset` — the windowed image or the</span>
-<a id="__codelineno-0-636" name="__codelineno-0-636"></a><span class="sd">        reduced composite.</span>
-<a id="__codelineno-0-637" name="__codelineno-0-637"></a>
-<a id="__codelineno-0-638" name="__codelineno-0-638"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-639" name="__codelineno-0-639"></a><span class="sd">        ValueError: ``scale`` and ``shape`` are both given; or ``start`` / ``end``</span>
-<a id="__codelineno-0-640" name="__codelineno-0-640"></a><span class="sd">            are given without a ``reducer`` (use</span>
-<a id="__codelineno-0-641" name="__codelineno-0-641"></a><span class="sd">            :func:`collection_from_earthengine` for a ``DatasetCollection``); or the</span>
-<a id="__codelineno-0-642" name="__codelineno-0-642"></a><span class="sd">            composite mode is missing ``start`` / ``end`` / ``bbox``.</span>
-<a id="__codelineno-0-643" name="__codelineno-0-643"></a><span class="sd">        ReaderError: The asset could not be opened or windowed, or the composite</span>
-<a id="__codelineno-0-644" name="__codelineno-0-644"></a><span class="sd">            date range + AOI matched no scenes.</span>
-<a id="__codelineno-0-645" name="__codelineno-0-645"></a>
-<a id="__codelineno-0-646" name="__codelineno-0-646"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-647" name="__codelineno-0-647"></a><span class="sd">        - Read a small SRTM window (requires Earth Engine credentials, so skipped</span>
-<a id="__codelineno-0-648" name="__codelineno-0-648"></a><span class="sd">          offline):</span>
-<a id="__codelineno-0-649" name="__codelineno-0-649"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-650" name="__codelineno-0-650"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
-<a id="__codelineno-0-651" name="__codelineno-0-651"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine(  # doctest: +SKIP</span>
-<a id="__codelineno-0-652" name="__codelineno-0-652"></a><span class="sd">            ...     &quot;USGS/SRTMGL1_003&quot;,</span>
-<a id="__codelineno-0-653" name="__codelineno-0-653"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
-<a id="__codelineno-0-654" name="__codelineno-0-654"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-655" name="__codelineno-0-655"></a>
-<a id="__codelineno-0-656" name="__codelineno-0-656"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-657" name="__codelineno-0-657"></a><span class="sd">        - A median composite over an ``ImageCollection`` date range (skipped</span>
-<a id="__codelineno-0-658" name="__codelineno-0-658"></a><span class="sd">          offline):</span>
-<a id="__codelineno-0-659" name="__codelineno-0-659"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-660" name="__codelineno-0-660"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
-<a id="__codelineno-0-661" name="__codelineno-0-661"></a><span class="sd">            &gt;&gt;&gt; composite = from_earthengine(  # doctest: +SKIP</span>
-<a id="__codelineno-0-662" name="__codelineno-0-662"></a><span class="sd">            ...     &quot;COPERNICUS/S2_SR_HARMONIZED&quot;,</span>
-<a id="__codelineno-0-663" name="__codelineno-0-663"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
-<a id="__codelineno-0-664" name="__codelineno-0-664"></a><span class="sd">            ...     start=&quot;2024-06-01&quot;,</span>
-<a id="__codelineno-0-665" name="__codelineno-0-665"></a><span class="sd">            ...     end=&quot;2024-06-30&quot;,</span>
-<a id="__codelineno-0-666" name="__codelineno-0-666"></a><span class="sd">            ...     reducer=&quot;median&quot;,</span>
-<a id="__codelineno-0-667" name="__codelineno-0-667"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-668" name="__codelineno-0-668"></a>
-<a id="__codelineno-0-669" name="__codelineno-0-669"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-670" name="__codelineno-0-670"></a><span class="sd">        - Clip to a polygon AOI instead of a bbox (skipped offline):</span>
-<a id="__codelineno-0-671" name="__codelineno-0-671"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-672" name="__codelineno-0-672"></a><span class="sd">            &gt;&gt;&gt; import geopandas as gpd  # doctest: +SKIP</span>
-<a id="__codelineno-0-673" name="__codelineno-0-673"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
-<a id="__codelineno-0-674" name="__codelineno-0-674"></a><span class="sd">            &gt;&gt;&gt; aoi = gpd.read_file(&quot;basin.geojson&quot;)  # doctest: +SKIP</span>
-<a id="__codelineno-0-675" name="__codelineno-0-675"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine(&quot;USGS/SRTMGL1_003&quot;, geometry=aoi)  # doctest: +SKIP</span>
-<a id="__codelineno-0-676" name="__codelineno-0-676"></a>
-<a id="__codelineno-0-677" name="__codelineno-0-677"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-678" name="__codelineno-0-678"></a><span class="sd">        - Passing both ``scale`` and ``shape`` is rejected before any read:</span>
-<a id="__codelineno-0-679" name="__codelineno-0-679"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-680" name="__codelineno-0-680"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
-<a id="__codelineno-0-681" name="__codelineno-0-681"></a><span class="sd">            &gt;&gt;&gt; from_earthengine(</span>
-<a id="__codelineno-0-682" name="__codelineno-0-682"></a><span class="sd">            ...     &quot;USGS/SRTMGL1_003&quot;,</span>
-<a id="__codelineno-0-683" name="__codelineno-0-683"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
-<a id="__codelineno-0-684" name="__codelineno-0-684"></a><span class="sd">            ...     scale=0.01,</span>
-<a id="__codelineno-0-685" name="__codelineno-0-685"></a><span class="sd">            ...     shape=(5, 5),</span>
-<a id="__codelineno-0-686" name="__codelineno-0-686"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-687" name="__codelineno-0-687"></a><span class="sd">            Traceback (most recent call last):</span>
-<a id="__codelineno-0-688" name="__codelineno-0-688"></a><span class="sd">                ...</span>
-<a id="__codelineno-0-689" name="__codelineno-0-689"></a><span class="sd">            ValueError: Pass at most one of &#39;scale&#39; or &#39;shape&#39;, not both.</span>
-<a id="__codelineno-0-690" name="__codelineno-0-690"></a>
-<a id="__codelineno-0-691" name="__codelineno-0-691"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-692" name="__codelineno-0-692"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-693" name="__codelineno-0-693"></a>    <span class="k">if</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-694" name="__codelineno-0-694"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Pass at most one of &#39;scale&#39; or &#39;shape&#39;, not both.&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-695" name="__codelineno-0-695"></a>
-<a id="__codelineno-0-696" name="__codelineno-0-696"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
-<a id="__codelineno-0-697" name="__codelineno-0-697"></a>    <span class="k">if</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-698" name="__codelineno-0-698"></a>        <span class="n">bbox</span> <span class="o">=</span> <span class="n">_geometry_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-760">760</a></span>
+<span class="normal"><a href="#__codelineno-0-761">761</a></span>
+<span class="normal"><a href="#__codelineno-0-762">762</a></span>
+<span class="normal"><a href="#__codelineno-0-763">763</a></span>
+<span class="normal"><a href="#__codelineno-0-764">764</a></span>
+<span class="normal"><a href="#__codelineno-0-765">765</a></span>
+<span class="normal"><a href="#__codelineno-0-766">766</a></span>
+<span class="normal"><a href="#__codelineno-0-767">767</a></span>
+<span class="normal"><a href="#__codelineno-0-768">768</a></span>
+<span class="normal"><a href="#__codelineno-0-769">769</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-587" name="__codelineno-0-587"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_earthengine</span><span class="p">(</span>
+<a id="__codelineno-0-588" name="__codelineno-0-588"></a>    <span class="n">asset_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-589" name="__codelineno-0-589"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-590" name="__codelineno-0-590"></a>    <span class="n">bands</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-591" name="__codelineno-0-591"></a>    <span class="n">bbox</span><span class="p">:</span> <span class="n">BBox</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-592" name="__codelineno-0-592"></a>    <span class="n">geometry</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-593" name="__codelineno-0-593"></a>    <span class="n">crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;EPSG:4326&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-594" name="__codelineno-0-594"></a>    <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-595" name="__codelineno-0-595"></a>    <span class="n">shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-596" name="__codelineno-0-596"></a>    <span class="n">tile_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-597" name="__codelineno-0-597"></a>    <span class="n">start</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-598" name="__codelineno-0-598"></a>    <span class="n">end</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-599" name="__codelineno-0-599"></a>    <span class="n">reducer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-600" name="__codelineno-0-600"></a>    <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-601" name="__codelineno-0-601"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dataset</span><span class="p">:</span>
+<a id="__codelineno-0-602" name="__codelineno-0-602"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Read an Earth Engine ``Image`` (or reduced ``ImageCollection``) into a ``Dataset``.</span>
+<a id="__codelineno-0-603" name="__codelineno-0-603"></a>
+<a id="__codelineno-0-604" name="__codelineno-0-604"></a><span class="sd">    Two modes:</span>
+<a id="__codelineno-0-605" name="__codelineno-0-605"></a>
+<a id="__codelineno-0-606" name="__codelineno-0-606"></a><span class="sd">    * **Single ``Image``** (default): opens ``asset_id`` through the GDAL EEDAI</span>
+<a id="__codelineno-0-607" name="__codelineno-0-607"></a><span class="sd">      driver and, when a ``bbox`` is given, warps it to ``crs`` at the requested</span>
+<a id="__codelineno-0-608" name="__codelineno-0-608"></a><span class="sd">      resolution.</span>
+<a id="__codelineno-0-609" name="__codelineno-0-609"></a><span class="sd">    * **``ImageCollection`` composite**: when ``start`` / ``end`` + ``reducer`` are</span>
+<a id="__codelineno-0-610" name="__codelineno-0-610"></a><span class="sd">      given, discovers the collection&#39;s scenes over the AOI + date range (EEDA),</span>
+<a id="__codelineno-0-611" name="__codelineno-0-611"></a><span class="sd">      reads them aligned, and reduces them **client-side** into one composite</span>
+<a id="__codelineno-0-612" name="__codelineno-0-612"></a><span class="sd">      ``Dataset``. Server-side EE reducers are out of scope.</span>
+<a id="__codelineno-0-613" name="__codelineno-0-613"></a>
+<a id="__codelineno-0-614" name="__codelineno-0-614"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-615" name="__codelineno-0-615"></a><span class="sd">        asset_id: EE image asset id (single mode) or ``ImageCollection`` id</span>
+<a id="__codelineno-0-616" name="__codelineno-0-616"></a><span class="sd">            (composite mode), e.g. ``&quot;USGS/SRTMGL1_003&quot;`` /</span>
+<a id="__codelineno-0-617" name="__codelineno-0-617"></a><span class="sd">            ``&quot;COPERNICUS/S2_SR_HARMONIZED&quot;``.</span>
+<a id="__codelineno-0-618" name="__codelineno-0-618"></a><span class="sd">        bands: Band names to request; ``None`` reads every band.</span>
+<a id="__codelineno-0-619" name="__codelineno-0-619"></a><span class="sd">        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required to</span>
+<a id="__codelineno-0-620" name="__codelineno-0-620"></a><span class="sd">            materialise a window (single mode) and for the composite mode, unless</span>
+<a id="__codelineno-0-621" name="__codelineno-0-621"></a><span class="sd">            a ``geometry`` is given (its envelope is used as the ``bbox``).</span>
+<a id="__codelineno-0-622" name="__codelineno-0-622"></a><span class="sd">        geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids</span>
+<a id="__codelineno-0-623" name="__codelineno-0-623"></a><span class="sd">            ``FeatureCollection``) in ``crs``. Its envelope drives the read window</span>
+<a id="__codelineno-0-624" name="__codelineno-0-624"></a><span class="sd">            and the result is then clipped to the polygon cutline. Takes the place</span>
+<a id="__codelineno-0-625" name="__codelineno-0-625"></a><span class="sd">            of ``bbox`` when ``bbox`` is omitted.</span>
+<a id="__codelineno-0-626" name="__codelineno-0-626"></a><span class="sd">        crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to</span>
+<a id="__codelineno-0-627" name="__codelineno-0-627"></a><span class="sd">            ``&quot;EPSG:4326&quot;``.</span>
+<a id="__codelineno-0-628" name="__codelineno-0-628"></a><span class="sd">        scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.</span>
+<a id="__codelineno-0-629" name="__codelineno-0-629"></a><span class="sd">        shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.</span>
+<a id="__codelineno-0-630" name="__codelineno-0-630"></a><span class="sd">        tile_size: Optional maximum pixels per axis for a single read (single</span>
+<a id="__codelineno-0-631" name="__codelineno-0-631"></a><span class="sd">            ``Image`` mode). When the target window is larger, the AOI is read as a</span>
+<a id="__codelineno-0-632" name="__codelineno-0-632"></a><span class="sd">            grid of ``&lt;= tile_size`` px tiles and mosaicked locally. EEDAI has no</span>
+<a id="__codelineno-0-633" name="__codelineno-0-633"></a><span class="sd">            hard request cap, so this bounds local memory, not an EE limit. Needs</span>
+<a id="__codelineno-0-634" name="__codelineno-0-634"></a><span class="sd">            ``scale`` or ``shape`` to know the target grid.</span>
+<a id="__codelineno-0-635" name="__codelineno-0-635"></a><span class="sd">        start: Inclusive ISO start of the acquisition window (composite mode).</span>
+<a id="__codelineno-0-636" name="__codelineno-0-636"></a><span class="sd">        end: Inclusive ISO end of the acquisition window (composite mode).</span>
+<a id="__codelineno-0-637" name="__codelineno-0-637"></a><span class="sd">        reducer: Client-side reducer for the composite mode — one of ``&quot;median&quot;``,</span>
+<a id="__codelineno-0-638" name="__codelineno-0-638"></a><span class="sd">            ``&quot;mean&quot;``, ``&quot;min&quot;``, ``&quot;max&quot;``, ``&quot;sum&quot;``, ``&quot;mode&quot;``, ``&quot;mosaic&quot;``.</span>
+<a id="__codelineno-0-639" name="__codelineno-0-639"></a><span class="sd">        credentials: An</span>
+<a id="__codelineno-0-640" name="__codelineno-0-640"></a><span class="sd">            :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a</span>
+<a id="__codelineno-0-641" name="__codelineno-0-641"></a><span class="sd">            path to a service-account JSON key, or ``None`` for ADC.</span>
+<a id="__codelineno-0-642" name="__codelineno-0-642"></a>
+<a id="__codelineno-0-643" name="__codelineno-0-643"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-644" name="__codelineno-0-644"></a><span class="sd">        A pyramids :class:`~pyramids.dataset.Dataset` — the windowed image or the</span>
+<a id="__codelineno-0-645" name="__codelineno-0-645"></a><span class="sd">        reduced composite.</span>
+<a id="__codelineno-0-646" name="__codelineno-0-646"></a>
+<a id="__codelineno-0-647" name="__codelineno-0-647"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-648" name="__codelineno-0-648"></a><span class="sd">        ValueError: ``scale`` and ``shape`` are both given; or ``start`` / ``end``</span>
+<a id="__codelineno-0-649" name="__codelineno-0-649"></a><span class="sd">            are given without a ``reducer`` (use</span>
+<a id="__codelineno-0-650" name="__codelineno-0-650"></a><span class="sd">            :func:`collection_from_earthengine` for a ``DatasetCollection``); or the</span>
+<a id="__codelineno-0-651" name="__codelineno-0-651"></a><span class="sd">            composite mode is missing ``start`` / ``end`` / ``bbox``.</span>
+<a id="__codelineno-0-652" name="__codelineno-0-652"></a><span class="sd">        ReaderError: The asset could not be opened or windowed, or the composite</span>
+<a id="__codelineno-0-653" name="__codelineno-0-653"></a><span class="sd">            date range + AOI matched no scenes.</span>
+<a id="__codelineno-0-654" name="__codelineno-0-654"></a>
+<a id="__codelineno-0-655" name="__codelineno-0-655"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-656" name="__codelineno-0-656"></a><span class="sd">        - Read a small SRTM window (requires Earth Engine credentials, so skipped</span>
+<a id="__codelineno-0-657" name="__codelineno-0-657"></a><span class="sd">          offline):</span>
+<a id="__codelineno-0-658" name="__codelineno-0-658"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-659" name="__codelineno-0-659"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
+<a id="__codelineno-0-660" name="__codelineno-0-660"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine(  # doctest: +SKIP</span>
+<a id="__codelineno-0-661" name="__codelineno-0-661"></a><span class="sd">            ...     &quot;USGS/SRTMGL1_003&quot;,</span>
+<a id="__codelineno-0-662" name="__codelineno-0-662"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
+<a id="__codelineno-0-663" name="__codelineno-0-663"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-664" name="__codelineno-0-664"></a>
+<a id="__codelineno-0-665" name="__codelineno-0-665"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-666" name="__codelineno-0-666"></a><span class="sd">        - A median composite over an ``ImageCollection`` date range (skipped</span>
+<a id="__codelineno-0-667" name="__codelineno-0-667"></a><span class="sd">          offline):</span>
+<a id="__codelineno-0-668" name="__codelineno-0-668"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-669" name="__codelineno-0-669"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
+<a id="__codelineno-0-670" name="__codelineno-0-670"></a><span class="sd">            &gt;&gt;&gt; composite = from_earthengine(  # doctest: +SKIP</span>
+<a id="__codelineno-0-671" name="__codelineno-0-671"></a><span class="sd">            ...     &quot;COPERNICUS/S2_SR_HARMONIZED&quot;,</span>
+<a id="__codelineno-0-672" name="__codelineno-0-672"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
+<a id="__codelineno-0-673" name="__codelineno-0-673"></a><span class="sd">            ...     start=&quot;2024-06-01&quot;,</span>
+<a id="__codelineno-0-674" name="__codelineno-0-674"></a><span class="sd">            ...     end=&quot;2024-06-30&quot;,</span>
+<a id="__codelineno-0-675" name="__codelineno-0-675"></a><span class="sd">            ...     reducer=&quot;median&quot;,</span>
+<a id="__codelineno-0-676" name="__codelineno-0-676"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-677" name="__codelineno-0-677"></a>
+<a id="__codelineno-0-678" name="__codelineno-0-678"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-679" name="__codelineno-0-679"></a><span class="sd">        - Clip to a polygon AOI instead of a bbox (skipped offline):</span>
+<a id="__codelineno-0-680" name="__codelineno-0-680"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-681" name="__codelineno-0-681"></a><span class="sd">            &gt;&gt;&gt; import geopandas as gpd  # doctest: +SKIP</span>
+<a id="__codelineno-0-682" name="__codelineno-0-682"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
+<a id="__codelineno-0-683" name="__codelineno-0-683"></a><span class="sd">            &gt;&gt;&gt; aoi = gpd.read_file(&quot;basin.geojson&quot;)  # doctest: +SKIP</span>
+<a id="__codelineno-0-684" name="__codelineno-0-684"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine(&quot;USGS/SRTMGL1_003&quot;, geometry=aoi)  # doctest: +SKIP</span>
+<a id="__codelineno-0-685" name="__codelineno-0-685"></a>
+<a id="__codelineno-0-686" name="__codelineno-0-686"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-687" name="__codelineno-0-687"></a><span class="sd">        - Passing both ``scale`` and ``shape`` is rejected before any read:</span>
+<a id="__codelineno-0-688" name="__codelineno-0-688"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-689" name="__codelineno-0-689"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
+<a id="__codelineno-0-690" name="__codelineno-0-690"></a><span class="sd">            &gt;&gt;&gt; from_earthengine(</span>
+<a id="__codelineno-0-691" name="__codelineno-0-691"></a><span class="sd">            ...     &quot;USGS/SRTMGL1_003&quot;,</span>
+<a id="__codelineno-0-692" name="__codelineno-0-692"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
+<a id="__codelineno-0-693" name="__codelineno-0-693"></a><span class="sd">            ...     scale=0.01,</span>
+<a id="__codelineno-0-694" name="__codelineno-0-694"></a><span class="sd">            ...     shape=(5, 5),</span>
+<a id="__codelineno-0-695" name="__codelineno-0-695"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-696" name="__codelineno-0-696"></a><span class="sd">            Traceback (most recent call last):</span>
+<a id="__codelineno-0-697" name="__codelineno-0-697"></a><span class="sd">                ...</span>
+<a id="__codelineno-0-698" name="__codelineno-0-698"></a><span class="sd">            ValueError: Pass at most one of &#39;scale&#39; or &#39;shape&#39;, not both.</span>
 <a id="__codelineno-0-699" name="__codelineno-0-699"></a>
-<a id="__codelineno-0-700" name="__codelineno-0-700"></a>    <span class="k">if</span> <span class="n">reducer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">end</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-701" name="__codelineno-0-701"></a>        <span class="k">if</span> <span class="n">reducer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-702" name="__codelineno-0-702"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-<a id="__codelineno-0-703" name="__codelineno-0-703"></a>                <span class="s2">&quot;&#39;start&#39;/&#39;end&#39; select an ImageCollection; pass &#39;reducer&#39; for a &quot;</span>
-<a id="__codelineno-0-704" name="__codelineno-0-704"></a>                <span class="s2">&quot;single composite, or use collection_from_earthengine() for a &quot;</span>
-<a id="__codelineno-0-705" name="__codelineno-0-705"></a>                <span class="s2">&quot;DatasetCollection.&quot;</span>
-<a id="__codelineno-0-706" name="__codelineno-0-706"></a>            <span class="p">)</span>
-<a id="__codelineno-0-707" name="__codelineno-0-707"></a>        <span class="k">if</span> <span class="n">start</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">end</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-708" name="__codelineno-0-708"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-<a id="__codelineno-0-709" name="__codelineno-0-709"></a>                <span class="s2">&quot;The composite mode requires &#39;start&#39;, &#39;end&#39;, and a &#39;bbox&#39; or &quot;</span>
-<a id="__codelineno-0-710" name="__codelineno-0-710"></a>                <span class="s2">&quot;&#39;geometry&#39;.&quot;</span>
-<a id="__codelineno-0-711" name="__codelineno-0-711"></a>            <span class="p">)</span>
-<a id="__codelineno-0-712" name="__codelineno-0-712"></a>        <span class="n">scenes</span> <span class="o">=</span> <span class="n">_discover_scenes</span><span class="p">(</span>
-<a id="__codelineno-0-713" name="__codelineno-0-713"></a>            <span class="n">asset_id</span><span class="p">,</span>
-<a id="__codelineno-0-714" name="__codelineno-0-714"></a>            <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
-<a id="__codelineno-0-715" name="__codelineno-0-715"></a>            <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
-<a id="__codelineno-0-716" name="__codelineno-0-716"></a>            <span class="n">bbox_4326</span><span class="o">=</span><span class="n">_bbox_to_4326</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="n">crs</span><span class="p">),</span>
-<a id="__codelineno-0-717" name="__codelineno-0-717"></a>            <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
-<a id="__codelineno-0-718" name="__codelineno-0-718"></a>        <span class="p">)</span>
-<a id="__codelineno-0-719" name="__codelineno-0-719"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">scenes</span><span class="p">:</span>
-<a id="__codelineno-0-720" name="__codelineno-0-720"></a>            <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
-<a id="__codelineno-0-721" name="__codelineno-0-721"></a>                <span class="sa">f</span><span class="s2">&quot;No Earth Engine scenes for </span><span class="si">{</span><span class="n">asset_id</span><span class="si">!r}</span><span class="s2"> in [</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">] over </span><span class="si">{</span><span class="n">bbox</span><span class="si">}</span><span class="s2">.&quot;</span>
-<a id="__codelineno-0-722" name="__codelineno-0-722"></a>            <span class="p">)</span>
-<a id="__codelineno-0-723" name="__codelineno-0-723"></a>        <span class="n">windowed</span> <span class="o">=</span> <span class="n">_read_scenes_aligned</span><span class="p">(</span>
-<a id="__codelineno-0-724" name="__codelineno-0-724"></a>            <span class="n">scenes</span><span class="p">,</span>
-<a id="__codelineno-0-725" name="__codelineno-0-725"></a>            <span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span>
-<a id="__codelineno-0-726" name="__codelineno-0-726"></a>            <span class="n">crs</span><span class="o">=</span><span class="n">crs</span><span class="p">,</span>
-<a id="__codelineno-0-727" name="__codelineno-0-727"></a>            <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span>
-<a id="__codelineno-0-728" name="__codelineno-0-728"></a>            <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
-<a id="__codelineno-0-729" name="__codelineno-0-729"></a>            <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span>
-<a id="__codelineno-0-730" name="__codelineno-0-730"></a>            <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
-<a id="__codelineno-0-731" name="__codelineno-0-731"></a>        <span class="p">)</span>
-<a id="__codelineno-0-732" name="__codelineno-0-732"></a>        <span class="k">return</span> <span class="n">_retain_credentials</span><span class="p">(</span>
-<a id="__codelineno-0-733" name="__codelineno-0-733"></a>            <span class="n">_composite</span><span class="p">(</span><span class="n">windowed</span><span class="p">,</span> <span class="n">reducer</span><span class="p">,</span> <span class="n">creds</span><span class="p">,</span> <span class="n">geometry</span><span class="p">),</span> <span class="n">creds</span>
-<a id="__codelineno-0-734" name="__codelineno-0-734"></a>        <span class="p">)</span>
-<a id="__codelineno-0-735" name="__codelineno-0-735"></a>
-<a id="__codelineno-0-736" name="__codelineno-0-736"></a>    <span class="n">src</span> <span class="o">=</span> <span class="n">_open_eedai</span><span class="p">(</span><span class="n">asset_id</span><span class="p">,</span> <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">)</span>
-<a id="__codelineno-0-737" name="__codelineno-0-737"></a>    <span class="k">if</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-738" name="__codelineno-0-738"></a>        <span class="k">if</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">crs</span> <span class="o">!=</span> <span class="s2">&quot;EPSG:4326&quot;</span><span class="p">:</span>
-<a id="__codelineno-0-739" name="__codelineno-0-739"></a>            <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
-<a id="__codelineno-0-740" name="__codelineno-0-740"></a>                <span class="s2">&quot;A &#39;bbox&#39; is required to window an Earth Engine asset when &quot;</span>
-<a id="__codelineno-0-741" name="__codelineno-0-741"></a>                <span class="s2">&quot;&#39;crs&#39;, &#39;scale&#39;, or &#39;shape&#39; is set (assets are global/huge).&quot;</span>
-<a id="__codelineno-0-742" name="__codelineno-0-742"></a>            <span class="p">)</span>
-<a id="__codelineno-0-743" name="__codelineno-0-743"></a>        <span class="c1"># The whole-asset wrap is read lazily, so pixel reads happen after this</span>
-<a id="__codelineno-0-744" name="__codelineno-0-744"></a>        <span class="c1"># returns — outside any `activate()` block. Install the credential config</span>
-<a id="__codelineno-0-745" name="__codelineno-0-745"></a>        <span class="c1"># process-wide so those deferred EEDAI reads still authenticate.</span>
-<a id="__codelineno-0-746" name="__codelineno-0-746"></a>        <span class="k">for</span> <span class="n">config_key</span><span class="p">,</span> <span class="n">config_value</span> <span class="ow">in</span> <span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-747" name="__codelineno-0-747"></a>            <span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="n">config_key</span><span class="p">,</span> <span class="n">config_value</span><span class="p">)</span>
-<a id="__codelineno-0-748" name="__codelineno-0-748"></a>        <span class="k">return</span> <span class="n">_retain_credentials</span><span class="p">(</span><span class="n">Dataset</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">gdal_env</span><span class="o">=</span><span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()),</span> <span class="n">creds</span><span class="p">)</span>
-<a id="__codelineno-0-749" name="__codelineno-0-749"></a>
-<a id="__codelineno-0-750" name="__codelineno-0-750"></a>    <span class="n">windowed_single</span> <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-0-751" name="__codelineno-0-751"></a>    <span class="k">if</span> <span class="n">tile_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-752" name="__codelineno-0-752"></a>        <span class="n">windowed_single</span> <span class="o">=</span> <span class="n">_tiled_window</span><span class="p">(</span>
-<a id="__codelineno-0-753" name="__codelineno-0-753"></a>            <span class="n">src</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="n">crs</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span> <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span>
-<a id="__codelineno-0-754" name="__codelineno-0-754"></a>        <span class="p">)</span>
-<a id="__codelineno-0-755" name="__codelineno-0-755"></a>    <span class="k">if</span> <span class="n">windowed_single</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-756" name="__codelineno-0-756"></a>        <span class="n">windowed_single</span> <span class="o">=</span> <span class="n">_window</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="n">crs</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">)</span>
-<a id="__codelineno-0-757" name="__codelineno-0-757"></a>    <span class="k">return</span> <span class="n">_retain_credentials</span><span class="p">(</span>
-<a id="__codelineno-0-758" name="__codelineno-0-758"></a>        <span class="n">_apply_geometry</span><span class="p">(</span><span class="n">Dataset</span><span class="p">(</span><span class="n">windowed_single</span><span class="p">,</span> <span class="n">gdal_env</span><span class="o">=</span><span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()),</span> <span class="n">geometry</span><span class="p">),</span>
-<a id="__codelineno-0-759" name="__codelineno-0-759"></a>        <span class="n">creds</span><span class="p">,</span>
-<a id="__codelineno-0-760" name="__codelineno-0-760"></a>    <span class="p">)</span>
+<a id="__codelineno-0-700" name="__codelineno-0-700"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-701" name="__codelineno-0-701"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-702" name="__codelineno-0-702"></a>    <span class="k">if</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-703" name="__codelineno-0-703"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Pass at most one of &#39;scale&#39; or &#39;shape&#39;, not both.&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-704" name="__codelineno-0-704"></a>
+<a id="__codelineno-0-705" name="__codelineno-0-705"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
+<a id="__codelineno-0-706" name="__codelineno-0-706"></a>    <span class="k">if</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-707" name="__codelineno-0-707"></a>        <span class="n">bbox</span> <span class="o">=</span> <span class="n">_geometry_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
+<a id="__codelineno-0-708" name="__codelineno-0-708"></a>
+<a id="__codelineno-0-709" name="__codelineno-0-709"></a>    <span class="k">if</span> <span class="n">reducer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">end</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-710" name="__codelineno-0-710"></a>        <span class="k">if</span> <span class="n">reducer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-711" name="__codelineno-0-711"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+<a id="__codelineno-0-712" name="__codelineno-0-712"></a>                <span class="s2">&quot;&#39;start&#39;/&#39;end&#39; select an ImageCollection; pass &#39;reducer&#39; for a &quot;</span>
+<a id="__codelineno-0-713" name="__codelineno-0-713"></a>                <span class="s2">&quot;single composite, or use collection_from_earthengine() for a &quot;</span>
+<a id="__codelineno-0-714" name="__codelineno-0-714"></a>                <span class="s2">&quot;DatasetCollection.&quot;</span>
+<a id="__codelineno-0-715" name="__codelineno-0-715"></a>            <span class="p">)</span>
+<a id="__codelineno-0-716" name="__codelineno-0-716"></a>        <span class="k">if</span> <span class="n">start</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">end</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-717" name="__codelineno-0-717"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+<a id="__codelineno-0-718" name="__codelineno-0-718"></a>                <span class="s2">&quot;The composite mode requires &#39;start&#39;, &#39;end&#39;, and a &#39;bbox&#39; or &quot;</span>
+<a id="__codelineno-0-719" name="__codelineno-0-719"></a>                <span class="s2">&quot;&#39;geometry&#39;.&quot;</span>
+<a id="__codelineno-0-720" name="__codelineno-0-720"></a>            <span class="p">)</span>
+<a id="__codelineno-0-721" name="__codelineno-0-721"></a>        <span class="n">scenes</span> <span class="o">=</span> <span class="n">_discover_scenes</span><span class="p">(</span>
+<a id="__codelineno-0-722" name="__codelineno-0-722"></a>            <span class="n">asset_id</span><span class="p">,</span>
+<a id="__codelineno-0-723" name="__codelineno-0-723"></a>            <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
+<a id="__codelineno-0-724" name="__codelineno-0-724"></a>            <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
+<a id="__codelineno-0-725" name="__codelineno-0-725"></a>            <span class="n">bbox_4326</span><span class="o">=</span><span class="n">_bbox_to_4326</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="n">crs</span><span class="p">),</span>
+<a id="__codelineno-0-726" name="__codelineno-0-726"></a>            <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
+<a id="__codelineno-0-727" name="__codelineno-0-727"></a>        <span class="p">)</span>
+<a id="__codelineno-0-728" name="__codelineno-0-728"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">scenes</span><span class="p">:</span>
+<a id="__codelineno-0-729" name="__codelineno-0-729"></a>            <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
+<a id="__codelineno-0-730" name="__codelineno-0-730"></a>                <span class="sa">f</span><span class="s2">&quot;No Earth Engine scenes for </span><span class="si">{</span><span class="n">asset_id</span><span class="si">!r}</span><span class="s2"> in [</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">] over </span><span class="si">{</span><span class="n">bbox</span><span class="si">}</span><span class="s2">.&quot;</span>
+<a id="__codelineno-0-731" name="__codelineno-0-731"></a>            <span class="p">)</span>
+<a id="__codelineno-0-732" name="__codelineno-0-732"></a>        <span class="n">windowed</span> <span class="o">=</span> <span class="n">_read_scenes_aligned</span><span class="p">(</span>
+<a id="__codelineno-0-733" name="__codelineno-0-733"></a>            <span class="n">scenes</span><span class="p">,</span>
+<a id="__codelineno-0-734" name="__codelineno-0-734"></a>            <span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span>
+<a id="__codelineno-0-735" name="__codelineno-0-735"></a>            <span class="n">crs</span><span class="o">=</span><span class="n">crs</span><span class="p">,</span>
+<a id="__codelineno-0-736" name="__codelineno-0-736"></a>            <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span>
+<a id="__codelineno-0-737" name="__codelineno-0-737"></a>            <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+<a id="__codelineno-0-738" name="__codelineno-0-738"></a>            <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span>
+<a id="__codelineno-0-739" name="__codelineno-0-739"></a>            <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
+<a id="__codelineno-0-740" name="__codelineno-0-740"></a>        <span class="p">)</span>
+<a id="__codelineno-0-741" name="__codelineno-0-741"></a>        <span class="k">return</span> <span class="n">_retain_credentials</span><span class="p">(</span>
+<a id="__codelineno-0-742" name="__codelineno-0-742"></a>            <span class="n">_composite</span><span class="p">(</span><span class="n">windowed</span><span class="p">,</span> <span class="n">reducer</span><span class="p">,</span> <span class="n">creds</span><span class="p">,</span> <span class="n">geometry</span><span class="p">),</span> <span class="n">creds</span>
+<a id="__codelineno-0-743" name="__codelineno-0-743"></a>        <span class="p">)</span>
+<a id="__codelineno-0-744" name="__codelineno-0-744"></a>
+<a id="__codelineno-0-745" name="__codelineno-0-745"></a>    <span class="n">src</span> <span class="o">=</span> <span class="n">_open_eedai</span><span class="p">(</span><span class="n">asset_id</span><span class="p">,</span> <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">)</span>
+<a id="__codelineno-0-746" name="__codelineno-0-746"></a>    <span class="k">if</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-747" name="__codelineno-0-747"></a>        <span class="k">if</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">crs</span> <span class="o">!=</span> <span class="s2">&quot;EPSG:4326&quot;</span><span class="p">:</span>
+<a id="__codelineno-0-748" name="__codelineno-0-748"></a>            <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
+<a id="__codelineno-0-749" name="__codelineno-0-749"></a>                <span class="s2">&quot;A &#39;bbox&#39; is required to window an Earth Engine asset when &quot;</span>
+<a id="__codelineno-0-750" name="__codelineno-0-750"></a>                <span class="s2">&quot;&#39;crs&#39;, &#39;scale&#39;, or &#39;shape&#39; is set (assets are global/huge).&quot;</span>
+<a id="__codelineno-0-751" name="__codelineno-0-751"></a>            <span class="p">)</span>
+<a id="__codelineno-0-752" name="__codelineno-0-752"></a>        <span class="c1"># The whole-asset wrap is read lazily, so pixel reads happen after this</span>
+<a id="__codelineno-0-753" name="__codelineno-0-753"></a>        <span class="c1"># returns — outside any `activate()` block. Install the credential config</span>
+<a id="__codelineno-0-754" name="__codelineno-0-754"></a>        <span class="c1"># process-wide so those deferred EEDAI reads still authenticate.</span>
+<a id="__codelineno-0-755" name="__codelineno-0-755"></a>        <span class="k">for</span> <span class="n">config_key</span><span class="p">,</span> <span class="n">config_value</span> <span class="ow">in</span> <span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-756" name="__codelineno-0-756"></a>            <span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="n">config_key</span><span class="p">,</span> <span class="n">config_value</span><span class="p">)</span>
+<a id="__codelineno-0-757" name="__codelineno-0-757"></a>        <span class="k">return</span> <span class="n">_retain_credentials</span><span class="p">(</span><span class="n">Dataset</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">gdal_env</span><span class="o">=</span><span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()),</span> <span class="n">creds</span><span class="p">)</span>
+<a id="__codelineno-0-758" name="__codelineno-0-758"></a>
+<a id="__codelineno-0-759" name="__codelineno-0-759"></a>    <span class="n">windowed_single</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-760" name="__codelineno-0-760"></a>    <span class="k">if</span> <span class="n">tile_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-761" name="__codelineno-0-761"></a>        <span class="n">windowed_single</span> <span class="o">=</span> <span class="n">_tiled_window</span><span class="p">(</span>
+<a id="__codelineno-0-762" name="__codelineno-0-762"></a>            <span class="n">src</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="n">crs</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span> <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span>
+<a id="__codelineno-0-763" name="__codelineno-0-763"></a>        <span class="p">)</span>
+<a id="__codelineno-0-764" name="__codelineno-0-764"></a>    <span class="k">if</span> <span class="n">windowed_single</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-765" name="__codelineno-0-765"></a>        <span class="n">windowed_single</span> <span class="o">=</span> <span class="n">_window</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="n">crs</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">)</span>
+<a id="__codelineno-0-766" name="__codelineno-0-766"></a>    <span class="k">return</span> <span class="n">_retain_credentials</span><span class="p">(</span>
+<a id="__codelineno-0-767" name="__codelineno-0-767"></a>        <span class="n">_apply_geometry</span><span class="p">(</span><span class="n">Dataset</span><span class="p">(</span><span class="n">windowed_single</span><span class="p">,</span> <span class="n">gdal_env</span><span class="o">=</span><span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()),</span> <span class="n">geometry</span><span class="p">),</span>
+<a id="__codelineno-0-768" name="__codelineno-0-768"></a>        <span class="n">creds</span><span class="p">,</span>
+<a id="__codelineno-0-769" name="__codelineno-0-769"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
