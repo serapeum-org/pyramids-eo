@@ -16,3 +16,10 @@ Instrument readers that decode L1 formats into calibrated, geolocated pyramids
         show_source: true
         heading_level: 3
         members_order: source
+
+::: pyramids_eo.readers.harmonise
+    options:
+        show_root_heading: true
+        show_source: true
+        heading_level: 3
+        members_order: source
