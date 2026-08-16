@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -836,6 +836,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="composites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1117,6 +1145,7 @@
 <li><a href="registry/">Registry</a> — sensor metadata (band → wavelength, native resolution, fill, calibration).</li>
 <li><a href="errors/">Errors</a> — the <code>EOError</code> exception family.</li>
 <li><a href="stac/">STAC signers</a> — EO provider asset signers (PC / Earthdata / CDSE / BDC).</li>
+<li><a href="composites/">Composites</a> — day/night compositing (solar geometry, blend).</li>
 </ul>
 
 
@@ -1132,14 +1161,14 @@
 
     <div class="doc doc-contents first">
 
-        <p>pyramids-eo — GDAL-native, xarray-free remote-sensing tier for the pyramids stack.</p>
-<p><code>pyramids-eo</code> sits between :mod:<code>pyramids</code> (the generic GDAL raster engine) and
-provider/orchestration layers. It knows what a pixel <em>means</em> for a given
-instrument: which subdataset is which channel, how to calibrate it, how to
-composite it, how to resample a swath. It takes a local file / path / bytes and
-decodes + processes it — it does <strong>not</strong> fetch from providers.</p>
-<p>The instrument readers (<code>read_seviri</code>, <code>read_fci</code>, <code>read_abi</code>,
-<code>read_olci</code>, <code>read_slstr</code>) are re-exported here once implemented.</p>
+        <p>pyramids-eo — the Earth-observation layer of the pyramids stack.</p>
+<p><code>pyramids-eo</code> is built on top of :mod:<code>pyramids</code> (<code>pyramids-gis</code>, the generic
+GDAL raster/vector engine) and adds the logic that is specific to
+<strong>Earth-observation data</strong>. Where pyramids knows how to <em>move rasters around</em>,
+pyramids-eo knows what a pixel <em>means</em> for a given instrument or provider: which
+subdataset is which channel, how to calibrate it, how to composite it, how to
+resample a swath — and how to reach signed EO cloud assets so they stream through
+GDAL. It is scoped by <em>domain</em> (EO data), not by a restriction on what it may do.</p>
 
 
 
