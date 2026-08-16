@@ -18,8 +18,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     # workflow_run fires on completion regardless of outcome; only publish when the
-    # github-release run succeeded (manual dispatch is always allowed).
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # github-release run succeeded and came from this repo (manual dispatch is always
+    # allowed). The same-repo guard matches github-pages-mkdocs.yml.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository) }}
     # contents: write is required for the admin-gate step's collaborators/{actor}/permission
     # REST call (needs push access).
     permissions:
