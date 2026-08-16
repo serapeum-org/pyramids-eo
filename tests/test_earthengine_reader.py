@@ -61,7 +61,7 @@ def patched_eedai(monkeypatch):
     """
 
     def _fake_open(asset_id, *, bands, credentials):  # noqa: ARG001
-        return _synthetic_srtm()
+        return Dataset(_synthetic_srtm())
 
     monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
 
@@ -193,7 +193,7 @@ class TestFromEarthengine:
 
         def _fake_open(asset_id, *, bands, credentials):  # noqa: ARG001
             captured["credentials"] = credentials
-            return _synthetic_srtm()
+            return Dataset(_synthetic_srtm())
 
         monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
         from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, credentials=str(key_tmp))
@@ -292,8 +292,8 @@ class TestOpenEedai:
             ``bands=["B4", "B3"]`` produces open option ``BANDS=B4,B3`` on the
             ``EEDAI:<asset>`` connection string.
         """
-        sentinel = object()
-        fake = _FakeGdal(sentinel)
+        opened = _synthetic_srtm()
+        fake = _FakeGdal(opened)
         monkeypatch.setattr(ee_reader, "gdal", fake)
         creds = EarthEngineCredentials.application_default()
 
@@ -301,7 +301,10 @@ class TestOpenEedai:
             "USGS/SRTMGL1_003", bands=["B4", "B3"], credentials=creds
         )
 
-        assert result is sentinel, "Should return the driver's open result"
+        assert isinstance(result, Dataset), (
+            f"Should return a Dataset, got {type(result)}"
+        )
+        assert result.raster is opened, "Dataset should wrap the driver's open result"
         conn, options = fake.calls[0]
         assert conn == "EEDAI:USGS/SRTMGL1_003", f"Unexpected connection string: {conn}"
         assert options == ["BLOCK_SIZE=256", "BANDS=B4,B3"], (
@@ -314,7 +317,7 @@ class TestOpenEedai:
         Test scenario:
             ``bands=None`` opens with only the pinned ``BLOCK_SIZE`` option.
         """
-        fake = _FakeGdal(object())
+        fake = _FakeGdal(_synthetic_srtm())
         monkeypatch.setattr(ee_reader, "gdal", fake)
         ee_reader._open_eedai(
             "USGS/SRTMGL1_003",
@@ -354,7 +357,9 @@ class TestWindow:
         src = _synthetic_srtm()
         monkeypatch.setattr(ee_reader.gdal, "Warp", lambda dest, source, **kw: None)
         with pytest.raises(ReaderError, match="windowing"):
-            ee_reader._window(src, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None)
+            ee_reader._window(
+                Dataset(src), bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None
+            )
 
 
 class _FakeFeature:
@@ -435,7 +440,7 @@ def three_scenes(monkeypatch):
         return scenes
 
     def _fake_open(connection, *, bands, credentials):  # noqa: ARG001
-        return _synthetic_srtm(fill=fills[connection])
+        return Dataset(_synthetic_srtm(fill=fills[connection]))
 
     monkeypatch.setattr(ee_reader, "_discover_scenes", _fake_discover)
     monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
@@ -983,7 +988,9 @@ class TestCredentialLifetime:
         import gc
 
         monkeypatch.setattr(
-            ee_reader, "_open_eedai", lambda a, *, bands, credentials: _synthetic_srtm()
+            ee_reader,
+            "_open_eedai",
+            lambda a, *, bands, credentials: Dataset(_synthetic_srtm()),
         )
         ds = from_earthengine(
             "USGS/SRTMGL1_003", bbox=_BBOX, credentials={"type": "service_account"}
@@ -1044,7 +1051,9 @@ class TestReducerDtype:
         key = tmp_path / "k.json"
         key.write_text("{}", encoding="utf-8")
         monkeypatch.setattr(
-            ee_reader, "_open_eedai", lambda a, *, bands, credentials: _synthetic_srtm()
+            ee_reader,
+            "_open_eedai",
+            lambda a, *, bands, credentials: Dataset(_synthetic_srtm()),
         )
         before = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
         try:
@@ -1181,7 +1190,9 @@ class TestCredentialScope:
             return real_window(src, **kwargs)
 
         monkeypatch.setattr(
-            ee_reader, "_open_eedai", lambda a, *, bands, credentials: _synthetic_srtm()
+            ee_reader,
+            "_open_eedai",
+            lambda a, *, bands, credentials: Dataset(_synthetic_srtm()),
         )
         monkeypatch.setattr(ee_reader, "_window", _spy)
         before = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
@@ -1272,7 +1283,7 @@ class TestMaterialize:
             ct.TransformPoint(86.9, 27.9),
             ct.TransformPoint(87.0, 28.0),
         )
-        mem = ee_reader._materialize(src, (x0, y0, x1, y1), "EPSG:3857")
+        mem = ee_reader._materialize(Dataset(src), (x0, y0, x1, y1), "EPSG:3857")
         assert mem.band_count == 1, "Materialised copy should keep the band count"
         assert int(np.asarray(mem.read_array()).max()) == 42, (
             "Constant fill should be preserved"
@@ -1306,7 +1317,7 @@ class TestMaterialize:
             86.0 + 500 * 0.001,
             29.0 - 100 * 0.001,
         )
-        mem = ee_reader._materialize(src, bbox, "EPSG:4326")
+        mem = ee_reader._materialize(Dataset(src), bbox, "EPSG:4326")
         assert mem.columns > 256, (
             "window must span >1 block on x to exercise the stitch"
         )
@@ -1353,7 +1364,7 @@ class TestMaterialize:
         ys = [c[1] for c in corners]
         bbox = (min(xs), min(ys), max(xs), max(ys))
 
-        mem = ee_reader._materialize(src, bbox, "EPSG:4326")
+        mem = ee_reader._materialize(Dataset(src), bbox, "EPSG:4326")
         mem_gt = mem.geotransform
         assert (mem_gt[2], mem_gt[4]) == (gt[2], gt[4]), (
             "Rotation/skew cross terms must be preserved"
@@ -1375,7 +1386,7 @@ class TestMaterialize:
         """
         src = _synthetic_srtm()
         with pytest.raises(ReaderError, match="does not intersect"):
-            ee_reader._materialize(src, (0.0, 0.0, 1.0, 1.0), "EPSG:4326")
+            ee_reader._materialize(Dataset(src), (0.0, 0.0, 1.0, 1.0), "EPSG:4326")
 
     def test_band_without_nodata(self) -> None:
         """A source band with no nodata materialises without setting one.
@@ -1383,7 +1394,9 @@ class TestMaterialize:
         Test scenario:
             Covers the no-nodata branch; the fill value survives.
         """
-        mem = ee_reader._materialize(_synthetic_no_nodata(), _BBOX, "EPSG:4326")
+        mem = ee_reader._materialize(
+            Dataset(_synthetic_no_nodata()), _BBOX, "EPSG:4326"
+        )
         assert mem.no_data_value[0] is None, "No nodata should be set"
         assert int(np.asarray(mem.read_array()).max()) == 7, (
             "Fill value should be preserved"
@@ -1403,7 +1416,7 @@ class TestMaterialize:
         srs.ImportFromEPSG(4326)
         src.SetProjection(srs.ExportToWkt())
         with pytest.raises(ReaderError, match="non-invertible"):
-            ee_reader._materialize(src, _BBOX, "EPSG:4326")
+            ee_reader._materialize(Dataset(src), _BBOX, "EPSG:4326")
 
     def test_raises_when_block_read_returns_none(self) -> None:
         """A failed block read (``None``) raises ``ReaderError``.
@@ -1574,10 +1587,10 @@ class TestResample:
         bbox = (86.0, 29.0 - size * 0.001, 86.0 + size * 0.001, 29.0)
         common = {"bbox": bbox, "crs": "EPSG:4326", "scale": None, "shape": (10, 10)}
         nearest = np.asarray(
-            ee_reader._window(src, resample="nearest", **common).read_array()
+            ee_reader._window(Dataset(src), resample="nearest", **common).read_array()
         )
         average = np.asarray(
-            ee_reader._window(src, resample="average", **common).read_array()
+            ee_reader._window(Dataset(src), resample="average", **common).read_array()
         )
         assert not np.array_equal(nearest, average), (
             "nearest and average must differ — resample is not reaching the warp"

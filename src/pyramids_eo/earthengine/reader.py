@@ -109,11 +109,13 @@ def _open_eedai(
     *,
     bands: list[str] | None,
     credentials: EarthEngineCredentials,
-) -> gdal.Dataset:
+) -> Dataset:
     """Open an Earth Engine ``Image`` (or scene) through the GDAL EEDAI driver.
 
     This is a network seam: tests monkeypatch it with a local fixture raster so CI
-    needs no live Earth Engine account.
+    needs no live Earth Engine account. The bare ``gdal.OpenEx`` is required — it is
+    the only call that takes the EEDAI open options — but its result is wrapped as a
+    pyramids ``Dataset`` right here, so no caller handles a raw ``gdal.Dataset``.
 
     Args:
         asset_or_connection: An EE image asset id (e.g. ``"USGS/SRTMGL1_003"``) or a
@@ -122,7 +124,8 @@ def _open_eedai(
         credentials: Resolved credentials whose config authorises the read.
 
     Returns:
-        The opened GDAL dataset (whole asset; window/reproject happens later).
+        The opened whole-asset pyramids ``Dataset`` (window/reproject happens later),
+        carrying the credential ``gdal_env`` for any deferred read.
 
     Raises:
         ReaderError: The driver could not open the asset.
@@ -148,7 +151,7 @@ def _open_eedai(
             f"Earth Engine asset {asset_or_connection!r} could not be opened via "
             f"EEDAI: {gdal.GetLastErrorMsg() or 'no detail'}"
         )
-    return src
+    return Dataset(src, gdal_env=credentials.gdal_env())
 
 
 #: EEDAI serves the raster in 256-pixel blocks. Reading strictly within one block
@@ -159,7 +162,7 @@ def _open_eedai(
 _EEDAI_BLOCK = 256
 
 
-def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> Dataset:
+def _materialize(ee: Dataset, bbox: BBox, crs: str) -> Dataset:
     """Read the EEDAI window covering ``bbox`` into a clean native-res ``Dataset``.
 
     EEDAI cannot serve a window that crosses a 256-px block boundary, and its
@@ -170,7 +173,8 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> Dataset:
     copy that :func:`_window` can safely warp.
 
     Args:
-        src: The opened EEDAI source dataset.
+        ee: The opened EEDAI source as a pyramids ``Dataset`` (from
+            :func:`_open_eedai`).
         bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``.
         crs: The CRS ``bbox`` is expressed in.
 
@@ -178,7 +182,6 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> Dataset:
         A pyramids ``Dataset`` in the source CRS covering ``bbox`` (padded one pixel
         for resampling), holding correct native-resolution pixels for every band.
     """
-    ee = Dataset(src)
     geotransform = ee.geotransform
     x0, y0, x1, y1 = _native_pixel_window(ee, bbox, crs)
     # Include the geotransform rotation/shear cross-terms so the sub-window origin
@@ -315,7 +318,7 @@ def _read_native_blocks(
 
 
 def _window(
-    src: gdal.Dataset,
+    source: Dataset,
     *,
     bbox: BBox,
     crs: str,
@@ -323,7 +326,7 @@ def _window(
     shape: tuple[int, int] | None,
     resample: str = "nearest",
 ) -> Dataset:
-    """Read ``src`` over ``bbox`` in ``crs`` at the requested resolution/shape.
+    """Read ``source`` over ``bbox`` in ``crs`` at the requested resolution/shape.
 
     The EEDAI window is first materialised block-aligned into a clean native-res
     ``Dataset`` (:func:`_materialize`) — reading EEDAI directly through ``gdal.Warp``
@@ -333,7 +336,7 @@ def _window(
     pyramids' step-wise reproject/resample does not reproduce pixel-for-pixel.
 
     Args:
-        src: The source EEDAI dataset to window.
+        source: The source EEDAI ``Dataset`` to window.
         bbox: Output bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
         crs: Target CRS (and the CRS ``bbox`` is expressed in).
         scale: Output pixel size in ``crs`` units, or ``None``.
@@ -346,7 +349,7 @@ def _window(
     Raises:
         ReaderError: The read or warp failed.
     """
-    native = _materialize(src, bbox, crs)
+    native = _materialize(source, bbox, crs)
     warp_kwargs: dict[str, object] = {
         "format": "MEM",
         "outputBounds": list(bbox),
@@ -877,16 +880,14 @@ def _single_image_read(
                 "'crs', 'scale', 'shape', or 'resample' is set (assets are "
                 "global/huge)."
             )
-        src = _open_eedai(asset_id, bands=bands, credentials=credentials)
-        # The whole-asset wrap is read lazily, so pixel reads happen after this
+        dataset = _open_eedai(asset_id, bands=bands, credentials=credentials)
+        # The whole-asset Dataset is read lazily, so pixel reads happen after this
         # returns — outside any `activate()` block. Install the credential config
         # process-wide so those deferred EEDAI reads still authenticate. This is the
         # one path that mutates global GDAL config (see the note in the docstring).
         for config_key, config_value in credentials.gdal_env().items():
             gdal.SetConfigOption(config_key, config_value)
-        return _retain_credentials(
-            Dataset(src, gdal_env=credentials.gdal_env()), credentials
-        )
+        return _retain_credentials(dataset, credentials)
 
     # Keep the credential config in effect across the open AND the windowing read
     # (the EEDAI pixel fetch is the block-aligned RasterIO inside `_window`), then
