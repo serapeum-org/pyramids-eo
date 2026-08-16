@@ -867,6 +867,15 @@ def from_earthengine(
         unaffected. See also the thread-safety note on
         :meth:`EarthEngineCredentials.activate`.
 
+    Note:
+        **Performance.** The EEDAI driver's overviews are unreliable, so the reader
+        always fetches the AOI at the asset's **native resolution** (block by
+        block) and downsamples locally. A small ``shape``/``scale`` output from a
+        fine-resolution asset over a wide AOI therefore still transfers the full
+        native window — e.g. a 32x32 read of 10 m Sentinel-2 over a 0.1° box pulls
+        ~1100x1100 native pixels. It is correct but can be slow/data-heavy; keep
+        the AOI tight for fine-resolution assets.
+
     Raises:
         ValueError: ``scale`` and ``shape`` are both given; or ``start`` / ``end``
             are given without a ``reducer`` (use
