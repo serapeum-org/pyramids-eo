@@ -115,10 +115,17 @@ def day_night_blend(
     if weight.ndim == 2 and day_arr.ndim == 3:
         weight = weight[np.newaxis, ...]
 
+    # np.where zeros each image's contribution where its weight is 0, so a NaN
+    # in a fully-weighted-out region (e.g. sun-angle-normalised day reflectance,
+    # which is NaN across the night side) does not leak through NaN * 0 = NaN.
     if mode == "day_only":
-        out = day_arr * weight
+        out = np.where(weight > 0, day_arr * weight, 0.0)
     elif mode == "night_only":
-        out = _as_array(night) * (1.0 - weight)
+        night_arr = _as_array(night)
+        out = np.where(weight < 1, night_arr * (1.0 - weight), 0.0)
     else:
-        out = day_arr * weight + _as_array(night) * (1.0 - weight)
+        night_arr = _as_array(night)
+        day_term = np.where(weight > 0, day_arr * weight, 0.0)
+        night_term = np.where(weight < 1, night_arr * (1.0 - weight), 0.0)
+        out = day_term + night_term
     return _wrap_like(out, day, night)
