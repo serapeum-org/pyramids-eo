@@ -1361,6 +1361,8 @@ class TestMaterialize:
                 real_band = self._real.GetRasterBand(index)
 
                 class _Band:
+                    DataType = real_band.DataType
+
                     def GetNoDataValue(self):  # noqa: N802
                         return real_band.GetNoDataValue()
 
