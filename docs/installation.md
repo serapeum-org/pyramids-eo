@@ -1,6 +1,6 @@
 # Installation
 
-pyramids-eo is **pure Python**. Its native GIS stack (GDAL/OGR/PROJ/GEOS) is provided transitively by
+pyramids-eo is **pure Python**. Its native GIS stack is provided transitively by
 [`pyramids-gis`](https://pypi.org/project/pyramids-gis/), whose self-contained platform wheels vendor
 those libraries — so `pip install pyramids-eo` works out of the box on Linux, macOS, and Windows with
 **no system GDAL** installation required.

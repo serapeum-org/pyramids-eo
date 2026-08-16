@@ -1,9 +1,27 @@
 """Sensor metadata registry.
 
-Maps a sensor's bands to their wavelengths, native resolution, fill values, and
-calibration coefficients. Backed by YAML tables under ``registry/data/``.
+Maps a sensor's bands to their wavelengths, native resolution, radiometric kind,
+and (nominal) calibration constants, backed by YAML tables under
+`registry/data/`. Also exposes the radiometric calibration functions:
+
+* `get_sensor` / `Sensor` / `Channel` — the channel metadata tables.
+* `radiance_to_reflectance` — solar-channel radiance → reflectance.
+* `radiance_to_brightness_temperature` — thermal-channel radiance → brightness
+  temperature (EUMETSAT inverse Planck).
 """
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from pyramids_eo.registry.calibration import (
+    radiance_to_brightness_temperature,
+    radiance_to_reflectance,
+)
+from pyramids_eo.registry.sensors import Channel, Sensor, get_sensor
+
+__all__ = [
+    "Channel",
+    "Sensor",
+    "get_sensor",
+    "radiance_to_brightness_temperature",
+    "radiance_to_reflectance",
+]

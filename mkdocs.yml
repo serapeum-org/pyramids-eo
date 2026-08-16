@@ -1,5 +1,5 @@
 site_name: pyramids-eo
-site_description: GDAL-native remote-sensing / Earth-observation tier for the pyramids stack
+site_description: Remote-sensing / Earth-observation tier for the pyramids stack
 site_url: https://serapeum-org.github.io/pyramids-eo/
 repo_url: https://github.com/serapeum-org/pyramids-eo
 repo_name: serapeum-org/pyramids-eo
@@ -105,12 +105,18 @@ nav:
     - Installation: installation.md
   - Guides:
     - STAC provider signers: stac-signers.md
+  - Examples:
+    - Sensor registry & calibration: examples/registry_calibration.ipynb
+    - FCI / SEVIRI readers & harmonise: examples/readers_fci_seviri_harmonise.ipynb
+    - Day/night compositing primitives: examples/day_night_compositing.ipynb
+    - Day/night + eclipse (end to end): examples/eclipse_day_night.ipynb
   - Reference:
     - Overview: reference/index.md
     - Readers: reference/readers.md
     - Registry: reference/registry.md
     - Errors: reference/errors.md
     - STAC signers: reference/stac.md
+    - Composites: reference/composites.md
   - About:
     - Change-log: change-log.md
     - Code of Conduct: CODE_OF_CONDUCT.md

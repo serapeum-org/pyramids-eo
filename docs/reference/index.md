@@ -6,6 +6,7 @@ The pyramids-eo public API.
 - [Registry](registry.md) — sensor metadata (band → wavelength, native resolution, fill, calibration).
 - [Errors](errors.md) — the `EOError` exception family.
 - [STAC signers](stac.md) — EO provider asset signers (PC / Earthdata / CDSE / BDC).
+- [Composites](composites.md) — day/night compositing (solar geometry, blend).
 
 ::: pyramids_eo
     options:

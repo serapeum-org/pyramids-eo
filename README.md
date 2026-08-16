@@ -4,19 +4,19 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
 **pyramids-eo** is the **Earth-observation layer** of the pyramids GIS stack. It is built on top of
-[pyramids](https://github.com/serapeum-org/pyramids) (`pyramids-gis`, the generic GDAL raster/vector
+[pyramids](https://github.com/serapeum-org/pyramids) (`pyramids-gis`, the generic raster/vector
 engine) and adds the logic that is specific to **Earth-observation data**.
 
 pyramids underneath knows only how to *move rasters around*. pyramids-eo knows what a pixel *means* for a
 given instrument or provider: which subdataset is which channel, how to calibrate it, how to composite it,
-how to resample a swath — and how to reach signed EO cloud assets so they stream through GDAL.
+how to resample a swath — and how to reach signed EO cloud assets.
 
 ```
 pyramids-eo        (Earth-observation logic: sensor readers, calibration, indices, composites,
     │               resample, masking, signed EO provider/STAC access)
     │  depends on
     ▼
-pyramids           (generic GDAL raster / vector engine)
+pyramids           (generic raster / vector engine)
 ```
 
 ## Scope
@@ -27,8 +27,8 @@ provides.
 
 ## Installation
 
-pyramids-eo is pure Python; GDAL is provided transitively by the `pyramids-gis` platform wheels, so no
-system GDAL is required.
+pyramids-eo is pure Python; its native stack is provided transitively by the `pyramids-gis` platform
+wheels, so no system GDAL is required.
 
 ```console
 pip install pyramids-eo

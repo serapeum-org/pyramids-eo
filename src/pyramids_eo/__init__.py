@@ -1,12 +1,12 @@
 """pyramids-eo — the Earth-observation layer of the pyramids stack.
 
 ``pyramids-eo`` is built on top of :mod:`pyramids` (``pyramids-gis``, the generic
-GDAL raster/vector engine) and adds the logic that is specific to
+raster/vector engine) and adds the logic that is specific to
 **Earth-observation data**. Where pyramids knows how to *move rasters around*,
 pyramids-eo knows what a pixel *means* for a given instrument or provider: which
 subdataset is which channel, how to calibrate it, how to composite it, how to
-resample a swath — and how to reach signed EO cloud assets so they stream through
-GDAL. It is scoped by *domain* (EO data), not by a restriction on what it may do.
+resample a swath — and how to reach signed EO cloud assets. It is scoped by
+*domain* (EO data), not by a restriction on what it may do.
 """
 
 from __future__ import annotations
