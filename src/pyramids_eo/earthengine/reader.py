@@ -220,15 +220,25 @@ def _tiled_window(
         for ix in range(math.ceil(cols / tile_size)):
             tile_min_x = min_x + ix * tile_size * px_x
             tile_max_x = min(max_x, tile_min_x + tile_size * px_x)
-            tiles.append(
-                _window(
-                    src,
-                    bbox=(tile_min_x, tile_min_y, tile_max_x, tile_max_y),
-                    crs=crs,
-                    scale=None,
-                    shape=None,
-                )
+            # Read each tile straight at the target resolution so the later mosaic
+            # only places tiles onto the grid — a single resampling, not a native
+            # read followed by a re-warp.
+            tile = gdal.Warp(
+                "",
+                src,
+                format="MEM",
+                outputBounds=[tile_min_x, tile_min_y, tile_max_x, tile_max_y],
+                outputBoundsSRS=crs,
+                dstSRS=crs,
+                xRes=px_x,
+                yRes=px_y,
             )
+            if tile is None:
+                raise ReaderError(
+                    f"Earth Engine tiled read failed for a tile in {crs}: "
+                    f"{gdal.GetLastErrorMsg() or 'no detail'}"
+                )
+            tiles.append(tile)
     mosaic = gdal.Warp(
         "",
         tiles,

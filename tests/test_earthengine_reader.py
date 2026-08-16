@@ -1253,3 +1253,21 @@ class TestGeometryCrs:
                 bbox_4326=(0.0, 0.0, 1.0, 1.0),
                 credentials=EarthEngineCredentials.application_default(),
             )
+
+    def test_tile_read_failure_raises(self, monkeypatch) -> None:
+        """A failed per-tile read raises ``ReaderError`` (L2 target-res path).
+
+        Test scenario:
+            ``gdal.Warp`` returning None for a single-source tile read surfaces as
+            ``ReaderError``.
+        """
+        monkeypatch.setattr(ee_reader.gdal, "Warp", lambda dest, src, **kw: None)
+        with pytest.raises(ReaderError, match="tile"):
+            ee_reader._tiled_window(
+                _synthetic_srtm(),
+                bbox=_BBOX,
+                crs="EPSG:4326",
+                scale=None,
+                shape=(40, 40),
+                tile_size=16,
+            )
