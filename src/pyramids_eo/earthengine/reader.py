@@ -714,10 +714,11 @@ def from_earthengine(
         scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.
         shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.
         tile_size: Optional maximum pixels per axis for a single read (single
-            ``Image`` mode). When the target window is larger, the AOI is read as a
-            grid of ``<= tile_size`` px tiles and mosaicked locally. EEDAI has no
-            hard request cap, so this bounds local memory, not an EE limit. Needs
-            ``scale`` or ``shape`` to know the target grid.
+            ``Image`` mode only — an error in composite mode). When the target
+            window is larger, the AOI is read as a grid of ``<= tile_size`` px
+            tiles and mosaicked locally. EEDAI has no hard request cap, so this
+            bounds local memory, not an EE limit. Needs ``scale`` or ``shape`` to
+            know the target grid.
         start: Inclusive ISO start of the acquisition window (composite mode).
         end: Inclusive ISO end of the acquisition window (composite mode).
         reducer: Client-side reducer for the composite mode — one of ``"median"``,
@@ -805,6 +806,11 @@ def from_earthengine(
             raise ValueError(
                 "The composite mode requires 'start', 'end', and a 'bbox' or "
                 "'geometry'."
+            )
+        if tile_size is not None:
+            raise ValueError(
+                "'tile_size' is only supported for single-Image reads, not the "
+                "composite mode."
             )
         scenes = _discover_scenes(
             asset_id,

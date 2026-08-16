@@ -1321,3 +1321,23 @@ class TestMultibandComposite:
             ee_reader._composite(
                 windowed, "max", EarthEngineCredentials.application_default()
             )
+
+
+class TestTileSizeGuard:
+    """`tile_size` is rejected in composite mode (L4)."""
+
+    def test_tile_size_rejected_in_composite_mode(self) -> None:
+        """Passing tile_size with a reducer raises ValueError.
+
+        Test scenario:
+            tile_size only applies to single-Image reads, not composites.
+        """
+        with pytest.raises(ValueError, match="tile_size.*single-Image"):
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                bbox=_BBOX,
+                start="2024-06-01",
+                end="2024-06-30",
+                reducer="median",
+                tile_size=16,
+            )
