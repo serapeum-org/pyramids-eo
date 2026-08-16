@@ -792,39 +792,6 @@ class TestHelpers:
             f"Mean of 10,20,30 should be 20, got {reduced[0, 0]}"
         )
 
-    def test_build_like_2d(self) -> None:
-        """A 2-D array is wrapped as a single-band georeferenced dataset.
-
-        Test scenario:
-            ``_build_like`` copies the template grid and stamps the nodata value.
-        """
-        template = _synthetic_srtm(fill=5)
-        out = ee_reader._build_like(
-            template, np.full((200, 200), 7, dtype="int16"), nodata=-32768
-        )
-        assert out.RasterCount == 1, f"Expected one band, got {out.RasterCount}"
-        assert out.GetGeoTransform() == template.GetGeoTransform(), (
-            "Geotransform not copied"
-        )
-        assert out.GetRasterBand(1).GetNoDataValue() == -32768, "Nodata not stamped"
-        assert int(out.ReadAsArray()[0, 0]) == 7, "Array not written"
-
-    def test_build_like_3d(self) -> None:
-        """A 3-D array is wrapped band-for-band.
-
-        Test scenario:
-            ``_build_like`` creates one band per leading-axis slice.
-        """
-        template = _synthetic_srtm(fill=5)
-        array = np.stack(
-            [np.full((200, 200), b, dtype="int16") for b in (1, 2)], axis=0
-        )
-        out = ee_reader._build_like(template, array, nodata=None)
-        assert out.RasterCount == 2, f"Expected two bands, got {out.RasterCount}"
-        assert int(out.GetRasterBand(2).ReadAsArray()[0, 0]) == 2, (
-            "Second band not written"
-        )
-
 
 class TestGeometryClip:
     """Tests for the polygon-cutline (`geometry`) support."""
@@ -1153,7 +1120,9 @@ def _multiband_scene(n_bands=2, fills=(10, 20), nodatas=(-1, -2)):
     for band in range(n_bands):
         src.GetRasterBand(band + 1).Fill(fills[band])
         src.GetRasterBand(band + 1).SetNoDataValue(nodatas[band])
-    return src
+    # `_composite` consumes pyramids Datasets (one per windowed scene), so hand back
+    # a wrapped Dataset rather than the bare GDAL source.
+    return Dataset(src)
 
 
 class TestMultibandComposite:
@@ -1304,8 +1273,10 @@ class TestMaterialize:
             ct.TransformPoint(87.0, 28.0),
         )
         mem = ee_reader._materialize(src, (x0, y0, x1, y1), "EPSG:3857")
-        assert mem.RasterCount == 1, "Materialised copy should keep the band count"
-        assert int(mem.ReadAsArray().max()) == 42, "Constant fill should be preserved"
+        assert mem.band_count == 1, "Materialised copy should keep the band count"
+        assert int(np.asarray(mem.read_array()).max()) == 42, (
+            "Constant fill should be preserved"
+        )
 
     def test_stitches_tiles_across_block_boundary(self) -> None:
         """A window spanning several 256-px blocks is stitched exactly.
@@ -1336,16 +1307,16 @@ class TestMaterialize:
             29.0 - 100 * 0.001,
         )
         mem = ee_reader._materialize(src, bbox, "EPSG:4326")
-        assert mem.RasterXSize > 256 and mem.RasterYSize > 256, (
+        assert mem.columns > 256 and mem.rows > 256, (
             "window must span more than one 256-px block to exercise the stitch"
         )
         inverse = gdal.InvGeoTransform(src.GetGeoTransform())
-        mem_gt = mem.GetGeoTransform()
+        mem_gt = mem.geotransform
         origin_col, origin_row = gdal.ApplyGeoTransform(inverse, mem_gt[0], mem_gt[3])
         reference = src.GetRasterBand(1).ReadAsArray(
-            round(origin_col), round(origin_row), mem.RasterXSize, mem.RasterYSize
+            round(origin_col), round(origin_row), mem.columns, mem.rows
         )
-        assert np.array_equal(mem.ReadAsArray(), reference), (
+        assert np.array_equal(np.asarray(mem.read_array()), reference), (
             "Stitched block tiles differ from a direct read"
         )
 
@@ -1382,16 +1353,16 @@ class TestMaterialize:
         bbox = (min(xs), min(ys), max(xs), max(ys))
 
         mem = ee_reader._materialize(src, bbox, "EPSG:4326")
-        mem_gt = mem.GetGeoTransform()
+        mem_gt = mem.geotransform
         assert (mem_gt[2], mem_gt[4]) == (gt[2], gt[4]), (
             "Rotation/skew cross terms must be preserved"
         )
         inverse = gdal.InvGeoTransform(gt)
         origin_col, origin_row = gdal.ApplyGeoTransform(inverse, mem_gt[0], mem_gt[3])
         reference = src.GetRasterBand(1).ReadAsArray(
-            round(origin_col), round(origin_row), mem.RasterXSize, mem.RasterYSize
+            round(origin_col), round(origin_row), mem.columns, mem.rows
         )
-        assert np.array_equal(mem.ReadAsArray(), reference), (
+        assert np.array_equal(np.asarray(mem.read_array()), reference), (
             "Rotated sub-window is mis-registered — cross-term math is wrong"
         )
 
@@ -1412,8 +1383,10 @@ class TestMaterialize:
             Covers the no-nodata branch; the fill value survives.
         """
         mem = ee_reader._materialize(_synthetic_no_nodata(), _BBOX, "EPSG:4326")
-        assert mem.GetRasterBand(1).GetNoDataValue() is None, "No nodata should be set"
-        assert int(mem.ReadAsArray().max()) == 7, "Fill value should be preserved"
+        assert mem.no_data_value[0] is None, "No nodata should be set"
+        assert int(np.asarray(mem.read_array()).max()) == 7, (
+            "Fill value should be preserved"
+        )
 
     def test_raises_on_non_invertible_geotransform(self) -> None:
         """A non-invertible source geotransform raises ``ReaderError``.
@@ -1598,8 +1571,12 @@ class TestResample:
         )
         bbox = (86.0, 29.0 - size * 0.001, 86.0 + size * 0.001, 29.0)
         common = {"bbox": bbox, "crs": "EPSG:4326", "scale": None, "shape": (10, 10)}
-        nearest = ee_reader._window(src, resample="nearest", **common).ReadAsArray()
-        average = ee_reader._window(src, resample="average", **common).ReadAsArray()
+        nearest = np.asarray(
+            ee_reader._window(src, resample="nearest", **common).read_array()
+        )
+        average = np.asarray(
+            ee_reader._window(src, resample="average", **common).read_array()
+        )
         assert not np.array_equal(nearest, average), (
             "nearest and average must differ — resample is not reaching the warp"
         )

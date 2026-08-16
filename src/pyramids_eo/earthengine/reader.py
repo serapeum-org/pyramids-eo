@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 from typing import NamedTuple
 
 import numpy as np
-from osgeo import gdal, gdal_array, osr
+from osgeo import gdal, osr
 from pyramids.dataset import Dataset, DatasetCollection
 
 from pyramids_eo.earthengine.credentials import CredentialsLike, EarthEngineCredentials
@@ -160,15 +160,15 @@ def _open_eedai(
 _EEDAI_BLOCK = 256
 
 
-def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> gdal.Dataset:
-    """Read the EEDAI window covering ``bbox`` into a clean native-res ``MEM`` raster.
+def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> Dataset:
+    """Read the EEDAI window covering ``bbox`` into a clean native-res ``Dataset``.
 
     EEDAI cannot serve a window that crosses a 256-px block boundary, and its
     overviews are unreliable — so ``gdal.Warp``-ing an EEDAI dataset directly
     corrupts the result. This reads the source at native resolution one
-    block-aligned tile at a time (each ``RasterIO`` stays inside a single block)
-    and assembles a georeferenced in-memory copy that :func:`_window` can safely
-    warp.
+    block-aligned tile at a time (each ``RasterIO`` stays inside a single block),
+    stitches the tiles into one array, and lets pyramids build the georeferenced
+    copy that :func:`_window` can safely warp.
 
     Args:
         src: The opened EEDAI source dataset.
@@ -176,8 +176,8 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> gdal.Dataset:
         crs: The CRS ``bbox`` is expressed in.
 
     Returns:
-        A ``MEM`` dataset in the source CRS covering ``bbox`` (padded one pixel for
-        resampling), holding correct native-resolution pixels for every band.
+        A pyramids ``Dataset`` in the source CRS covering ``bbox`` (padded one pixel
+        for resampling), holding correct native-resolution pixels for every band.
     """
     geotransform = src.GetGeoTransform()
     source_srs = osr.SpatialReference()
@@ -217,29 +217,23 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> gdal.Dataset:
 
     width, height = x1 - x0, y1 - y0
     band_count = src.RasterCount
-    out = gdal.GetDriverByName("MEM").Create(
-        "", width, height, band_count, src.GetRasterBand(1).DataType
-    )
-    out.SetProjection(src.GetProjection())
     # Include the geotransform rotation/shear cross-terms so the sub-window origin
     # is correct even for a non-north-up source (north-up assets have gt[2]=gt[4]=0).
-    out.SetGeoTransform(
-        (
-            geotransform[0] + x0 * geotransform[1] + y0 * geotransform[2],
-            geotransform[1],
-            geotransform[2],
-            geotransform[3] + x0 * geotransform[4] + y0 * geotransform[5],
-            geotransform[4],
-            geotransform[5],
-        )
+    subwindow_geo = (
+        geotransform[0] + x0 * geotransform[1] + y0 * geotransform[2],
+        geotransform[1],
+        geotransform[2],
+        geotransform[3] + x0 * geotransform[4] + y0 * geotransform[5],
+        geotransform[4],
+        geotransform[5],
     )
+    # An ImageCollection's scenes share one per-band nodata, so the first band's is
+    # representative for the whole asset.
+    nodata = src.GetRasterBand(1).GetNoDataValue()
+    data: np.ndarray | None = None
+    block = _EEDAI_BLOCK
     for band_index in range(band_count):
         source_band = src.GetRasterBand(band_index + 1)
-        out_band = out.GetRasterBand(band_index + 1)
-        nodata = source_band.GetNoDataValue()
-        if nodata is not None:
-            out_band.SetNoDataValue(nodata)
-        block = _EEDAI_BLOCK
         for by in range((y0 // block) * block, y1, block):
             for bx in range((x0 // block) * block, x1, block):
                 rx0, ry0 = max(bx, x0), max(by, y0)
@@ -250,8 +244,16 @@ def _materialize(src: gdal.Dataset, bbox: BBox, crs: str) -> gdal.Dataset:
                         "Earth Engine block read failed at "
                         f"({rx0}, {ry0}): {gdal.GetLastErrorMsg() or 'no detail'}"
                     )
-                out_band.WriteArray(tile, rx0 - x0, ry0 - y0)
-    return out
+                if data is None:
+                    data = np.empty((band_count, height, width), dtype=tile.dtype)
+                data[band_index, ry0 - y0 : ry1 - y0, rx0 - x0 : rx1 - x0] = tile
+    # Hand the block-stitched native pixels to pyramids to build the georeferenced
+    # raster — no manual MEM driver or per-band juggling. The source projection is
+    # passed through as WKT so a non-EPSG Earth Engine grid round-trips exactly, and
+    # ``no_data_value=None`` leaves the bands without a nodata sentinel.
+    return Dataset.create_from_array(
+        data, geo=subwindow_geo, epsg=src.GetProjection(), no_data_value=nodata
+    )
 
 
 def _window(
@@ -262,13 +264,15 @@ def _window(
     scale: float | None,
     shape: tuple[int, int] | None,
     resample: str = "nearest",
-) -> gdal.Dataset:
+) -> Dataset:
     """Read ``src`` over ``bbox`` in ``crs`` at the requested resolution/shape.
 
     The EEDAI window is first materialised block-aligned into a clean native-res
-    in-memory raster (:func:`_materialize`) — reading EEDAI directly through
-    ``gdal.Warp`` corrupts the result — and that copy is then warped to the target
-    grid. Returns an in-memory (``MEM``) GDAL dataset.
+    ``Dataset`` (:func:`_materialize`) — reading EEDAI directly through ``gdal.Warp``
+    corrupts the result — and that copy is then warped to the target grid. The warp
+    is the one GDAL primitive kept here on purpose: it reprojects to an arbitrary
+    ``crs`` and lands the exact ``bbox`` + ``shape`` grid in a single pass, which
+    pyramids' step-wise reproject/resample does not reproduce pixel-for-pixel.
 
     Args:
         src: The source EEDAI dataset to window.
@@ -279,7 +283,7 @@ def _window(
         resample: Resampling algorithm for the warp — see :func:`_resample_alg`.
 
     Returns:
-        The warped in-memory GDAL dataset.
+        The warped pyramids ``Dataset``.
 
     Raises:
         ReaderError: The read or warp failed.
@@ -300,13 +304,13 @@ def _window(
         warp_kwargs["xRes"] = scale
         warp_kwargs["yRes"] = scale
 
-    out = gdal.Warp("", native, **warp_kwargs)
+    out = gdal.Warp("", native.raster, **warp_kwargs)
     if out is None:
         raise ReaderError(
             f"Earth Engine read failed while windowing to {bbox} in {crs}: "
             f"{gdal.GetLastErrorMsg() or 'no detail'}"
         )
-    return out
+    return Dataset(out)
 
 
 def _iso(value: str) -> str:
@@ -534,7 +538,7 @@ def _read_scenes_aligned(
     bands: list[str] | None,
     credentials: EarthEngineCredentials,
     resample: str = "nearest",
-) -> list[gdal.Dataset]:
+) -> list[Dataset]:
     """Read every scene windowed to one common grid.
 
     When neither ``scale`` nor ``shape`` is given, the first scene's native
@@ -552,20 +556,21 @@ def _read_scenes_aligned(
         resample: Resampling algorithm for the warp.
 
     Returns:
-        One windowed in-memory GDAL dataset per scene, all on the same grid.
+        One windowed pyramids ``Dataset`` per scene, all on the same grid.
     """
-    windowed: list[gdal.Dataset] = []
+    windowed: list[Dataset] = []
     target_shape = shape
     for scene in scenes:
         src = _open_eedai(scene.connection, bands=bands, credentials=credentials)
         # Release the EEDAI source handle whether the window succeeds or raises;
-        # the windowed result is a self-contained MEM copy that no longer needs it.
+        # the windowed result is a self-contained in-memory copy that no longer
+        # needs it.
         try:
             if target_shape is None and scale is None:
                 first = _window(
                     src, bbox=bbox, crs=crs, scale=None, shape=None, resample=resample
                 )
-                target_shape = (first.RasterYSize, first.RasterXSize)
+                target_shape = (first.rows, first.columns)
                 windowed.append(first)
             else:
                 windowed.append(
@@ -662,42 +667,8 @@ def _reduce(stack: np.ndarray, reducer: str, nodata: float | None) -> np.ndarray
     return reduced.astype(np.float64)
 
 
-def _build_like(
-    template: gdal.Dataset,
-    array: np.ndarray,
-    nodata: float | list[float | None] | None,
-) -> gdal.Dataset:
-    """Build an in-memory GDAL dataset holding ``array`` on ``template``'s grid.
-
-    Args:
-        template: The dataset whose geotransform / projection to copy.
-        array: The pixel data, shaped ``(rows, cols)`` or ``(bands, rows, cols)``.
-        nodata: Nodata to stamp on the bands — a scalar applied to every band, or a
-            per-band list (one entry per band, each value or ``None``), or ``None``.
-
-    Returns:
-        A ``MEM`` GDAL dataset georeferenced like ``template``.
-    """
-    if array.ndim == 2:
-        array = array[np.newaxis, :, :]
-    n_bands, rows, cols = array.shape
-    # Derive the band dtype from the array (not the template) so a float mean /
-    # median or a widened int sum is stored without truncation or overflow.
-    dtype = gdal_array.NumericTypeCodeToGDALTypeCode(array.dtype)
-    out = gdal.GetDriverByName("MEM").Create("", cols, rows, n_bands, dtype)
-    out.SetGeoTransform(template.GetGeoTransform())
-    out.SetProjection(template.GetProjection())
-    for index in range(n_bands):
-        band = out.GetRasterBand(index + 1)
-        band.WriteArray(array[index])
-        band_nodata = nodata[index] if isinstance(nodata, list) else nodata
-        if band_nodata is not None:
-            band.SetNoDataValue(band_nodata)
-    return out
-
-
 def _composite(
-    windowed: list[gdal.Dataset],
+    windowed: list[Dataset],
     reducer: str,
     credentials: EarthEngineCredentials,
     geometry: object | None = None,
@@ -720,18 +691,16 @@ def _composite(
     Raises:
         ReaderError: The scenes have mismatched band counts.
     """
-    band_count = windowed[0].RasterCount
+    template = windowed[0]
+    band_count = template.band_count
     for scene in windowed[1:]:
-        if scene.RasterCount != band_count:
+        if scene.band_count != band_count:
             raise ReaderError(
                 "Earth Engine scenes have mismatched band counts "
-                f"({band_count} vs {scene.RasterCount}); cannot composite."
+                f"({band_count} vs {scene.band_count}); cannot composite."
             )
-    nodatas = [
-        windowed[0].GetRasterBand(index + 1).GetNoDataValue()
-        for index in range(band_count)
-    ]
-    stack = np.stack([scene.ReadAsArray() for scene in windowed], axis=0)
+    nodatas = [template.no_data_value[index] for index in range(band_count)]
+    stack = np.stack([scene.read_array() for scene in windowed], axis=0)
     if stack.ndim == 4:
         # (scenes, bands, rows, cols) — reduce each band with its own nodata.
         reduced = np.stack(
@@ -741,13 +710,16 @@ def _composite(
             ],
             axis=0,
         )
-        band_nodata: float | list[float | None] | None = nodatas
     else:
         reduced = _reduce(stack, reducer, nodatas[0])
-        band_nodata = nodatas[0]
-    composite = Dataset(
-        _build_like(windowed[0], reduced, band_nodata),
-        gdal_env=credentials.gdal_env(),
+    # Scenes of one ImageCollection share a per-band nodata, so collapse the list to
+    # a single sentinel (or ``None`` for no nodata) and let pyramids build the raster.
+    band_nodata = nodatas[0] if len(set(nodatas)) == 1 else nodatas
+    composite = Dataset.create_from_array(
+        reduced,
+        geo=template.geotransform,
+        epsg=template.epsg,
+        no_data_value=band_nodata,
     )
     return _apply_geometry(composite, geometry)
 
@@ -869,9 +841,9 @@ def _single_image_read(
             )
         finally:
             src = None  # release the EEDAI source whether the window succeeds or not
-    windowed_dataset = _apply_geometry(
-        Dataset(windowed_single, gdal_env=credentials.gdal_env()), geometry
-    )
+    # ``windowed_single`` is a fully-materialised in-memory Dataset (the warp read
+    # every pixel eagerly), so it needs no credential env for any deferred read.
+    windowed_dataset = _apply_geometry(windowed_single, geometry)
     return _retain_credentials(windowed_dataset, credentials)
 
 
@@ -1158,10 +1130,10 @@ def collection_from_earthengine(
             resample=resample,
         )
     env = creds.gdal_env()
+    # ``windowed`` scenes are already fully-materialised pyramids Datasets (the warp
+    # read every pixel eagerly), so they need no re-wrapping or credential env.
     datasets = [
-        _retain_credentials(
-            _apply_geometry(Dataset(scene, gdal_env=env), geometry), creds
-        )
+        _retain_credentials(_apply_geometry(scene, geometry), creds)
         for scene in windowed
     ]
     collection = DatasetCollection(
