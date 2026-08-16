@@ -78,6 +78,28 @@ class TestReadFci:
         with pytest.raises(UnknownSensorError, match="has no channel"):
             read_fci([_chunk(np.ones((2, 2)))], "not_a_channel")
 
+    def test_coeffs_override_solar_irradiance(self):
+        """Per-granule coeffs override the registry solar irradiance."""
+        radiance = np.full((2, 2), 100.0)
+        out = read_fci([_chunk(radiance)], "vis_06", coeffs={"solar_irradiance": 500.0})
+        assert np.allclose(out.read_array(), radiance_to_reflectance(radiance, 500.0))
+
+    def test_coeffs_override_thermal_constants(self):
+        """Per-granule coeffs override the registry Planck constants."""
+        radiance = np.full((2, 2), 80.0)
+        out = read_fci(
+            [_chunk(radiance)],
+            "ir_105",
+            coeffs={"central_wavenumber_cm1": 900.0, "alpha": 0.99, "beta": 0.5},
+        )
+        expected = radiance_to_brightness_temperature(radiance, 900.0, 0.99, 0.5)
+        assert np.allclose(out.read_array(), expected), "coeffs not preferred"
+
+    def test_coeffs_alpha_zero_not_coerced_to_one(self):
+        """A coeffs alpha of 0 surfaces the invalid-alpha error (not silently 1.0)."""
+        with pytest.raises(CalibrationError, match="alpha"):
+            read_fci([_chunk(np.ones((2, 2)))], "ir_105", coeffs={"alpha": 0.0})
+
     def test_open_chunk_used_for_non_dataset(self):
         """A non-Dataset chunk is opened via the injected open_chunk callable."""
         captured = {}

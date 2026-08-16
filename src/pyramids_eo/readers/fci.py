@@ -53,6 +53,7 @@ def read_fci(
     calibrate: bool = True,
     sun_earth_distance: float = 1.0,
     cos_sza: Any = None,
+    coeffs: dict[str, Any] | None = None,
     open_chunk: Any = None,
 ) -> Any:
     """Read one FCI channel across its chunk set into a calibrated `Dataset`.
@@ -73,6 +74,8 @@ def read_fci(
         sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.
         cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle
             correction, or `None`.
+        coeffs: Per-granule calibration coefficients preferred over the registry
+            fallback (see `calibrate_channel`), or `None` to use the registry.
         open_chunk: Callable `(chunk, channel) -> Dataset` used for chunks that
             are not already Datasets. Defaults to a NetCDF reader (see the module
             warning about the FCI layout).
@@ -99,7 +102,9 @@ def read_fci(
         [np.asarray(ds.read_array(), dtype=float) for ds in datasets], axis=0
     )
     data = (
-        calibrate_channel(radiance, channel, sensor, sun_earth_distance, cos_sza)
+        calibrate_channel(
+            radiance, channel, sensor, sun_earth_distance, cos_sza, coeffs=coeffs
+        )
         if calibrate
         else radiance
     )

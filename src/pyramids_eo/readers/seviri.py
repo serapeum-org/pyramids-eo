@@ -49,6 +49,7 @@ def read_seviri(
     calibrate: bool = True,
     sun_earth_distance: float = 1.0,
     cos_sza: Any = None,
+    coeffs: dict[str, Any] | None = None,
     parse: Any = None,
 ) -> Any:
     """Read one SEVIRI channel into a calibrated, geolocated `Dataset`.
@@ -67,6 +68,8 @@ def read_seviri(
         sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.
         cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle
             correction, or `None`.
+        coeffs: Per-granule calibration coefficients preferred over the registry
+            fallback (see `calibrate_channel`), or `None` to use the registry.
         parse: Callable `(source, channel) -> Dataset` used when `source` is not
             already a `Dataset`. Defaults to a not-implemented native parser (see
             the module warning).
@@ -87,7 +90,9 @@ def read_seviri(
     dataset = source if hasattr(source, "read_array") else parser(source, channel)
     radiance = np.asarray(dataset.read_array(), dtype=float)
     data = (
-        calibrate_channel(radiance, channel, sensor, sun_earth_distance, cos_sza)
+        calibrate_channel(
+            radiance, channel, sensor, sun_earth_distance, cos_sza, coeffs=coeffs
+        )
         if calibrate
         else radiance
     )
