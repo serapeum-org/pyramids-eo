@@ -36,6 +36,9 @@ repos:
         args: [ --autofix,
                 --indent=4,
                 --no-sort-keys ]
+        # Jupyter notebooks are JSON but are written/rewritten by nbformat on
+        # every execute; leave their formatting to Jupyter, not this hook.
+        exclude: \.ipynb$
       - id: requirements-txt-fixer
         name: "[reqs - format] fix requirements.txt"
       - id: check-yaml
