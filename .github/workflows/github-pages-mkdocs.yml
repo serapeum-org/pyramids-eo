@@ -10,9 +10,6 @@ on:
   pull_request:
     branches:
       - '**'
-  release:
-      types:
-        - published
   workflow_run:
     workflows: ['github-release']
     types: [completed]
@@ -59,9 +56,8 @@ jobs:
 
   deploy-release:
     if: >-
-      github.event_name == 'release' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_repository.full_name == github.repository)
+      github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -84,5 +80,5 @@ jobs:
         package-manager: 'pixi'
         install-groups: "docs"
         deploy-token: ${{ secrets.ACTIONS_DEPLOY_TOKEN }}
-        release-tag: ${{ github.event.release.tag_name || steps.version.outputs.tag }}
+        release-tag: ${{ steps.version.outputs.tag }}
         mike-alias: 'latest'

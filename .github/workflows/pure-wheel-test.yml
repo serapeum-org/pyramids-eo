@@ -14,6 +14,12 @@ on:
         default: ""
         type: string
   workflow_call:
+    inputs:
+      branch:
+        description: "Ref to build and test (passed by the calling workflow)"
+        required: false
+        default: ""
+        type: string
 
 jobs:
   build-wheel:
@@ -34,6 +40,12 @@ jobs:
 
       - name: Build wheel
         run: pixi run -e dev python -m build --wheel --outdir dist/
+
+      - name: Verify package data in wheel
+        run: |
+          LISTING=$(pixi run -e dev python -m zipfile -l dist/*.whl)
+          echo "$LISTING" | grep "pyramids_eo/registry/data/fci.yaml"
+          echo "$LISTING" | grep "pyramids_eo/registry/data/seviri.yaml"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

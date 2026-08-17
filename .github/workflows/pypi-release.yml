@@ -1,9 +1,15 @@
 name: pypi-release
 
+# A release cut by `github-release` runs under GITHUB_TOKEN, and GitHub does not let
+# a GITHUB_TOKEN-created event trigger another workflow — so a `release: published`
+# trigger here would never fire on the automated path. `workflow_run` is exempt from
+# that restriction (it fires when another workflow *completes*), so it is the signal
+# that actually works, mirroring github-pages-mkdocs.yml.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+  workflow_run:
+    workflows: ['github-release']
+    types: [completed]
 
 permissions:
   contents: read
@@ -11,13 +17,75 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # workflow_run fires on completion regardless of outcome; only publish when the
+    # github-release run succeeded and came from this repo (manual dispatch is always
+    # allowed). The same-repo guard matches github-pages-mkdocs.yml.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    # contents: write is required for the admin-gate step's collaborators/{actor}/permission
+    # REST call (needs push access).
+    permissions:
+      contents: write
     steps:
+      - name: Check actor is a repository admin
+        # Gate the MANUAL publish path only. The workflow_run path is already tied to
+        # github-release, which is itself admin-gated.
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if ! PERMISSION=$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" --jq '.permission'); then
+            echo "::error::could not verify repository permission for ${ACTOR} (GitHub API error)"
+            exit 1
+          fi
+          echo "Permission level for ${ACTOR}: ${PERMISSION}"
+          if [ "${PERMISSION}" != "admin" ]; then
+            echo "::error::${ACTOR} is not a repository admin. Only admins can publish."
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: ${{ github.ref }}
+          # head_branch (not head_sha): github-release pushes the version-bump +
+          # pixi.lock commits AFTER the workflow_run head_sha is captured, so the
+          # branch tip carries the released version while head_sha would not.
+          ref: ${{ github.event.workflow_run.head_branch }}
+
+      - name: Ensure the release is published (skip drafts)
+        # A github-release run cut with `draft: true` still bumps the version and
+        # completes successfully, which would fire this workflow_run and publish an
+        # unreleased version to PyPI (irreversible). The /releases/tags endpoint returns
+        # published releases only, so a draft (or missing) release yields a non-zero
+        # exit and skips publishing.
+        id: gate
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG=$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/')
+          ERR="${RUNNER_TEMP}/gh-release-check.err"
+          if gh api "repos/${REPO}/releases/tags/${TAG}" >/dev/null 2>"${ERR}"; then
+            echo "Published release ${TAG} found — proceeding."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif grep -q 'HTTP 404' "${ERR}"; then
+            echo "No published release for ${TAG} (draft or not yet published) — skipping publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::could not verify release ${TAG} (GitHub API error, not a 404)"
+            cat "${ERR}"
+            exit 1
+          fi
 
       - name: Build and publish sdist + pure wheel
+        if: github.event_name == 'workflow_dispatch' || steps.gate.outputs.publish == 'true'
         uses: serapeum-org/github-actions/actions/release/pypi@38c111084f99d5ff5f4a1e63bedce48fe33a10c0  # pypi-release/v1.5.0
         with:
           pypi-username: __token__
