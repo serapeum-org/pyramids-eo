@@ -1603,7 +1603,7 @@
 
 
 <h4 id="pyramids_eo.readers.read_fci" class="doc doc-heading"><a href="#pyramids_eo.readers.read_fci" class="toclink">
-            <code class="highlight language-python"><span class="n">read_fci</span><span class="p">(</span><span class="n">chunks</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">sensor</span><span class="o">=</span><span class="s1">&#39;fci&#39;</span><span class="p">,</span> <span class="n">calibrate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">cos_sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">open_chunk</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">read_fci</span><span class="p">(</span><span class="n">chunks</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">sensor</span><span class="o">=</span><span class="s1">'fci'</span><span class="p">,</span> <span class="n">calibrate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">cos_sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">open_chunk</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </a><a href="#pyramids_eo.readers.read_fci" class="headerlink" title="Permanent link">#</a></h4>
 
@@ -1930,19 +1930,19 @@ warning about the FCI layout).</p>
 <a id="__codelineno-0-49" name="__codelineno-0-49"></a>    <span class="n">chunks</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 <a id="__codelineno-0-50" name="__codelineno-0-50"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 <a id="__codelineno-0-51" name="__codelineno-0-51"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-52" name="__codelineno-0-52"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;fci&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"fci"</span><span class="p">,</span>
 <a id="__codelineno-0-53" name="__codelineno-0-53"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <a id="__codelineno-0-54" name="__codelineno-0-54"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
 <a id="__codelineno-0-55" name="__codelineno-0-55"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-56" name="__codelineno-0-56"></a>    <span class="n">coeffs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-57" name="__codelineno-0-57"></a>    <span class="n">open_chunk</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Read one FCI channel across its chunk set into a calibrated `Dataset`.</span>
+<a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="w">    </span><span class="sd">"""Read one FCI channel across its chunk set into a calibrated `Dataset`.</span>
 <a id="__codelineno-0-60" name="__codelineno-0-60"></a>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a><span class="sd">    Orders the chunks north -&gt; south by their top-left latitude (so the caller</span>
-<a id="__codelineno-0-62" name="__codelineno-0-62"></a><span class="sd">    may pass them in any order), stitches the channel&#39;s radiance row-wise,</span>
+<a id="__codelineno-0-62" name="__codelineno-0-62"></a><span class="sd">    may pass them in any order), stitches the channel's radiance row-wise,</span>
 <a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="sd">    calibrates it to reflectance (solar) or brightness temperature (thermal),</span>
-<a id="__codelineno-0-64" name="__codelineno-0-64"></a><span class="sd">    and returns a geolocated pyramids `Dataset` carrying the northernmost chunk&#39;s</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a><span class="sd">    and returns a geolocated pyramids `Dataset` carrying the northernmost chunk's</span>
 <a id="__codelineno-0-65" name="__codelineno-0-65"></a><span class="sd">    CRS + geotransform. The chunks must share a CRS, cell size and column count</span>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a><span class="sd">    and be vertically contiguous (validated).</span>
 <a id="__codelineno-0-67" name="__codelineno-0-67"></a>
@@ -1950,8 +1950,8 @@ warning about the FCI layout).</p>
 <a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">        chunks: An ordered iterable of chunks, each either a pyramids `Dataset`</span>
 <a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">            already holding the channel radiance, or a value accepted by</span>
 <a id="__codelineno-0-71" name="__codelineno-0-71"></a><span class="sd">            `open_chunk` (by default a NetCDF path).</span>
-<a id="__codelineno-0-72" name="__codelineno-0-72"></a><span class="sd">        channel: Channel identifier (e.g. `&quot;ir_105&quot;`, `&quot;vis_06&quot;`).</span>
-<a id="__codelineno-0-73" name="__codelineno-0-73"></a><span class="sd">        sensor: Registry sensor name (default `&quot;fci&quot;`).</span>
+<a id="__codelineno-0-72" name="__codelineno-0-72"></a><span class="sd">        channel: Channel identifier (e.g. `"ir_105"`, `"vis_06"`).</span>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a><span class="sd">        sensor: Registry sensor name (default `"fci"`).</span>
 <a id="__codelineno-0-74" name="__codelineno-0-74"></a><span class="sd">        calibrate: When `True` (default), calibrate to a physical quantity; when</span>
 <a id="__codelineno-0-75" name="__codelineno-0-75"></a><span class="sd">            `False`, return the stitched raw radiance.</span>
 <a id="__codelineno-0-76" name="__codelineno-0-76"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
@@ -1971,14 +1971,14 @@ warning about the FCI layout).</p>
 <a id="__codelineno-0-90" name="__codelineno-0-90"></a><span class="sd">        ReaderError: When `chunks` is empty.</span>
 <a id="__codelineno-0-91" name="__codelineno-0-91"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
 <a id="__codelineno-0-92" name="__codelineno-0-92"></a><span class="sd">        UnknownSensorError: When the sensor / channel is not in the registry.</span>
-<a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">    """</span>
 <a id="__codelineno-0-94" name="__codelineno-0-94"></a>    <span class="n">chunk_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span>
 <a id="__codelineno-0-95" name="__codelineno-0-95"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">chunk_list</span><span class="p">:</span>
-<a id="__codelineno-0-96" name="__codelineno-0-96"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">&quot;read_fci: no chunks given&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-96" name="__codelineno-0-96"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"read_fci: no chunks given"</span><span class="p">)</span>
 <a id="__codelineno-0-97" name="__codelineno-0-97"></a>
 <a id="__codelineno-0-98" name="__codelineno-0-98"></a>    <span class="n">opener</span> <span class="o">=</span> <span class="n">open_chunk</span> <span class="ow">or</span> <span class="n">_default_open_chunk</span>
 <a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="n">datasets</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-0-100" name="__codelineno-0-100"></a>        <span class="n">chunk</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="s2">&quot;read_array&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="n">opener</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
+<a id="__codelineno-0-100" name="__codelineno-0-100"></a>        <span class="n">chunk</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="s2">"read_array"</span><span class="p">)</span> <span class="k">else</span> <span class="n">opener</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
 <a id="__codelineno-0-101" name="__codelineno-0-101"></a>        <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">chunk_list</span>
 <a id="__codelineno-0-102" name="__codelineno-0-102"></a>    <span class="p">]</span>
 <a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="n">_validate_chunk_grid</span><span class="p">(</span><span class="n">datasets</span><span class="p">)</span>
@@ -2016,7 +2016,7 @@ warning about the FCI layout).</p>
 
 
 <h4 id="pyramids_eo.readers.read_seviri" class="doc doc-heading"><a href="#pyramids_eo.readers.read_seviri" class="toclink">
-            <code class="highlight language-python"><span class="n">read_seviri</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">sensor</span><span class="o">=</span><span class="s1">&#39;seviri&#39;</span><span class="p">,</span> <span class="n">calibrate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">cos_sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">parse</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">read_seviri</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">sensor</span><span class="o">=</span><span class="s1">'seviri'</span><span class="p">,</span> <span class="n">calibrate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">cos_sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">parse</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </a><a href="#pyramids_eo.readers.read_seviri" class="headerlink" title="Permanent link">#</a></h4>
 
@@ -2322,24 +2322,24 @@ the module warning).</p>
 <a id="__codelineno-0-45" name="__codelineno-0-45"></a>    <span class="n">source</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 <a id="__codelineno-0-46" name="__codelineno-0-46"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 <a id="__codelineno-0-47" name="__codelineno-0-47"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-48" name="__codelineno-0-48"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;seviri&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"seviri"</span><span class="p">,</span>
 <a id="__codelineno-0-49" name="__codelineno-0-49"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <a id="__codelineno-0-50" name="__codelineno-0-50"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
 <a id="__codelineno-0-51" name="__codelineno-0-51"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-52" name="__codelineno-0-52"></a>    <span class="n">coeffs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-53" name="__codelineno-0-53"></a>    <span class="n">parse</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Read one SEVIRI channel into a calibrated, geolocated `Dataset`.</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="w">    </span><span class="sd">"""Read one SEVIRI channel into a calibrated, geolocated `Dataset`.</span>
 <a id="__codelineno-0-56" name="__codelineno-0-56"></a>
-<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">    Calibrates the channel&#39;s radiance to reflectance (solar) or brightness</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">    Calibrates the channel's radiance to reflectance (solar) or brightness</span>
 <a id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="sd">    temperature (thermal) via the registry and returns a pyramids `Dataset`</span>
-<a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="sd">    carrying the source&#39;s CRS + geotransform.</span>
+<a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="sd">    carrying the source's CRS + geotransform.</span>
 <a id="__codelineno-0-60" name="__codelineno-0-60"></a>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a><span class="sd">    Args:</span>
 <a id="__codelineno-0-62" name="__codelineno-0-62"></a><span class="sd">        source: A pyramids `Dataset` already holding the channel radiance, or a</span>
 <a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="sd">            value accepted by `parse` (by default a `.nat` path).</span>
-<a id="__codelineno-0-64" name="__codelineno-0-64"></a><span class="sd">        channel: Channel identifier (e.g. `&quot;IR_108&quot;`, `&quot;VIS006&quot;`).</span>
-<a id="__codelineno-0-65" name="__codelineno-0-65"></a><span class="sd">        sensor: Registry sensor name (default `&quot;seviri&quot;`).</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a><span class="sd">        channel: Channel identifier (e.g. `"IR_108"`, `"VIS006"`).</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65"></a><span class="sd">        sensor: Registry sensor name (default `"seviri"`).</span>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a><span class="sd">        calibrate: When `True` (default), calibrate to a physical quantity; when</span>
 <a id="__codelineno-0-67" name="__codelineno-0-67"></a><span class="sd">            `False`, return the raw radiance.</span>
 <a id="__codelineno-0-68" name="__codelineno-0-68"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
@@ -2359,12 +2359,12 @@ the module warning).</p>
 <a id="__codelineno-0-82" name="__codelineno-0-82"></a><span class="sd">        NotImplementedError: When a non-Dataset source is given without a `parse`.</span>
 <a id="__codelineno-0-83" name="__codelineno-0-83"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
 <a id="__codelineno-0-84" name="__codelineno-0-84"></a><span class="sd">        UnknownSensorError: When the sensor / channel is not in the registry.</span>
-<a id="__codelineno-0-85" name="__codelineno-0-85"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-85" name="__codelineno-0-85"></a><span class="sd">    """</span>
 <a id="__codelineno-0-86" name="__codelineno-0-86"></a>    <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-87" name="__codelineno-0-87"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">&quot;read_seviri: source is required&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"read_seviri: source is required"</span><span class="p">)</span>
 <a id="__codelineno-0-88" name="__codelineno-0-88"></a>
 <a id="__codelineno-0-89" name="__codelineno-0-89"></a>    <span class="n">parser</span> <span class="o">=</span> <span class="n">parse</span> <span class="ow">or</span> <span class="n">_default_parse</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">source</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s2">&quot;read_array&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="n">parser</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
+<a id="__codelineno-0-90" name="__codelineno-0-90"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">source</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s2">"read_array"</span><span class="p">)</span> <span class="k">else</span> <span class="n">parser</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
 <a id="__codelineno-0-91" name="__codelineno-0-91"></a>    <span class="n">radiance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">read_array</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 <a id="__codelineno-0-92" name="__codelineno-0-92"></a>    <span class="n">data</span> <span class="o">=</span> <span class="p">(</span>
 <a id="__codelineno-0-93" name="__codelineno-0-93"></a>        <span class="n">calibrate_channel</span><span class="p">(</span>
@@ -2449,7 +2449,7 @@ layout still needs validation against a real granule.</p>
 
 
 <h4 id="pyramids_eo.readers.fci.read_fci" class="doc doc-heading"><a href="#pyramids_eo.readers.fci.read_fci" class="toclink">
-            <code class="highlight language-python"><span class="n">read_fci</span><span class="p">(</span><span class="n">chunks</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">sensor</span><span class="o">=</span><span class="s1">&#39;fci&#39;</span><span class="p">,</span> <span class="n">calibrate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">cos_sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">open_chunk</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">read_fci</span><span class="p">(</span><span class="n">chunks</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">sensor</span><span class="o">=</span><span class="s1">'fci'</span><span class="p">,</span> <span class="n">calibrate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">cos_sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">open_chunk</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </a><a href="#pyramids_eo.readers.fci.read_fci" class="headerlink" title="Permanent link">#</a></h4>
 
@@ -2776,19 +2776,19 @@ warning about the FCI layout).</p>
 <a id="__codelineno-0-49" name="__codelineno-0-49"></a>    <span class="n">chunks</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 <a id="__codelineno-0-50" name="__codelineno-0-50"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 <a id="__codelineno-0-51" name="__codelineno-0-51"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-52" name="__codelineno-0-52"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;fci&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"fci"</span><span class="p">,</span>
 <a id="__codelineno-0-53" name="__codelineno-0-53"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <a id="__codelineno-0-54" name="__codelineno-0-54"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
 <a id="__codelineno-0-55" name="__codelineno-0-55"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-56" name="__codelineno-0-56"></a>    <span class="n">coeffs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-57" name="__codelineno-0-57"></a>    <span class="n">open_chunk</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Read one FCI channel across its chunk set into a calibrated `Dataset`.</span>
+<a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="w">    </span><span class="sd">"""Read one FCI channel across its chunk set into a calibrated `Dataset`.</span>
 <a id="__codelineno-0-60" name="__codelineno-0-60"></a>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a><span class="sd">    Orders the chunks north -&gt; south by their top-left latitude (so the caller</span>
-<a id="__codelineno-0-62" name="__codelineno-0-62"></a><span class="sd">    may pass them in any order), stitches the channel&#39;s radiance row-wise,</span>
+<a id="__codelineno-0-62" name="__codelineno-0-62"></a><span class="sd">    may pass them in any order), stitches the channel's radiance row-wise,</span>
 <a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="sd">    calibrates it to reflectance (solar) or brightness temperature (thermal),</span>
-<a id="__codelineno-0-64" name="__codelineno-0-64"></a><span class="sd">    and returns a geolocated pyramids `Dataset` carrying the northernmost chunk&#39;s</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a><span class="sd">    and returns a geolocated pyramids `Dataset` carrying the northernmost chunk's</span>
 <a id="__codelineno-0-65" name="__codelineno-0-65"></a><span class="sd">    CRS + geotransform. The chunks must share a CRS, cell size and column count</span>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a><span class="sd">    and be vertically contiguous (validated).</span>
 <a id="__codelineno-0-67" name="__codelineno-0-67"></a>
@@ -2796,8 +2796,8 @@ warning about the FCI layout).</p>
 <a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">        chunks: An ordered iterable of chunks, each either a pyramids `Dataset`</span>
 <a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">            already holding the channel radiance, or a value accepted by</span>
 <a id="__codelineno-0-71" name="__codelineno-0-71"></a><span class="sd">            `open_chunk` (by default a NetCDF path).</span>
-<a id="__codelineno-0-72" name="__codelineno-0-72"></a><span class="sd">        channel: Channel identifier (e.g. `&quot;ir_105&quot;`, `&quot;vis_06&quot;`).</span>
-<a id="__codelineno-0-73" name="__codelineno-0-73"></a><span class="sd">        sensor: Registry sensor name (default `&quot;fci&quot;`).</span>
+<a id="__codelineno-0-72" name="__codelineno-0-72"></a><span class="sd">        channel: Channel identifier (e.g. `"ir_105"`, `"vis_06"`).</span>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a><span class="sd">        sensor: Registry sensor name (default `"fci"`).</span>
 <a id="__codelineno-0-74" name="__codelineno-0-74"></a><span class="sd">        calibrate: When `True` (default), calibrate to a physical quantity; when</span>
 <a id="__codelineno-0-75" name="__codelineno-0-75"></a><span class="sd">            `False`, return the stitched raw radiance.</span>
 <a id="__codelineno-0-76" name="__codelineno-0-76"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
@@ -2817,14 +2817,14 @@ warning about the FCI layout).</p>
 <a id="__codelineno-0-90" name="__codelineno-0-90"></a><span class="sd">        ReaderError: When `chunks` is empty.</span>
 <a id="__codelineno-0-91" name="__codelineno-0-91"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
 <a id="__codelineno-0-92" name="__codelineno-0-92"></a><span class="sd">        UnknownSensorError: When the sensor / channel is not in the registry.</span>
-<a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">    """</span>
 <a id="__codelineno-0-94" name="__codelineno-0-94"></a>    <span class="n">chunk_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span>
 <a id="__codelineno-0-95" name="__codelineno-0-95"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">chunk_list</span><span class="p">:</span>
-<a id="__codelineno-0-96" name="__codelineno-0-96"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">&quot;read_fci: no chunks given&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-96" name="__codelineno-0-96"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"read_fci: no chunks given"</span><span class="p">)</span>
 <a id="__codelineno-0-97" name="__codelineno-0-97"></a>
 <a id="__codelineno-0-98" name="__codelineno-0-98"></a>    <span class="n">opener</span> <span class="o">=</span> <span class="n">open_chunk</span> <span class="ow">or</span> <span class="n">_default_open_chunk</span>
 <a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="n">datasets</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-0-100" name="__codelineno-0-100"></a>        <span class="n">chunk</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="s2">&quot;read_array&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="n">opener</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
+<a id="__codelineno-0-100" name="__codelineno-0-100"></a>        <span class="n">chunk</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="s2">"read_array"</span><span class="p">)</span> <span class="k">else</span> <span class="n">opener</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
 <a id="__codelineno-0-101" name="__codelineno-0-101"></a>        <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">chunk_list</span>
 <a id="__codelineno-0-102" name="__codelineno-0-102"></a>    <span class="p">]</span>
 <a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="n">_validate_chunk_grid</span><span class="p">(</span><span class="n">datasets</span><span class="p">)</span>
@@ -2918,7 +2918,7 @@ the raw <code>.nat</code> byte decoding needs the format spec + a real granule.<
 
 
 <h4 id="pyramids_eo.readers.seviri.read_seviri" class="doc doc-heading"><a href="#pyramids_eo.readers.seviri.read_seviri" class="toclink">
-            <code class="highlight language-python"><span class="n">read_seviri</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">sensor</span><span class="o">=</span><span class="s1">&#39;seviri&#39;</span><span class="p">,</span> <span class="n">calibrate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">cos_sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">parse</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">read_seviri</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">sensor</span><span class="o">=</span><span class="s1">'seviri'</span><span class="p">,</span> <span class="n">calibrate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">cos_sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">parse</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </a><a href="#pyramids_eo.readers.seviri.read_seviri" class="headerlink" title="Permanent link">#</a></h4>
 
@@ -3224,24 +3224,24 @@ the module warning).</p>
 <a id="__codelineno-0-45" name="__codelineno-0-45"></a>    <span class="n">source</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 <a id="__codelineno-0-46" name="__codelineno-0-46"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 <a id="__codelineno-0-47" name="__codelineno-0-47"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-48" name="__codelineno-0-48"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;seviri&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"seviri"</span><span class="p">,</span>
 <a id="__codelineno-0-49" name="__codelineno-0-49"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <a id="__codelineno-0-50" name="__codelineno-0-50"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
 <a id="__codelineno-0-51" name="__codelineno-0-51"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-52" name="__codelineno-0-52"></a>    <span class="n">coeffs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-53" name="__codelineno-0-53"></a>    <span class="n">parse</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Read one SEVIRI channel into a calibrated, geolocated `Dataset`.</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="w">    </span><span class="sd">"""Read one SEVIRI channel into a calibrated, geolocated `Dataset`.</span>
 <a id="__codelineno-0-56" name="__codelineno-0-56"></a>
-<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">    Calibrates the channel&#39;s radiance to reflectance (solar) or brightness</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">    Calibrates the channel's radiance to reflectance (solar) or brightness</span>
 <a id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="sd">    temperature (thermal) via the registry and returns a pyramids `Dataset`</span>
-<a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="sd">    carrying the source&#39;s CRS + geotransform.</span>
+<a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="sd">    carrying the source's CRS + geotransform.</span>
 <a id="__codelineno-0-60" name="__codelineno-0-60"></a>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a><span class="sd">    Args:</span>
 <a id="__codelineno-0-62" name="__codelineno-0-62"></a><span class="sd">        source: A pyramids `Dataset` already holding the channel radiance, or a</span>
 <a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="sd">            value accepted by `parse` (by default a `.nat` path).</span>
-<a id="__codelineno-0-64" name="__codelineno-0-64"></a><span class="sd">        channel: Channel identifier (e.g. `&quot;IR_108&quot;`, `&quot;VIS006&quot;`).</span>
-<a id="__codelineno-0-65" name="__codelineno-0-65"></a><span class="sd">        sensor: Registry sensor name (default `&quot;seviri&quot;`).</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a><span class="sd">        channel: Channel identifier (e.g. `"IR_108"`, `"VIS006"`).</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65"></a><span class="sd">        sensor: Registry sensor name (default `"seviri"`).</span>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a><span class="sd">        calibrate: When `True` (default), calibrate to a physical quantity; when</span>
 <a id="__codelineno-0-67" name="__codelineno-0-67"></a><span class="sd">            `False`, return the raw radiance.</span>
 <a id="__codelineno-0-68" name="__codelineno-0-68"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
@@ -3261,12 +3261,12 @@ the module warning).</p>
 <a id="__codelineno-0-82" name="__codelineno-0-82"></a><span class="sd">        NotImplementedError: When a non-Dataset source is given without a `parse`.</span>
 <a id="__codelineno-0-83" name="__codelineno-0-83"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
 <a id="__codelineno-0-84" name="__codelineno-0-84"></a><span class="sd">        UnknownSensorError: When the sensor / channel is not in the registry.</span>
-<a id="__codelineno-0-85" name="__codelineno-0-85"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-85" name="__codelineno-0-85"></a><span class="sd">    """</span>
 <a id="__codelineno-0-86" name="__codelineno-0-86"></a>    <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-87" name="__codelineno-0-87"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">&quot;read_seviri: source is required&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"read_seviri: source is required"</span><span class="p">)</span>
 <a id="__codelineno-0-88" name="__codelineno-0-88"></a>
 <a id="__codelineno-0-89" name="__codelineno-0-89"></a>    <span class="n">parser</span> <span class="o">=</span> <span class="n">parse</span> <span class="ow">or</span> <span class="n">_default_parse</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">source</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s2">&quot;read_array&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="n">parser</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
+<a id="__codelineno-0-90" name="__codelineno-0-90"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">source</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s2">"read_array"</span><span class="p">)</span> <span class="k">else</span> <span class="n">parser</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
 <a id="__codelineno-0-91" name="__codelineno-0-91"></a>    <span class="n">radiance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">read_array</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 <a id="__codelineno-0-92" name="__codelineno-0-92"></a>    <span class="n">data</span> <span class="o">=</span> <span class="p">(</span>
 <a id="__codelineno-0-93" name="__codelineno-0-93"></a>        <span class="n">calibrate_channel</span><span class="p">(</span>
@@ -3512,17 +3512,17 @@ reflectance / brightness-temperature bands.</p>
 <span class="normal"><a href="#__codelineno-0-79">79</a></span>
 <span class="normal"><a href="#__codelineno-0-80">80</a></span>
 <span class="normal"><a href="#__codelineno-0-81">81</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="k">def</span><span class="w"> </span><span class="nf">harmonise</span><span class="p">(</span><span class="n">bands</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">reference</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Align a set of bands onto a reference grid.</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="w">    </span><span class="sd">"""Align a set of bands onto a reference grid.</span>
 <a id="__codelineno-0-49" name="__codelineno-0-49"></a>
 <a id="__codelineno-0-50" name="__codelineno-0-50"></a><span class="sd">    Args:</span>
 <a id="__codelineno-0-51" name="__codelineno-0-51"></a><span class="sd">        bands: The bands to harmonise — a mapping `{name: Dataset}` or an</span>
-<a id="__codelineno-0-52" name="__codelineno-0-52"></a><span class="sd">            iterable of pyramids `Dataset`s. Each is resampled onto `reference`&#39;s</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52"></a><span class="sd">            iterable of pyramids `Dataset`s. Each is resampled onto `reference`'s</span>
 <a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="sd">            grid (CRS + rows/columns + cell size).</span>
 <a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="sd">        reference: A pyramids `Dataset` whose grid every band is aligned to.</span>
-<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="sd">        method: Resampling method. `None` (default) / `&quot;nearest&quot;` uses</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="sd">        method: Resampling method. `None` (default) / `"nearest"` uses</span>
 <a id="__codelineno-0-56" name="__codelineno-0-56"></a><span class="sd">            `Dataset.align` (nearest-neighbour onto the exact reference grid); any</span>
-<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">            other value (e.g. `&quot;bilinear&quot;`, `&quot;cubic&quot;`) uses `warped_view` onto the</span>
-<a id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="sd">            reference&#39;s CRS + cell size + bbox — preferable for continuous</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">            other value (e.g. `"bilinear"`, `"cubic"`) uses `warped_view` onto the</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="sd">            reference's CRS + cell size + bbox — preferable for continuous</span>
 <a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="sd">            reflectance / brightness-temperature bands.</span>
 <a id="__codelineno-0-60" name="__codelineno-0-60"></a>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a><span class="sd">    Returns:</span>
@@ -3531,20 +3531,20 @@ reflectance / brightness-temperature bands.</p>
 <a id="__codelineno-0-64" name="__codelineno-0-64"></a>
 <a id="__codelineno-0-65" name="__codelineno-0-65"></a><span class="sd">    Raises:</span>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a><span class="sd">        ReaderError: When `reference` is `None`, or when `bands` is empty.</span>
-<a id="__codelineno-0-67" name="__codelineno-0-67"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-67" name="__codelineno-0-67"></a><span class="sd">    """</span>
 <a id="__codelineno-0-68" name="__codelineno-0-68"></a>    <span class="k">if</span> <span class="n">reference</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-69" name="__codelineno-0-69"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">&quot;harmonise: a reference grid is required&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"harmonise: a reference grid is required"</span><span class="p">)</span>
 <a id="__codelineno-0-70" name="__codelineno-0-70"></a>
 <a id="__codelineno-0-71" name="__codelineno-0-71"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bands</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
 <a id="__codelineno-0-72" name="__codelineno-0-72"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">bands</span><span class="p">:</span>
-<a id="__codelineno-0-73" name="__codelineno-0-73"></a>            <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">&quot;harmonise: no bands given&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a>            <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"harmonise: no bands given"</span><span class="p">)</span>
 <a id="__codelineno-0-74" name="__codelineno-0-74"></a>        <span class="k">return</span> <span class="p">{</span>
 <a id="__codelineno-0-75" name="__codelineno-0-75"></a>            <span class="n">name</span><span class="p">:</span> <span class="n">_resample_to</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="n">reference</span><span class="p">,</span> <span class="n">method</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">bands</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
 <a id="__codelineno-0-76" name="__codelineno-0-76"></a>        <span class="p">}</span>
 <a id="__codelineno-0-77" name="__codelineno-0-77"></a>
 <a id="__codelineno-0-78" name="__codelineno-0-78"></a>    <span class="n">band_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">bands</span><span class="p">)</span>
 <a id="__codelineno-0-79" name="__codelineno-0-79"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">band_list</span><span class="p">:</span>
-<a id="__codelineno-0-80" name="__codelineno-0-80"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">&quot;harmonise: no bands given&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-80" name="__codelineno-0-80"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"harmonise: no bands given"</span><span class="p">)</span>
 <a id="__codelineno-0-81" name="__codelineno-0-81"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">_resample_to</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="n">reference</span><span class="p">,</span> <span class="n">method</span><span class="p">)</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">band_list</span><span class="p">]</span>
 </code></pre></div></td></tr></table></div>
             </details>
