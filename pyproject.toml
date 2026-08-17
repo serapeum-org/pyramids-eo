@@ -142,7 +142,7 @@ name = "cz_conventional_commits"
 version_provider = "pep621"
 tag_format = "$version"
 changelog_file = "docs/change-log.md"
-update_changelog_on_bump = true
+update_changelog_on_bump = false
 style = [
     ["qmark", "fg:#ff9d00 bold"],
     ["question", "bold"],
@@ -173,10 +173,16 @@ markers = [
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
-platforms = ["win-64", "linux-64", "linux-aarch64", "osx-arm64", "osx-64"]
-
-[tool.pixi.system-requirements]
-macos = "14.0"
+# macOS floor raised to 14.0 on the osx platforms so pixi accepts the
+# macosx_14_0_arm64 wheels (pyproj/numpy) instead of falling back to an sdist
+# build. Declared per-platform (the global [system-requirements] table is deprecated).
+platforms = [
+    "win-64",
+    "linux-64",
+    "linux-aarch64",
+    { platform = "osx-arm64", macos = "14.0" },
+    { platform = "osx-64", macos = "14.0" },
+]
 
 [tool.pixi.pypi-dependencies]
 pyramids-eo = { path = ".", editable = true }
