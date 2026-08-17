@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -1557,7 +1557,7 @@ resolves ambient ADC on its own:</p>
 </code></pre></div>
 <p>A missing service-account file is rejected early:</p>
 <div class="highlight"><pre><span></span><code>&gt;&gt;&gt; EarthEngineCredentials.from_service_account(  # doctest: +ELLIPSIS
-...     &quot;/no/such/key.json&quot;
+...     "/no/such/key.json"
 ... )
 Traceback (most recent call last):
     ...
@@ -1895,7 +1895,7 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <span class="normal"><a href="#__codelineno-0-388">388</a></span>
 <span class="normal"><a href="#__codelineno-0-389">389</a></span>
 <span class="normal"><a href="#__codelineno-0-390">390</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="k">class</span><span class="w"> </span><span class="nc">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Application Default Credentials for the Earth Engine GDAL drivers.</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="w">    </span><span class="sd">"""Application Default Credentials for the Earth Engine GDAL drivers.</span>
 <a id="__codelineno-0-71" name="__codelineno-0-71"></a>
 <a id="__codelineno-0-72" name="__codelineno-0-72"></a><span class="sd">    Three modes:</span>
 <a id="__codelineno-0-73" name="__codelineno-0-73"></a>
@@ -1935,12 +1935,12 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-107" name="__codelineno-0-107"></a><span class="sd">        A missing service-account file is rejected early:</span>
 <a id="__codelineno-0-108" name="__codelineno-0-108"></a>
 <a id="__codelineno-0-109" name="__codelineno-0-109"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.from_service_account(  # doctest: +ELLIPSIS</span>
-<a id="__codelineno-0-110" name="__codelineno-0-110"></a><span class="sd">            ...     &quot;/no/such/key.json&quot;</span>
+<a id="__codelineno-0-110" name="__codelineno-0-110"></a><span class="sd">            ...     "/no/such/key.json"</span>
 <a id="__codelineno-0-111" name="__codelineno-0-111"></a><span class="sd">            ... )</span>
 <a id="__codelineno-0-112" name="__codelineno-0-112"></a><span class="sd">            Traceback (most recent call last):</span>
 <a id="__codelineno-0-113" name="__codelineno-0-113"></a><span class="sd">                ...</span>
 <a id="__codelineno-0-114" name="__codelineno-0-114"></a><span class="sd">            pyramids_eo.errors.AuthenticationError: ...not found...</span>
-<a id="__codelineno-0-115" name="__codelineno-0-115"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-115" name="__codelineno-0-115"></a><span class="sd">    """</span>
 <a id="__codelineno-0-116" name="__codelineno-0-116"></a>
 <a id="__codelineno-0-117" name="__codelineno-0-117"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">service_account_json</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <a id="__codelineno-0-118" name="__codelineno-0-118"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_finalizer</span><span class="p">:</span> <span class="n">weakref</span><span class="o">.</span><span class="n">finalize</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1951,13 +1951,13 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-123" name="__codelineno-0-123"></a>        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">service_account_json</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
 <a id="__codelineno-0-124" name="__codelineno-0-124"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
 <a id="__codelineno-0-125" name="__codelineno-0-125"></a>            <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
-<a id="__codelineno-0-126" name="__codelineno-0-126"></a>                <span class="sa">f</span><span class="s2">&quot;Earth Engine service-account key file not found: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-126" name="__codelineno-0-126"></a>                <span class="sa">f</span><span class="s2">"Earth Engine service-account key file not found: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-127" name="__codelineno-0-127"></a>            <span class="p">)</span>
 <a id="__codelineno-0-128" name="__codelineno-0-128"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="o">=</span> <span class="n">path</span>
 <a id="__codelineno-0-129" name="__codelineno-0-129"></a>
 <a id="__codelineno-0-130" name="__codelineno-0-130"></a>    <span class="nd">@classmethod</span>
 <a id="__codelineno-0-131" name="__codelineno-0-131"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">from_service_account_info</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">info</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-132" name="__codelineno-0-132"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Build credentials from inline service-account JSON (string or mapping).</span>
+<a id="__codelineno-0-132" name="__codelineno-0-132"></a><span class="w">        </span><span class="sd">"""Build credentials from inline service-account JSON (string or mapping).</span>
 <a id="__codelineno-0-133" name="__codelineno-0-133"></a>
 <a id="__codelineno-0-134" name="__codelineno-0-134"></a><span class="sd">        The key material is written to a private, owner-only temp file that is</span>
 <a id="__codelineno-0-135" name="__codelineno-0-135"></a><span class="sd">        removed when the returned credentials are garbage-collected. The contents</span>
@@ -1979,11 +1979,11 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-151" name="__codelineno-0-151"></a><span class="sd">                ```python</span>
 <a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
 <a id="__codelineno-0-153" name="__codelineno-0-153"></a><span class="sd">                &gt;&gt;&gt; creds = EarthEngineCredentials.from_service_account_info(</span>
-<a id="__codelineno-0-154" name="__codelineno-0-154"></a><span class="sd">                ...     {&quot;type&quot;: &quot;service_account&quot;}</span>
+<a id="__codelineno-0-154" name="__codelineno-0-154"></a><span class="sd">                ...     {"type": "service_account"}</span>
 <a id="__codelineno-0-155" name="__codelineno-0-155"></a><span class="sd">                ... )</span>
 <a id="__codelineno-0-156" name="__codelineno-0-156"></a><span class="sd">                &gt;&gt;&gt; creds.service_account_path.is_file()</span>
 <a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="sd">                True</span>
-<a id="__codelineno-0-158" name="__codelineno-0-158"></a><span class="sd">                &gt;&gt;&gt; creds.gdal_env()[&quot;GOOGLE_APPLICATION_CREDENTIALS&quot;] == str(</span>
+<a id="__codelineno-0-158" name="__codelineno-0-158"></a><span class="sd">                &gt;&gt;&gt; creds.gdal_env()["GOOGLE_APPLICATION_CREDENTIALS"] == str(</span>
 <a id="__codelineno-0-159" name="__codelineno-0-159"></a><span class="sd">                ...     creds.service_account_path</span>
 <a id="__codelineno-0-160" name="__codelineno-0-160"></a><span class="sd">                ... )</span>
 <a id="__codelineno-0-161" name="__codelineno-0-161"></a><span class="sd">                True</span>
@@ -1993,31 +1993,31 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-165" name="__codelineno-0-165"></a><span class="sd">                ```python</span>
 <a id="__codelineno-0-166" name="__codelineno-0-166"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.errors import AuthenticationError</span>
 <a id="__codelineno-0-167" name="__codelineno-0-167"></a><span class="sd">                &gt;&gt;&gt; try:</span>
-<a id="__codelineno-0-168" name="__codelineno-0-168"></a><span class="sd">                ...     EarthEngineCredentials.from_service_account_info(&quot;{not json&quot;)</span>
+<a id="__codelineno-0-168" name="__codelineno-0-168"></a><span class="sd">                ...     EarthEngineCredentials.from_service_account_info("{not json")</span>
 <a id="__codelineno-0-169" name="__codelineno-0-169"></a><span class="sd">                ... except AuthenticationError as exc:</span>
-<a id="__codelineno-0-170" name="__codelineno-0-170"></a><span class="sd">                ...     print(&quot;not valid JSON&quot; in str(exc))</span>
+<a id="__codelineno-0-170" name="__codelineno-0-170"></a><span class="sd">                ...     print("not valid JSON" in str(exc))</span>
 <a id="__codelineno-0-171" name="__codelineno-0-171"></a><span class="sd">                True</span>
 <a id="__codelineno-0-172" name="__codelineno-0-172"></a>
 <a id="__codelineno-0-173" name="__codelineno-0-173"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-174" name="__codelineno-0-174"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-174" name="__codelineno-0-174"></a><span class="sd">        """</span>
 <a id="__codelineno-0-175" name="__codelineno-0-175"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
 <a id="__codelineno-0-176" name="__codelineno-0-176"></a>            <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-0-177" name="__codelineno-0-177"></a>                <span class="n">text</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
 <a id="__codelineno-0-178" name="__codelineno-0-178"></a>            <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
 <a id="__codelineno-0-179" name="__codelineno-0-179"></a>                <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
-<a id="__codelineno-0-180" name="__codelineno-0-180"></a>                    <span class="s2">&quot;Earth Engine service-account info is not JSON-serialisable.&quot;</span>
+<a id="__codelineno-0-180" name="__codelineno-0-180"></a>                    <span class="s2">"Earth Engine service-account info is not JSON-serialisable."</span>
 <a id="__codelineno-0-181" name="__codelineno-0-181"></a>                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
 <a id="__codelineno-0-182" name="__codelineno-0-182"></a>        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
 <a id="__codelineno-0-183" name="__codelineno-0-183"></a>            <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-0-184" name="__codelineno-0-184"></a>                <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
 <a id="__codelineno-0-185" name="__codelineno-0-185"></a>            <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
 <a id="__codelineno-0-186" name="__codelineno-0-186"></a>                <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
-<a id="__codelineno-0-187" name="__codelineno-0-187"></a>                    <span class="s2">&quot;Earth Engine service-account info is not valid JSON.&quot;</span>
+<a id="__codelineno-0-187" name="__codelineno-0-187"></a>                    <span class="s2">"Earth Engine service-account info is not valid JSON."</span>
 <a id="__codelineno-0-188" name="__codelineno-0-188"></a>                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
 <a id="__codelineno-0-189" name="__codelineno-0-189"></a>            <span class="n">text</span> <span class="o">=</span> <span class="n">info</span>
 <a id="__codelineno-0-190" name="__codelineno-0-190"></a>        <span class="k">else</span><span class="p">:</span>
 <a id="__codelineno-0-191" name="__codelineno-0-191"></a>            <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
-<a id="__codelineno-0-192" name="__codelineno-0-192"></a>                <span class="s2">&quot;Earth Engine service-account info must be a JSON string or mapping.&quot;</span>
+<a id="__codelineno-0-192" name="__codelineno-0-192"></a>                <span class="s2">"Earth Engine service-account info must be a JSON string or mapping."</span>
 <a id="__codelineno-0-193" name="__codelineno-0-193"></a>            <span class="p">)</span>
 <a id="__codelineno-0-194" name="__codelineno-0-194"></a>        <span class="n">path</span> <span class="o">=</span> <span class="n">_write_secret_json</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
 <a id="__codelineno-0-195" name="__codelineno-0-195"></a>        <span class="n">creds</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
@@ -2027,7 +2027,7 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-199" name="__codelineno-0-199"></a>
 <a id="__codelineno-0-200" name="__codelineno-0-200"></a>    <span class="nd">@classmethod</span>
 <a id="__codelineno-0-201" name="__codelineno-0-201"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">from_service_account</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-202" name="__codelineno-0-202"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Build credentials from a service-account JSON key path.</span>
+<a id="__codelineno-0-202" name="__codelineno-0-202"></a><span class="w">        </span><span class="sd">"""Build credentials from a service-account JSON key path.</span>
 <a id="__codelineno-0-203" name="__codelineno-0-203"></a>
 <a id="__codelineno-0-204" name="__codelineno-0-204"></a><span class="sd">        Args:</span>
 <a id="__codelineno-0-205" name="__codelineno-0-205"></a><span class="sd">            path: Path to the Google service-account JSON key. ``~`` is</span>
@@ -2042,8 +2042,8 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-214" name="__codelineno-0-214"></a><span class="sd">                &gt;&gt;&gt; import tempfile</span>
 <a id="__codelineno-0-215" name="__codelineno-0-215"></a><span class="sd">                &gt;&gt;&gt; from pathlib import Path</span>
 <a id="__codelineno-0-216" name="__codelineno-0-216"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-217" name="__codelineno-0-217"></a><span class="sd">                &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
-<a id="__codelineno-0-218" name="__codelineno-0-218"></a><span class="sd">                &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
+<a id="__codelineno-0-217" name="__codelineno-0-217"></a><span class="sd">                &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / "sa.json"</span>
+<a id="__codelineno-0-218" name="__codelineno-0-218"></a><span class="sd">                &gt;&gt;&gt; _ = key.write_text("{}")</span>
 <a id="__codelineno-0-219" name="__codelineno-0-219"></a><span class="sd">                &gt;&gt;&gt; creds = EarthEngineCredentials.from_service_account(key)</span>
 <a id="__codelineno-0-220" name="__codelineno-0-220"></a><span class="sd">                &gt;&gt;&gt; creds.service_account_path == key</span>
 <a id="__codelineno-0-221" name="__codelineno-0-221"></a><span class="sd">                True</span>
@@ -2053,19 +2053,19 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-225" name="__codelineno-0-225"></a><span class="sd">                ```python</span>
 <a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
 <a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.from_service_account(  # doctest: +ELLIPSIS</span>
-<a id="__codelineno-0-228" name="__codelineno-0-228"></a><span class="sd">                ...     &quot;/no/such/key.json&quot;</span>
+<a id="__codelineno-0-228" name="__codelineno-0-228"></a><span class="sd">                ...     "/no/such/key.json"</span>
 <a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">                ... )</span>
 <a id="__codelineno-0-230" name="__codelineno-0-230"></a><span class="sd">                Traceback (most recent call last):</span>
 <a id="__codelineno-0-231" name="__codelineno-0-231"></a><span class="sd">                    ...</span>
 <a id="__codelineno-0-232" name="__codelineno-0-232"></a><span class="sd">                pyramids_eo.errors.AuthenticationError: ...not found...</span>
 <a id="__codelineno-0-233" name="__codelineno-0-233"></a>
 <a id="__codelineno-0-234" name="__codelineno-0-234"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="sd">        """</span>
 <a id="__codelineno-0-236" name="__codelineno-0-236"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
 <a id="__codelineno-0-237" name="__codelineno-0-237"></a>
 <a id="__codelineno-0-238" name="__codelineno-0-238"></a>    <span class="nd">@classmethod</span>
 <a id="__codelineno-0-239" name="__codelineno-0-239"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">application_default</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Build credentials that defer to ambient ADC (no explicit key).</span>
+<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="w">        </span><span class="sd">"""Build credentials that defer to ambient ADC (no explicit key).</span>
 <a id="__codelineno-0-241" name="__codelineno-0-241"></a>
 <a id="__codelineno-0-242" name="__codelineno-0-242"></a><span class="sd">        Returns:</span>
 <a id="__codelineno-0-243" name="__codelineno-0-243"></a><span class="sd">            Credentials with an empty :meth:`gdal_env`; GDAL resolves an</span>
@@ -2087,15 +2087,15 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-259" name="__codelineno-0-259"></a><span class="sd">                ```python</span>
 <a id="__codelineno-0-260" name="__codelineno-0-260"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
 <a id="__codelineno-0-261" name="__codelineno-0-261"></a><span class="sd">                &gt;&gt;&gt; repr(EarthEngineCredentials.application_default())</span>
-<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="sd">                &#39;EarthEngineCredentials(application_default)&#39;</span>
+<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="sd">                'EarthEngineCredentials(application_default)'</span>
 <a id="__codelineno-0-263" name="__codelineno-0-263"></a>
 <a id="__codelineno-0-264" name="__codelineno-0-264"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">        """</span>
 <a id="__codelineno-0-266" name="__codelineno-0-266"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 <a id="__codelineno-0-267" name="__codelineno-0-267"></a>
 <a id="__codelineno-0-268" name="__codelineno-0-268"></a>    <span class="nd">@classmethod</span>
 <a id="__codelineno-0-269" name="__codelineno-0-269"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">coerce</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-270" name="__codelineno-0-270"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Normalise a caller-supplied credentials value.</span>
+<a id="__codelineno-0-270" name="__codelineno-0-270"></a><span class="w">        </span><span class="sd">"""Normalise a caller-supplied credentials value.</span>
 <a id="__codelineno-0-271" name="__codelineno-0-271"></a>
 <a id="__codelineno-0-272" name="__codelineno-0-272"></a><span class="sd">        Args:</span>
 <a id="__codelineno-0-273" name="__codelineno-0-273"></a><span class="sd">            credentials: An :class:`EarthEngineCredentials`, a path-like pointing</span>
@@ -2121,7 +2121,7 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-293" name="__codelineno-0-293"></a><span class="sd">                True</span>
 <a id="__codelineno-0-294" name="__codelineno-0-294"></a>
 <a id="__codelineno-0-295" name="__codelineno-0-295"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-296" name="__codelineno-0-296"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-296" name="__codelineno-0-296"></a><span class="sd">        """</span>
 <a id="__codelineno-0-297" name="__codelineno-0-297"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">credentials</span><span class="p">,</span> <span class="n">EarthEngineCredentials</span><span class="p">):</span>
 <a id="__codelineno-0-298" name="__codelineno-0-298"></a>            <span class="k">return</span> <span class="n">credentials</span>
 <a id="__codelineno-0-299" name="__codelineno-0-299"></a>        <span class="k">if</span> <span class="n">credentials</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -2132,14 +2132,14 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-304" name="__codelineno-0-304"></a>
 <a id="__codelineno-0-305" name="__codelineno-0-305"></a>    <span class="nd">@property</span>
 <a id="__codelineno-0-306" name="__codelineno-0-306"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">service_account_path</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-307" name="__codelineno-0-307"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;The service-account key path, or ``None`` in application-default mode.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-307" name="__codelineno-0-307"></a><span class="w">        </span><span class="sd">"""The service-account key path, or ``None`` in application-default mode."""</span>
 <a id="__codelineno-0-308" name="__codelineno-0-308"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span>
 <a id="__codelineno-0-309" name="__codelineno-0-309"></a>
 <a id="__codelineno-0-310" name="__codelineno-0-310"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gdal_env</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
-<a id="__codelineno-0-311" name="__codelineno-0-311"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the GDAL-config mapping for this credential.</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311"></a><span class="w">        </span><span class="sd">"""Return the GDAL-config mapping for this credential.</span>
 <a id="__codelineno-0-312" name="__codelineno-0-312"></a>
 <a id="__codelineno-0-313" name="__codelineno-0-313"></a><span class="sd">        Returns:</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">            ``{&quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: &lt;path&gt;}`` for a service account,</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">            ``{"GOOGLE_APPLICATION_CREDENTIALS": &lt;path&gt;}`` for a service account,</span>
 <a id="__codelineno-0-315" name="__codelineno-0-315"></a><span class="sd">            or an empty mapping for application-default (ambient) resolution.</span>
 <a id="__codelineno-0-316" name="__codelineno-0-316"></a>
 <a id="__codelineno-0-317" name="__codelineno-0-317"></a><span class="sd">        Examples:</span>
@@ -2155,22 +2155,22 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-327" name="__codelineno-0-327"></a><span class="sd">                &gt;&gt;&gt; import tempfile</span>
 <a id="__codelineno-0-328" name="__codelineno-0-328"></a><span class="sd">                &gt;&gt;&gt; from pathlib import Path</span>
 <a id="__codelineno-0-329" name="__codelineno-0-329"></a><span class="sd">                &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330"></a><span class="sd">                &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
-<a id="__codelineno-0-331" name="__codelineno-0-331"></a><span class="sd">                &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a><span class="sd">                &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / "sa.json"</span>
+<a id="__codelineno-0-331" name="__codelineno-0-331"></a><span class="sd">                &gt;&gt;&gt; _ = key.write_text("{}")</span>
 <a id="__codelineno-0-332" name="__codelineno-0-332"></a><span class="sd">                &gt;&gt;&gt; EarthEngineCredentials.from_service_account(key).gdal_env() == {</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333"></a><span class="sd">                ...     &quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: str(key)</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a><span class="sd">                ...     "GOOGLE_APPLICATION_CREDENTIALS": str(key)</span>
 <a id="__codelineno-0-334" name="__codelineno-0-334"></a><span class="sd">                ... }</span>
 <a id="__codelineno-0-335" name="__codelineno-0-335"></a><span class="sd">                True</span>
 <a id="__codelineno-0-336" name="__codelineno-0-336"></a>
 <a id="__codelineno-0-337" name="__codelineno-0-337"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-338" name="__codelineno-0-338"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-338" name="__codelineno-0-338"></a><span class="sd">        """</span>
 <a id="__codelineno-0-339" name="__codelineno-0-339"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
 <a id="__codelineno-0-340" name="__codelineno-0-340"></a>            <span class="k">return</span> <span class="p">{}</span>
 <a id="__codelineno-0-341" name="__codelineno-0-341"></a>        <span class="k">return</span> <span class="p">{</span><span class="n">GOOGLE_APPLICATION_CREDENTIALS</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">)}</span>
 <a id="__codelineno-0-342" name="__codelineno-0-342"></a>
 <a id="__codelineno-0-343" name="__codelineno-0-343"></a>    <span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
 <a id="__codelineno-0-344" name="__codelineno-0-344"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">activate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-0-345" name="__codelineno-0-345"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply this credential&#39;s GDAL config for the duration of a ``with`` block.</span>
+<a id="__codelineno-0-345" name="__codelineno-0-345"></a><span class="w">        </span><span class="sd">"""Apply this credential's GDAL config for the duration of a ``with`` block.</span>
 <a id="__codelineno-0-346" name="__codelineno-0-346"></a>
 <a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="sd">        Sets each :meth:`gdal_env` key as a GDAL config option and restores the</span>
 <a id="__codelineno-0-348" name="__codelineno-0-348"></a><span class="sd">        previous value (or clears it) on exit, so the process-wide GDAL config is</span>
@@ -2179,7 +2179,7 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="sd">        Note:</span>
 <a id="__codelineno-0-352" name="__codelineno-0-352"></a><span class="sd">            GDAL config options are **process-global**, so this save/restore is not</span>
 <a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="sd">            thread-safe: two threads activating different service-account</span>
-<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">            credentials concurrently would clobber each other&#39;s</span>
+<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">            credentials concurrently would clobber each other's</span>
 <a id="__codelineno-0-355" name="__codelineno-0-355"></a><span class="sd">            ``GOOGLE_APPLICATION_CREDENTIALS``. The reader is intended for</span>
 <a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">            single-threaded, single-credential use per process.</span>
 <a id="__codelineno-0-357" name="__codelineno-0-357"></a>
@@ -2196,7 +2196,7 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-368" name="__codelineno-0-368"></a><span class="sd">                True</span>
 <a id="__codelineno-0-369" name="__codelineno-0-369"></a>
 <a id="__codelineno-0-370" name="__codelineno-0-370"></a><span class="sd">                ```</span>
-<a id="__codelineno-0-371" name="__codelineno-0-371"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-371" name="__codelineno-0-371"></a><span class="sd">        """</span>
 <a id="__codelineno-0-372" name="__codelineno-0-372"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
 <a id="__codelineno-0-373" name="__codelineno-0-373"></a>
 <a id="__codelineno-0-374" name="__codelineno-0-374"></a>        <span class="n">env</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span>
@@ -2212,10 +2212,10 @@ pyramids_eo.errors.AuthenticationError: ...not found...
 <a id="__codelineno-0-384" name="__codelineno-0-384"></a>
 <a id="__codelineno-0-385" name="__codelineno-0-385"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <a id="__codelineno-0-386" name="__codelineno-0-386"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-387" name="__codelineno-0-387"></a>            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(application_default)&quot;</span>
+<a id="__codelineno-0-387" name="__codelineno-0-387"></a>            <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(application_default)"</span>
 <a id="__codelineno-0-388" name="__codelineno-0-388"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_owns_path</span><span class="p">:</span>
-<a id="__codelineno-0-389" name="__codelineno-0-389"></a>            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(service_account_info=&lt;redacted&gt;)&quot;</span>
-<a id="__codelineno-0-390" name="__codelineno-0-390"></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(service_account_json=</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">)</span><span class="si">!r}</span><span class="s2">)&quot;</span>
+<a id="__codelineno-0-389" name="__codelineno-0-389"></a>            <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(service_account_info=&lt;redacted&gt;)"</span>
+<a id="__codelineno-0-390" name="__codelineno-0-390"></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(service_account_json=</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">)</span><span class="si">!r}</span><span class="s2">)"</span>
 </code></pre></div></td></tr></table></div>
               </details>
 
@@ -2368,11 +2368,11 @@ mapping.</p>
 <li>Build from a mapping and confirm a key file is materialised:
     <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.earthengine</span><span class="w"> </span><span class="kn">import</span> <span class="n">EarthEngineCredentials</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">from_service_account_info</span><span class="p">(</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="o">...</span>     <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;service_account&quot;</span><span class="p">}</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="o">...</span>     <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"service_account"</span><span class="p">}</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="o">...</span> <span class="p">)</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">creds</span><span class="o">.</span><span class="n">service_account_path</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="kc">True</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()[</span><span class="s2">&quot;GOOGLE_APPLICATION_CREDENTIALS&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="nb">str</span><span class="p">(</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()[</span><span class="s2">"GOOGLE_APPLICATION_CREDENTIALS"</span><span class="p">]</span> <span class="o">==</span> <span class="nb">str</span><span class="p">(</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="o">...</span>     <span class="n">creds</span><span class="o">.</span><span class="n">service_account_path</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="o">...</span> <span class="p">)</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="kc">True</span>
@@ -2380,9 +2380,9 @@ mapping.</p>
 <li>Invalid JSON is rejected:
     <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">AuthenticationError</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="o">...</span>     <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">from_service_account_info</span><span class="p">(</span><span class="s2">&quot;{not json&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="o">...</span>     <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">from_service_account_info</span><span class="p">(</span><span class="s2">"{not json"</span><span class="p">)</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="o">...</span> <span class="k">except</span> <span class="n">AuthenticationError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="o">...</span>     <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;not valid JSON&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">))</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="o">...</span>     <span class="nb">print</span><span class="p">(</span><span class="s2">"not valid JSON"</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">))</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="kc">True</span>
 </code></pre></div></li>
 </ul>
@@ -2460,7 +2460,7 @@ mapping.</p>
 <span class="normal"><a href="#__codelineno-0-197">197</a></span>
 <span class="normal"><a href="#__codelineno-0-198">198</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-130" name="__codelineno-0-130"></a><span class="nd">@classmethod</span>
 <a id="__codelineno-0-131" name="__codelineno-0-131"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_service_account_info</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">info</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-132" name="__codelineno-0-132"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build credentials from inline service-account JSON (string or mapping).</span>
+<a id="__codelineno-0-132" name="__codelineno-0-132"></a><span class="w">    </span><span class="sd">"""Build credentials from inline service-account JSON (string or mapping).</span>
 <a id="__codelineno-0-133" name="__codelineno-0-133"></a>
 <a id="__codelineno-0-134" name="__codelineno-0-134"></a><span class="sd">    The key material is written to a private, owner-only temp file that is</span>
 <a id="__codelineno-0-135" name="__codelineno-0-135"></a><span class="sd">    removed when the returned credentials are garbage-collected. The contents</span>
@@ -2482,11 +2482,11 @@ mapping.</p>
 <a id="__codelineno-0-151" name="__codelineno-0-151"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
 <a id="__codelineno-0-153" name="__codelineno-0-153"></a><span class="sd">            &gt;&gt;&gt; creds = EarthEngineCredentials.from_service_account_info(</span>
-<a id="__codelineno-0-154" name="__codelineno-0-154"></a><span class="sd">            ...     {&quot;type&quot;: &quot;service_account&quot;}</span>
+<a id="__codelineno-0-154" name="__codelineno-0-154"></a><span class="sd">            ...     {"type": "service_account"}</span>
 <a id="__codelineno-0-155" name="__codelineno-0-155"></a><span class="sd">            ... )</span>
 <a id="__codelineno-0-156" name="__codelineno-0-156"></a><span class="sd">            &gt;&gt;&gt; creds.service_account_path.is_file()</span>
 <a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="sd">            True</span>
-<a id="__codelineno-0-158" name="__codelineno-0-158"></a><span class="sd">            &gt;&gt;&gt; creds.gdal_env()[&quot;GOOGLE_APPLICATION_CREDENTIALS&quot;] == str(</span>
+<a id="__codelineno-0-158" name="__codelineno-0-158"></a><span class="sd">            &gt;&gt;&gt; creds.gdal_env()["GOOGLE_APPLICATION_CREDENTIALS"] == str(</span>
 <a id="__codelineno-0-159" name="__codelineno-0-159"></a><span class="sd">            ...     creds.service_account_path</span>
 <a id="__codelineno-0-160" name="__codelineno-0-160"></a><span class="sd">            ... )</span>
 <a id="__codelineno-0-161" name="__codelineno-0-161"></a><span class="sd">            True</span>
@@ -2496,31 +2496,31 @@ mapping.</p>
 <a id="__codelineno-0-165" name="__codelineno-0-165"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-166" name="__codelineno-0-166"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.errors import AuthenticationError</span>
 <a id="__codelineno-0-167" name="__codelineno-0-167"></a><span class="sd">            &gt;&gt;&gt; try:</span>
-<a id="__codelineno-0-168" name="__codelineno-0-168"></a><span class="sd">            ...     EarthEngineCredentials.from_service_account_info(&quot;{not json&quot;)</span>
+<a id="__codelineno-0-168" name="__codelineno-0-168"></a><span class="sd">            ...     EarthEngineCredentials.from_service_account_info("{not json")</span>
 <a id="__codelineno-0-169" name="__codelineno-0-169"></a><span class="sd">            ... except AuthenticationError as exc:</span>
-<a id="__codelineno-0-170" name="__codelineno-0-170"></a><span class="sd">            ...     print(&quot;not valid JSON&quot; in str(exc))</span>
+<a id="__codelineno-0-170" name="__codelineno-0-170"></a><span class="sd">            ...     print("not valid JSON" in str(exc))</span>
 <a id="__codelineno-0-171" name="__codelineno-0-171"></a><span class="sd">            True</span>
 <a id="__codelineno-0-172" name="__codelineno-0-172"></a>
 <a id="__codelineno-0-173" name="__codelineno-0-173"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-174" name="__codelineno-0-174"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-174" name="__codelineno-0-174"></a><span class="sd">    """</span>
 <a id="__codelineno-0-175" name="__codelineno-0-175"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
 <a id="__codelineno-0-176" name="__codelineno-0-176"></a>        <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-0-177" name="__codelineno-0-177"></a>            <span class="n">text</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
 <a id="__codelineno-0-178" name="__codelineno-0-178"></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
 <a id="__codelineno-0-179" name="__codelineno-0-179"></a>            <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
-<a id="__codelineno-0-180" name="__codelineno-0-180"></a>                <span class="s2">&quot;Earth Engine service-account info is not JSON-serialisable.&quot;</span>
+<a id="__codelineno-0-180" name="__codelineno-0-180"></a>                <span class="s2">"Earth Engine service-account info is not JSON-serialisable."</span>
 <a id="__codelineno-0-181" name="__codelineno-0-181"></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
 <a id="__codelineno-0-182" name="__codelineno-0-182"></a>    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
 <a id="__codelineno-0-183" name="__codelineno-0-183"></a>        <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-0-184" name="__codelineno-0-184"></a>            <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
 <a id="__codelineno-0-185" name="__codelineno-0-185"></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
 <a id="__codelineno-0-186" name="__codelineno-0-186"></a>            <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
-<a id="__codelineno-0-187" name="__codelineno-0-187"></a>                <span class="s2">&quot;Earth Engine service-account info is not valid JSON.&quot;</span>
+<a id="__codelineno-0-187" name="__codelineno-0-187"></a>                <span class="s2">"Earth Engine service-account info is not valid JSON."</span>
 <a id="__codelineno-0-188" name="__codelineno-0-188"></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
 <a id="__codelineno-0-189" name="__codelineno-0-189"></a>        <span class="n">text</span> <span class="o">=</span> <span class="n">info</span>
 <a id="__codelineno-0-190" name="__codelineno-0-190"></a>    <span class="k">else</span><span class="p">:</span>
 <a id="__codelineno-0-191" name="__codelineno-0-191"></a>        <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span>
-<a id="__codelineno-0-192" name="__codelineno-0-192"></a>            <span class="s2">&quot;Earth Engine service-account info must be a JSON string or mapping.&quot;</span>
+<a id="__codelineno-0-192" name="__codelineno-0-192"></a>            <span class="s2">"Earth Engine service-account info must be a JSON string or mapping."</span>
 <a id="__codelineno-0-193" name="__codelineno-0-193"></a>        <span class="p">)</span>
 <a id="__codelineno-0-194" name="__codelineno-0-194"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">_write_secret_json</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
 <a id="__codelineno-0-195" name="__codelineno-0-195"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
@@ -2612,8 +2612,8 @@ expanded; the file must exist.</p>
     <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.earthengine</span><span class="w"> </span><span class="kn">import</span> <span class="n">EarthEngineCredentials</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">key</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">())</span> <span class="o">/</span> <span class="s2">&quot;sa.json&quot;</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">_</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">key</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">())</span> <span class="o">/</span> <span class="s2">"sa.json"</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">_</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"</span><span class="si">{}</span><span class="s2">"</span><span class="p">)</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">from_service_account</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">creds</span><span class="o">.</span><span class="n">service_account_path</span> <span class="o">==</span> <span class="n">key</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="kc">True</span>
@@ -2621,7 +2621,7 @@ expanded; the file must exist.</p>
 <li>A missing key path is rejected early:
     <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.earthengine</span><span class="w"> </span><span class="kn">import</span> <span class="n">EarthEngineCredentials</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">from_service_account</span><span class="p">(</span>  <span class="c1"># doctest: +ELLIPSIS</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="o">...</span>     <span class="s2">&quot;/no/such/key.json&quot;</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="o">...</span>     <span class="s2">"/no/such/key.json"</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="o">...</span> <span class="p">)</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">Traceback</span> <span class="p">(</span><span class="n">most</span> <span class="n">recent</span> <span class="n">call</span> <span class="n">last</span><span class="p">):</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="o">...</span>
@@ -2670,7 +2670,7 @@ expanded; the file must exist.</p>
 <span class="normal"><a href="#__codelineno-0-235">235</a></span>
 <span class="normal"><a href="#__codelineno-0-236">236</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-200" name="__codelineno-0-200"></a><span class="nd">@classmethod</span>
 <a id="__codelineno-0-201" name="__codelineno-0-201"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_service_account</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-202" name="__codelineno-0-202"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build credentials from a service-account JSON key path.</span>
+<a id="__codelineno-0-202" name="__codelineno-0-202"></a><span class="w">    </span><span class="sd">"""Build credentials from a service-account JSON key path.</span>
 <a id="__codelineno-0-203" name="__codelineno-0-203"></a>
 <a id="__codelineno-0-204" name="__codelineno-0-204"></a><span class="sd">    Args:</span>
 <a id="__codelineno-0-205" name="__codelineno-0-205"></a><span class="sd">        path: Path to the Google service-account JSON key. ``~`` is</span>
@@ -2685,8 +2685,8 @@ expanded; the file must exist.</p>
 <a id="__codelineno-0-214" name="__codelineno-0-214"></a><span class="sd">            &gt;&gt;&gt; import tempfile</span>
 <a id="__codelineno-0-215" name="__codelineno-0-215"></a><span class="sd">            &gt;&gt;&gt; from pathlib import Path</span>
 <a id="__codelineno-0-216" name="__codelineno-0-216"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-217" name="__codelineno-0-217"></a><span class="sd">            &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
-<a id="__codelineno-0-218" name="__codelineno-0-218"></a><span class="sd">            &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
+<a id="__codelineno-0-217" name="__codelineno-0-217"></a><span class="sd">            &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / "sa.json"</span>
+<a id="__codelineno-0-218" name="__codelineno-0-218"></a><span class="sd">            &gt;&gt;&gt; _ = key.write_text("{}")</span>
 <a id="__codelineno-0-219" name="__codelineno-0-219"></a><span class="sd">            &gt;&gt;&gt; creds = EarthEngineCredentials.from_service_account(key)</span>
 <a id="__codelineno-0-220" name="__codelineno-0-220"></a><span class="sd">            &gt;&gt;&gt; creds.service_account_path == key</span>
 <a id="__codelineno-0-221" name="__codelineno-0-221"></a><span class="sd">            True</span>
@@ -2696,14 +2696,14 @@ expanded; the file must exist.</p>
 <a id="__codelineno-0-225" name="__codelineno-0-225"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
 <a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.from_service_account(  # doctest: +ELLIPSIS</span>
-<a id="__codelineno-0-228" name="__codelineno-0-228"></a><span class="sd">            ...     &quot;/no/such/key.json&quot;</span>
+<a id="__codelineno-0-228" name="__codelineno-0-228"></a><span class="sd">            ...     "/no/such/key.json"</span>
 <a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">            ... )</span>
 <a id="__codelineno-0-230" name="__codelineno-0-230"></a><span class="sd">            Traceback (most recent call last):</span>
 <a id="__codelineno-0-231" name="__codelineno-0-231"></a><span class="sd">                ...</span>
 <a id="__codelineno-0-232" name="__codelineno-0-232"></a><span class="sd">            pyramids_eo.errors.AuthenticationError: ...not found...</span>
 <a id="__codelineno-0-233" name="__codelineno-0-233"></a>
 <a id="__codelineno-0-234" name="__codelineno-0-234"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="sd">    """</span>
 <a id="__codelineno-0-236" name="__codelineno-0-236"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -2785,7 +2785,7 @@ expanded; the file must exist.</p>
 <li>They report their mode in <code>repr</code>:
     <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.earthengine</span><span class="w"> </span><span class="kn">import</span> <span class="n">EarthEngineCredentials</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="nb">repr</span><span class="p">(</span><span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">application_default</span><span class="p">())</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="s1">&#39;EarthEngineCredentials(application_default)&#39;</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="s1">'EarthEngineCredentials(application_default)'</span>
 </code></pre></div></li>
 </ul>
 
@@ -2822,7 +2822,7 @@ expanded; the file must exist.</p>
 <span class="normal"><a href="#__codelineno-0-265">265</a></span>
 <span class="normal"><a href="#__codelineno-0-266">266</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-238" name="__codelineno-0-238"></a><span class="nd">@classmethod</span>
 <a id="__codelineno-0-239" name="__codelineno-0-239"></a><span class="k">def</span><span class="w"> </span><span class="nf">application_default</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build credentials that defer to ambient ADC (no explicit key).</span>
+<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="w">    </span><span class="sd">"""Build credentials that defer to ambient ADC (no explicit key).</span>
 <a id="__codelineno-0-241" name="__codelineno-0-241"></a>
 <a id="__codelineno-0-242" name="__codelineno-0-242"></a><span class="sd">    Returns:</span>
 <a id="__codelineno-0-243" name="__codelineno-0-243"></a><span class="sd">        Credentials with an empty :meth:`gdal_env`; GDAL resolves an</span>
@@ -2844,10 +2844,10 @@ expanded; the file must exist.</p>
 <a id="__codelineno-0-259" name="__codelineno-0-259"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-260" name="__codelineno-0-260"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
 <a id="__codelineno-0-261" name="__codelineno-0-261"></a><span class="sd">            &gt;&gt;&gt; repr(EarthEngineCredentials.application_default())</span>
-<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="sd">            &#39;EarthEngineCredentials(application_default)&#39;</span>
+<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="sd">            'EarthEngineCredentials(application_default)'</span>
 <a id="__codelineno-0-263" name="__codelineno-0-263"></a>
 <a id="__codelineno-0-264" name="__codelineno-0-264"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">    """</span>
 <a id="__codelineno-0-266" name="__codelineno-0-266"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">service_account_json</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -2984,7 +2984,7 @@ or <code>None</code> for application-default.</p>
 <span class="normal"><a href="#__codelineno-0-302">302</a></span>
 <span class="normal"><a href="#__codelineno-0-303">303</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-268" name="__codelineno-0-268"></a><span class="nd">@classmethod</span>
 <a id="__codelineno-0-269" name="__codelineno-0-269"></a><span class="k">def</span><span class="w"> </span><span class="nf">coerce</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EarthEngineCredentials</span><span class="p">:</span>
-<a id="__codelineno-0-270" name="__codelineno-0-270"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalise a caller-supplied credentials value.</span>
+<a id="__codelineno-0-270" name="__codelineno-0-270"></a><span class="w">    </span><span class="sd">"""Normalise a caller-supplied credentials value.</span>
 <a id="__codelineno-0-271" name="__codelineno-0-271"></a>
 <a id="__codelineno-0-272" name="__codelineno-0-272"></a><span class="sd">    Args:</span>
 <a id="__codelineno-0-273" name="__codelineno-0-273"></a><span class="sd">        credentials: An :class:`EarthEngineCredentials`, a path-like pointing</span>
@@ -3010,7 +3010,7 @@ or <code>None</code> for application-default.</p>
 <a id="__codelineno-0-293" name="__codelineno-0-293"></a><span class="sd">            True</span>
 <a id="__codelineno-0-294" name="__codelineno-0-294"></a>
 <a id="__codelineno-0-295" name="__codelineno-0-295"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-296" name="__codelineno-0-296"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-296" name="__codelineno-0-296"></a><span class="sd">    """</span>
 <a id="__codelineno-0-297" name="__codelineno-0-297"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">credentials</span><span class="p">,</span> <span class="n">EarthEngineCredentials</span><span class="p">):</span>
 <a id="__codelineno-0-298" name="__codelineno-0-298"></a>        <span class="k">return</span> <span class="n">credentials</span>
 <a id="__codelineno-0-299" name="__codelineno-0-299"></a>    <span class="k">if</span> <span class="n">credentials</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -3082,10 +3082,10 @@ or <code>None</code> for application-default.</p>
     <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.earthengine</span><span class="w"> </span><span class="kn">import</span> <span class="n">EarthEngineCredentials</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">key</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">())</span> <span class="o">/</span> <span class="s2">&quot;sa.json&quot;</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">_</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">key</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">())</span> <span class="o">/</span> <span class="s2">"sa.json"</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">_</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"</span><span class="si">{}</span><span class="s2">"</span><span class="p">)</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">from_service_account</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="o">...</span>     <span class="s2">&quot;GOOGLE_APPLICATION_CREDENTIALS&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="o">...</span>     <span class="s2">"GOOGLE_APPLICATION_CREDENTIALS"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="o">...</span> <span class="p">}</span>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="kc">True</span>
 </code></pre></div></li>
@@ -3126,10 +3126,10 @@ or <code>None</code> for application-default.</p>
 <span class="normal"><a href="#__codelineno-0-339">339</a></span>
 <span class="normal"><a href="#__codelineno-0-340">340</a></span>
 <span class="normal"><a href="#__codelineno-0-341">341</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-310" name="__codelineno-0-310"></a><span class="k">def</span><span class="w"> </span><span class="nf">gdal_env</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
-<a id="__codelineno-0-311" name="__codelineno-0-311"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the GDAL-config mapping for this credential.</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311"></a><span class="w">    </span><span class="sd">"""Return the GDAL-config mapping for this credential.</span>
 <a id="__codelineno-0-312" name="__codelineno-0-312"></a>
 <a id="__codelineno-0-313" name="__codelineno-0-313"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">        ``{&quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: &lt;path&gt;}`` for a service account,</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">        ``{"GOOGLE_APPLICATION_CREDENTIALS": &lt;path&gt;}`` for a service account,</span>
 <a id="__codelineno-0-315" name="__codelineno-0-315"></a><span class="sd">        or an empty mapping for application-default (ambient) resolution.</span>
 <a id="__codelineno-0-316" name="__codelineno-0-316"></a>
 <a id="__codelineno-0-317" name="__codelineno-0-317"></a><span class="sd">    Examples:</span>
@@ -3145,15 +3145,15 @@ or <code>None</code> for application-default.</p>
 <a id="__codelineno-0-327" name="__codelineno-0-327"></a><span class="sd">            &gt;&gt;&gt; import tempfile</span>
 <a id="__codelineno-0-328" name="__codelineno-0-328"></a><span class="sd">            &gt;&gt;&gt; from pathlib import Path</span>
 <a id="__codelineno-0-329" name="__codelineno-0-329"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.earthengine import EarthEngineCredentials</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330"></a><span class="sd">            &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / &quot;sa.json&quot;</span>
-<a id="__codelineno-0-331" name="__codelineno-0-331"></a><span class="sd">            &gt;&gt;&gt; _ = key.write_text(&quot;{}&quot;)</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a><span class="sd">            &gt;&gt;&gt; key = Path(tempfile.mkdtemp()) / "sa.json"</span>
+<a id="__codelineno-0-331" name="__codelineno-0-331"></a><span class="sd">            &gt;&gt;&gt; _ = key.write_text("{}")</span>
 <a id="__codelineno-0-332" name="__codelineno-0-332"></a><span class="sd">            &gt;&gt;&gt; EarthEngineCredentials.from_service_account(key).gdal_env() == {</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333"></a><span class="sd">            ...     &quot;GOOGLE_APPLICATION_CREDENTIALS&quot;: str(key)</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a><span class="sd">            ...     "GOOGLE_APPLICATION_CREDENTIALS": str(key)</span>
 <a id="__codelineno-0-334" name="__codelineno-0-334"></a><span class="sd">            ... }</span>
 <a id="__codelineno-0-335" name="__codelineno-0-335"></a><span class="sd">            True</span>
 <a id="__codelineno-0-336" name="__codelineno-0-336"></a>
 <a id="__codelineno-0-337" name="__codelineno-0-337"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-338" name="__codelineno-0-338"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-338" name="__codelineno-0-338"></a><span class="sd">    """</span>
 <a id="__codelineno-0-339" name="__codelineno-0-339"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
 <a id="__codelineno-0-340" name="__codelineno-0-340"></a>        <span class="k">return</span> <span class="p">{}</span>
 <a id="__codelineno-0-341" name="__codelineno-0-341"></a>    <span class="k">return</span> <span class="p">{</span><span class="n">GOOGLE_APPLICATION_CREDENTIALS</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">)}</span>
@@ -3267,7 +3267,7 @@ single-threaded, single-credential use per process.</p>
 <span class="normal"><a href="#__codelineno-0-382">382</a></span>
 <span class="normal"><a href="#__codelineno-0-383">383</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-343" name="__codelineno-0-343"></a><span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
 <a id="__codelineno-0-344" name="__codelineno-0-344"></a><span class="k">def</span><span class="w"> </span><span class="nf">activate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-0-345" name="__codelineno-0-345"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply this credential&#39;s GDAL config for the duration of a ``with`` block.</span>
+<a id="__codelineno-0-345" name="__codelineno-0-345"></a><span class="w">    </span><span class="sd">"""Apply this credential's GDAL config for the duration of a ``with`` block.</span>
 <a id="__codelineno-0-346" name="__codelineno-0-346"></a>
 <a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="sd">    Sets each :meth:`gdal_env` key as a GDAL config option and restores the</span>
 <a id="__codelineno-0-348" name="__codelineno-0-348"></a><span class="sd">    previous value (or clears it) on exit, so the process-wide GDAL config is</span>
@@ -3276,7 +3276,7 @@ single-threaded, single-credential use per process.</p>
 <a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="sd">    Note:</span>
 <a id="__codelineno-0-352" name="__codelineno-0-352"></a><span class="sd">        GDAL config options are **process-global**, so this save/restore is not</span>
 <a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="sd">        thread-safe: two threads activating different service-account</span>
-<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">        credentials concurrently would clobber each other&#39;s</span>
+<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">        credentials concurrently would clobber each other's</span>
 <a id="__codelineno-0-355" name="__codelineno-0-355"></a><span class="sd">        ``GOOGLE_APPLICATION_CREDENTIALS``. The reader is intended for</span>
 <a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">        single-threaded, single-credential use per process.</span>
 <a id="__codelineno-0-357" name="__codelineno-0-357"></a>
@@ -3293,7 +3293,7 @@ single-threaded, single-credential use per process.</p>
 <a id="__codelineno-0-368" name="__codelineno-0-368"></a><span class="sd">            True</span>
 <a id="__codelineno-0-369" name="__codelineno-0-369"></a>
 <a id="__codelineno-0-370" name="__codelineno-0-370"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-371" name="__codelineno-0-371"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-371" name="__codelineno-0-371"></a><span class="sd">    """</span>
 <a id="__codelineno-0-372" name="__codelineno-0-372"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
 <a id="__codelineno-0-373" name="__codelineno-0-373"></a>
 <a id="__codelineno-0-374" name="__codelineno-0-374"></a>    <span class="n">env</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span>
@@ -3325,7 +3325,7 @@ single-threaded, single-credential use per process.</p>
 
 
 <h4 id="pyramids_eo.collection_from_earthengine" class="doc doc-heading"><a href="#pyramids_eo.collection_from_earthengine" class="toclink">
-            <code class="highlight language-python"><span class="n">collection_from_earthengine</span><span class="p">(</span><span class="n">asset_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bands</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="n">_DEFAULT_CRS</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">resample</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">collection_from_earthengine</span><span class="p">(</span><span class="n">asset_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bands</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="n">_DEFAULT_CRS</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">resample</span><span class="o">=</span><span class="s1">'nearest'</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </a><a href="#pyramids_eo.collection_from_earthengine" class="headerlink" title="Permanent link">#</a></h4>
 
@@ -3614,9 +3614,9 @@ matched no scenes.</p>
 <li>Read a Sentinel-2 collection over a date range (skipped offline):
     <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_from_earthengine</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">collection</span> <span class="o">=</span> <span class="n">collection_from_earthengine</span><span class="p">(</span>  <span class="c1"># doctest: +SKIP</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="o">...</span>     <span class="s2">&quot;COPERNICUS/S2_SR_HARMONIZED&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="o">...</span>     <span class="n">start</span><span class="o">=</span><span class="s2">&quot;2024-06-01&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="o">...</span>     <span class="n">end</span><span class="o">=</span><span class="s2">&quot;2024-06-10&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="o">...</span>     <span class="s2">"COPERNICUS/S2_SR_HARMONIZED"</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="o">...</span>     <span class="n">start</span><span class="o">=</span><span class="s2">"2024-06-01"</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="o">...</span>     <span class="n">end</span><span class="o">=</span><span class="s2">"2024-06-10"</span><span class="p">,</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="o">...</span>     <span class="n">bbox</span><span class="o">=</span><span class="p">(</span><span class="mf">86.9</span><span class="p">,</span> <span class="mf">27.9</span><span class="p">,</span> <span class="mf">87.0</span><span class="p">,</span> <span class="mf">28.0</span><span class="p">),</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="o">...</span> <span class="p">)</span>
 </code></pre></div></li>
@@ -3752,17 +3752,17 @@ matched no scenes.</p>
 <a id="__codelineno-0-1097" name="__codelineno-0-1097"></a>    <span class="n">crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">_DEFAULT_CRS</span><span class="p">,</span>
 <a id="__codelineno-0-1098" name="__codelineno-0-1098"></a>    <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-1099" name="__codelineno-0-1099"></a>    <span class="n">shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-1100" name="__codelineno-0-1100"></a>    <span class="n">resample</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;nearest&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-1100" name="__codelineno-0-1100"></a>    <span class="n">resample</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"nearest"</span><span class="p">,</span>
 <a id="__codelineno-0-1101" name="__codelineno-0-1101"></a>    <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-1102" name="__codelineno-0-1102"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DatasetCollection</span><span class="p">:</span>
-<a id="__codelineno-0-1103" name="__codelineno-0-1103"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Read an Earth Engine ``ImageCollection`` into a ``DatasetCollection``.</span>
+<a id="__codelineno-0-1103" name="__codelineno-0-1103"></a><span class="w">    </span><span class="sd">"""Read an Earth Engine ``ImageCollection`` into a ``DatasetCollection``.</span>
 <a id="__codelineno-0-1104" name="__codelineno-0-1104"></a>
-<a id="__codelineno-0-1105" name="__codelineno-0-1105"></a><span class="sd">    Discovers the collection&#39;s scenes over the AOI + date range via the GDAL EEDA</span>
+<a id="__codelineno-0-1105" name="__codelineno-0-1105"></a><span class="sd">    Discovers the collection's scenes over the AOI + date range via the GDAL EEDA</span>
 <a id="__codelineno-0-1106" name="__codelineno-0-1106"></a><span class="sd">    catalog driver, then reads each one (EEDAI) windowed to a common grid — one</span>
 <a id="__codelineno-0-1107" name="__codelineno-0-1107"></a><span class="sd">    aligned :class:`~pyramids.dataset.Dataset` per scene, in acquisition order.</span>
 <a id="__codelineno-0-1108" name="__codelineno-0-1108"></a>
 <a id="__codelineno-0-1109" name="__codelineno-0-1109"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-1110" name="__codelineno-0-1110"></a><span class="sd">        asset_id: EE ``ImageCollection`` id (e.g. ``&quot;COPERNICUS/S2_SR_HARMONIZED&quot;``).</span>
+<a id="__codelineno-0-1110" name="__codelineno-0-1110"></a><span class="sd">        asset_id: EE ``ImageCollection`` id (e.g. ``"COPERNICUS/S2_SR_HARMONIZED"``).</span>
 <a id="__codelineno-0-1111" name="__codelineno-0-1111"></a><span class="sd">        start: Inclusive ISO start of the acquisition window.</span>
 <a id="__codelineno-0-1112" name="__codelineno-0-1112"></a><span class="sd">        end: Inclusive ISO end of the acquisition window.</span>
 <a id="__codelineno-0-1113" name="__codelineno-0-1113"></a><span class="sd">        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required (to bound</span>
@@ -3774,14 +3774,14 @@ matched no scenes.</p>
 <a id="__codelineno-0-1119" name="__codelineno-0-1119"></a><span class="sd">            polygon cutline. Takes the place of ``bbox`` when ``bbox`` is omitted.</span>
 <a id="__codelineno-0-1120" name="__codelineno-0-1120"></a><span class="sd">        bands: Band names to request; ``None`` reads every band.</span>
 <a id="__codelineno-0-1121" name="__codelineno-0-1121"></a><span class="sd">        crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to</span>
-<a id="__codelineno-0-1122" name="__codelineno-0-1122"></a><span class="sd">            ``&quot;EPSG:4326&quot;``.</span>
+<a id="__codelineno-0-1122" name="__codelineno-0-1122"></a><span class="sd">            ``"EPSG:4326"``.</span>
 <a id="__codelineno-0-1123" name="__codelineno-0-1123"></a><span class="sd">        scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.</span>
-<a id="__codelineno-0-1124" name="__codelineno-0-1124"></a><span class="sd">            When both are omitted the first scene&#39;s native windowed grid is used</span>
+<a id="__codelineno-0-1124" name="__codelineno-0-1124"></a><span class="sd">            When both are omitted the first scene's native windowed grid is used</span>
 <a id="__codelineno-0-1125" name="__codelineno-0-1125"></a><span class="sd">            for every scene.</span>
 <a id="__codelineno-0-1126" name="__codelineno-0-1126"></a><span class="sd">        shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.</span>
 <a id="__codelineno-0-1127" name="__codelineno-0-1127"></a><span class="sd">        resample: Resampling algorithm for the per-scene warp — one of</span>
-<a id="__codelineno-0-1128" name="__codelineno-0-1128"></a><span class="sd">            ``&quot;nearest&quot;`` (default), ``&quot;bilinear&quot;``, ``&quot;cubic&quot;``, ``&quot;average&quot;``,</span>
-<a id="__codelineno-0-1129" name="__codelineno-0-1129"></a><span class="sd">            ``&quot;mode&quot;``. See :func:`from_earthengine`.</span>
+<a id="__codelineno-0-1128" name="__codelineno-0-1128"></a><span class="sd">            ``"nearest"`` (default), ``"bilinear"``, ``"cubic"``, ``"average"``,</span>
+<a id="__codelineno-0-1129" name="__codelineno-0-1129"></a><span class="sd">            ``"mode"``. See :func:`from_earthengine`.</span>
 <a id="__codelineno-0-1130" name="__codelineno-0-1130"></a><span class="sd">        credentials: An</span>
 <a id="__codelineno-0-1131" name="__codelineno-0-1131"></a><span class="sd">            :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a</span>
 <a id="__codelineno-0-1132" name="__codelineno-0-1132"></a><span class="sd">            path to a service-account JSON key, or ``None`` for ADC.</span>
@@ -3801,22 +3801,22 @@ matched no scenes.</p>
 <a id="__codelineno-0-1146" name="__codelineno-0-1146"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-1147" name="__codelineno-0-1147"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import collection_from_earthengine</span>
 <a id="__codelineno-0-1148" name="__codelineno-0-1148"></a><span class="sd">            &gt;&gt;&gt; collection = collection_from_earthengine(  # doctest: +SKIP</span>
-<a id="__codelineno-0-1149" name="__codelineno-0-1149"></a><span class="sd">            ...     &quot;COPERNICUS/S2_SR_HARMONIZED&quot;,</span>
-<a id="__codelineno-0-1150" name="__codelineno-0-1150"></a><span class="sd">            ...     start=&quot;2024-06-01&quot;,</span>
-<a id="__codelineno-0-1151" name="__codelineno-0-1151"></a><span class="sd">            ...     end=&quot;2024-06-10&quot;,</span>
+<a id="__codelineno-0-1149" name="__codelineno-0-1149"></a><span class="sd">            ...     "COPERNICUS/S2_SR_HARMONIZED",</span>
+<a id="__codelineno-0-1150" name="__codelineno-0-1150"></a><span class="sd">            ...     start="2024-06-01",</span>
+<a id="__codelineno-0-1151" name="__codelineno-0-1151"></a><span class="sd">            ...     end="2024-06-10",</span>
 <a id="__codelineno-0-1152" name="__codelineno-0-1152"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
 <a id="__codelineno-0-1153" name="__codelineno-0-1153"></a><span class="sd">            ... )</span>
 <a id="__codelineno-0-1154" name="__codelineno-0-1154"></a>
 <a id="__codelineno-0-1155" name="__codelineno-0-1155"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-1156" name="__codelineno-0-1156"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-1156" name="__codelineno-0-1156"></a><span class="sd">    """</span>
 <a id="__codelineno-0-1157" name="__codelineno-0-1157"></a>    <span class="k">if</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-1158" name="__codelineno-0-1158"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Pass at most one of &#39;scale&#39; or &#39;shape&#39;, not both.&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-1158" name="__codelineno-0-1158"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Pass at most one of 'scale' or 'shape', not both."</span><span class="p">)</span>
 <a id="__codelineno-0-1159" name="__codelineno-0-1159"></a>    <span class="n">_resample_alg</span><span class="p">(</span><span class="n">resample</span><span class="p">)</span>  <span class="c1"># validate up front, before any network call</span>
 <a id="__codelineno-0-1160" name="__codelineno-0-1160"></a>    <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
 <a id="__codelineno-0-1161" name="__codelineno-0-1161"></a>        <span class="n">geometry</span> <span class="o">=</span> <span class="n">_geometry_in_crs</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">crs</span><span class="p">)</span>
 <a id="__codelineno-0-1162" name="__codelineno-0-1162"></a>    <span class="k">if</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
 <a id="__codelineno-0-1163" name="__codelineno-0-1163"></a>        <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-1164" name="__codelineno-0-1164"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Pass a &#39;bbox&#39; or a &#39;geometry&#39;.&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-1164" name="__codelineno-0-1164"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Pass a 'bbox' or a 'geometry'."</span><span class="p">)</span>
 <a id="__codelineno-0-1165" name="__codelineno-0-1165"></a>        <span class="n">bbox</span> <span class="o">=</span> <span class="n">_geometry_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
 <a id="__codelineno-0-1166" name="__codelineno-0-1166"></a>
 <a id="__codelineno-0-1167" name="__codelineno-0-1167"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
@@ -3829,7 +3829,7 @@ matched no scenes.</p>
 <a id="__codelineno-0-1174" name="__codelineno-0-1174"></a>    <span class="p">)</span>
 <a id="__codelineno-0-1175" name="__codelineno-0-1175"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">scenes</span><span class="p">:</span>
 <a id="__codelineno-0-1176" name="__codelineno-0-1176"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
-<a id="__codelineno-0-1177" name="__codelineno-0-1177"></a>            <span class="sa">f</span><span class="s2">&quot;No Earth Engine scenes for </span><span class="si">{</span><span class="n">asset_id</span><span class="si">!r}</span><span class="s2"> in [</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">] over </span><span class="si">{</span><span class="n">bbox</span><span class="si">}</span><span class="s2">.&quot;</span>
+<a id="__codelineno-0-1177" name="__codelineno-0-1177"></a>            <span class="sa">f</span><span class="s2">"No Earth Engine scenes for </span><span class="si">{</span><span class="n">asset_id</span><span class="si">!r}</span><span class="s2"> in [</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">] over </span><span class="si">{</span><span class="n">bbox</span><span class="si">}</span><span class="s2">."</span>
 <a id="__codelineno-0-1178" name="__codelineno-0-1178"></a>        <span class="p">)</span>
 <a id="__codelineno-0-1179" name="__codelineno-0-1179"></a>    <span class="c1"># Keep the credential config in effect across the scene reads, then restore it.</span>
 <a id="__codelineno-0-1180" name="__codelineno-0-1180"></a>    <span class="k">with</span> <span class="n">creds</span><span class="o">.</span><span class="n">activate</span><span class="p">():</span>
@@ -3868,7 +3868,7 @@ matched no scenes.</p>
 
 
 <h4 id="pyramids_eo.from_earthengine" class="doc doc-heading"><a href="#pyramids_eo.from_earthengine" class="toclink">
-            <code class="highlight language-python"><span class="n">from_earthengine</span><span class="p">(</span><span class="n">asset_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">bands</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="n">_DEFAULT_CRS</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">resample</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">reducer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">from_earthengine</span><span class="p">(</span><span class="n">asset_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">bands</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="n">_DEFAULT_CRS</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">resample</span><span class="o">=</span><span class="s1">'nearest'</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">reducer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </a><a href="#pyramids_eo.from_earthengine" class="headerlink" title="Permanent link">#</a></h4>
 
@@ -4217,7 +4217,7 @@ date range + AOI matched no scenes.</p>
   offline):
     <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_earthengine</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">ds</span> <span class="o">=</span> <span class="n">from_earthengine</span><span class="p">(</span>  <span class="c1"># doctest: +SKIP</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="o">...</span>     <span class="s2">&quot;USGS/SRTMGL1_003&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="o">...</span>     <span class="s2">"USGS/SRTMGL1_003"</span><span class="p">,</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="o">...</span>     <span class="n">bbox</span><span class="o">=</span><span class="p">(</span><span class="mf">86.9</span><span class="p">,</span> <span class="mf">27.9</span><span class="p">,</span> <span class="mf">87.0</span><span class="p">,</span> <span class="mf">28.0</span><span class="p">),</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="o">...</span> <span class="p">)</span>
 </code></pre></div></li>
@@ -4225,30 +4225,30 @@ date range + AOI matched no scenes.</p>
   offline):
     <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_earthengine</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">composite</span> <span class="o">=</span> <span class="n">from_earthengine</span><span class="p">(</span>  <span class="c1"># doctest: +SKIP</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="o">...</span>     <span class="s2">&quot;COPERNICUS/S2_SR_HARMONIZED&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="o">...</span>     <span class="s2">"COPERNICUS/S2_SR_HARMONIZED"</span><span class="p">,</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="o">...</span>     <span class="n">bbox</span><span class="o">=</span><span class="p">(</span><span class="mf">86.9</span><span class="p">,</span> <span class="mf">27.9</span><span class="p">,</span> <span class="mf">87.0</span><span class="p">,</span> <span class="mf">28.0</span><span class="p">),</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="o">...</span>     <span class="n">start</span><span class="o">=</span><span class="s2">&quot;2024-06-01&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="o">...</span>     <span class="n">end</span><span class="o">=</span><span class="s2">&quot;2024-06-30&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="o">...</span>     <span class="n">reducer</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="o">...</span>     <span class="n">start</span><span class="o">=</span><span class="s2">"2024-06-01"</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="o">...</span>     <span class="n">end</span><span class="o">=</span><span class="s2">"2024-06-30"</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="o">...</span>     <span class="n">reducer</span><span class="o">=</span><span class="s2">"median"</span><span class="p">,</span>
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="o">...</span> <span class="p">)</span>
 </code></pre></div></li>
 <li>Clip to a polygon AOI instead of a bbox (skipped offline):
     <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>  <span class="c1"># doctest: +SKIP</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_earthengine</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">aoi</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">&quot;basin.geojson&quot;</span><span class="p">)</span>  <span class="c1"># doctest: +SKIP</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">ds</span> <span class="o">=</span> <span class="n">from_earthengine</span><span class="p">(</span><span class="s2">&quot;USGS/SRTMGL1_003&quot;</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="n">aoi</span><span class="p">)</span>  <span class="c1"># doctest: +SKIP</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">aoi</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"basin.geojson"</span><span class="p">)</span>  <span class="c1"># doctest: +SKIP</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">ds</span> <span class="o">=</span> <span class="n">from_earthengine</span><span class="p">(</span><span class="s2">"USGS/SRTMGL1_003"</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="n">aoi</span><span class="p">)</span>  <span class="c1"># doctest: +SKIP</span>
 </code></pre></div></li>
 <li>Passing both <code>scale</code> and <code>shape</code> is rejected before any read:
     <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_earthengine</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">from_earthengine</span><span class="p">(</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="o">...</span>     <span class="s2">&quot;USGS/SRTMGL1_003&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="o">...</span>     <span class="s2">"USGS/SRTMGL1_003"</span><span class="p">,</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="o">...</span>     <span class="n">bbox</span><span class="o">=</span><span class="p">(</span><span class="mf">86.9</span><span class="p">,</span> <span class="mf">27.9</span><span class="p">,</span> <span class="mf">87.0</span><span class="p">,</span> <span class="mf">28.0</span><span class="p">),</span>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="o">...</span>     <span class="n">scale</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="o">...</span>     <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="o">...</span> <span class="p">)</span>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">Traceback</span> <span class="p">(</span><span class="n">most</span> <span class="n">recent</span> <span class="n">call</span> <span class="n">last</span><span class="p">):</span>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="o">...</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="ne">ValueError</span><span class="p">:</span> <span class="n">Pass</span> <span class="n">at</span> <span class="n">most</span> <span class="n">one</span> <span class="n">of</span> <span class="s1">&#39;scale&#39;</span> <span class="ow">or</span> <span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="ow">not</span> <span class="n">both</span><span class="o">.</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="ne">ValueError</span><span class="p">:</span> <span class="n">Pass</span> <span class="n">at</span> <span class="n">most</span> <span class="n">one</span> <span class="n">of</span> <span class="s1">'scale'</span> <span class="ow">or</span> <span class="s1">'shape'</span><span class="p">,</span> <span class="ow">not</span> <span class="n">both</span><span class="o">.</span>
 </code></pre></div></li>
 </ul>
 
@@ -4441,13 +4441,13 @@ date range + AOI matched no scenes.</p>
 <a id="__codelineno-0-915" name="__codelineno-0-915"></a>    <span class="n">crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">_DEFAULT_CRS</span><span class="p">,</span>
 <a id="__codelineno-0-916" name="__codelineno-0-916"></a>    <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-917" name="__codelineno-0-917"></a>    <span class="n">shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-918" name="__codelineno-0-918"></a>    <span class="n">resample</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;nearest&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-918" name="__codelineno-0-918"></a>    <span class="n">resample</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"nearest"</span><span class="p">,</span>
 <a id="__codelineno-0-919" name="__codelineno-0-919"></a>    <span class="n">start</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-920" name="__codelineno-0-920"></a>    <span class="n">end</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-921" name="__codelineno-0-921"></a>    <span class="n">reducer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-922" name="__codelineno-0-922"></a>    <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-923" name="__codelineno-0-923"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dataset</span><span class="p">:</span>
-<a id="__codelineno-0-924" name="__codelineno-0-924"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Read an Earth Engine ``Image`` (or reduced ``ImageCollection``) into a ``Dataset``.</span>
+<a id="__codelineno-0-924" name="__codelineno-0-924"></a><span class="w">    </span><span class="sd">"""Read an Earth Engine ``Image`` (or reduced ``ImageCollection``) into a ``Dataset``.</span>
 <a id="__codelineno-0-925" name="__codelineno-0-925"></a>
 <a id="__codelineno-0-926" name="__codelineno-0-926"></a><span class="sd">    Two modes:</span>
 <a id="__codelineno-0-927" name="__codelineno-0-927"></a>
@@ -4455,14 +4455,14 @@ date range + AOI matched no scenes.</p>
 <a id="__codelineno-0-929" name="__codelineno-0-929"></a><span class="sd">      driver and, when a ``bbox`` is given, warps it to ``crs`` at the requested</span>
 <a id="__codelineno-0-930" name="__codelineno-0-930"></a><span class="sd">      resolution.</span>
 <a id="__codelineno-0-931" name="__codelineno-0-931"></a><span class="sd">    * **``ImageCollection`` composite**: when ``start`` / ``end`` + ``reducer`` are</span>
-<a id="__codelineno-0-932" name="__codelineno-0-932"></a><span class="sd">      given, discovers the collection&#39;s scenes over the AOI + date range (EEDA),</span>
+<a id="__codelineno-0-932" name="__codelineno-0-932"></a><span class="sd">      given, discovers the collection's scenes over the AOI + date range (EEDA),</span>
 <a id="__codelineno-0-933" name="__codelineno-0-933"></a><span class="sd">      reads them aligned, and reduces them **client-side** into one composite</span>
 <a id="__codelineno-0-934" name="__codelineno-0-934"></a><span class="sd">      ``Dataset``. Server-side EE reducers are out of scope.</span>
 <a id="__codelineno-0-935" name="__codelineno-0-935"></a>
 <a id="__codelineno-0-936" name="__codelineno-0-936"></a><span class="sd">    Args:</span>
 <a id="__codelineno-0-937" name="__codelineno-0-937"></a><span class="sd">        asset_id: EE image asset id (single mode) or ``ImageCollection`` id</span>
-<a id="__codelineno-0-938" name="__codelineno-0-938"></a><span class="sd">            (composite mode), e.g. ``&quot;USGS/SRTMGL1_003&quot;`` /</span>
-<a id="__codelineno-0-939" name="__codelineno-0-939"></a><span class="sd">            ``&quot;COPERNICUS/S2_SR_HARMONIZED&quot;``.</span>
+<a id="__codelineno-0-938" name="__codelineno-0-938"></a><span class="sd">            (composite mode), e.g. ``"USGS/SRTMGL1_003"`` /</span>
+<a id="__codelineno-0-939" name="__codelineno-0-939"></a><span class="sd">            ``"COPERNICUS/S2_SR_HARMONIZED"``.</span>
 <a id="__codelineno-0-940" name="__codelineno-0-940"></a><span class="sd">        bands: Band names to request; ``None`` reads every band.</span>
 <a id="__codelineno-0-941" name="__codelineno-0-941"></a><span class="sd">        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required to</span>
 <a id="__codelineno-0-942" name="__codelineno-0-942"></a><span class="sd">            materialise a window (single mode) and for the composite mode, unless</span>
@@ -4473,20 +4473,20 @@ date range + AOI matched no scenes.</p>
 <a id="__codelineno-0-947" name="__codelineno-0-947"></a><span class="sd">            envelope drives the read window and the result is then clipped to the</span>
 <a id="__codelineno-0-948" name="__codelineno-0-948"></a><span class="sd">            polygon cutline. Takes the place of ``bbox`` when ``bbox`` is omitted.</span>
 <a id="__codelineno-0-949" name="__codelineno-0-949"></a><span class="sd">        crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to</span>
-<a id="__codelineno-0-950" name="__codelineno-0-950"></a><span class="sd">            ``&quot;EPSG:4326&quot;``.</span>
+<a id="__codelineno-0-950" name="__codelineno-0-950"></a><span class="sd">            ``"EPSG:4326"``.</span>
 <a id="__codelineno-0-951" name="__codelineno-0-951"></a><span class="sd">        scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.</span>
 <a id="__codelineno-0-952" name="__codelineno-0-952"></a><span class="sd">        shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.</span>
 <a id="__codelineno-0-953" name="__codelineno-0-953"></a><span class="sd">        resample: Resampling algorithm used when the native window is warped to the</span>
-<a id="__codelineno-0-954" name="__codelineno-0-954"></a><span class="sd">            output grid — one of ``&quot;nearest&quot;`` (default), ``&quot;bilinear&quot;``,</span>
-<a id="__codelineno-0-955" name="__codelineno-0-955"></a><span class="sd">            ``&quot;cubic&quot;``, ``&quot;average&quot;``, ``&quot;mode&quot;``. The default is nearest-neighbour;</span>
-<a id="__codelineno-0-956" name="__codelineno-0-956"></a><span class="sd">            for continuous imagery that is downsampled, ``&quot;average&quot;`` or</span>
-<a id="__codelineno-0-957" name="__codelineno-0-957"></a><span class="sd">            ``&quot;bilinear&quot;`` give a more representative result. (``&quot;mode&quot;`` here is a</span>
-<a id="__codelineno-0-958" name="__codelineno-0-958"></a><span class="sd">            *resampling* algorithm — distinct from the ``&quot;mode&quot;`` composite</span>
+<a id="__codelineno-0-954" name="__codelineno-0-954"></a><span class="sd">            output grid — one of ``"nearest"`` (default), ``"bilinear"``,</span>
+<a id="__codelineno-0-955" name="__codelineno-0-955"></a><span class="sd">            ``"cubic"``, ``"average"``, ``"mode"``. The default is nearest-neighbour;</span>
+<a id="__codelineno-0-956" name="__codelineno-0-956"></a><span class="sd">            for continuous imagery that is downsampled, ``"average"`` or</span>
+<a id="__codelineno-0-957" name="__codelineno-0-957"></a><span class="sd">            ``"bilinear"`` give a more representative result. (``"mode"`` here is a</span>
+<a id="__codelineno-0-958" name="__codelineno-0-958"></a><span class="sd">            *resampling* algorithm — distinct from the ``"mode"`` composite</span>
 <a id="__codelineno-0-959" name="__codelineno-0-959"></a><span class="sd">            ``reducer``.)</span>
 <a id="__codelineno-0-960" name="__codelineno-0-960"></a><span class="sd">        start: Inclusive ISO start of the acquisition window (composite mode).</span>
 <a id="__codelineno-0-961" name="__codelineno-0-961"></a><span class="sd">        end: Inclusive ISO end of the acquisition window (composite mode).</span>
-<a id="__codelineno-0-962" name="__codelineno-0-962"></a><span class="sd">        reducer: Client-side reducer for the composite mode — one of ``&quot;median&quot;``,</span>
-<a id="__codelineno-0-963" name="__codelineno-0-963"></a><span class="sd">            ``&quot;mean&quot;``, ``&quot;min&quot;``, ``&quot;max&quot;``, ``&quot;sum&quot;``, ``&quot;mode&quot;``, ``&quot;mosaic&quot;``.</span>
+<a id="__codelineno-0-962" name="__codelineno-0-962"></a><span class="sd">        reducer: Client-side reducer for the composite mode — one of ``"median"``,</span>
+<a id="__codelineno-0-963" name="__codelineno-0-963"></a><span class="sd">            ``"mean"``, ``"min"``, ``"max"``, ``"sum"``, ``"mode"``, ``"mosaic"``.</span>
 <a id="__codelineno-0-964" name="__codelineno-0-964"></a><span class="sd">            ``mode`` is computed per pixel in Python, so it is slower than the</span>
 <a id="__codelineno-0-965" name="__codelineno-0-965"></a><span class="sd">            others over a large AOI.</span>
 <a id="__codelineno-0-966" name="__codelineno-0-966"></a><span class="sd">        credentials: An</span>
@@ -4510,8 +4510,8 @@ date range + AOI matched no scenes.</p>
 <a id="__codelineno-0-984" name="__codelineno-0-984"></a><span class="sd">        :meth:`EarthEngineCredentials.activate`.</span>
 <a id="__codelineno-0-985" name="__codelineno-0-985"></a>
 <a id="__codelineno-0-986" name="__codelineno-0-986"></a><span class="sd">    Note:</span>
-<a id="__codelineno-0-987" name="__codelineno-0-987"></a><span class="sd">        **Performance.** The EEDAI driver&#39;s overviews are unreliable, so the reader</span>
-<a id="__codelineno-0-988" name="__codelineno-0-988"></a><span class="sd">        always fetches the AOI at the asset&#39;s **native resolution** (block by</span>
+<a id="__codelineno-0-987" name="__codelineno-0-987"></a><span class="sd">        **Performance.** The EEDAI driver's overviews are unreliable, so the reader</span>
+<a id="__codelineno-0-988" name="__codelineno-0-988"></a><span class="sd">        always fetches the AOI at the asset's **native resolution** (block by</span>
 <a id="__codelineno-0-989" name="__codelineno-0-989"></a><span class="sd">        block) and downsamples locally with ``resample`` (nearest by default). A</span>
 <a id="__codelineno-0-990" name="__codelineno-0-990"></a><span class="sd">        small ``shape``/``scale`` output from a fine-resolution asset over a wide</span>
 <a id="__codelineno-0-991" name="__codelineno-0-991"></a><span class="sd">        AOI therefore still transfers the full native window — e.g. a 32x32 read of</span>
@@ -4533,7 +4533,7 @@ date range + AOI matched no scenes.</p>
 <a id="__codelineno-0-1007" name="__codelineno-0-1007"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-1008" name="__codelineno-0-1008"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
 <a id="__codelineno-0-1009" name="__codelineno-0-1009"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine(  # doctest: +SKIP</span>
-<a id="__codelineno-0-1010" name="__codelineno-0-1010"></a><span class="sd">            ...     &quot;USGS/SRTMGL1_003&quot;,</span>
+<a id="__codelineno-0-1010" name="__codelineno-0-1010"></a><span class="sd">            ...     "USGS/SRTMGL1_003",</span>
 <a id="__codelineno-0-1011" name="__codelineno-0-1011"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
 <a id="__codelineno-0-1012" name="__codelineno-0-1012"></a><span class="sd">            ... )</span>
 <a id="__codelineno-0-1013" name="__codelineno-0-1013"></a>
@@ -4543,11 +4543,11 @@ date range + AOI matched no scenes.</p>
 <a id="__codelineno-0-1017" name="__codelineno-0-1017"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-1018" name="__codelineno-0-1018"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
 <a id="__codelineno-0-1019" name="__codelineno-0-1019"></a><span class="sd">            &gt;&gt;&gt; composite = from_earthengine(  # doctest: +SKIP</span>
-<a id="__codelineno-0-1020" name="__codelineno-0-1020"></a><span class="sd">            ...     &quot;COPERNICUS/S2_SR_HARMONIZED&quot;,</span>
+<a id="__codelineno-0-1020" name="__codelineno-0-1020"></a><span class="sd">            ...     "COPERNICUS/S2_SR_HARMONIZED",</span>
 <a id="__codelineno-0-1021" name="__codelineno-0-1021"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
-<a id="__codelineno-0-1022" name="__codelineno-0-1022"></a><span class="sd">            ...     start=&quot;2024-06-01&quot;,</span>
-<a id="__codelineno-0-1023" name="__codelineno-0-1023"></a><span class="sd">            ...     end=&quot;2024-06-30&quot;,</span>
-<a id="__codelineno-0-1024" name="__codelineno-0-1024"></a><span class="sd">            ...     reducer=&quot;median&quot;,</span>
+<a id="__codelineno-0-1022" name="__codelineno-0-1022"></a><span class="sd">            ...     start="2024-06-01",</span>
+<a id="__codelineno-0-1023" name="__codelineno-0-1023"></a><span class="sd">            ...     end="2024-06-30",</span>
+<a id="__codelineno-0-1024" name="__codelineno-0-1024"></a><span class="sd">            ...     reducer="median",</span>
 <a id="__codelineno-0-1025" name="__codelineno-0-1025"></a><span class="sd">            ... )</span>
 <a id="__codelineno-0-1026" name="__codelineno-0-1026"></a>
 <a id="__codelineno-0-1027" name="__codelineno-0-1027"></a><span class="sd">            ```</span>
@@ -4555,27 +4555,27 @@ date range + AOI matched no scenes.</p>
 <a id="__codelineno-0-1029" name="__codelineno-0-1029"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-1030" name="__codelineno-0-1030"></a><span class="sd">            &gt;&gt;&gt; import geopandas as gpd  # doctest: +SKIP</span>
 <a id="__codelineno-0-1031" name="__codelineno-0-1031"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
-<a id="__codelineno-0-1032" name="__codelineno-0-1032"></a><span class="sd">            &gt;&gt;&gt; aoi = gpd.read_file(&quot;basin.geojson&quot;)  # doctest: +SKIP</span>
-<a id="__codelineno-0-1033" name="__codelineno-0-1033"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine(&quot;USGS/SRTMGL1_003&quot;, geometry=aoi)  # doctest: +SKIP</span>
+<a id="__codelineno-0-1032" name="__codelineno-0-1032"></a><span class="sd">            &gt;&gt;&gt; aoi = gpd.read_file("basin.geojson")  # doctest: +SKIP</span>
+<a id="__codelineno-0-1033" name="__codelineno-0-1033"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine("USGS/SRTMGL1_003", geometry=aoi)  # doctest: +SKIP</span>
 <a id="__codelineno-0-1034" name="__codelineno-0-1034"></a>
 <a id="__codelineno-0-1035" name="__codelineno-0-1035"></a><span class="sd">            ```</span>
 <a id="__codelineno-0-1036" name="__codelineno-0-1036"></a><span class="sd">        - Passing both ``scale`` and ``shape`` is rejected before any read:</span>
 <a id="__codelineno-0-1037" name="__codelineno-0-1037"></a><span class="sd">            ```python</span>
 <a id="__codelineno-0-1038" name="__codelineno-0-1038"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
 <a id="__codelineno-0-1039" name="__codelineno-0-1039"></a><span class="sd">            &gt;&gt;&gt; from_earthengine(</span>
-<a id="__codelineno-0-1040" name="__codelineno-0-1040"></a><span class="sd">            ...     &quot;USGS/SRTMGL1_003&quot;,</span>
+<a id="__codelineno-0-1040" name="__codelineno-0-1040"></a><span class="sd">            ...     "USGS/SRTMGL1_003",</span>
 <a id="__codelineno-0-1041" name="__codelineno-0-1041"></a><span class="sd">            ...     bbox=(86.9, 27.9, 87.0, 28.0),</span>
 <a id="__codelineno-0-1042" name="__codelineno-0-1042"></a><span class="sd">            ...     scale=0.01,</span>
 <a id="__codelineno-0-1043" name="__codelineno-0-1043"></a><span class="sd">            ...     shape=(5, 5),</span>
 <a id="__codelineno-0-1044" name="__codelineno-0-1044"></a><span class="sd">            ... )</span>
 <a id="__codelineno-0-1045" name="__codelineno-0-1045"></a><span class="sd">            Traceback (most recent call last):</span>
 <a id="__codelineno-0-1046" name="__codelineno-0-1046"></a><span class="sd">                ...</span>
-<a id="__codelineno-0-1047" name="__codelineno-0-1047"></a><span class="sd">            ValueError: Pass at most one of &#39;scale&#39; or &#39;shape&#39;, not both.</span>
+<a id="__codelineno-0-1047" name="__codelineno-0-1047"></a><span class="sd">            ValueError: Pass at most one of 'scale' or 'shape', not both.</span>
 <a id="__codelineno-0-1048" name="__codelineno-0-1048"></a>
 <a id="__codelineno-0-1049" name="__codelineno-0-1049"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-1050" name="__codelineno-0-1050"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-1050" name="__codelineno-0-1050"></a><span class="sd">    """</span>
 <a id="__codelineno-0-1051" name="__codelineno-0-1051"></a>    <span class="k">if</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-1052" name="__codelineno-0-1052"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Pass at most one of &#39;scale&#39; or &#39;shape&#39;, not both.&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-1052" name="__codelineno-0-1052"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Pass at most one of 'scale' or 'shape', not both."</span><span class="p">)</span>
 <a id="__codelineno-0-1053" name="__codelineno-0-1053"></a>    <span class="n">_resample_alg</span><span class="p">(</span><span class="n">resample</span><span class="p">)</span>  <span class="c1"># validate up front, before any network call</span>
 <a id="__codelineno-0-1054" name="__codelineno-0-1054"></a>
 <a id="__codelineno-0-1055" name="__codelineno-0-1055"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
