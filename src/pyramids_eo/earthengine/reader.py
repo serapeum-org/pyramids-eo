@@ -23,12 +23,18 @@ from __future__ import annotations
 import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osgeo)
 # isort: on
 
+import gc
+import os
+import shutil
+import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
 from osgeo import gdal, osr
 from pyramids.dataset import Dataset, DatasetCollection
+from pyramids.dataset.merge import merge_rasters
 
 from pyramids_eo.earthengine.credentials import CredentialsLike, EarthEngineCredentials
 from pyramids_eo.errors import ReaderError
@@ -799,11 +805,13 @@ def _composite_read(
     reducer: str | None,
     geometry: object | None,
     credentials: EarthEngineCredentials,
+    path: str | Path | None = None,
 ) -> Dataset:
     """Reduce an ``ImageCollection`` over a date range into one composite ``Dataset``.
 
     The ``ImageCollection`` branch of :func:`from_earthengine`; see it for the
-    argument semantics.
+    argument semantics. When ``path`` is given the composite is written there and a
+    file-backed ``Dataset`` reading it is returned.
 
     Raises:
         ValueError: ``reducer`` is missing or the ``start``/``end``/``bbox`` trio is
@@ -844,6 +852,9 @@ def _composite_read(
             resample=resample,
         )
     composite = _composite(windowed, reducer, credentials, geometry)
+    if path is not None:
+        composite.to_file(str(path))
+        composite = Dataset.read_file(str(path))
     return _retain_credentials(composite, credentials)
 
 
@@ -858,6 +869,8 @@ def _single_image_read(
     resample: str,
     geometry: object | None,
     credentials: EarthEngineCredentials,
+    tile_size: int | None = None,
+    path: str | Path | None = None,
 ) -> Dataset:
     """Read a single EE ``Image`` asset into a ``Dataset``.
 
@@ -895,6 +908,23 @@ def _single_image_read(
     with credentials.activate():
         src = _open_eedai(asset_id, bands=bands, credentials=credentials)
         try:
+            if tile_size is not None:
+                # Stream a large window to disk one tile at a time (bounded memory),
+                # reusing the single open EEDAI handle for every tile. from_earthengine
+                # guarantees a path accompanies tile_size.
+                if path is None:  # pragma: no cover - guaranteed by from_earthengine
+                    raise ReaderError("A tiled read requires a 'path'.")
+                merged = _tiled_windowed_read(
+                    src,
+                    bbox=bbox,
+                    crs=crs,
+                    scale=scale,
+                    shape=shape,
+                    resample=resample,
+                    tile_size=tile_size,
+                    path=path,  # required by from_earthengine when tile_size is set
+                )
+                return _retain_credentials(merged, credentials)
             windowed_single = _window(
                 src, bbox=bbox, crs=crs, scale=scale, shape=shape, resample=resample
             )
@@ -903,11 +933,298 @@ def _single_image_read(
     # ``windowed_single`` is a fully-materialised in-memory Dataset (the warp read
     # every pixel eagerly), so it needs no credential env for any deferred read.
     windowed_dataset = _apply_geometry(windowed_single, geometry)
+    if path is not None:
+        # Persist the windowed result and hand back a file-backed Dataset.
+        windowed_dataset.to_file(str(path))
+        windowed_dataset = Dataset.read_file(str(path))
     return _retain_credentials(windowed_dataset, credentials)
 
 
+def _tile_edges(size: int, tile_size: int) -> list[tuple[int, int]]:
+    """Split ``[0, size)`` into consecutive ``(start, end)`` blocks of ``tile_size``.
+
+    Args:
+        size: Total number of pixels along the axis.
+        tile_size: Maximum block length; the final block may be shorter.
+
+    Returns:
+        ``(start, end)`` pairs (end exclusive) covering ``[0, size)`` in order.
+
+    Examples:
+        - A grid that does not divide evenly keeps a short final block:
+            ```python
+            >>> from pyramids_eo.earthengine.reader import _tile_edges
+            >>> _tile_edges(10, 4)
+            [(0, 4), (4, 8), (8, 10)]
+
+            ```
+        - An exact multiple splits into equal blocks:
+            ```python
+            >>> _tile_edges(6, 3)
+            [(0, 3), (3, 6)]
+
+            ```
+    """
+    return [(i, min(i + tile_size, size)) for i in range(0, size, tile_size)]
+
+
+def _nodata_tile(
+    source: Dataset,
+    sub_bbox: BBox,
+    shape: tuple[int, int],
+    crs: str,
+    nodata: float | None,
+) -> Dataset:
+    """Build an all-nodata tile for a sub-window fully outside the asset footprint.
+
+    Reproduces what the un-tiled warp puts there: the source's band count and dtype,
+    filled with its nodata (or ``0`` when the source has none, matching the warp's
+    default fill), on the tile's exact grid.
+
+    Args:
+        source: The opened EEDAI source ``Dataset`` (for band count and dtype).
+        sub_bbox: The tile's bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
+        shape: The tile's ``(rows, cols)``.
+        crs: Target CRS.
+        nodata: The source nodata to fill with, or ``None`` for a no-nodata source.
+
+    Returns:
+        An in-memory pyramids ``Dataset`` covering ``sub_bbox`` filled with nodata.
+    """
+    rows, cols = shape
+    min_x, min_y, max_x, max_y = sub_bbox
+    fill = nodata if nodata is not None else 0
+    array = np.full((source.band_count, rows, cols), fill, dtype=source.numpy_dtype[0])
+    geo = (min_x, (max_x - min_x) / cols, 0.0, max_y, 0.0, -(max_y - min_y) / rows)
+    return Dataset.create_from_array(array, geo=geo, epsg=crs, no_data_value=nodata)
+
+
+def _tile_grid(
+    bbox: BBox, scale: float | None, shape: tuple[int, int] | None
+) -> tuple[int, int, float, float]:
+    """Compute the tiled output grid ``(rows, cols, cell_x, cell_y)`` over ``bbox``.
+
+    A ``shape`` read fits the grid exactly to the bbox (as ``gdal.Warp`` does with
+    width/height + outputBounds). A ``scale`` read keeps the pixel size == ``scale``
+    and sizes the grid the way ``gdal.Warp`` does with ``xRes``/``yRes`` — round-half-up
+    via GDAL's exact ``int((extent + res/2) / res)`` (bit-identical), extent =
+    origin + n*scale (which may extend past the bbox) — reproducing the un-tiled
+    scale read exactly.
+
+    Args:
+        bbox: Output bounds ``(min_x, min_y, max_x, max_y)``.
+        scale: Output pixel size, or ``None`` when ``shape`` is set.
+        shape: Output ``(rows, cols)``, or ``None`` when ``scale`` is set.
+
+    Returns:
+        ``(rows, cols, cell_x, cell_y)`` for the full output grid.
+    """
+    min_x, min_y, max_x, max_y = bbox
+    if shape is not None:
+        rows, cols = shape
+        return rows, cols, (max_x - min_x) / cols, (max_y - min_y) / rows
+    if scale is None:  # pragma: no cover - from_earthengine guarantees scale/shape
+        raise ReaderError("A tiled scale read requires a 'scale'.")
+    cols = max(1, int(((max_x - min_x) + scale / 2) / scale))
+    rows = max(1, int(((max_y - min_y) + scale / 2) / scale))
+    return rows, cols, scale, scale
+
+
+def _mosaic_tiles(tile_paths: list[str], path: str, nodata: float | None) -> None:
+    """Mosaic grid-aligned tile files into ``path`` with correct nodata handling.
+
+    Non-overlapping, grid-aligned tiles fully cover the window, so the merge is exact
+    placement. The source nodata is carried through (treated as transparent and
+    stamped on the output); when the source has none, it is unset on the mosaic
+    (``"none"``) to match the un-tiled read, with a 0 fill that never triggers GDAL's
+    "cannot represent nan" cast warning. A float source with a NaN nodata takes the
+    same with-nodata branch (``n=init=no_data_value=nan``), relying on GDAL's
+    NaN-aware nodata matching; EE assets are effectively always integer nodata.
+
+    Args:
+        tile_paths: The temporary tile raster paths to mosaic.
+        path: Destination raster path.
+        nodata: The shared source nodata, or ``None`` for a no-nodata source.
+    """
+    if nodata is not None:
+        merge_rasters(
+            tile_paths,
+            path,
+            no_data_value=nodata,
+            n=nodata,
+            init=nodata,
+            method="first",
+        )
+    else:
+        merge_rasters(
+            tile_paths, path, no_data_value="none", n=0, init=0, method="first"
+        )
+
+
+def _tiled_windowed_read(
+    source: Dataset,
+    *,
+    bbox: BBox,
+    crs: str,
+    scale: float | None,
+    shape: tuple[int, int] | None,
+    resample: str,
+    tile_size: int,
+    path: str | Path,
+) -> Dataset:
+    """Read a large window as grid-aligned tiles and mosaic them to ``path``.
+
+    The output grid over ``bbox`` is split into blocks of at most ``tile_size``
+    pixels per side. Each block is read through the normal windowed path (its own
+    block-aligned EEDAI materialise + warp), written to a temporary raster and
+    released, then the tiles are mosaicked with pyramids ``merge_rasters`` into
+    ``path``. Because every tile is warped (nearest) to its exact grid-aligned
+    sub-window, the mosaic reproduces the equivalent un-tiled ``nearest`` read
+    exactly. ``resample`` other than ``"nearest"`` is rejected upstream, since an
+    interpolating kernel would sample across a tile seam.
+
+    Memory/cost notes: the per-tile step (not the whole output) is what is bounded,
+    but each tile's :func:`_materialize` still reads the tile's **native-resolution**
+    window into memory, so peak memory is governed by that native window — pick
+    ``tile_size`` relative to native resolution. The z-order ``merge_rasters`` opens
+    all tile files at once, and the read is O(n_tiles) independent
+    materialise/warp/write round-trips (re-fetching the block-aligned + 1-px pad at
+    every seam), so very large tile counts are correct but not free.
+
+    Args:
+        source: The opened EEDAI source ``Dataset`` (reused for every tile).
+        bbox: Output bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
+        crs: Target CRS (and the CRS ``bbox`` is expressed in).
+        scale: Output pixel size in ``crs`` units, or ``None`` when ``shape`` is set.
+        shape: Output ``(rows, cols)``, or ``None`` when ``scale`` is set.
+        resample: Resampling algorithm for each tile's warp (always ``"nearest"``).
+        tile_size: Maximum tile size in pixels per side.
+        path: Destination raster path for the mosaic.
+
+    Returns:
+        A file-backed pyramids ``Dataset`` reading the mosaic at ``path``.
+    """
+    min_x, _, _, max_y = bbox  # only the top-left anchors the tile grid
+    rows, cols, cell_x, cell_y = _tile_grid(bbox, scale, shape)
+
+    # All tiles inherit the source's per-band nodata, so read it once here.
+    nodata = source.no_data_value[0]
+    tmp_dir = tempfile.mkdtemp(prefix="ee_tiles_")
+    tile_paths: list[str] = []
+    any_covered = False
+    try:
+        for row0, row1 in _tile_edges(rows, tile_size):
+            for col0, col1 in _tile_edges(cols, tile_size):
+                sub_bbox = (
+                    min_x + col0 * cell_x,
+                    max_y - row1 * cell_y,
+                    min_x + col1 * cell_x,
+                    max_y - row0 * cell_y,
+                )
+                tile_shape = (row1 - row0, col1 - col0)
+                try:
+                    tile = _window(
+                        source,
+                        bbox=sub_bbox,
+                        crs=crs,
+                        scale=None,
+                        shape=tile_shape,
+                        resample=resample,
+                    )
+                    any_covered = True
+                except ReaderError as exc:
+                    if "does not intersect" not in str(exc):
+                        raise
+                    # A tile fully outside the asset footprint: emit an all-nodata
+                    # tile, matching how the un-tiled warp nodata-fills that region
+                    # (the un-tiled read clamps the window and fills the overhang).
+                    tile = _nodata_tile(source, sub_bbox, tile_shape, crs, nodata)
+                tile_path = os.path.join(tmp_dir, f"tile_{row0}_{col0}.tif")
+                tile.to_file(tile_path)
+                tile.close()  # release the GDAL handle so the temp file can be removed
+                tile_paths.append(tile_path)
+        if not any_covered:
+            # No tile intersected the asset — the whole AOI is off the footprint,
+            # the same case the un-tiled read rejects.
+            raise ReaderError(f"AOI {bbox} does not intersect the Earth Engine asset.")
+        _mosaic_tiles(tile_paths, str(path), nodata)
+    finally:
+        # merge_rasters opens the tile files (and holds them via GC-managed handles);
+        # force their release before removing the temp dir, or Windows leaves the
+        # ``ee_tiles_*`` directory behind (a delete-while-open failure that
+        # ``ignore_errors`` would otherwise hide and accumulate).
+        gc.collect()
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+    return Dataset.read_file(str(path))
+
+
+def _validate_read_request(
+    *,
+    scale: float | None,
+    shape: tuple[int, int] | None,
+    resample: str,
+    path: str | Path | None,
+    bbox: BBox | None,
+    geometry: object | None,
+    tile_size: int | None,
+    reducer: str | None,
+    start: str | None,
+    end: str | None,
+) -> None:
+    """Validate a :func:`from_earthengine` option combination before any network call.
+
+    Args:
+        scale: Requested output pixel size, or ``None``.
+        shape: Requested output ``(rows, cols)``, or ``None``.
+        resample: Resampling algorithm name.
+        path: Output raster path, or ``None``.
+        bbox: AOI bounds, or ``None``.
+        geometry: Polygon AOI, or ``None``.
+        tile_size: Oversize tile size, or ``None``.
+        reducer: Composite reducer, or ``None``.
+        start: Composite start date, or ``None``.
+        end: Composite end date, or ``None``.
+
+    Raises:
+        ValueError: An incompatible or incomplete option combination (or an unknown
+            ``resample`` name).
+    """
+    if scale is not None and shape is not None:
+        raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
+    _resample_alg(resample)  # rejects an unknown resample name up front
+    if path is not None and bbox is None and geometry is None:
+        raise ValueError(
+            "'path' needs a 'bbox' or 'geometry'; the whole-asset read is lazy."
+        )
+    if tile_size is None:
+        return
+    if reducer is not None or start is not None or end is not None:
+        raise ValueError(
+            "'tile_size' is for the single-image raw read, not an "
+            "ImageCollection composite."
+        )
+    if tile_size <= 0:
+        raise ValueError("'tile_size' must be a positive number of pixels.")
+    if geometry is not None:
+        raise ValueError("'tile_size' cannot be combined with a polygon 'geometry'.")
+    if scale is None and shape is None:
+        raise ValueError(
+            "'tile_size' needs 'scale' or 'shape' to define the output grid."
+        )
+    if path is None:
+        raise ValueError("'tile_size' needs 'path' to stream the mosaic to disk.")
+    if resample != "nearest":
+        # Tiles are warped independently, so an interpolating kernel samples missing
+        # neighbours across a tile seam and the mosaic no longer matches the un-tiled
+        # read. Only nearest (each output pixel from one source pixel) is seam-exact.
+        raise ValueError(
+            "'tile_size' supports only resample='nearest'; an interpolating "
+            "resampler would differ from the un-tiled read at tile seams."
+        )
+
+
 def from_earthengine(
-    asset_id: str,
+    asset_id: str,  # NOSONAR(S107) - a flat keyword reader API (windowing/composite/output options) is intentional; consolidating would break the released scale=/shape= surface
     *,
     bands: list[str] | None = None,
     bbox: BBox | None = None,
@@ -920,6 +1237,8 @@ def from_earthengine(
     end: str | None = None,
     reducer: str | None = None,
     credentials: CredentialsLike = None,
+    tile_size: int | None = None,
+    path: str | Path | None = None,
 ) -> Dataset:
     """Read an Earth Engine ``Image`` (or reduced ``ImageCollection``) into a ``Dataset``.
 
@@ -966,10 +1285,27 @@ def from_earthengine(
         credentials: An
             :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a
             path to a service-account JSON key, or ``None`` for ADC.
+        tile_size: Maximum tile size (pixels per side) for an oversize read. When
+            set, the output grid is split into grid-aligned tiles of at most this
+            size, each read and written to disk in turn, then mosaicked into
+            ``path`` — bounding the peak of the per-tile warp/write step rather than
+            materialising the whole output at once. The mosaic reproduces the
+            equivalent un-tiled ``nearest`` read exactly. Single-``Image`` raw reads
+            only: requires a ``bbox``, a ``path``, ``scale`` or ``shape``, and the
+            default ``resample="nearest"`` (interpolating resamplers differ from the
+            un-tiled read at tile seams); cannot be combined with a ``geometry``
+            cutline or the composite mode. Peak memory is still governed by each
+            tile's **native-resolution** window (see the Performance note), so choose
+            ``tile_size`` relative to the asset's native resolution.
+        path: Output raster path. When given, the result is written there and a
+            file-backed ``Dataset`` reading it is returned instead of an in-memory
+            one; required when ``tile_size`` is set, and honoured for the single-image
+            and composite paths alike. Needs a ``bbox`` or ``geometry`` (the
+            whole-asset read is lazy).
 
     Returns:
         A pyramids :class:`~pyramids.dataset.Dataset` — the windowed image or the
-        reduced composite.
+        reduced composite (file-backed when ``path`` is given).
 
     Note:
         The windowed and composite paths scope the credential config to the read
@@ -994,10 +1330,13 @@ def from_earthengine(
         assets.
 
     Raises:
-        ValueError: ``scale`` and ``shape`` are both given; or ``start`` / ``end``
-            are given without a ``reducer`` (use
-            :func:`collection_from_earthengine` for a ``DatasetCollection``); or the
-            composite mode is missing ``start`` / ``end`` / ``bbox``.
+        ValueError: ``scale`` and ``shape`` are both given; ``start`` / ``end`` are
+            given without a ``reducer`` (use :func:`collection_from_earthengine` for
+            a ``DatasetCollection``); the composite mode is missing
+            ``start`` / ``end`` / ``bbox``; ``path`` is given without a
+            ``bbox`` / ``geometry``; or ``tile_size`` is invalid or set without its
+            required ``path`` / ``scale`` or ``shape`` (or combined with a composite
+            or a ``geometry``).
         ReaderError: The asset could not be opened or windowed, or the composite
             date range + AOI matched no scenes.
 
@@ -1033,6 +1372,32 @@ def from_earthengine(
             >>> ds = from_earthengine("USGS/SRTMGL1_003", geometry=aoi)  # doctest: +SKIP
 
             ```
+        - Stream an oversize window to disk in 1024-px tiles (skipped offline):
+            ```python
+            >>> from pyramids_eo import from_earthengine
+            >>> ds = from_earthengine(  # doctest: +SKIP
+            ...     "USGS/SRTMGL1_003",
+            ...     bbox=(86.0, 27.0, 88.0, 29.0),
+            ...     scale=0.0003,
+            ...     tile_size=1024,
+            ...     path="srtm_big.tif",
+            ... )
+
+            ```
+        - ``tile_size`` without a ``path`` is rejected before any read:
+            ```python
+            >>> from pyramids_eo import from_earthengine
+            >>> from_earthengine(
+            ...     "USGS/SRTMGL1_003",
+            ...     bbox=(86.9, 27.9, 87.0, 28.0),
+            ...     shape=(4096, 4096),
+            ...     tile_size=1024,
+            ... )
+            Traceback (most recent call last):
+                ...
+            ValueError: 'tile_size' needs 'path' to stream the mosaic to disk.
+
+            ```
         - Passing both ``scale`` and ``shape`` is rejected before any read:
             ```python
             >>> from pyramids_eo import from_earthengine
@@ -1048,9 +1413,18 @@ def from_earthengine(
 
             ```
     """
-    if scale is not None and shape is not None:
-        raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
-    _resample_alg(resample)  # validate up front, before any network call
+    _validate_read_request(
+        scale=scale,
+        shape=shape,
+        resample=resample,
+        path=path,
+        bbox=bbox,
+        geometry=geometry,
+        tile_size=tile_size,
+        reducer=reducer,
+        start=start,
+        end=end,
+    )
 
     creds = EarthEngineCredentials.coerce(credentials)
     if geometry is not None:
@@ -1072,6 +1446,7 @@ def from_earthengine(
             reducer=reducer,
             geometry=geometry,
             credentials=creds,
+            path=path,
         )
     return _single_image_read(
         asset_id,
@@ -1083,6 +1458,8 @@ def from_earthengine(
         resample=resample,
         geometry=geometry,
         credentials=creds,
+        tile_size=tile_size,
+        path=path,
     )
 
 

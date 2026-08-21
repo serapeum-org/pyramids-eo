@@ -490,6 +490,30 @@ class TestFromEarthengineComposite:
             f"Expected all {expected}, got {values.tolist()}"
         )
 
+    def test_composite_writes_to_path(self, three_scenes, tmp_path) -> None:
+        """A ``path`` in composite mode writes the composite and returns it file-backed.
+
+        Args:
+            three_scenes: Fixture patching discovery/open (fills 10, 20, 30).
+            tmp_path: pytest temp directory.
+
+        Test scenario:
+            A median composite with ``path`` writes the raster and the returned
+            Dataset reads it, matching the in-memory composite.
+        """
+        out = tmp_path / "composite.tif"
+        ds = from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            bbox=_BBOX,
+            start="2024-06-01",
+            end="2024-06-30",
+            reducer="median",
+            shape=(4, 4),
+            path=str(out),
+        )
+        assert out.exists(), "composite mode must honour 'path' and write the file"
+        assert (ds.read_array() == 20).all(), "file-backed composite has wrong values"
+
     def test_start_end_without_reducer_raises(self) -> None:
         """A date range without a reducer is rejected with guidance.
 
@@ -1595,4 +1619,531 @@ class TestResample:
         )
         assert not np.array_equal(nearest, average), (
             "nearest and average must differ — resample is not reaching the warp"
+        )
+
+
+def _gradient_source(size: int = 400, nodata: int | None = -32768):
+    """A distinct-per-pixel gradient EPSG:4326 Int32 raster over lon/lat [86,88]/[27,29].
+
+    Args:
+        size: The source is ``size`` x ``size`` pixels spanning the 2-degree box.
+        nodata: Nodata value to stamp, or ``None`` to leave the band without one.
+
+    Returns:
+        An in-memory GDAL dataset whose every pixel holds a unique value, so a
+        mis-placed tile is detectable in a tiled-vs-untiled comparison.
+    """
+    from osgeo import gdal, osr
+
+    src = gdal.GetDriverByName("MEM").Create("", size, size, 1, gdal.GDT_Int32)
+    src.SetGeoTransform((86.0, 2.0 / size, 0.0, 29.0, 0.0, -2.0 / size))
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    src.SetProjection(srs.ExportToWkt())
+    src.GetRasterBand(1).WriteArray(
+        np.arange(size * size, dtype="int32").reshape(size, size)
+    )
+    if nodata is not None:
+        src.GetRasterBand(1).SetNoDataValue(nodata)
+    return src
+
+
+@pytest.fixture
+def patched_gradient(monkeypatch):
+    """Patch the EEDAI open seam with the distinct-per-pixel gradient source.
+
+    Args:
+        monkeypatch: pytest monkeypatch fixture.
+
+    Yields:
+        None. While active, ``_open_eedai`` returns a wrapped gradient ``Dataset``.
+    """
+    monkeypatch.setattr(
+        ee_reader,
+        "_open_eedai",
+        lambda a, *, bands, credentials: Dataset(_gradient_source()),
+    )
+
+
+class TestTileEdges:
+    """Tests for the tile-splitting helper :func:`_tile_edges`."""
+
+    def test_splits_with_short_final_block(self) -> None:
+        """A size that is not a multiple of the tile keeps a short final block.
+
+        Test scenario:
+            ``_tile_edges(10, 4)`` yields ``[(0, 4), (4, 8), (8, 10)]``.
+        """
+        assert ee_reader._tile_edges(10, 4) == [(0, 4), (4, 8), (8, 10)], "bad split"
+
+    def test_single_block_when_size_within_tile(self) -> None:
+        """A grid no larger than the tile size stays a single block.
+
+        Test scenario:
+            ``_tile_edges(3, 8)`` yields one block ``[(0, 3)]``.
+        """
+        assert ee_reader._tile_edges(3, 8) == [(0, 3)], "should be a single block"
+
+
+class TestTiledRead:
+    """Tests for the oversize tiling + mosaic path of :func:`from_earthengine`."""
+
+    def test_tiled_equals_untiled(self, patched_gradient, tmp_path) -> None:
+        """A tiled read reproduces the equivalent un-tiled read pixel-for-pixel.
+
+        Test scenario:
+            A 20x20 window over a distinct-per-pixel gradient, split into tiles of 7
+            (a 3x3 tile grid), mosaics back to exactly the un-tiled 20x20 read.
+        """
+        untiled_ds = from_earthengine("X", bbox=_BBOX, shape=(20, 20))
+        untiled = np.asarray(untiled_ds.read_array())
+        out = tmp_path / "mosaic.tif"
+        tiled_ds = from_earthengine(
+            "X", bbox=_BBOX, shape=(20, 20), tile_size=7, path=str(out)
+        )
+        tiled = np.asarray(tiled_ds.read_array())
+        assert out.exists(), "the mosaic file should be written to path"
+        assert tiled.shape == untiled.shape == (20, 20), (
+            f"unexpected shape {tiled.shape}"
+        )
+        assert tiled_ds.no_data_value[0] == untiled_ds.no_data_value[0] == -32768, (
+            f"mosaic nodata must match the source: {tiled_ds.no_data_value[0]}"
+        )
+        assert np.array_equal(tiled, untiled), (
+            "tiled mosaic differs from the un-tiled read"
+        )
+
+    def test_single_tile_when_tile_covers_grid(
+        self, patched_gradient, tmp_path
+    ) -> None:
+        """A tile_size at least the grid size yields one tile equal to the un-tiled read.
+
+        Test scenario:
+            ``tile_size=64`` over an 8x8 grid is a single tile that still equals the
+            un-tiled read.
+        """
+        untiled = np.asarray(
+            from_earthengine("X", bbox=_BBOX, shape=(8, 8)).read_array()
+        )
+        out = tmp_path / "one.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=_BBOX, shape=(8, 8), tile_size=64, path=str(out)
+            ).read_array()
+        )
+        assert np.array_equal(tiled, untiled), "single-tile mosaic must equal the read"
+
+    def test_tiled_scale_defines_the_grid(self, patched_gradient, tmp_path) -> None:
+        """A scale-based tiled read produces the scale's grid over the bbox.
+
+        Test scenario:
+            ``scale=0.01`` over a 0.1-degree bbox is a 10x10 grid; tiling at 4 keeps
+            that shape.
+        """
+        out = tmp_path / "scaled.tif"
+        ds = from_earthengine("X", bbox=_BBOX, scale=0.01, tile_size=4, path=str(out))
+        assert ds.shape == (1, 10, 10), f"Expected (1, 10, 10), got {ds.shape}"
+
+    def test_tiled_scale_matches_untiled_at_rounding_boundary(
+        self, patched_gradient, tmp_path
+    ) -> None:
+        """A scale on a ``.5`` grid boundary tiles to the same grid as the un-tiled read.
+
+        Test scenario:
+            ``scale=0.008`` over the ~0.1-degree bbox lands on a round-half-up grid
+            boundary on the Y axis (13 rows via half-up, not Python's banker's 12).
+            The tiled read must match the un-tiled ``scale`` read's grid and pixels.
+        """
+        untiled = np.asarray(
+            from_earthengine("X", bbox=_BBOX, scale=0.008).read_array()
+        )
+        out = tmp_path / "scale_boundary.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=_BBOX, scale=0.008, tile_size=5, path=str(out)
+            ).read_array()
+        )
+        assert untiled.shape[0] == 13, (
+            f"expected the half-up 13 rows, got {untiled.shape[0]}"
+        )
+        assert tiled.shape == untiled.shape, f"shape {tiled.shape} vs {untiled.shape}"
+        assert np.array_equal(tiled, untiled), (
+            "scale-boundary tiled mosaic differs from the un-tiled scale read"
+        )
+
+    def test_path_without_tile_size_writes_file(
+        self, patched_gradient, tmp_path
+    ) -> None:
+        """A ``path`` without ``tile_size`` writes the read and returns it file-backed.
+
+        Test scenario:
+            A plain windowed read to ``path`` writes the file and returns a
+            5x5 Dataset reading it.
+        """
+        out = tmp_path / "single.tif"
+        ds = from_earthengine("X", bbox=_BBOX, shape=(5, 5), path=str(out))
+        assert out.exists(), "path should be written"
+        assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
+
+    def test_tiled_multiband_source(self, monkeypatch, tmp_path) -> None:
+        """A multi-band source tiles with each band placed correctly.
+
+        Test scenario:
+            A 3-band source with distinct per-band gradients mosaics back to the
+            un-tiled read across all bands (band order + per-band placement).
+        """
+        from osgeo import gdal, osr
+
+        size = 300
+        src = gdal.GetDriverByName("MEM").Create("", size, size, 3, gdal.GDT_Int32)
+        src.SetGeoTransform((86.0, 2.0 / size, 0.0, 29.0, 0.0, -2.0 / size))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        src.SetProjection(srs.ExportToWkt())
+        base = np.arange(size * size, dtype="int32").reshape(size, size)
+        for band in range(3):
+            src.GetRasterBand(band + 1).WriteArray(base + band * 1_000_000)
+            src.GetRasterBand(band + 1).SetNoDataValue(-32768)
+        monkeypatch.setattr(
+            ee_reader, "_open_eedai", lambda a, *, bands, credentials: Dataset(src)
+        )
+
+        untiled = np.asarray(
+            from_earthengine("X", bbox=_BBOX, shape=(18, 18)).read_array()
+        )
+        out = tmp_path / "multiband.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=_BBOX, shape=(18, 18), tile_size=7, path=str(out)
+            ).read_array()
+        )
+        assert tiled.shape == untiled.shape == (3, 18, 18), f"shape {tiled.shape}"
+        assert np.array_equal(tiled, untiled), (
+            "multi-band tiled mosaic differs from the un-tiled read"
+        )
+
+    def test_tiled_matches_untiled_over_footprint_edge(
+        self, patched_gradient, tmp_path
+    ) -> None:
+        """An AOI overhanging the asset edge tiles to the same nodata-filled read.
+
+        Test scenario:
+            A bbox half outside the ``[86,88]x[27,29]`` source: a fully-outside tile
+            is emitted as all-nodata (as the un-tiled warp fills the overhang), so the
+            mosaic equals the un-tiled read including the nodata region.
+        """
+        over = (87.0, 28.0, 89.0, 30.0)
+        untiled = np.asarray(
+            from_earthengine("X", bbox=over, shape=(20, 20)).read_array()
+        )
+        out = tmp_path / "edge.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=over, shape=(20, 20), tile_size=7, path=str(out)
+            ).read_array()
+        )
+        assert (untiled == -32768).any(), "the overhang should include nodata pixels"
+        assert np.array_equal(tiled, untiled), (
+            "overhang tiled mosaic differs from the un-tiled nodata-filled read"
+        )
+
+    def test_tiled_fully_outside_raises_like_untiled(
+        self, patched_gradient, tmp_path
+    ) -> None:
+        """An AOI entirely off the footprint raises, matching the un-tiled read.
+
+        Test scenario:
+            When no tile intersects the asset, the tiled read raises the same
+            ``does not intersect`` ``ReaderError`` as the un-tiled read.
+        """
+        far = (100.0, 50.0, 101.0, 51.0)
+        with pytest.raises(ReaderError, match="does not intersect"):
+            from_earthengine("X", bbox=far, shape=(8, 8))
+        out = tmp_path / "far.tif"
+        with pytest.raises(ReaderError, match="does not intersect"):
+            from_earthengine("X", bbox=far, shape=(8, 8), tile_size=4, path=str(out))
+
+    def test_tiled_reraises_other_reader_errors(
+        self, patched_gradient, monkeypatch, tmp_path
+    ) -> None:
+        """A tile ``ReaderError`` other than a footprint miss aborts the tiled read.
+
+        Test scenario:
+            Only ``does not intersect`` is caught per tile; any other ``ReaderError``
+            (e.g. a failed read) propagates rather than being masked as nodata.
+        """
+
+        def boom(*args, **kwargs):
+            raise ReaderError("boom: block read failed")
+
+        monkeypatch.setattr(ee_reader, "_window", boom)
+        out = tmp_path / "boom.tif"
+        with pytest.raises(ReaderError, match="boom"):
+            from_earthengine("X", bbox=_BBOX, shape=(8, 8), tile_size=4, path=str(out))
+
+    def test_tiled_reprojects_like_untiled(self, patched_gradient, tmp_path) -> None:
+        """A reprojecting (``crs`` != source) tiled read equals the un-tiled read.
+
+        Test scenario:
+            Reading a Web-Mercator bbox tiled matches the un-tiled reprojected read,
+            covering the seam reasoning under reprojection.
+        """
+        from osgeo import osr
+
+        source = osr.SpatialReference()
+        source.ImportFromEPSG(4326)
+        source.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        target = osr.SpatialReference()
+        target.ImportFromEPSG(3857)
+        target.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        ct = osr.CoordinateTransformation(source, target)
+        (x0, y0, _), (x1, y1, _) = (
+            ct.TransformPoint(86.92, 27.92),
+            ct.TransformPoint(86.98, 27.98),
+        )
+        merc = (x0, y0, x1, y1)
+        untiled = np.asarray(
+            from_earthengine(
+                "X", bbox=merc, crs="EPSG:3857", shape=(18, 18)
+            ).read_array()
+        )
+        out = tmp_path / "merc.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X",
+                bbox=merc,
+                crs="EPSG:3857",
+                shape=(18, 18),
+                tile_size=7,
+                path=str(out),
+            ).read_array()
+        )
+        assert np.array_equal(tiled, untiled), (
+            "reprojected tiled mosaic differs from the un-tiled reprojected read"
+        )
+
+    def test_tiled_preserves_in_window_nodata(self, monkeypatch, tmp_path) -> None:
+        """Actual nodata pixels inside the window survive the tiled mosaic.
+
+        Test scenario:
+            A source with a nodata patch inside the AOI mosaics back to the un-tiled
+            read, exercising merge's ``srcNodata``/``VRTNodata`` round-trip.
+        """
+        from osgeo import gdal, osr
+
+        size = 300
+        src = gdal.GetDriverByName("MEM").Create("", size, size, 1, gdal.GDT_Int32)
+        src.SetGeoTransform((86.0, 2.0 / size, 0.0, 29.0, 0.0, -2.0 / size))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        src.SetProjection(srs.ExportToWkt())
+        array = np.arange(size * size, dtype="int32").reshape(size, size)
+        array[150:170, 150:170] = -32768  # a nodata patch inside the source
+        src.GetRasterBand(1).WriteArray(array)
+        src.GetRasterBand(1).SetNoDataValue(-32768)
+        monkeypatch.setattr(
+            ee_reader, "_open_eedai", lambda a, *, bands, credentials: Dataset(src)
+        )
+        aoi = (86.7, 27.7, 87.3, 28.3)
+        untiled = np.asarray(
+            from_earthengine("X", bbox=aoi, shape=(30, 30)).read_array()
+        )
+        out = tmp_path / "innodata.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=aoi, shape=(30, 30), tile_size=11, path=str(out)
+            ).read_array()
+        )
+        assert (untiled == -32768).any(), "the window should include nodata pixels"
+        assert np.array_equal(tiled, untiled), (
+            "in-window nodata differs between tiled and un-tiled reads"
+        )
+
+    def test_tiled_cleans_up_temp_dir(self, patched_gradient, tmp_path) -> None:
+        """A tiled read leaves no ``ee_tiles_*`` temp directory behind.
+
+        Test scenario:
+            The per-read temp tile directory is removed once the mosaic is written,
+            so repeated oversize reads do not accumulate temp garbage.
+        """
+        import glob
+        import os
+        import tempfile
+
+        pattern = os.path.join(tempfile.gettempdir(), "ee_tiles_*")
+        before = set(glob.glob(pattern))
+        out = tmp_path / "clean.tif"
+        from_earthengine("X", bbox=_BBOX, shape=(16, 16), tile_size=6, path=str(out))
+        leaked = set(glob.glob(pattern)) - before
+        assert not leaked, f"tiled read leaked temp dir(s): {leaked}"
+
+    def test_tiled_non_square_grid(self, patched_gradient, tmp_path) -> None:
+        """A non-square window with asymmetric tile splits mosaics back exactly.
+
+        Test scenario:
+            A 12x20 output split at ``tile_size=7`` (rows -> 7+5, cols -> 7+7+6)
+            reproduces the un-tiled read, guarding the row/column tile arithmetic.
+        """
+        untiled = np.asarray(
+            from_earthengine("X", bbox=_BBOX, shape=(12, 20)).read_array()
+        )
+        out = tmp_path / "rect.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=_BBOX, shape=(12, 20), tile_size=7, path=str(out)
+            ).read_array()
+        )
+        assert tiled.shape == untiled.shape == (12, 20), f"shape {tiled.shape}"
+        assert np.array_equal(tiled, untiled), "non-square tiled mosaic differs"
+
+    def test_tiled_source_without_nodata(self, monkeypatch, tmp_path) -> None:
+        """A source with no nodata still tiles and mosaics to the un-tiled read.
+
+        Test scenario:
+            When the source band has no nodata, the mosaic uses the ``"0"`` fill
+            sentinel; a full-coverage grid still reproduces the un-tiled read.
+        """
+        monkeypatch.setattr(
+            ee_reader,
+            "_open_eedai",
+            lambda a, *, bands, credentials: Dataset(_gradient_source(nodata=None)),
+        )
+        untiled_ds = from_earthengine("X", bbox=_BBOX, shape=(16, 16))
+        out = tmp_path / "no_nodata.tif"
+        tiled_ds = from_earthengine(
+            "X", bbox=_BBOX, shape=(16, 16), tile_size=6, path=str(out)
+        )
+        assert np.array_equal(
+            np.asarray(tiled_ds.read_array()), np.asarray(untiled_ds.read_array())
+        ), "tiled mosaic differs from the un-tiled read for a no-nodata source"
+        assert untiled_ds.no_data_value[0] is None, (
+            "un-tiled read should have no nodata"
+        )
+        assert tiled_ds.no_data_value[0] is None, (
+            f"mosaic must not fabricate a nodata; got {tiled_ds.no_data_value[0]}"
+        )
+
+
+class TestTiledValidation:
+    """The oversize-tiling guards reject bad combinations before any network call."""
+
+    def test_tile_size_requires_path(self) -> None:
+        """``tile_size`` without ``path`` raises up front.
+
+        Test scenario:
+            No ``path`` to stream the mosaic to → ``ValueError``.
+        """
+        with pytest.raises(ValueError, match="path"):
+            from_earthengine("X", bbox=_BBOX, shape=(20, 20), tile_size=7)
+
+    def test_tile_size_requires_scale_or_shape(self) -> None:
+        """``tile_size`` without ``scale``/``shape`` raises up front.
+
+        Test scenario:
+            No output grid defined → ``ValueError``.
+        """
+        with pytest.raises(ValueError, match="scale.*shape"):
+            from_earthengine("X", bbox=_BBOX, tile_size=7, path="out.tif")
+
+    def test_tile_size_rejects_composite(self) -> None:
+        """``tile_size`` with a reducer (composite mode) raises up front.
+
+        Test scenario:
+            The oversize tiler is single-image only → ``ValueError``.
+        """
+        with pytest.raises(ValueError, match="composite"):
+            from_earthengine(
+                "X",
+                bbox=_BBOX,
+                shape=(8, 8),
+                tile_size=4,
+                path="o.tif",
+                reducer="median",
+            )
+
+    def test_tile_size_rejects_geometry(self) -> None:
+        """``tile_size`` combined with a polygon ``geometry`` raises up front.
+
+        Test scenario:
+            A polygon cutline is incompatible with the tiler → ``ValueError``.
+        """
+        import geopandas as gpd
+        from shapely.geometry import Polygon
+
+        gdf = gpd.GeoDataFrame(
+            geometry=[Polygon([(86.9, 27.9), (87.0, 27.9), (86.9, 28.0)])],
+            crs="EPSG:4326",
+        )
+        with pytest.raises(ValueError, match="geometry"):
+            from_earthengine("X", geometry=gdf, shape=(8, 8), tile_size=4, path="o.tif")
+
+    def test_tile_size_must_be_positive(self) -> None:
+        """A non-positive ``tile_size`` raises up front.
+
+        Test scenario:
+            ``tile_size=0`` → ``ValueError``.
+        """
+        with pytest.raises(ValueError, match="positive"):
+            from_earthengine("X", bbox=_BBOX, shape=(8, 8), tile_size=0, path="o.tif")
+
+    @pytest.mark.parametrize("resample", ["bilinear", "cubic", "average", "mode"])
+    def test_tile_size_rejects_non_nearest_resample(self, resample) -> None:
+        """A non-nearest ``resample`` with ``tile_size`` raises up front.
+
+        Args:
+            resample: A non-nearest resampling algorithm.
+
+        Test scenario:
+            Interpolating (and footprint) resamplers differ from the un-tiled read
+            at tile seams, so they are rejected before any read.
+        """
+        with pytest.raises(ValueError, match="nearest"):
+            from_earthengine(
+                "X",
+                bbox=_BBOX,
+                shape=(8, 8),
+                tile_size=4,
+                path="o.tif",
+                resample=resample,
+            )
+
+    def test_path_without_bbox_or_geometry(self) -> None:
+        """A ``path`` with no ``bbox``/``geometry`` raises (the whole-asset read is lazy).
+
+        Test scenario:
+            Nothing to window → ``ValueError``.
+        """
+        with pytest.raises(ValueError, match="path"):
+            from_earthengine("X", path="o.tif")
+
+
+class TestTiledLive:
+    """Live safety net: a tiled disk read must equal the un-tiled read."""
+
+    @pytest.mark.live
+    def test_tiled_srtm_equals_untiled(self, tmp_path) -> None:
+        """A live tiled SRTM read mosaics back to exactly the un-tiled read.
+
+        Test scenario:
+            A 40x40 SRTM window read as 16-px tiles (a 3x3 grid) to disk equals the
+            single un-tiled 40x40 read pixel-for-pixel.
+        """
+        untiled = np.asarray(
+            from_earthengine(
+                "USGS/SRTMGL1_003", bbox=_BBOX, shape=(40, 40)
+            ).read_array()
+        )
+        out = tmp_path / "srtm_tiled.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "USGS/SRTMGL1_003",
+                bbox=_BBOX,
+                shape=(40, 40),
+                tile_size=16,
+                path=str(out),
+            ).read_array()
+        )
+        assert tiled.shape == untiled.shape, f"shape {tiled.shape} vs {untiled.shape}"
+        assert np.array_equal(tiled, untiled), (
+            "live tiled mosaic differs from the un-tiled read"
         )
