@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -4564,8 +4564,8 @@ date range + AOI matched no scenes.</p>
 <span class="normal"><a href="#__codelineno-0-1460">1460</a></span>
 <span class="normal"><a href="#__codelineno-0-1461">1461</a></span>
 <span class="normal"><a href="#__codelineno-0-1462">1462</a></span>
-<span class="normal"><a href="#__codelineno-0-1463">1463</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1226" name="__codelineno-0-1226"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_earthengine</span><span class="p">(</span>  <span class="c1"># NOSONAR - turnkey reader: a flat keyword API for windowing/composite/output options is intentional; consolidating would break the released scale=/shape= API</span>
-<a id="__codelineno-0-1227" name="__codelineno-0-1227"></a>    <span class="n">asset_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="normal"><a href="#__codelineno-0-1463">1463</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1226" name="__codelineno-0-1226"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_earthengine</span><span class="p">(</span>
+<a id="__codelineno-0-1227" name="__codelineno-0-1227"></a>    <span class="n">asset_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>  <span class="c1"># NOSONAR(S107) - a flat keyword reader API (windowing/composite/output options) is intentional; consolidating would break the released scale=/shape= surface</span>
 <a id="__codelineno-0-1228" name="__codelineno-0-1228"></a>    <span class="o">*</span><span class="p">,</span>
 <a id="__codelineno-0-1229" name="__codelineno-0-1229"></a>    <span class="n">bands</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-1230" name="__codelineno-0-1230"></a>    <span class="n">bbox</span><span class="p">:</span> <span class="n">BBox</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
