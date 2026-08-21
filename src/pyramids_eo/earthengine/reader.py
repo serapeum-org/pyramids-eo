@@ -1223,8 +1223,8 @@ def _validate_read_request(
         )
 
 
-def from_earthengine(  # NOSONAR - turnkey reader: a flat keyword API for windowing/composite/output options is intentional; consolidating would break the released scale=/shape= API
-    asset_id: str,
+def from_earthengine(
+    asset_id: str,  # NOSONAR(S107) - a flat keyword reader API (windowing/composite/output options) is intentional; consolidating would break the released scale=/shape= surface
     *,
     bands: list[str] | None = None,
     bbox: BBox | None = None,
