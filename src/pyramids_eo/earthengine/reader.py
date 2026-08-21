@@ -23,6 +23,7 @@ from __future__ import annotations
 import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osgeo)
 # isort: on
 
+import gc
 import os
 import shutil
 import tempfile
@@ -1034,6 +1035,7 @@ def _tiled_windowed_read(
                 )
                 tile_path = os.path.join(tmp_dir, f"tile_{row0}_{col0}.tif")
                 tile.to_file(tile_path)
+                tile.close()  # release the GDAL handle so the temp file can be removed
                 tile_paths.append(tile_path)
         # Non-overlapping, grid-aligned tiles fully cover the window, so the merge is
         # exact placement. Carry the source nodata through (treat it as transparent
@@ -1054,6 +1056,11 @@ def _tiled_windowed_read(
                 tile_paths, str(path), no_data_value="none", n=0, init=0, method="first"
             )
     finally:
+        # merge_rasters opens the tile files (and holds them via GC-managed handles);
+        # force their release before removing the temp dir, or Windows leaves the
+        # ``ee_tiles_*`` directory behind (a delete-while-open failure that
+        # ``ignore_errors`` would otherwise hide and accumulate).
+        gc.collect()
         shutil.rmtree(tmp_dir, ignore_errors=True)
     return Dataset.read_file(str(path))
 

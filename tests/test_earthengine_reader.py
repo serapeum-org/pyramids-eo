@@ -1761,6 +1761,24 @@ class TestTiledRead:
         assert out.exists(), "path should be written"
         assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
 
+    def test_tiled_cleans_up_temp_dir(self, patched_gradient, tmp_path) -> None:
+        """A tiled read leaves no ``ee_tiles_*`` temp directory behind.
+
+        Test scenario:
+            The per-read temp tile directory is removed once the mosaic is written,
+            so repeated oversize reads do not accumulate temp garbage.
+        """
+        import glob
+        import os
+        import tempfile
+
+        pattern = os.path.join(tempfile.gettempdir(), "ee_tiles_*")
+        before = set(glob.glob(pattern))
+        out = tmp_path / "clean.tif"
+        from_earthengine("X", bbox=_BBOX, shape=(16, 16), tile_size=6, path=str(out))
+        leaked = set(glob.glob(pattern)) - before
+        assert not leaked, f"tiled read leaked temp dir(s): {leaked}"
+
     def test_tiled_non_square_grid(self, patched_gradient, tmp_path) -> None:
         """A non-square window with asymmetric tile splits mosaics back exactly.
 
