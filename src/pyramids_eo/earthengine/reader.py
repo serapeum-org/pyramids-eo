@@ -1105,14 +1105,20 @@ def from_earthengine(
         tile_size: Maximum tile size (pixels per side) for an oversize read. When
             set, the output grid is split into grid-aligned tiles of at most this
             size, each read and written to disk in turn, then mosaicked into
-            ``path`` — so a window far larger than memory never has to be held whole.
-            The mosaic reproduces the equivalent un-tiled read. Single-``Image`` raw
-            reads only: requires a ``bbox``, a ``path``, and ``scale`` or ``shape``,
-            and cannot be combined with a ``geometry`` cutline or the composite mode.
-        path: Optional output raster path. When given, the result is written there
-            and a file-backed ``Dataset`` reading it is returned instead of an
-            in-memory one; required when ``tile_size`` is set. Needs a ``bbox`` or
-            ``geometry`` (the whole-asset read is lazy).
+            ``path`` — bounding the peak of the per-tile warp/write step rather than
+            materialising the whole output at once. The mosaic reproduces the
+            equivalent un-tiled ``nearest`` read exactly. Single-``Image`` raw reads
+            only: requires a ``bbox``, a ``path``, ``scale`` or ``shape``, and the
+            default ``resample="nearest"`` (interpolating resamplers differ from the
+            un-tiled read at tile seams); cannot be combined with a ``geometry``
+            cutline or the composite mode. Peak memory is still governed by each
+            tile's **native-resolution** window (see the Performance note), so choose
+            ``tile_size`` relative to the asset's native resolution.
+        path: Output raster path. When given, the result is written there and a
+            file-backed ``Dataset`` reading it is returned instead of an in-memory
+            one; required when ``tile_size`` is set, and honoured for the single-image
+            and composite paths alike. Needs a ``bbox`` or ``geometry`` (the
+            whole-asset read is lazy).
 
     Returns:
         A pyramids :class:`~pyramids.dataset.Dataset` — the windowed image or the
@@ -1249,6 +1255,15 @@ def from_earthengine(
             )
         if path is None:
             raise ValueError("'tile_size' needs 'path' to stream the mosaic to disk.")
+        if resample != "nearest":
+            # Tiles are warped independently, so an interpolating kernel samples
+            # missing neighbours across a tile seam and the mosaic no longer matches
+            # the un-tiled read. Only nearest (each output pixel from one source
+            # pixel) is seam-exact.
+            raise ValueError(
+                "'tile_size' supports only resample='nearest'; an interpolating "
+                "resampler would differ from the un-tiled read at tile seams."
+            )
 
     creds = EarthEngineCredentials.coerce(credentials)
     if geometry is not None:

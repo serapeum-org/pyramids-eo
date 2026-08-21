@@ -1840,6 +1840,27 @@ class TestTiledValidation:
         with pytest.raises(ValueError, match="positive"):
             from_earthengine("X", bbox=_BBOX, shape=(8, 8), tile_size=0, path="o.tif")
 
+    @pytest.mark.parametrize("resample", ["bilinear", "cubic", "average", "mode"])
+    def test_tile_size_rejects_non_nearest_resample(self, resample) -> None:
+        """A non-nearest ``resample`` with ``tile_size`` raises up front.
+
+        Args:
+            resample: A non-nearest resampling algorithm.
+
+        Test scenario:
+            Interpolating (and footprint) resamplers differ from the un-tiled read
+            at tile seams, so they are rejected before any read.
+        """
+        with pytest.raises(ValueError, match="nearest"):
+            from_earthengine(
+                "X",
+                bbox=_BBOX,
+                shape=(8, 8),
+                tile_size=4,
+                path="o.tif",
+                resample=resample,
+            )
+
     def test_path_without_bbox_or_geometry(self) -> None:
         """A ``path`` with no ``bbox``/``geometry`` raises (the whole-asset read is lazy).
 
