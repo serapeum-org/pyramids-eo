@@ -1011,7 +1011,8 @@ def _tiled_windowed_read(
         rows = max(1, int((max_y - min_y) / scale + 0.5))
         cell_x = cell_y = scale
 
-    nodata: float | None = None
+    # All tiles inherit the source's per-band nodata, so read it once here.
+    nodata = source.no_data_value[0]
     tmp_dir = tempfile.mkdtemp(prefix="ee_tiles_")
     tile_paths: list[str] = []
     try:
@@ -1031,16 +1032,27 @@ def _tiled_windowed_read(
                     shape=(row1 - row0, col1 - col0),
                     resample=resample,
                 )
-                nodata = tile.no_data_value[0]
                 tile_path = os.path.join(tmp_dir, f"tile_{row0}_{col0}.tif")
                 tile.to_file(tile_path)
                 tile_paths.append(tile_path)
         # Non-overlapping, grid-aligned tiles fully cover the window, so the merge is
-        # exact placement; a sentinel fill keeps merge from painting spurious gaps.
-        fill: float | str = nodata if nodata is not None else "0"
-        merge_rasters(
-            tile_paths, str(path), no_data_value=fill, init=fill, method="first"
-        )
+        # exact placement. Carry the source nodata through (treat it as transparent
+        # and stamp it on the output); when the source has none, unset it on the
+        # mosaic (``"none"``) to match the un-tiled read, with a 0 fill that never
+        # triggers GDAL's "cannot represent nan" cast warning.
+        if nodata is not None:
+            merge_rasters(
+                tile_paths,
+                str(path),
+                no_data_value=nodata,
+                n=nodata,
+                init=nodata,
+                method="first",
+            )
+        else:
+            merge_rasters(
+                tile_paths, str(path), no_data_value="none", n=0, init=0, method="first"
+            )
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
     return Dataset.read_file(str(path))

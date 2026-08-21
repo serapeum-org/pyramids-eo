@@ -1671,18 +1671,19 @@ class TestTiledRead:
             A 20x20 window over a distinct-per-pixel gradient, split into tiles of 7
             (a 3x3 tile grid), mosaics back to exactly the un-tiled 20x20 read.
         """
-        untiled = np.asarray(
-            from_earthengine("X", bbox=_BBOX, shape=(20, 20)).read_array()
-        )
+        untiled_ds = from_earthengine("X", bbox=_BBOX, shape=(20, 20))
+        untiled = np.asarray(untiled_ds.read_array())
         out = tmp_path / "mosaic.tif"
-        tiled = np.asarray(
-            from_earthengine(
-                "X", bbox=_BBOX, shape=(20, 20), tile_size=7, path=str(out)
-            ).read_array()
+        tiled_ds = from_earthengine(
+            "X", bbox=_BBOX, shape=(20, 20), tile_size=7, path=str(out)
         )
+        tiled = np.asarray(tiled_ds.read_array())
         assert out.exists(), "the mosaic file should be written to path"
         assert tiled.shape == untiled.shape == (20, 20), (
             f"unexpected shape {tiled.shape}"
+        )
+        assert tiled_ds.no_data_value[0] == untiled_ds.no_data_value[0] == -32768, (
+            f"mosaic nodata must match the source: {tiled_ds.no_data_value[0]}"
         )
         assert np.array_equal(tiled, untiled), (
             "tiled mosaic differs from the un-tiled read"
@@ -1791,17 +1792,19 @@ class TestTiledRead:
             "_open_eedai",
             lambda a, *, bands, credentials: Dataset(_gradient_source(nodata=None)),
         )
-        untiled = np.asarray(
-            from_earthengine("X", bbox=_BBOX, shape=(16, 16)).read_array()
-        )
+        untiled_ds = from_earthengine("X", bbox=_BBOX, shape=(16, 16))
         out = tmp_path / "no_nodata.tif"
-        tiled = np.asarray(
-            from_earthengine(
-                "X", bbox=_BBOX, shape=(16, 16), tile_size=6, path=str(out)
-            ).read_array()
+        tiled_ds = from_earthengine(
+            "X", bbox=_BBOX, shape=(16, 16), tile_size=6, path=str(out)
         )
-        assert np.array_equal(tiled, untiled), (
-            "tiled mosaic differs from the un-tiled read for a no-nodata source"
+        assert np.array_equal(
+            np.asarray(tiled_ds.read_array()), np.asarray(untiled_ds.read_array())
+        ), "tiled mosaic differs from the un-tiled read for a no-nodata source"
+        assert untiled_ds.no_data_value[0] is None, (
+            "un-tiled read should have no nodata"
+        )
+        assert tiled_ds.no_data_value[0] is None, (
+            f"mosaic must not fabricate a nodata; got {tiled_ds.no_data_value[0]}"
         )
 
 
