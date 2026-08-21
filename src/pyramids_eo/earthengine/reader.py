@@ -1104,7 +1104,7 @@ def _tiled_windowed_read(
     Returns:
         A file-backed pyramids ``Dataset`` reading the mosaic at ``path``.
     """
-    min_x, min_y, max_x, max_y = bbox
+    min_x, _, _, max_y = bbox  # only the top-left anchors the tile grid
     rows, cols, cell_x, cell_y = _tile_grid(bbox, scale, shape)
 
     # All tiles inherit the source's per-band nodata, so read it once here.
@@ -1223,7 +1223,7 @@ def _validate_read_request(
         )
 
 
-def from_earthengine(
+def from_earthengine(  # NOSONAR - turnkey reader: a flat keyword API for windowing/composite/output options is intentional; consolidating would break the released scale=/shape= API
     asset_id: str,
     *,
     bands: list[str] | None = None,
