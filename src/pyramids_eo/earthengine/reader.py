@@ -912,7 +912,8 @@ def _single_image_read(
                 # Stream a large window to disk one tile at a time (bounded memory),
                 # reusing the single open EEDAI handle for every tile. from_earthengine
                 # guarantees a path accompanies tile_size.
-                assert path is not None
+                if path is None:  # pragma: no cover - guaranteed by from_earthengine
+                    raise ReaderError("A tiled read requires a 'path'.")
                 merged = _tiled_windowed_read(
                     src,
                     bbox=bbox,
@@ -967,6 +968,37 @@ def _tile_edges(size: int, tile_size: int) -> list[tuple[int, int]]:
     return [(i, min(i + tile_size, size)) for i in range(0, size, tile_size)]
 
 
+def _nodata_tile(
+    source: Dataset,
+    sub_bbox: BBox,
+    shape: tuple[int, int],
+    crs: str,
+    nodata: float | None,
+) -> Dataset:
+    """Build an all-nodata tile for a sub-window fully outside the asset footprint.
+
+    Reproduces what the un-tiled warp puts there: the source's band count and dtype,
+    filled with its nodata (or ``0`` when the source has none, matching the warp's
+    default fill), on the tile's exact grid.
+
+    Args:
+        source: The opened EEDAI source ``Dataset`` (for band count and dtype).
+        sub_bbox: The tile's bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
+        shape: The tile's ``(rows, cols)``.
+        crs: Target CRS.
+        nodata: The source nodata to fill with, or ``None`` for a no-nodata source.
+
+    Returns:
+        An in-memory pyramids ``Dataset`` covering ``sub_bbox`` filled with nodata.
+    """
+    rows, cols = shape
+    min_x, min_y, max_x, max_y = sub_bbox
+    fill = nodata if nodata is not None else 0
+    array = np.full((source.band_count, rows, cols), fill, dtype=source.numpy_dtype[0])
+    geo = (min_x, (max_x - min_x) / cols, 0.0, max_y, 0.0, -(max_y - min_y) / rows)
+    return Dataset.create_from_array(array, geo=geo, epsg=crs, no_data_value=nodata)
+
+
 def _tiled_windowed_read(
     source: Dataset,
     *,
@@ -1019,18 +1051,21 @@ def _tiled_windowed_read(
         cell_y = (max_y - min_y) / rows
     else:
         # A scale read keeps the pixel size == scale and sizes the grid the way
-        # gdal.Warp does with xRes/yRes: round-half-up, extent = origin + n*scale
-        # (which may extend past the bbox). Matching this reproduces the un-tiled
-        # scale read exactly. from_earthengine requires scale or shape here.
-        assert scale is not None
-        cols = max(1, int((max_x - min_x) / scale + 0.5))
-        rows = max(1, int((max_y - min_y) / scale + 0.5))
+        # gdal.Warp does with xRes/yRes: round-half-up via ``int((extent + res/2) /
+        # res)`` (GDAL's exact expression, for bit-identical sizing), extent =
+        # origin + n*scale (which may extend past the bbox). Matching this reproduces
+        # the un-tiled scale read exactly.
+        if scale is None:  # pragma: no cover - from_earthengine guarantees scale/shape
+            raise ReaderError("A tiled scale read requires a 'scale'.")
+        cols = max(1, int(((max_x - min_x) + scale / 2) / scale))
+        rows = max(1, int(((max_y - min_y) + scale / 2) / scale))
         cell_x = cell_y = scale
 
     # All tiles inherit the source's per-band nodata, so read it once here.
     nodata = source.no_data_value[0]
     tmp_dir = tempfile.mkdtemp(prefix="ee_tiles_")
     tile_paths: list[str] = []
+    any_covered = False
     try:
         for row0, row1 in _tile_edges(rows, tile_size):
             for col0, col1 in _tile_edges(cols, tile_size):
@@ -1040,23 +1075,40 @@ def _tiled_windowed_read(
                     min_x + col1 * cell_x,
                     max_y - row0 * cell_y,
                 )
-                tile = _window(
-                    source,
-                    bbox=sub_bbox,
-                    crs=crs,
-                    scale=None,
-                    shape=(row1 - row0, col1 - col0),
-                    resample=resample,
-                )
+                tile_shape = (row1 - row0, col1 - col0)
+                try:
+                    tile = _window(
+                        source,
+                        bbox=sub_bbox,
+                        crs=crs,
+                        scale=None,
+                        shape=tile_shape,
+                        resample=resample,
+                    )
+                    any_covered = True
+                except ReaderError as exc:
+                    if "does not intersect" not in str(exc):
+                        raise
+                    # A tile fully outside the asset footprint: emit an all-nodata
+                    # tile, matching how the un-tiled warp nodata-fills that region
+                    # (the un-tiled read clamps the window and fills the overhang).
+                    tile = _nodata_tile(source, sub_bbox, tile_shape, crs, nodata)
                 tile_path = os.path.join(tmp_dir, f"tile_{row0}_{col0}.tif")
                 tile.to_file(tile_path)
                 tile.close()  # release the GDAL handle so the temp file can be removed
                 tile_paths.append(tile_path)
+        if not any_covered:
+            # No tile intersected the asset — the whole AOI is off the footprint,
+            # the same case the un-tiled read rejects.
+            raise ReaderError(f"AOI {bbox} does not intersect the Earth Engine asset.")
         # Non-overlapping, grid-aligned tiles fully cover the window, so the merge is
         # exact placement. Carry the source nodata through (treat it as transparent
         # and stamp it on the output); when the source has none, unset it on the
         # mosaic (``"none"``) to match the un-tiled read, with a 0 fill that never
-        # triggers GDAL's "cannot represent nan" cast warning.
+        # triggers GDAL's "cannot represent nan" cast warning. A float source with a
+        # NaN nodata takes this same branch (``n=init=no_data_value=nan``), relying on
+        # GDAL's NaN-aware nodata matching; EE assets are effectively always integer
+        # nodata, so that path is rare.
         if nodata is not None:
             merge_rasters(
                 tile_paths,

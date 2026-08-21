@@ -1822,6 +1822,143 @@ class TestTiledRead:
             "multi-band tiled mosaic differs from the un-tiled read"
         )
 
+    def test_tiled_matches_untiled_over_footprint_edge(
+        self, patched_gradient, tmp_path
+    ) -> None:
+        """An AOI overhanging the asset edge tiles to the same nodata-filled read.
+
+        Test scenario:
+            A bbox half outside the ``[86,88]x[27,29]`` source: a fully-outside tile
+            is emitted as all-nodata (as the un-tiled warp fills the overhang), so the
+            mosaic equals the un-tiled read including the nodata region.
+        """
+        over = (87.0, 28.0, 89.0, 30.0)
+        untiled = np.asarray(
+            from_earthengine("X", bbox=over, shape=(20, 20)).read_array()
+        )
+        out = tmp_path / "edge.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=over, shape=(20, 20), tile_size=7, path=str(out)
+            ).read_array()
+        )
+        assert (untiled == -32768).any(), "the overhang should include nodata pixels"
+        assert np.array_equal(tiled, untiled), (
+            "overhang tiled mosaic differs from the un-tiled nodata-filled read"
+        )
+
+    def test_tiled_fully_outside_raises_like_untiled(
+        self, patched_gradient, tmp_path
+    ) -> None:
+        """An AOI entirely off the footprint raises, matching the un-tiled read.
+
+        Test scenario:
+            When no tile intersects the asset, the tiled read raises the same
+            ``does not intersect`` ``ReaderError`` as the un-tiled read.
+        """
+        far = (100.0, 50.0, 101.0, 51.0)
+        with pytest.raises(ReaderError, match="does not intersect"):
+            from_earthengine("X", bbox=far, shape=(8, 8))
+        out = tmp_path / "far.tif"
+        with pytest.raises(ReaderError, match="does not intersect"):
+            from_earthengine("X", bbox=far, shape=(8, 8), tile_size=4, path=str(out))
+
+    def test_tiled_reraises_other_reader_errors(
+        self, patched_gradient, monkeypatch, tmp_path
+    ) -> None:
+        """A tile ``ReaderError`` other than a footprint miss aborts the tiled read.
+
+        Test scenario:
+            Only ``does not intersect`` is caught per tile; any other ``ReaderError``
+            (e.g. a failed read) propagates rather than being masked as nodata.
+        """
+
+        def boom(*args, **kwargs):
+            raise ReaderError("boom: block read failed")
+
+        monkeypatch.setattr(ee_reader, "_window", boom)
+        out = tmp_path / "boom.tif"
+        with pytest.raises(ReaderError, match="boom"):
+            from_earthengine("X", bbox=_BBOX, shape=(8, 8), tile_size=4, path=str(out))
+
+    def test_tiled_reprojects_like_untiled(self, patched_gradient, tmp_path) -> None:
+        """A reprojecting (``crs`` != source) tiled read equals the un-tiled read.
+
+        Test scenario:
+            Reading a Web-Mercator bbox tiled matches the un-tiled reprojected read,
+            covering the seam reasoning under reprojection.
+        """
+        from osgeo import osr
+
+        source = osr.SpatialReference()
+        source.ImportFromEPSG(4326)
+        source.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        target = osr.SpatialReference()
+        target.ImportFromEPSG(3857)
+        target.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        ct = osr.CoordinateTransformation(source, target)
+        (x0, y0, _), (x1, y1, _) = (
+            ct.TransformPoint(86.92, 27.92),
+            ct.TransformPoint(86.98, 27.98),
+        )
+        merc = (x0, y0, x1, y1)
+        untiled = np.asarray(
+            from_earthengine(
+                "X", bbox=merc, crs="EPSG:3857", shape=(18, 18)
+            ).read_array()
+        )
+        out = tmp_path / "merc.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X",
+                bbox=merc,
+                crs="EPSG:3857",
+                shape=(18, 18),
+                tile_size=7,
+                path=str(out),
+            ).read_array()
+        )
+        assert np.array_equal(tiled, untiled), (
+            "reprojected tiled mosaic differs from the un-tiled reprojected read"
+        )
+
+    def test_tiled_preserves_in_window_nodata(self, monkeypatch, tmp_path) -> None:
+        """Actual nodata pixels inside the window survive the tiled mosaic.
+
+        Test scenario:
+            A source with a nodata patch inside the AOI mosaics back to the un-tiled
+            read, exercising merge's ``srcNodata``/``VRTNodata`` round-trip.
+        """
+        from osgeo import gdal, osr
+
+        size = 300
+        src = gdal.GetDriverByName("MEM").Create("", size, size, 1, gdal.GDT_Int32)
+        src.SetGeoTransform((86.0, 2.0 / size, 0.0, 29.0, 0.0, -2.0 / size))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        src.SetProjection(srs.ExportToWkt())
+        array = np.arange(size * size, dtype="int32").reshape(size, size)
+        array[150:170, 150:170] = -32768  # a nodata patch inside the source
+        src.GetRasterBand(1).WriteArray(array)
+        src.GetRasterBand(1).SetNoDataValue(-32768)
+        monkeypatch.setattr(
+            ee_reader, "_open_eedai", lambda a, *, bands, credentials: Dataset(src)
+        )
+        aoi = (86.7, 27.7, 87.3, 28.3)
+        untiled = np.asarray(
+            from_earthengine("X", bbox=aoi, shape=(30, 30)).read_array()
+        )
+        out = tmp_path / "innodata.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=aoi, shape=(30, 30), tile_size=11, path=str(out)
+            ).read_array()
+        )
+        assert (untiled == -32768).any(), "the window should include nodata pixels"
+        assert np.array_equal(tiled, untiled), (
+            "in-window nodata differs between tiled and un-tiled reads"
+        )
+
     def test_tiled_cleans_up_temp_dir(self, patched_gradient, tmp_path) -> None:
         """A tiled read leaves no ``ee_tiles_*`` temp directory behind.
 
