@@ -1836,20 +1836,20 @@ else <code>None</code>.</p>
 <span class="normal"><a href="#__codelineno-0-48">48</a></span>
 <span class="normal"><a href="#__codelineno-0-49">49</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-25" name="__codelineno-0-25"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <a id="__codelineno-0-26" name="__codelineno-0-26"></a><span class="k">class</span><span class="w"> </span><span class="nc">Channel</span><span class="p">:</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;One instrument channel and its nominal calibration constants.</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27"></a><span class="w">    </span><span class="sd">"""One instrument channel and its nominal calibration constants.</span>
 <a id="__codelineno-0-28" name="__codelineno-0-28"></a>
 <a id="__codelineno-0-29" name="__codelineno-0-29"></a><span class="sd">    Attributes:</span>
-<a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="sd">        name: Channel identifier (e.g. `&quot;ir_105&quot;`).</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="sd">        name: Channel identifier (e.g. `"ir_105"`).</span>
 <a id="__codelineno-0-31" name="__codelineno-0-31"></a><span class="sd">        wavelength_um: Central wavelength in micrometres.</span>
 <a id="__codelineno-0-32" name="__codelineno-0-32"></a><span class="sd">        resolution_m: Native ground sampling distance in metres.</span>
-<a id="__codelineno-0-33" name="__codelineno-0-33"></a><span class="sd">        kind: `&quot;solar&quot;` (reflective) or `&quot;thermal&quot;` (emissive).</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33"></a><span class="sd">        kind: `"solar"` (reflective) or `"thermal"` (emissive).</span>
 <a id="__codelineno-0-34" name="__codelineno-0-34"></a><span class="sd">        solar_irradiance: Band-integrated solar irradiance `E0` (W m-2 um-1) for</span>
 <a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="sd">            a solar channel, else `None`.</span>
 <a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="sd">        central_wavenumber_cm1: Central wavenumber (cm-1) for a thermal channel,</span>
 <a id="__codelineno-0-37" name="__codelineno-0-37"></a><span class="sd">            else `None`.</span>
 <a id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="sd">        alpha: Thermal band-correction slope, else `None`.</span>
 <a id="__codelineno-0-39" name="__codelineno-0-39"></a><span class="sd">        beta: Thermal band-correction offset (kelvin), else `None`.</span>
-<a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="sd">    """</span>
 <a id="__codelineno-0-41" name="__codelineno-0-41"></a>
 <a id="__codelineno-0-42" name="__codelineno-0-42"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <a id="__codelineno-0-43" name="__codelineno-0-43"></a>    <span class="n">wavelength_um</span><span class="p">:</span> <span class="nb">float</span>
@@ -1945,13 +1945,13 @@ else <code>None</code>.</p>
 <span class="normal"><a href="#__codelineno-0-81">81</a></span>
 <span class="normal"><a href="#__codelineno-0-82">82</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-52" name="__codelineno-0-52"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="k">class</span><span class="w"> </span><span class="nc">Sensor</span><span class="p">:</span>
-<a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;A named sensor and its channel table.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="w">    </span><span class="sd">"""A named sensor and its channel table."""</span>
 <a id="__codelineno-0-55" name="__codelineno-0-55"></a>
 <a id="__codelineno-0-56" name="__codelineno-0-56"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <a id="__codelineno-0-57" name="__codelineno-0-57"></a>    <span class="n">channels</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Channel</span><span class="p">]</span>
 <a id="__codelineno-0-58" name="__codelineno-0-58"></a>
 <a id="__codelineno-0-59" name="__codelineno-0-59"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_channel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Channel</span><span class="p">:</span>
-<a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the channel named `name`.</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="w">        </span><span class="sd">"""Return the channel named `name`.</span>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a>
 <a id="__codelineno-0-62" name="__codelineno-0-62"></a><span class="sd">        Args:</span>
 <a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="sd">            name: Channel identifier.</span>
@@ -1960,19 +1960,19 @@ else <code>None</code>.</p>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a><span class="sd">            The matching `Channel`.</span>
 <a id="__codelineno-0-67" name="__codelineno-0-67"></a>
 <a id="__codelineno-0-68" name="__codelineno-0-68"></a><span class="sd">        Raises:</span>
-<a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">            UnknownSensorError: When the channel is not in this sensor&#39;s table.</span>
-<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">            UnknownSensorError: When the channel is not in this sensor's table.</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">        """</span>
 <a id="__codelineno-0-71" name="__codelineno-0-71"></a>        <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-0-72" name="__codelineno-0-72"></a>            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
 <a id="__codelineno-0-73" name="__codelineno-0-73"></a>        <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
 <a id="__codelineno-0-74" name="__codelineno-0-74"></a>            <span class="k">raise</span> <span class="n">UnknownSensorError</span><span class="p">(</span>
-<a id="__codelineno-0-75" name="__codelineno-0-75"></a>                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> has no channel </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; &quot;</span>
-<a id="__codelineno-0-76" name="__codelineno-0-76"></a>                <span class="sa">f</span><span class="s2">&quot;known channels: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75"></a>                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> has no channel </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; "</span>
+<a id="__codelineno-0-76" name="__codelineno-0-76"></a>                <span class="sa">f</span><span class="s2">"known channels: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-77" name="__codelineno-0-77"></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
 <a id="__codelineno-0-78" name="__codelineno-0-78"></a>
 <a id="__codelineno-0-79" name="__codelineno-0-79"></a>    <span class="nd">@property</span>
 <a id="__codelineno-0-80" name="__codelineno-0-80"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">channel_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<a id="__codelineno-0-81" name="__codelineno-0-81"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the sorted channel identifiers.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-81" name="__codelineno-0-81"></a><span class="w">        </span><span class="sd">"""Return the sorted channel identifiers."""</span>
 <a id="__codelineno-0-82" name="__codelineno-0-82"></a>        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
               </details>
@@ -2129,7 +2129,7 @@ else <code>None</code>.</p>
 <span class="normal"><a href="#__codelineno-0-75">75</a></span>
 <span class="normal"><a href="#__codelineno-0-76">76</a></span>
 <span class="normal"><a href="#__codelineno-0-77">77</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_channel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Channel</span><span class="p">:</span>
-<a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the channel named `name`.</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="w">    </span><span class="sd">"""Return the channel named `name`.</span>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a>
 <a id="__codelineno-0-62" name="__codelineno-0-62"></a><span class="sd">    Args:</span>
 <a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="sd">        name: Channel identifier.</span>
@@ -2138,14 +2138,14 @@ else <code>None</code>.</p>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a><span class="sd">        The matching `Channel`.</span>
 <a id="__codelineno-0-67" name="__codelineno-0-67"></a>
 <a id="__codelineno-0-68" name="__codelineno-0-68"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">        UnknownSensorError: When the channel is not in this sensor&#39;s table.</span>
-<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">        UnknownSensorError: When the channel is not in this sensor's table.</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">    """</span>
 <a id="__codelineno-0-71" name="__codelineno-0-71"></a>    <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-0-72" name="__codelineno-0-72"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
 <a id="__codelineno-0-73" name="__codelineno-0-73"></a>    <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
 <a id="__codelineno-0-74" name="__codelineno-0-74"></a>        <span class="k">raise</span> <span class="n">UnknownSensorError</span><span class="p">(</span>
-<a id="__codelineno-0-75" name="__codelineno-0-75"></a>            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> has no channel </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; &quot;</span>
-<a id="__codelineno-0-76" name="__codelineno-0-76"></a>            <span class="sa">f</span><span class="s2">&quot;known channels: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75"></a>            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> has no channel </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; "</span>
+<a id="__codelineno-0-76" name="__codelineno-0-76"></a>            <span class="sa">f</span><span class="s2">"known channels: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-77" name="__codelineno-0-77"></a>        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -2353,7 +2353,7 @@ Non-positive values yield NaN.</p>
 <a id="__codelineno-0-75" name="__codelineno-0-75"></a>    <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
 <a id="__codelineno-0-76" name="__codelineno-0-76"></a>    <span class="n">beta</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
 <a id="__codelineno-0-77" name="__codelineno-0-77"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
-<a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert thermal-channel radiance to brightness temperature (kelvin).</span>
+<a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="w">    </span><span class="sd">"""Convert thermal-channel radiance to brightness temperature (kelvin).</span>
 <a id="__codelineno-0-79" name="__codelineno-0-79"></a>
 <a id="__codelineno-0-80" name="__codelineno-0-80"></a><span class="sd">    Applies the EUMETSAT effective-radiance inverse Planck function</span>
 <a id="__codelineno-0-81" name="__codelineno-0-81"></a><span class="sd">    `Tb* = C2 * nu / ln(1 + C1 * nu^3 / L)` followed by the per-channel band</span>
@@ -2373,16 +2373,16 @@ Non-positive values yield NaN.</p>
 <a id="__codelineno-0-95" name="__codelineno-0-95"></a><span class="sd">    Raises:</span>
 <a id="__codelineno-0-96" name="__codelineno-0-96"></a><span class="sd">        CalibrationError: When `central_wavenumber_cm1` is not positive or</span>
 <a id="__codelineno-0-97" name="__codelineno-0-97"></a><span class="sd">            `alpha` is zero.</span>
-<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    """</span>
 <a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="k">if</span> <span class="n">central_wavenumber_cm1</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
 <a id="__codelineno-0-100" name="__codelineno-0-100"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
-<a id="__codelineno-0-101" name="__codelineno-0-101"></a>            <span class="sa">f</span><span class="s2">&quot;central_wavenumber_cm1 must be positive; got </span><span class="si">{</span><span class="n">central_wavenumber_cm1</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-101" name="__codelineno-0-101"></a>            <span class="sa">f</span><span class="s2">"central_wavenumber_cm1 must be positive; got </span><span class="si">{</span><span class="n">central_wavenumber_cm1</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-102" name="__codelineno-0-102"></a>        <span class="p">)</span>
 <a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="k">if</span> <span class="n">alpha</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-0-104" name="__codelineno-0-104"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span><span class="s2">&quot;alpha must be non-zero&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-104" name="__codelineno-0-104"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span><span class="s2">"alpha must be non-zero"</span><span class="p">)</span>
 <a id="__codelineno-0-105" name="__codelineno-0-105"></a>    <span class="n">nu</span> <span class="o">=</span> <span class="n">central_wavenumber_cm1</span>
 <a id="__codelineno-0-106" name="__codelineno-0-106"></a>    <span class="n">radiance_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-<a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">):</span>
+<a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
 <a id="__codelineno-0-108" name="__codelineno-0-108"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">C2</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log1p</span><span class="p">(</span><span class="n">C1</span> <span class="o">*</span> <span class="n">nu</span><span class="o">**</span><span class="mi">3</span> <span class="o">/</span> <span class="n">radiance_arr</span><span class="p">)</span>
 <a id="__codelineno-0-109" name="__codelineno-0-109"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">radiance_arr</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">tb_star</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
 <a id="__codelineno-0-110" name="__codelineno-0-110"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">((</span><span class="n">tb_star</span> <span class="o">-</span> <span class="n">beta</span><span class="p">)</span> <span class="o">/</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
@@ -2583,7 +2583,7 @@ or <code>None</code> to skip it.</p>
 <a id="__codelineno-0-33" name="__codelineno-0-33"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
 <a id="__codelineno-0-34" name="__codelineno-0-34"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
-<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert solar-channel radiance to top-of-atmosphere reflectance.</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="w">    </span><span class="sd">"""Convert solar-channel radiance to top-of-atmosphere reflectance.</span>
 <a id="__codelineno-0-37" name="__codelineno-0-37"></a>
 <a id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="sd">    Computes the bidirectional reflectance factor</span>
 <a id="__codelineno-0-39" name="__codelineno-0-39"></a><span class="sd">    `rho = pi * L * d^2 / E0`, optionally normalised by the cosine of the solar</span>
@@ -2602,10 +2602,10 @@ or <code>None</code> to skip it.</p>
 <a id="__codelineno-0-52" name="__codelineno-0-52"></a>
 <a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="sd">    Raises:</span>
 <a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="sd">        CalibrationError: When `solar_irradiance` is not positive.</span>
-<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="sd">    """</span>
 <a id="__codelineno-0-56" name="__codelineno-0-56"></a>    <span class="k">if</span> <span class="n">solar_irradiance</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
 <a id="__codelineno-0-57" name="__codelineno-0-57"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
-<a id="__codelineno-0-58" name="__codelineno-0-58"></a>            <span class="sa">f</span><span class="s2">&quot;solar_irradiance must be positive; got </span><span class="si">{</span><span class="n">solar_irradiance</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58"></a>            <span class="sa">f</span><span class="s2">"solar_irradiance must be positive; got </span><span class="si">{</span><span class="n">solar_irradiance</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-59" name="__codelineno-0-59"></a>        <span class="p">)</span>
 <a id="__codelineno-0-60" name="__codelineno-0-60"></a>    <span class="n">reflectance</span> <span class="o">=</span> <span class="p">(</span>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a>        <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">sun_earth_distance</span><span class="o">**</span><span class="mi">2</span>
@@ -2614,7 +2614,7 @@ or <code>None</code> to skip it.</p>
 <a id="__codelineno-0-64" name="__codelineno-0-64"></a>        <span class="n">cos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">cos_sza</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 <a id="__codelineno-0-65" name="__codelineno-0-65"></a>        <span class="c1"># At/below the terminator (cos_sza &lt;= 0) the sun-angle correction is</span>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a>        <span class="c1"># undefined; map those pixels to NaN instead of emitting inf + a warning.</span>
-<a id="__codelineno-0-67" name="__codelineno-0-67"></a>        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">):</span>
+<a id="__codelineno-0-67" name="__codelineno-0-67"></a>        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
 <a id="__codelineno-0-68" name="__codelineno-0-68"></a>            <span class="n">reflectance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">cos</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">reflectance</span> <span class="o">/</span> <span class="n">cos</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
 <a id="__codelineno-0-69" name="__codelineno-0-69"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">reflectance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
@@ -2752,10 +2752,10 @@ or <code>None</code> to skip it.</p>
 <span class="normal"><a href="#__codelineno-0-108">108</a></span>
 <span class="normal"><a href="#__codelineno-0-109">109</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-85" name="__codelineno-0-85"></a><span class="nd">@cache</span>
 <a id="__codelineno-0-86" name="__codelineno-0-86"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_sensor</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sensor</span><span class="p">:</span>
-<a id="__codelineno-0-87" name="__codelineno-0-87"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Load and return the `Sensor` named `name` from the bundled tables.</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a><span class="w">    </span><span class="sd">"""Load and return the `Sensor` named `name` from the bundled tables.</span>
 <a id="__codelineno-0-88" name="__codelineno-0-88"></a>
 <a id="__codelineno-0-89" name="__codelineno-0-89"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90"></a><span class="sd">        name: Sensor identifier (e.g. `&quot;fci&quot;`, `&quot;seviri&quot;`), matching a</span>
+<a id="__codelineno-0-90" name="__codelineno-0-90"></a><span class="sd">        name: Sensor identifier (e.g. `"fci"`, `"seviri"`), matching a</span>
 <a id="__codelineno-0-91" name="__codelineno-0-91"></a><span class="sd">            `registry/data/&lt;name&gt;.yaml` table.</span>
 <a id="__codelineno-0-92" name="__codelineno-0-92"></a>
 <a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">    Returns:</span>
@@ -2763,18 +2763,18 @@ or <code>None</code> to skip it.</p>
 <a id="__codelineno-0-95" name="__codelineno-0-95"></a>
 <a id="__codelineno-0-96" name="__codelineno-0-96"></a><span class="sd">    Raises:</span>
 <a id="__codelineno-0-97" name="__codelineno-0-97"></a><span class="sd">        UnknownSensorError: When no table exists for `name`.</span>
-<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">_DATA_DIR</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">.yaml&quot;</span>
+<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    """</span>
+<a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">_DATA_DIR</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">.yaml"</span>
 <a id="__codelineno-0-100" name="__codelineno-0-100"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-<a id="__codelineno-0-101" name="__codelineno-0-101"></a>        <span class="n">available</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stem</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_DATA_DIR</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;*.yaml&quot;</span><span class="p">))</span>
-<a id="__codelineno-0-102" name="__codelineno-0-102"></a>        <span class="k">raise</span> <span class="n">UnknownSensorError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unknown sensor </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; available: </span><span class="si">{</span><span class="n">available</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="n">raw</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">))</span>
+<a id="__codelineno-0-101" name="__codelineno-0-101"></a>        <span class="n">available</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stem</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_DATA_DIR</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">"*.yaml"</span><span class="p">))</span>
+<a id="__codelineno-0-102" name="__codelineno-0-102"></a>        <span class="k">raise</span> <span class="n">UnknownSensorError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"unknown sensor </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; available: </span><span class="si">{</span><span class="n">available</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="n">raw</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">))</span>
 <a id="__codelineno-0-104" name="__codelineno-0-104"></a>    <span class="n">channels</span> <span class="o">=</span> <span class="p">{</span>
 <a id="__codelineno-0-105" name="__codelineno-0-105"></a>        <span class="n">key</span><span class="p">:</span> <span class="n">Channel</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="o">**</span><span class="n">value</span><span class="p">)</span>
-<a id="__codelineno-0-106" name="__codelineno-0-106"></a>        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;channels&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+<a id="__codelineno-0-106" name="__codelineno-0-106"></a>        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"channels"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
 <a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="p">}</span>
 <a id="__codelineno-0-108" name="__codelineno-0-108"></a>    <span class="c1"># A read-only view so the cached Sensor cannot be mutated by a caller.</span>
-<a id="__codelineno-0-109" name="__codelineno-0-109"></a>    <span class="k">return</span> <span class="n">Sensor</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="n">name</span><span class="p">),</span> <span class="n">channels</span><span class="o">=</span><span class="n">MappingProxyType</span><span class="p">(</span><span class="n">channels</span><span class="p">))</span>
+<a id="__codelineno-0-109" name="__codelineno-0-109"></a>    <span class="k">return</span> <span class="n">Sensor</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="n">name</span><span class="p">),</span> <span class="n">channels</span><span class="o">=</span><span class="n">MappingProxyType</span><span class="p">(</span><span class="n">channels</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2986,20 +2986,20 @@ else <code>None</code>.</p>
 <span class="normal"><a href="#__codelineno-0-48">48</a></span>
 <span class="normal"><a href="#__codelineno-0-49">49</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-25" name="__codelineno-0-25"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <a id="__codelineno-0-26" name="__codelineno-0-26"></a><span class="k">class</span><span class="w"> </span><span class="nc">Channel</span><span class="p">:</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;One instrument channel and its nominal calibration constants.</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27"></a><span class="w">    </span><span class="sd">"""One instrument channel and its nominal calibration constants.</span>
 <a id="__codelineno-0-28" name="__codelineno-0-28"></a>
 <a id="__codelineno-0-29" name="__codelineno-0-29"></a><span class="sd">    Attributes:</span>
-<a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="sd">        name: Channel identifier (e.g. `&quot;ir_105&quot;`).</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="sd">        name: Channel identifier (e.g. `"ir_105"`).</span>
 <a id="__codelineno-0-31" name="__codelineno-0-31"></a><span class="sd">        wavelength_um: Central wavelength in micrometres.</span>
 <a id="__codelineno-0-32" name="__codelineno-0-32"></a><span class="sd">        resolution_m: Native ground sampling distance in metres.</span>
-<a id="__codelineno-0-33" name="__codelineno-0-33"></a><span class="sd">        kind: `&quot;solar&quot;` (reflective) or `&quot;thermal&quot;` (emissive).</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33"></a><span class="sd">        kind: `"solar"` (reflective) or `"thermal"` (emissive).</span>
 <a id="__codelineno-0-34" name="__codelineno-0-34"></a><span class="sd">        solar_irradiance: Band-integrated solar irradiance `E0` (W m-2 um-1) for</span>
 <a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="sd">            a solar channel, else `None`.</span>
 <a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="sd">        central_wavenumber_cm1: Central wavenumber (cm-1) for a thermal channel,</span>
 <a id="__codelineno-0-37" name="__codelineno-0-37"></a><span class="sd">            else `None`.</span>
 <a id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="sd">        alpha: Thermal band-correction slope, else `None`.</span>
 <a id="__codelineno-0-39" name="__codelineno-0-39"></a><span class="sd">        beta: Thermal band-correction offset (kelvin), else `None`.</span>
-<a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="sd">    """</span>
 <a id="__codelineno-0-41" name="__codelineno-0-41"></a>
 <a id="__codelineno-0-42" name="__codelineno-0-42"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <a id="__codelineno-0-43" name="__codelineno-0-43"></a>    <span class="n">wavelength_um</span><span class="p">:</span> <span class="nb">float</span>
@@ -3095,13 +3095,13 @@ else <code>None</code>.</p>
 <span class="normal"><a href="#__codelineno-0-81">81</a></span>
 <span class="normal"><a href="#__codelineno-0-82">82</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-52" name="__codelineno-0-52"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="k">class</span><span class="w"> </span><span class="nc">Sensor</span><span class="p">:</span>
-<a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;A named sensor and its channel table.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="w">    </span><span class="sd">"""A named sensor and its channel table."""</span>
 <a id="__codelineno-0-55" name="__codelineno-0-55"></a>
 <a id="__codelineno-0-56" name="__codelineno-0-56"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <a id="__codelineno-0-57" name="__codelineno-0-57"></a>    <span class="n">channels</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Channel</span><span class="p">]</span>
 <a id="__codelineno-0-58" name="__codelineno-0-58"></a>
 <a id="__codelineno-0-59" name="__codelineno-0-59"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_channel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Channel</span><span class="p">:</span>
-<a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the channel named `name`.</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="w">        </span><span class="sd">"""Return the channel named `name`.</span>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a>
 <a id="__codelineno-0-62" name="__codelineno-0-62"></a><span class="sd">        Args:</span>
 <a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="sd">            name: Channel identifier.</span>
@@ -3110,19 +3110,19 @@ else <code>None</code>.</p>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a><span class="sd">            The matching `Channel`.</span>
 <a id="__codelineno-0-67" name="__codelineno-0-67"></a>
 <a id="__codelineno-0-68" name="__codelineno-0-68"></a><span class="sd">        Raises:</span>
-<a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">            UnknownSensorError: When the channel is not in this sensor&#39;s table.</span>
-<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">            UnknownSensorError: When the channel is not in this sensor's table.</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">        """</span>
 <a id="__codelineno-0-71" name="__codelineno-0-71"></a>        <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-0-72" name="__codelineno-0-72"></a>            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
 <a id="__codelineno-0-73" name="__codelineno-0-73"></a>        <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
 <a id="__codelineno-0-74" name="__codelineno-0-74"></a>            <span class="k">raise</span> <span class="n">UnknownSensorError</span><span class="p">(</span>
-<a id="__codelineno-0-75" name="__codelineno-0-75"></a>                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> has no channel </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; &quot;</span>
-<a id="__codelineno-0-76" name="__codelineno-0-76"></a>                <span class="sa">f</span><span class="s2">&quot;known channels: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75"></a>                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> has no channel </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; "</span>
+<a id="__codelineno-0-76" name="__codelineno-0-76"></a>                <span class="sa">f</span><span class="s2">"known channels: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-77" name="__codelineno-0-77"></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
 <a id="__codelineno-0-78" name="__codelineno-0-78"></a>
 <a id="__codelineno-0-79" name="__codelineno-0-79"></a>    <span class="nd">@property</span>
 <a id="__codelineno-0-80" name="__codelineno-0-80"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">channel_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<a id="__codelineno-0-81" name="__codelineno-0-81"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the sorted channel identifiers.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-81" name="__codelineno-0-81"></a><span class="w">        </span><span class="sd">"""Return the sorted channel identifiers."""</span>
 <a id="__codelineno-0-82" name="__codelineno-0-82"></a>        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
               </details>
@@ -3279,7 +3279,7 @@ else <code>None</code>.</p>
 <span class="normal"><a href="#__codelineno-0-75">75</a></span>
 <span class="normal"><a href="#__codelineno-0-76">76</a></span>
 <span class="normal"><a href="#__codelineno-0-77">77</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_channel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Channel</span><span class="p">:</span>
-<a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the channel named `name`.</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="w">    </span><span class="sd">"""Return the channel named `name`.</span>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a>
 <a id="__codelineno-0-62" name="__codelineno-0-62"></a><span class="sd">    Args:</span>
 <a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="sd">        name: Channel identifier.</span>
@@ -3288,14 +3288,14 @@ else <code>None</code>.</p>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a><span class="sd">        The matching `Channel`.</span>
 <a id="__codelineno-0-67" name="__codelineno-0-67"></a>
 <a id="__codelineno-0-68" name="__codelineno-0-68"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">        UnknownSensorError: When the channel is not in this sensor&#39;s table.</span>
-<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="sd">        UnknownSensorError: When the channel is not in this sensor's table.</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="sd">    """</span>
 <a id="__codelineno-0-71" name="__codelineno-0-71"></a>    <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-0-72" name="__codelineno-0-72"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
 <a id="__codelineno-0-73" name="__codelineno-0-73"></a>    <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
 <a id="__codelineno-0-74" name="__codelineno-0-74"></a>        <span class="k">raise</span> <span class="n">UnknownSensorError</span><span class="p">(</span>
-<a id="__codelineno-0-75" name="__codelineno-0-75"></a>            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> has no channel </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; &quot;</span>
-<a id="__codelineno-0-76" name="__codelineno-0-76"></a>            <span class="sa">f</span><span class="s2">&quot;known channels: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75"></a>            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> has no channel </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; "</span>
+<a id="__codelineno-0-76" name="__codelineno-0-76"></a>            <span class="sa">f</span><span class="s2">"known channels: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-77" name="__codelineno-0-77"></a>        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -3441,10 +3441,10 @@ else <code>None</code>.</p>
 <span class="normal"><a href="#__codelineno-0-108">108</a></span>
 <span class="normal"><a href="#__codelineno-0-109">109</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-85" name="__codelineno-0-85"></a><span class="nd">@cache</span>
 <a id="__codelineno-0-86" name="__codelineno-0-86"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_sensor</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sensor</span><span class="p">:</span>
-<a id="__codelineno-0-87" name="__codelineno-0-87"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Load and return the `Sensor` named `name` from the bundled tables.</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a><span class="w">    </span><span class="sd">"""Load and return the `Sensor` named `name` from the bundled tables.</span>
 <a id="__codelineno-0-88" name="__codelineno-0-88"></a>
 <a id="__codelineno-0-89" name="__codelineno-0-89"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90"></a><span class="sd">        name: Sensor identifier (e.g. `&quot;fci&quot;`, `&quot;seviri&quot;`), matching a</span>
+<a id="__codelineno-0-90" name="__codelineno-0-90"></a><span class="sd">        name: Sensor identifier (e.g. `"fci"`, `"seviri"`), matching a</span>
 <a id="__codelineno-0-91" name="__codelineno-0-91"></a><span class="sd">            `registry/data/&lt;name&gt;.yaml` table.</span>
 <a id="__codelineno-0-92" name="__codelineno-0-92"></a>
 <a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">    Returns:</span>
@@ -3452,18 +3452,18 @@ else <code>None</code>.</p>
 <a id="__codelineno-0-95" name="__codelineno-0-95"></a>
 <a id="__codelineno-0-96" name="__codelineno-0-96"></a><span class="sd">    Raises:</span>
 <a id="__codelineno-0-97" name="__codelineno-0-97"></a><span class="sd">        UnknownSensorError: When no table exists for `name`.</span>
-<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">_DATA_DIR</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">.yaml&quot;</span>
+<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    """</span>
+<a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">_DATA_DIR</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">.yaml"</span>
 <a id="__codelineno-0-100" name="__codelineno-0-100"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-<a id="__codelineno-0-101" name="__codelineno-0-101"></a>        <span class="n">available</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stem</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_DATA_DIR</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;*.yaml&quot;</span><span class="p">))</span>
-<a id="__codelineno-0-102" name="__codelineno-0-102"></a>        <span class="k">raise</span> <span class="n">UnknownSensorError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unknown sensor </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; available: </span><span class="si">{</span><span class="n">available</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="n">raw</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">))</span>
+<a id="__codelineno-0-101" name="__codelineno-0-101"></a>        <span class="n">available</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stem</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_DATA_DIR</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">"*.yaml"</span><span class="p">))</span>
+<a id="__codelineno-0-102" name="__codelineno-0-102"></a>        <span class="k">raise</span> <span class="n">UnknownSensorError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"unknown sensor </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; available: </span><span class="si">{</span><span class="n">available</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="n">raw</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">))</span>
 <a id="__codelineno-0-104" name="__codelineno-0-104"></a>    <span class="n">channels</span> <span class="o">=</span> <span class="p">{</span>
 <a id="__codelineno-0-105" name="__codelineno-0-105"></a>        <span class="n">key</span><span class="p">:</span> <span class="n">Channel</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="o">**</span><span class="n">value</span><span class="p">)</span>
-<a id="__codelineno-0-106" name="__codelineno-0-106"></a>        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;channels&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+<a id="__codelineno-0-106" name="__codelineno-0-106"></a>        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"channels"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
 <a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="p">}</span>
 <a id="__codelineno-0-108" name="__codelineno-0-108"></a>    <span class="c1"># A read-only view so the cached Sensor cannot be mutated by a caller.</span>
-<a id="__codelineno-0-109" name="__codelineno-0-109"></a>    <span class="k">return</span> <span class="n">Sensor</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="n">name</span><span class="p">),</span> <span class="n">channels</span><span class="o">=</span><span class="n">MappingProxyType</span><span class="p">(</span><span class="n">channels</span><span class="p">))</span>
+<a id="__codelineno-0-109" name="__codelineno-0-109"></a>    <span class="k">return</span> <span class="n">Sensor</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="n">name</span><span class="p">),</span> <span class="n">channels</span><span class="o">=</span><span class="n">MappingProxyType</span><span class="p">(</span><span class="n">channels</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -3714,7 +3714,7 @@ or <code>None</code> to skip it.</p>
 <a id="__codelineno-0-33" name="__codelineno-0-33"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
 <a id="__codelineno-0-34" name="__codelineno-0-34"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
-<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert solar-channel radiance to top-of-atmosphere reflectance.</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="w">    </span><span class="sd">"""Convert solar-channel radiance to top-of-atmosphere reflectance.</span>
 <a id="__codelineno-0-37" name="__codelineno-0-37"></a>
 <a id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="sd">    Computes the bidirectional reflectance factor</span>
 <a id="__codelineno-0-39" name="__codelineno-0-39"></a><span class="sd">    `rho = pi * L * d^2 / E0`, optionally normalised by the cosine of the solar</span>
@@ -3733,10 +3733,10 @@ or <code>None</code> to skip it.</p>
 <a id="__codelineno-0-52" name="__codelineno-0-52"></a>
 <a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="sd">    Raises:</span>
 <a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="sd">        CalibrationError: When `solar_irradiance` is not positive.</span>
-<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="sd">    """</span>
 <a id="__codelineno-0-56" name="__codelineno-0-56"></a>    <span class="k">if</span> <span class="n">solar_irradiance</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
 <a id="__codelineno-0-57" name="__codelineno-0-57"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
-<a id="__codelineno-0-58" name="__codelineno-0-58"></a>            <span class="sa">f</span><span class="s2">&quot;solar_irradiance must be positive; got </span><span class="si">{</span><span class="n">solar_irradiance</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58"></a>            <span class="sa">f</span><span class="s2">"solar_irradiance must be positive; got </span><span class="si">{</span><span class="n">solar_irradiance</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-59" name="__codelineno-0-59"></a>        <span class="p">)</span>
 <a id="__codelineno-0-60" name="__codelineno-0-60"></a>    <span class="n">reflectance</span> <span class="o">=</span> <span class="p">(</span>
 <a id="__codelineno-0-61" name="__codelineno-0-61"></a>        <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">sun_earth_distance</span><span class="o">**</span><span class="mi">2</span>
@@ -3745,7 +3745,7 @@ or <code>None</code> to skip it.</p>
 <a id="__codelineno-0-64" name="__codelineno-0-64"></a>        <span class="n">cos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">cos_sza</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 <a id="__codelineno-0-65" name="__codelineno-0-65"></a>        <span class="c1"># At/below the terminator (cos_sza &lt;= 0) the sun-angle correction is</span>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a>        <span class="c1"># undefined; map those pixels to NaN instead of emitting inf + a warning.</span>
-<a id="__codelineno-0-67" name="__codelineno-0-67"></a>        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">):</span>
+<a id="__codelineno-0-67" name="__codelineno-0-67"></a>        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
 <a id="__codelineno-0-68" name="__codelineno-0-68"></a>            <span class="n">reflectance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">cos</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">reflectance</span> <span class="o">/</span> <span class="n">cos</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
 <a id="__codelineno-0-69" name="__codelineno-0-69"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">reflectance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
@@ -3945,7 +3945,7 @@ Non-positive values yield NaN.</p>
 <a id="__codelineno-0-75" name="__codelineno-0-75"></a>    <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
 <a id="__codelineno-0-76" name="__codelineno-0-76"></a>    <span class="n">beta</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
 <a id="__codelineno-0-77" name="__codelineno-0-77"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
-<a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert thermal-channel radiance to brightness temperature (kelvin).</span>
+<a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="w">    </span><span class="sd">"""Convert thermal-channel radiance to brightness temperature (kelvin).</span>
 <a id="__codelineno-0-79" name="__codelineno-0-79"></a>
 <a id="__codelineno-0-80" name="__codelineno-0-80"></a><span class="sd">    Applies the EUMETSAT effective-radiance inverse Planck function</span>
 <a id="__codelineno-0-81" name="__codelineno-0-81"></a><span class="sd">    `Tb* = C2 * nu / ln(1 + C1 * nu^3 / L)` followed by the per-channel band</span>
@@ -3965,16 +3965,16 @@ Non-positive values yield NaN.</p>
 <a id="__codelineno-0-95" name="__codelineno-0-95"></a><span class="sd">    Raises:</span>
 <a id="__codelineno-0-96" name="__codelineno-0-96"></a><span class="sd">        CalibrationError: When `central_wavenumber_cm1` is not positive or</span>
 <a id="__codelineno-0-97" name="__codelineno-0-97"></a><span class="sd">            `alpha` is zero.</span>
-<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    """</span>
 <a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="k">if</span> <span class="n">central_wavenumber_cm1</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
 <a id="__codelineno-0-100" name="__codelineno-0-100"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
-<a id="__codelineno-0-101" name="__codelineno-0-101"></a>            <span class="sa">f</span><span class="s2">&quot;central_wavenumber_cm1 must be positive; got </span><span class="si">{</span><span class="n">central_wavenumber_cm1</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-101" name="__codelineno-0-101"></a>            <span class="sa">f</span><span class="s2">"central_wavenumber_cm1 must be positive; got </span><span class="si">{</span><span class="n">central_wavenumber_cm1</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-102" name="__codelineno-0-102"></a>        <span class="p">)</span>
 <a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="k">if</span> <span class="n">alpha</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-0-104" name="__codelineno-0-104"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span><span class="s2">&quot;alpha must be non-zero&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-104" name="__codelineno-0-104"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span><span class="s2">"alpha must be non-zero"</span><span class="p">)</span>
 <a id="__codelineno-0-105" name="__codelineno-0-105"></a>    <span class="n">nu</span> <span class="o">=</span> <span class="n">central_wavenumber_cm1</span>
 <a id="__codelineno-0-106" name="__codelineno-0-106"></a>    <span class="n">radiance_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-<a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">):</span>
+<a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
 <a id="__codelineno-0-108" name="__codelineno-0-108"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">C2</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log1p</span><span class="p">(</span><span class="n">C1</span> <span class="o">*</span> <span class="n">nu</span><span class="o">**</span><span class="mi">3</span> <span class="o">/</span> <span class="n">radiance_arr</span><span class="p">)</span>
 <a id="__codelineno-0-109" name="__codelineno-0-109"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">radiance_arr</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">tb_star</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
 <a id="__codelineno-0-110" name="__codelineno-0-110"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">((</span><span class="n">tb_star</span> <span class="o">-</span> <span class="n">beta</span><span class="p">)</span> <span class="o">/</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
