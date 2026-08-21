@@ -1141,10 +1141,13 @@ def from_earthengine(
         assets.
 
     Raises:
-        ValueError: ``scale`` and ``shape`` are both given; or ``start`` / ``end``
-            are given without a ``reducer`` (use
-            :func:`collection_from_earthengine` for a ``DatasetCollection``); or the
-            composite mode is missing ``start`` / ``end`` / ``bbox``.
+        ValueError: ``scale`` and ``shape`` are both given; ``start`` / ``end`` are
+            given without a ``reducer`` (use :func:`collection_from_earthengine` for
+            a ``DatasetCollection``); the composite mode is missing
+            ``start`` / ``end`` / ``bbox``; ``path`` is given without a
+            ``bbox`` / ``geometry``; or ``tile_size`` is invalid or set without its
+            required ``path`` / ``scale`` or ``shape`` (or combined with a composite
+            or a ``geometry``).
         ReaderError: The asset could not be opened or windowed, or the composite
             date range + AOI matched no scenes.
 
@@ -1178,6 +1181,32 @@ def from_earthengine(
             >>> from pyramids_eo import from_earthengine
             >>> aoi = gpd.read_file("basin.geojson")  # doctest: +SKIP
             >>> ds = from_earthengine("USGS/SRTMGL1_003", geometry=aoi)  # doctest: +SKIP
+
+            ```
+        - Stream an oversize window to disk in 1024-px tiles (skipped offline):
+            ```python
+            >>> from pyramids_eo import from_earthengine
+            >>> ds = from_earthengine(  # doctest: +SKIP
+            ...     "USGS/SRTMGL1_003",
+            ...     bbox=(86.0, 27.0, 88.0, 29.0),
+            ...     scale=0.0003,
+            ...     tile_size=1024,
+            ...     path="srtm_big.tif",
+            ... )
+
+            ```
+        - ``tile_size`` without a ``path`` is rejected before any read:
+            ```python
+            >>> from pyramids_eo import from_earthengine
+            >>> from_earthengine(
+            ...     "USGS/SRTMGL1_003",
+            ...     bbox=(86.9, 27.9, 87.0, 28.0),
+            ...     shape=(4096, 4096),
+            ...     tile_size=1024,
+            ... )
+            Traceback (most recent call last):
+                ...
+            ValueError: 'tile_size' needs 'path' to stream the mosaic to disk.
 
             ```
         - Passing both ``scale`` and ``shape`` is rejected before any read:
