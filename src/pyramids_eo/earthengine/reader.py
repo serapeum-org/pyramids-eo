@@ -805,11 +805,13 @@ def _composite_read(
     reducer: str | None,
     geometry: object | None,
     credentials: EarthEngineCredentials,
+    path: str | Path | None = None,
 ) -> Dataset:
     """Reduce an ``ImageCollection`` over a date range into one composite ``Dataset``.
 
     The ``ImageCollection`` branch of :func:`from_earthengine`; see it for the
-    argument semantics.
+    argument semantics. When ``path`` is given the composite is written there and a
+    file-backed ``Dataset`` reading it is returned.
 
     Raises:
         ValueError: ``reducer`` is missing or the ``start``/``end``/``bbox`` trio is
@@ -850,6 +852,9 @@ def _composite_read(
             resample=resample,
         )
     composite = _composite(windowed, reducer, credentials, geometry)
+    if path is not None:
+        composite.to_file(str(path))
+        composite = Dataset.read_file(str(path))
     return _retain_credentials(composite, credentials)
 
 
@@ -1310,6 +1315,7 @@ def from_earthengine(
             reducer=reducer,
             geometry=geometry,
             credentials=creds,
+            path=path,
         )
     return _single_image_read(
         asset_id,

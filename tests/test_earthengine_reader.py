@@ -490,6 +490,30 @@ class TestFromEarthengineComposite:
             f"Expected all {expected}, got {values.tolist()}"
         )
 
+    def test_composite_writes_to_path(self, three_scenes, tmp_path) -> None:
+        """A ``path`` in composite mode writes the composite and returns it file-backed.
+
+        Args:
+            three_scenes: Fixture patching discovery/open (fills 10, 20, 30).
+            tmp_path: pytest temp directory.
+
+        Test scenario:
+            A median composite with ``path`` writes the raster and the returned
+            Dataset reads it, matching the in-memory composite.
+        """
+        out = tmp_path / "composite.tif"
+        ds = from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            bbox=_BBOX,
+            start="2024-06-01",
+            end="2024-06-30",
+            reducer="median",
+            shape=(4, 4),
+            path=str(out),
+        )
+        assert out.exists(), "composite mode must honour 'path' and write the file"
+        assert (ds.read_array() == 20).all(), "file-backed composite has wrong values"
+
     def test_start_end_without_reducer_raises(self) -> None:
         """A date range without a reducer is rejected with guidance.
 
