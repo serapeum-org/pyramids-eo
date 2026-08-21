@@ -1598,11 +1598,12 @@ class TestResample:
         )
 
 
-def _gradient_source(size: int = 400):
+def _gradient_source(size: int = 400, nodata: int | None = -32768):
     """A distinct-per-pixel gradient EPSG:4326 Int32 raster over lon/lat [86,88]/[27,29].
 
     Args:
         size: The source is ``size`` x ``size`` pixels spanning the 2-degree box.
+        nodata: Nodata value to stamp, or ``None`` to leave the band without one.
 
     Returns:
         An in-memory GDAL dataset whose every pixel holds a unique value, so a
@@ -1618,7 +1619,8 @@ def _gradient_source(size: int = 400):
     src.GetRasterBand(1).WriteArray(
         np.arange(size * size, dtype="int32").reshape(size, size)
     )
-    src.GetRasterBand(1).SetNoDataValue(-32768)
+    if nodata is not None:
+        src.GetRasterBand(1).SetNoDataValue(nodata)
     return src
 
 
@@ -1730,6 +1732,50 @@ class TestTiledRead:
         ds = from_earthengine("X", bbox=_BBOX, shape=(5, 5), path=str(out))
         assert out.exists(), "path should be written"
         assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
+
+    def test_tiled_non_square_grid(self, patched_gradient, tmp_path) -> None:
+        """A non-square window with asymmetric tile splits mosaics back exactly.
+
+        Test scenario:
+            A 12x20 output split at ``tile_size=7`` (rows -> 7+5, cols -> 7+7+6)
+            reproduces the un-tiled read, guarding the row/column tile arithmetic.
+        """
+        untiled = np.asarray(
+            from_earthengine("X", bbox=_BBOX, shape=(12, 20)).read_array()
+        )
+        out = tmp_path / "rect.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=_BBOX, shape=(12, 20), tile_size=7, path=str(out)
+            ).read_array()
+        )
+        assert tiled.shape == untiled.shape == (12, 20), f"shape {tiled.shape}"
+        assert np.array_equal(tiled, untiled), "non-square tiled mosaic differs"
+
+    def test_tiled_source_without_nodata(self, monkeypatch, tmp_path) -> None:
+        """A source with no nodata still tiles and mosaics to the un-tiled read.
+
+        Test scenario:
+            When the source band has no nodata, the mosaic uses the ``"0"`` fill
+            sentinel; a full-coverage grid still reproduces the un-tiled read.
+        """
+        monkeypatch.setattr(
+            ee_reader,
+            "_open_eedai",
+            lambda a, *, bands, credentials: Dataset(_gradient_source(nodata=None)),
+        )
+        untiled = np.asarray(
+            from_earthengine("X", bbox=_BBOX, shape=(16, 16)).read_array()
+        )
+        out = tmp_path / "no_nodata.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=_BBOX, shape=(16, 16), tile_size=6, path=str(out)
+            ).read_array()
+        )
+        assert np.array_equal(tiled, untiled), (
+            "tiled mosaic differs from the un-tiled read for a no-nodata source"
+        )
 
 
 class TestTiledValidation:
