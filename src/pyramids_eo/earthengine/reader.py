@@ -999,6 +999,68 @@ def _nodata_tile(
     return Dataset.create_from_array(array, geo=geo, epsg=crs, no_data_value=nodata)
 
 
+def _tile_grid(
+    bbox: BBox, scale: float | None, shape: tuple[int, int] | None
+) -> tuple[int, int, float, float]:
+    """Compute the tiled output grid ``(rows, cols, cell_x, cell_y)`` over ``bbox``.
+
+    A ``shape`` read fits the grid exactly to the bbox (as ``gdal.Warp`` does with
+    width/height + outputBounds). A ``scale`` read keeps the pixel size == ``scale``
+    and sizes the grid the way ``gdal.Warp`` does with ``xRes``/``yRes`` — round-half-up
+    via GDAL's exact ``int((extent + res/2) / res)`` (bit-identical), extent =
+    origin + n*scale (which may extend past the bbox) — reproducing the un-tiled
+    scale read exactly.
+
+    Args:
+        bbox: Output bounds ``(min_x, min_y, max_x, max_y)``.
+        scale: Output pixel size, or ``None`` when ``shape`` is set.
+        shape: Output ``(rows, cols)``, or ``None`` when ``scale`` is set.
+
+    Returns:
+        ``(rows, cols, cell_x, cell_y)`` for the full output grid.
+    """
+    min_x, min_y, max_x, max_y = bbox
+    if shape is not None:
+        rows, cols = shape
+        return rows, cols, (max_x - min_x) / cols, (max_y - min_y) / rows
+    if scale is None:  # pragma: no cover - from_earthengine guarantees scale/shape
+        raise ReaderError("A tiled scale read requires a 'scale'.")
+    cols = max(1, int(((max_x - min_x) + scale / 2) / scale))
+    rows = max(1, int(((max_y - min_y) + scale / 2) / scale))
+    return rows, cols, scale, scale
+
+
+def _mosaic_tiles(tile_paths: list[str], path: str, nodata: float | None) -> None:
+    """Mosaic grid-aligned tile files into ``path`` with correct nodata handling.
+
+    Non-overlapping, grid-aligned tiles fully cover the window, so the merge is exact
+    placement. The source nodata is carried through (treated as transparent and
+    stamped on the output); when the source has none, it is unset on the mosaic
+    (``"none"``) to match the un-tiled read, with a 0 fill that never triggers GDAL's
+    "cannot represent nan" cast warning. A float source with a NaN nodata takes the
+    same with-nodata branch (``n=init=no_data_value=nan``), relying on GDAL's
+    NaN-aware nodata matching; EE assets are effectively always integer nodata.
+
+    Args:
+        tile_paths: The temporary tile raster paths to mosaic.
+        path: Destination raster path.
+        nodata: The shared source nodata, or ``None`` for a no-nodata source.
+    """
+    if nodata is not None:
+        merge_rasters(
+            tile_paths,
+            path,
+            no_data_value=nodata,
+            n=nodata,
+            init=nodata,
+            method="first",
+        )
+    else:
+        merge_rasters(
+            tile_paths, path, no_data_value="none", n=0, init=0, method="first"
+        )
+
+
 def _tiled_windowed_read(
     source: Dataset,
     *,
@@ -1043,23 +1105,7 @@ def _tiled_windowed_read(
         A file-backed pyramids ``Dataset`` reading the mosaic at ``path``.
     """
     min_x, min_y, max_x, max_y = bbox
-    if shape is not None:
-        # A shape read fits the grid exactly to the bbox (as gdal.Warp does with
-        # width/height + outputBounds), so the cell size divides the bbox.
-        rows, cols = shape
-        cell_x = (max_x - min_x) / cols
-        cell_y = (max_y - min_y) / rows
-    else:
-        # A scale read keeps the pixel size == scale and sizes the grid the way
-        # gdal.Warp does with xRes/yRes: round-half-up via ``int((extent + res/2) /
-        # res)`` (GDAL's exact expression, for bit-identical sizing), extent =
-        # origin + n*scale (which may extend past the bbox). Matching this reproduces
-        # the un-tiled scale read exactly.
-        if scale is None:  # pragma: no cover - from_earthengine guarantees scale/shape
-            raise ReaderError("A tiled scale read requires a 'scale'.")
-        cols = max(1, int(((max_x - min_x) + scale / 2) / scale))
-        rows = max(1, int(((max_y - min_y) + scale / 2) / scale))
-        cell_x = cell_y = scale
+    rows, cols, cell_x, cell_y = _tile_grid(bbox, scale, shape)
 
     # All tiles inherit the source's per-band nodata, so read it once here.
     nodata = source.no_data_value[0]
@@ -1101,27 +1147,7 @@ def _tiled_windowed_read(
             # No tile intersected the asset — the whole AOI is off the footprint,
             # the same case the un-tiled read rejects.
             raise ReaderError(f"AOI {bbox} does not intersect the Earth Engine asset.")
-        # Non-overlapping, grid-aligned tiles fully cover the window, so the merge is
-        # exact placement. Carry the source nodata through (treat it as transparent
-        # and stamp it on the output); when the source has none, unset it on the
-        # mosaic (``"none"``) to match the un-tiled read, with a 0 fill that never
-        # triggers GDAL's "cannot represent nan" cast warning. A float source with a
-        # NaN nodata takes this same branch (``n=init=no_data_value=nan``), relying on
-        # GDAL's NaN-aware nodata matching; EE assets are effectively always integer
-        # nodata, so that path is rare.
-        if nodata is not None:
-            merge_rasters(
-                tile_paths,
-                str(path),
-                no_data_value=nodata,
-                n=nodata,
-                init=nodata,
-                method="first",
-            )
-        else:
-            merge_rasters(
-                tile_paths, str(path), no_data_value="none", n=0, init=0, method="first"
-            )
+        _mosaic_tiles(tile_paths, str(path), nodata)
     finally:
         # merge_rasters opens the tile files (and holds them via GC-managed handles);
         # force their release before removing the temp dir, or Windows leaves the
@@ -1130,6 +1156,71 @@ def _tiled_windowed_read(
         gc.collect()
         shutil.rmtree(tmp_dir, ignore_errors=True)
     return Dataset.read_file(str(path))
+
+
+def _validate_read_request(
+    *,
+    scale: float | None,
+    shape: tuple[int, int] | None,
+    resample: str,
+    path: str | Path | None,
+    bbox: BBox | None,
+    geometry: object | None,
+    tile_size: int | None,
+    reducer: str | None,
+    start: str | None,
+    end: str | None,
+) -> None:
+    """Validate a :func:`from_earthengine` option combination before any network call.
+
+    Args:
+        scale: Requested output pixel size, or ``None``.
+        shape: Requested output ``(rows, cols)``, or ``None``.
+        resample: Resampling algorithm name.
+        path: Output raster path, or ``None``.
+        bbox: AOI bounds, or ``None``.
+        geometry: Polygon AOI, or ``None``.
+        tile_size: Oversize tile size, or ``None``.
+        reducer: Composite reducer, or ``None``.
+        start: Composite start date, or ``None``.
+        end: Composite end date, or ``None``.
+
+    Raises:
+        ValueError: An incompatible or incomplete option combination (or an unknown
+            ``resample`` name).
+    """
+    if scale is not None and shape is not None:
+        raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
+    _resample_alg(resample)  # rejects an unknown resample name up front
+    if path is not None and bbox is None and geometry is None:
+        raise ValueError(
+            "'path' needs a 'bbox' or 'geometry'; the whole-asset read is lazy."
+        )
+    if tile_size is None:
+        return
+    if reducer is not None or start is not None or end is not None:
+        raise ValueError(
+            "'tile_size' is for the single-image raw read, not an "
+            "ImageCollection composite."
+        )
+    if tile_size <= 0:
+        raise ValueError("'tile_size' must be a positive number of pixels.")
+    if geometry is not None:
+        raise ValueError("'tile_size' cannot be combined with a polygon 'geometry'.")
+    if scale is None and shape is None:
+        raise ValueError(
+            "'tile_size' needs 'scale' or 'shape' to define the output grid."
+        )
+    if path is None:
+        raise ValueError("'tile_size' needs 'path' to stream the mosaic to disk.")
+    if resample != "nearest":
+        # Tiles are warped independently, so an interpolating kernel samples missing
+        # neighbours across a tile seam and the mosaic no longer matches the un-tiled
+        # read. Only nearest (each output pixel from one source pixel) is seam-exact.
+        raise ValueError(
+            "'tile_size' supports only resample='nearest'; an interpolating "
+            "resampler would differ from the un-tiled read at tile seams."
+        )
 
 
 def from_earthengine(
@@ -1322,40 +1413,18 @@ def from_earthengine(
 
             ```
     """
-    if scale is not None and shape is not None:
-        raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
-    _resample_alg(resample)  # validate up front, before any network call
-    if path is not None and bbox is None and geometry is None:
-        raise ValueError(
-            "'path' needs a 'bbox' or 'geometry'; the whole-asset read is lazy."
-        )
-    if tile_size is not None:
-        if reducer is not None or start is not None or end is not None:
-            raise ValueError(
-                "'tile_size' is for the single-image raw read, not an "
-                "ImageCollection composite."
-            )
-        if tile_size <= 0:
-            raise ValueError("'tile_size' must be a positive number of pixels.")
-        if geometry is not None:
-            raise ValueError(
-                "'tile_size' cannot be combined with a polygon 'geometry'."
-            )
-        if scale is None and shape is None:
-            raise ValueError(
-                "'tile_size' needs 'scale' or 'shape' to define the output grid."
-            )
-        if path is None:
-            raise ValueError("'tile_size' needs 'path' to stream the mosaic to disk.")
-        if resample != "nearest":
-            # Tiles are warped independently, so an interpolating kernel samples
-            # missing neighbours across a tile seam and the mosaic no longer matches
-            # the un-tiled read. Only nearest (each output pixel from one source
-            # pixel) is seam-exact.
-            raise ValueError(
-                "'tile_size' supports only resample='nearest'; an interpolating "
-                "resampler would differ from the un-tiled read at tile seams."
-            )
+    _validate_read_request(
+        scale=scale,
+        shape=shape,
+        resample=resample,
+        path=path,
+        bbox=bbox,
+        geometry=geometry,
+        tile_size=tile_size,
+        reducer=reducer,
+        start=start,
+        end=end,
+    )
 
     creds = EarthEngineCredentials.coerce(credentials)
     if geometry is not None:
