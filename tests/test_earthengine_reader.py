@@ -1785,6 +1785,43 @@ class TestTiledRead:
         assert out.exists(), "path should be written"
         assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
 
+    def test_tiled_multiband_source(self, monkeypatch, tmp_path) -> None:
+        """A multi-band source tiles with each band placed correctly.
+
+        Test scenario:
+            A 3-band source with distinct per-band gradients mosaics back to the
+            un-tiled read across all bands (band order + per-band placement).
+        """
+        from osgeo import gdal, osr
+
+        size = 300
+        src = gdal.GetDriverByName("MEM").Create("", size, size, 3, gdal.GDT_Int32)
+        src.SetGeoTransform((86.0, 2.0 / size, 0.0, 29.0, 0.0, -2.0 / size))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        src.SetProjection(srs.ExportToWkt())
+        base = np.arange(size * size, dtype="int32").reshape(size, size)
+        for band in range(3):
+            src.GetRasterBand(band + 1).WriteArray(base + band * 1_000_000)
+            src.GetRasterBand(band + 1).SetNoDataValue(-32768)
+        monkeypatch.setattr(
+            ee_reader, "_open_eedai", lambda a, *, bands, credentials: Dataset(src)
+        )
+
+        untiled = np.asarray(
+            from_earthengine("X", bbox=_BBOX, shape=(18, 18)).read_array()
+        )
+        out = tmp_path / "multiband.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=_BBOX, shape=(18, 18), tile_size=7, path=str(out)
+            ).read_array()
+        )
+        assert tiled.shape == untiled.shape == (3, 18, 18), f"shape {tiled.shape}"
+        assert np.array_equal(tiled, untiled), (
+            "multi-band tiled mosaic differs from the un-tiled read"
+        )
+
     def test_tiled_cleans_up_temp_dir(self, patched_gradient, tmp_path) -> None:
         """A tiled read leaves no ``ee_tiles_*`` temp directory behind.
 
