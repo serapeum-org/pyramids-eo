@@ -1719,6 +1719,33 @@ class TestTiledRead:
         ds = from_earthengine("X", bbox=_BBOX, scale=0.01, tile_size=4, path=str(out))
         assert ds.shape == (1, 10, 10), f"Expected (1, 10, 10), got {ds.shape}"
 
+    def test_tiled_scale_matches_untiled_at_rounding_boundary(
+        self, patched_gradient, tmp_path
+    ) -> None:
+        """A scale on a ``.5`` grid boundary tiles to the same grid as the un-tiled read.
+
+        Test scenario:
+            ``scale=0.008`` over the ~0.1-degree bbox lands on a round-half-up grid
+            boundary on the Y axis (13 rows via half-up, not Python's banker's 12).
+            The tiled read must match the un-tiled ``scale`` read's grid and pixels.
+        """
+        untiled = np.asarray(
+            from_earthengine("X", bbox=_BBOX, scale=0.008).read_array()
+        )
+        out = tmp_path / "scale_boundary.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", bbox=_BBOX, scale=0.008, tile_size=5, path=str(out)
+            ).read_array()
+        )
+        assert untiled.shape[0] == 13, (
+            f"expected the half-up 13 rows, got {untiled.shape[0]}"
+        )
+        assert tiled.shape == untiled.shape, f"shape {tiled.shape} vs {untiled.shape}"
+        assert np.array_equal(tiled, untiled), (
+            "scale-boundary tiled mosaic differs from the un-tiled scale read"
+        )
+
     def test_path_without_tile_size_writes_file(
         self, patched_gradient, tmp_path
     ) -> None:

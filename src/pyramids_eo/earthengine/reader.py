@@ -996,14 +996,20 @@ def _tiled_windowed_read(
     """
     min_x, min_y, max_x, max_y = bbox
     if shape is not None:
+        # A shape read fits the grid exactly to the bbox (as gdal.Warp does with
+        # width/height + outputBounds), so the cell size divides the bbox.
         rows, cols = shape
+        cell_x = (max_x - min_x) / cols
+        cell_y = (max_y - min_y) / rows
     else:
-        # from_earthengine requires scale or shape when tile_size is set.
+        # A scale read keeps the pixel size == scale and sizes the grid the way
+        # gdal.Warp does with xRes/yRes: round-half-up, extent = origin + n*scale
+        # (which may extend past the bbox). Matching this reproduces the un-tiled
+        # scale read exactly. from_earthengine requires scale or shape here.
         assert scale is not None
-        cols = max(1, round((max_x - min_x) / scale))
-        rows = max(1, round((max_y - min_y) / scale))
-    cell_x = (max_x - min_x) / cols
-    cell_y = (max_y - min_y) / rows
+        cols = max(1, int((max_x - min_x) / scale + 0.5))
+        rows = max(1, int((max_y - min_y) / scale + 0.5))
+        cell_x = cell_y = scale
 
     nodata: float | None = None
     tmp_dir = tempfile.mkdtemp(prefix="ee_tiles_")
