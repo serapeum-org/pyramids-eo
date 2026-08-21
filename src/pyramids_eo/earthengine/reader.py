@@ -982,10 +982,20 @@ def _tiled_windowed_read(
 
     The output grid over ``bbox`` is split into blocks of at most ``tile_size``
     pixels per side. Each block is read through the normal windowed path (its own
-    block-aligned EEDAI materialise + warp), written to a temporary raster, and the
-    tiles are mosaicked with pyramids ``merge_rasters`` into ``path`` — so only one
-    tile is ever held in memory. Because every tile is warped to its exact
-    grid-aligned sub-window, the mosaic reproduces the equivalent un-tiled read.
+    block-aligned EEDAI materialise + warp), written to a temporary raster and
+    released, then the tiles are mosaicked with pyramids ``merge_rasters`` into
+    ``path``. Because every tile is warped (nearest) to its exact grid-aligned
+    sub-window, the mosaic reproduces the equivalent un-tiled ``nearest`` read
+    exactly. ``resample`` other than ``"nearest"`` is rejected upstream, since an
+    interpolating kernel would sample across a tile seam.
+
+    Memory/cost notes: the per-tile step (not the whole output) is what is bounded,
+    but each tile's :func:`_materialize` still reads the tile's **native-resolution**
+    window into memory, so peak memory is governed by that native window — pick
+    ``tile_size`` relative to native resolution. The z-order ``merge_rasters`` opens
+    all tile files at once, and the read is O(n_tiles) independent
+    materialise/warp/write round-trips (re-fetching the block-aligned + 1-px pad at
+    every seam), so very large tile counts are correct but not free.
 
     Args:
         source: The opened EEDAI source ``Dataset`` (reused for every tile).
@@ -993,7 +1003,7 @@ def _tiled_windowed_read(
         crs: Target CRS (and the CRS ``bbox`` is expressed in).
         scale: Output pixel size in ``crs`` units, or ``None`` when ``shape`` is set.
         shape: Output ``(rows, cols)``, or ``None`` when ``scale`` is set.
-        resample: Resampling algorithm for each tile's warp.
+        resample: Resampling algorithm for each tile's warp (always ``"nearest"``).
         tile_size: Maximum tile size in pixels per side.
         path: Destination raster path for the mosaic.
 
