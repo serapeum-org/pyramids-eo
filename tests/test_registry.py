@@ -1,4 +1,4 @@
-"""Unit tests for `pyramids_eo.registry` (calibration + sensor tables)."""
+"""Unit tests for `pyramids_eo.sensors.registry` (calibration + sensor tables)."""
 
 from __future__ import annotations
 
@@ -6,14 +6,14 @@ import numpy as np
 import pytest
 
 from pyramids_eo.errors import CalibrationError, UnknownSensorError
-from pyramids_eo.registry import (
+from pyramids_eo.sensors.registry import (
     Channel,
     Sensor,
     get_sensor,
     radiance_to_brightness_temperature,
     radiance_to_reflectance,
 )
-from pyramids_eo.registry.calibration import C1, C2
+from pyramids_eo.sensors.registry.calibration import C1, C2
 
 
 def _forward_planck(nu: float, temperature: float) -> float:

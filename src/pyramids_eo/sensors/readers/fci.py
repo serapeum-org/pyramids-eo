@@ -23,7 +23,7 @@ from typing import Any
 import numpy as np
 
 from pyramids_eo.errors import ReaderError
-from pyramids_eo.readers._common import calibrate_channel
+from pyramids_eo.sensors.readers._common import calibrate_channel
 
 
 def _default_open_chunk(path: Any, channel: str) -> Any:

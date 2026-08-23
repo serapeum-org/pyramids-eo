@@ -12,9 +12,9 @@ Each reader takes a file path / chunk set / `Dataset` and returns a pyramids
 
 from __future__ import annotations
 
-from pyramids_eo.readers.fci import read_fci
-from pyramids_eo.readers.harmonise import harmonise
-from pyramids_eo.readers.seviri import read_seviri
+from pyramids_eo.sensors.readers.fci import read_fci
+from pyramids_eo.sensors.readers.harmonise import harmonise
+from pyramids_eo.sensors.readers.seviri import read_seviri
 
 __all__ = [
     "harmonise",
