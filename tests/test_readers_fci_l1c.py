@@ -114,7 +114,8 @@ class TestUnpackRadiance:
         assert np.isnan(rad[0, 1]), "the _FillValue count should be NaN"
         assert np.isnan(rad[1, 0]), "a count above valid_range max should be NaN"
         assert rad[1, 1] == pytest.approx(240.0), "500*0.5-10 should unpack to 240"
-        assert gt[1] == -1e-5 and crs == "WKT", "geotransform + CRS should pass through"
+        assert gt[1] == -1e-5, "the geotransform should pass through"
+        assert crs == "WKT", "the CRS should pass through"
 
     def test_no_masking_without_fill_or_range(self, monkeypatch):
         """With no valid_range and no _FillValue, no pixel is masked to NaN."""
@@ -288,7 +289,8 @@ class TestGranuleCoeffs:
         coeffs = _granule_coeffs(object())
         assert coeffs["kind"] == "thermal", "fill irradiance should route to thermal"
         assert coeffs["central_wavenumber_cm1"] == 950.0, "wavenumber should be read"
-        assert coeffs["alpha"] == 0.999 and coeffs["beta"] == 0.36
+        assert coeffs["alpha"] == 0.999, "alpha should be read"
+        assert coeffs["beta"] == 0.36, "beta should be read"
 
     def test_thermal_omits_absent_coeffs(self, monkeypatch):
         """A missing thermal coefficient is omitted so the registry fallback engages."""
@@ -321,8 +323,10 @@ class TestReadFciL1cChunk:
         monkeypatch.setattr(fci_l1c, "_scalar", lambda g, n: 140.0)
         monkeypatch.setattr(fci_l1c, "_granule_coeffs", lambda g: _THERMAL)
         rec = read_fci_l1c_chunk("f.nc", "ir_105")
-        assert rec["start_row"] == 140.0 and rec["coeffs"] == _THERMAL
-        assert rec["crs"] == "WKT" and rec["radiance"].shape == (2, 2)
+        assert rec["start_row"] == 140.0, "start_row should be read"
+        assert rec["coeffs"] == _THERMAL, "coeffs should be set"
+        assert rec["crs"] == "WKT", "crs should be set"
+        assert rec["radiance"].shape == (2, 2), "radiance should be set"
 
     def test_none_group_skips(self, monkeypatch):
         """A file without the channel group is skipped (None)."""
@@ -361,8 +365,9 @@ class TestSatelliteHeight:
 
         srs = osr.SpatialReference()
         srs.ImportFromProj4("+proj=geos +lon_0=0 +h=100 +ellps=WGS84 +units=m")
+        wkt = srs.ExportToWkt()
         with pytest.raises(ReaderError, match="implausible"):
-            _satellite_height(srs.ExportToWkt())
+            _satellite_height(wkt)
 
 
 class TestReadFciL1c:
@@ -510,7 +515,8 @@ def test_read_fci_l1c_real_granule():
     scene = read_fci_l1c(paths, "ir_105")
     array = np.asarray(scene.read_array(), dtype=float)
     finite = array[np.isfinite(array)]
-    assert 180.0 < finite.min() and finite.max() < 340.0, "BT outside a physical range"
+    assert finite.min() > 180.0, f"BT min too low: {finite.min()}"
+    assert finite.max() < 340.0, f"BT max too high: {finite.max()}"
     assert "Geostationary" in str(scene.crs), (
         "result should carry the geostationary CRS"
     )
