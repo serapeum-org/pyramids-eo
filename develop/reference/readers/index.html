@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -1659,7 +1659,8 @@
 <p>Instrument readers that decode L1 formats into calibrated, geolocated pyramids
 <code>Dataset</code>s. For real MTG-FCI L1C FDHSI granules, pass <code>open_fci_l1c_chunk</code> to
 <code>read_fci</code> as <code>open_chunk</code> — it reads the nested
-<code>data/&lt;channel&gt;/measured/effective_radiance</code> group layout.</p>
+<code>data/&lt;channel&gt;/measured/effective_radiance</code> group layout (not yet validated
+against a real granule — see issue #40).</p>
 
 
 <div class="doc doc-object doc-module">
@@ -1680,8 +1681,9 @@
 <ul>
 <li><code>read_fci</code> — MTG-FCI L1C (FDHSI): stitch a channel across its chunk set and
   calibrate to reflectance / brightness temperature.</li>
-<li><code>open_fci_l1c_chunk</code> — canonical <code>open_chunk</code> for real FCI L1C FDHSI granules
-  (reads the nested <code>data/&lt;channel&gt;/measured/effective_radiance</code> layout).</li>
+<li><code>open_fci_l1c_chunk</code> — <code>open_chunk</code> for the real FCI L1C FDHSI nested
+  <code>data/&lt;channel&gt;/measured/effective_radiance</code> layout (not yet validated against
+  a real granule — see issue #40).</li>
 <li><code>read_seviri</code> — MSG-SEVIRI native (<code>.nat</code>): calibrate + geolocate a channel
   (the raw <code>.nat</code> byte decode is injectable — see its module warning).</li>
 <li><code>harmonise</code> — align multi-resolution bands onto one common target grid.</li>
@@ -1835,7 +1837,7 @@ opener positionally, so to thread a non-default template through
             </td>
             <td>
               <div class="doc-md-description">
-                <p>(a <code>Dataset</code>-like object exposing <code>read_array</code> / <code>geotransform</code> / <code>epsg</code>,</p>
+                <p>(a <code>Dataset</code>-like object exposing <code>read_array</code> / <code>geotransform</code> / <code>epsg</code> /</p>
               </div>
             </td>
           </tr>
@@ -1845,7 +1847,7 @@ opener positionally, so to thread a non-default template through
             </td>
             <td>
               <div class="doc-md-description">
-                <p>as <code>read_fci</code> consumes it).</p>
+                <p><code>columns</code> / <code>rows</code>, as <code>read_fci</code> consumes it).</p>
               </div>
             </td>
           </tr>
@@ -1955,17 +1957,17 @@ opener positionally, so to thread a non-default template through
 <a id="__codelineno-0-96" name="__codelineno-0-96"></a>
 <a id="__codelineno-0-97" name="__codelineno-0-97"></a><span class="sd">    Returns:</span>
 <a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">        A pyramids `NetCDF` variable view of the channel's raw effective radiance</span>
-<a id="__codelineno-0-99" name="__codelineno-0-99"></a><span class="sd">        (a `Dataset`-like object exposing `read_array` / `geotransform` / `epsg`,</span>
-<a id="__codelineno-0-100" name="__codelineno-0-100"></a><span class="sd">        as `read_fci` consumes it).</span>
+<a id="__codelineno-0-99" name="__codelineno-0-99"></a><span class="sd">        (a `Dataset`-like object exposing `read_array` / `geotransform` / `epsg` /</span>
+<a id="__codelineno-0-100" name="__codelineno-0-100"></a><span class="sd">        `columns` / `rows`, as `read_fci` consumes it).</span>
 <a id="__codelineno-0-101" name="__codelineno-0-101"></a><span class="sd">    """</span>
 <a id="__codelineno-0-102" name="__codelineno-0-102"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.netcdf</span><span class="w"> </span><span class="kn">import</span> <span class="n">NetCDF</span>
 <a id="__codelineno-0-103" name="__codelineno-0-103"></a>
 <a id="__codelineno-0-104" name="__codelineno-0-104"></a>    <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-0-105" name="__codelineno-0-105"></a>        <span class="n">variable</span> <span class="o">=</span> <span class="n">radiance_group</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">channel</span><span class="o">=</span><span class="n">channel</span><span class="p">)</span>
-<a id="__codelineno-0-106" name="__codelineno-0-106"></a>    <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+<a id="__codelineno-0-106" name="__codelineno-0-106"></a>    <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
 <a id="__codelineno-0-107" name="__codelineno-0-107"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
-<a id="__codelineno-0-108" name="__codelineno-0-108"></a>            <span class="sa">f</span><span class="s2">"invalid radiance_group template </span><span class="si">{</span><span class="n">radiance_group</span><span class="si">!r}</span><span class="s2">: it must contain "</span>
-<a id="__codelineno-0-109" name="__codelineno-0-109"></a>            <span class="sa">f</span><span class="s2">"exactly one '</span><span class="se">{{</span><span class="s2">channel</span><span class="se">}}</span><span class="s2">' field (</span><span class="si">{</span><span class="n">exc</span><span class="si">!r}</span><span class="s2">)"</span>
+<a id="__codelineno-0-108" name="__codelineno-0-108"></a>            <span class="sa">f</span><span class="s2">"invalid radiance_group template </span><span class="si">{</span><span class="n">radiance_group</span><span class="si">!r}</span><span class="s2">: it must be a "</span>
+<a id="__codelineno-0-109" name="__codelineno-0-109"></a>            <span class="sa">f</span><span class="s2">"format string with a single '</span><span class="se">{{</span><span class="s2">channel</span><span class="se">}}</span><span class="s2">' field (</span><span class="si">{</span><span class="n">exc</span><span class="si">!r}</span><span class="s2">)"</span>
 <a id="__codelineno-0-110" name="__codelineno-0-110"></a>        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
 <a id="__codelineno-0-111" name="__codelineno-0-111"></a>    <span class="c1"># Group navigation via get_variable needs the file opened as multidimensional;</span>
 <a id="__codelineno-0-112" name="__codelineno-0-112"></a>    <span class="c1"># pass it explicitly rather than relying on read_file's default.</span>
@@ -2955,7 +2957,7 @@ opener positionally, so to thread a non-default template through
             </td>
             <td>
               <div class="doc-md-description">
-                <p>(a <code>Dataset</code>-like object exposing <code>read_array</code> / <code>geotransform</code> / <code>epsg</code>,</p>
+                <p>(a <code>Dataset</code>-like object exposing <code>read_array</code> / <code>geotransform</code> / <code>epsg</code> /</p>
               </div>
             </td>
           </tr>
@@ -2965,7 +2967,7 @@ opener positionally, so to thread a non-default template through
             </td>
             <td>
               <div class="doc-md-description">
-                <p>as <code>read_fci</code> consumes it).</p>
+                <p><code>columns</code> / <code>rows</code>, as <code>read_fci</code> consumes it).</p>
               </div>
             </td>
           </tr>
@@ -3075,17 +3077,17 @@ opener positionally, so to thread a non-default template through
 <a id="__codelineno-0-96" name="__codelineno-0-96"></a>
 <a id="__codelineno-0-97" name="__codelineno-0-97"></a><span class="sd">    Returns:</span>
 <a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">        A pyramids `NetCDF` variable view of the channel's raw effective radiance</span>
-<a id="__codelineno-0-99" name="__codelineno-0-99"></a><span class="sd">        (a `Dataset`-like object exposing `read_array` / `geotransform` / `epsg`,</span>
-<a id="__codelineno-0-100" name="__codelineno-0-100"></a><span class="sd">        as `read_fci` consumes it).</span>
+<a id="__codelineno-0-99" name="__codelineno-0-99"></a><span class="sd">        (a `Dataset`-like object exposing `read_array` / `geotransform` / `epsg` /</span>
+<a id="__codelineno-0-100" name="__codelineno-0-100"></a><span class="sd">        `columns` / `rows`, as `read_fci` consumes it).</span>
 <a id="__codelineno-0-101" name="__codelineno-0-101"></a><span class="sd">    """</span>
 <a id="__codelineno-0-102" name="__codelineno-0-102"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.netcdf</span><span class="w"> </span><span class="kn">import</span> <span class="n">NetCDF</span>
 <a id="__codelineno-0-103" name="__codelineno-0-103"></a>
 <a id="__codelineno-0-104" name="__codelineno-0-104"></a>    <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-0-105" name="__codelineno-0-105"></a>        <span class="n">variable</span> <span class="o">=</span> <span class="n">radiance_group</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">channel</span><span class="o">=</span><span class="n">channel</span><span class="p">)</span>
-<a id="__codelineno-0-106" name="__codelineno-0-106"></a>    <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+<a id="__codelineno-0-106" name="__codelineno-0-106"></a>    <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
 <a id="__codelineno-0-107" name="__codelineno-0-107"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
-<a id="__codelineno-0-108" name="__codelineno-0-108"></a>            <span class="sa">f</span><span class="s2">"invalid radiance_group template </span><span class="si">{</span><span class="n">radiance_group</span><span class="si">!r}</span><span class="s2">: it must contain "</span>
-<a id="__codelineno-0-109" name="__codelineno-0-109"></a>            <span class="sa">f</span><span class="s2">"exactly one '</span><span class="se">{{</span><span class="s2">channel</span><span class="se">}}</span><span class="s2">' field (</span><span class="si">{</span><span class="n">exc</span><span class="si">!r}</span><span class="s2">)"</span>
+<a id="__codelineno-0-108" name="__codelineno-0-108"></a>            <span class="sa">f</span><span class="s2">"invalid radiance_group template </span><span class="si">{</span><span class="n">radiance_group</span><span class="si">!r}</span><span class="s2">: it must be a "</span>
+<a id="__codelineno-0-109" name="__codelineno-0-109"></a>            <span class="sa">f</span><span class="s2">"format string with a single '</span><span class="se">{{</span><span class="s2">channel</span><span class="se">}}</span><span class="s2">' field (</span><span class="si">{</span><span class="n">exc</span><span class="si">!r}</span><span class="s2">)"</span>
 <a id="__codelineno-0-110" name="__codelineno-0-110"></a>        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
 <a id="__codelineno-0-111" name="__codelineno-0-111"></a>    <span class="c1"># Group navigation via get_variable needs the file opened as multidimensional;</span>
 <a id="__codelineno-0-112" name="__codelineno-0-112"></a>    <span class="c1"># pass it explicitly rather than relying on read_file's default.</span>
