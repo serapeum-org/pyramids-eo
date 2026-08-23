@@ -1,4 +1,4 @@
-"""Unit tests for `pyramids_eo.readers.read_seviri` (offline; parser injected)."""
+"""Unit tests for `pyramids_eo.sensors.readers.read_seviri` (offline; parser injected)."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ import pytest
 from pyramids.dataset import Dataset
 
 from pyramids_eo.errors import CalibrationError, ReaderError, UnknownSensorError
-from pyramids_eo.readers import read_seviri
-from pyramids_eo.readers._common import calibrate_channel
-from pyramids_eo.readers.seviri import _default_parse
-from pyramids_eo.registry import (
+from pyramids_eo.sensors.readers import read_seviri
+from pyramids_eo.sensors.readers._common import calibrate_channel
+from pyramids_eo.sensors.readers.seviri import _default_parse
+from pyramids_eo.sensors.registry import (
     Channel,
     Sensor,
     get_sensor,
@@ -119,7 +119,7 @@ class TestCalibrateChannelCoeffs:
             },
         )
         monkeypatch.setattr(
-            "pyramids_eo.readers._common.get_sensor", lambda name: broken
+            "pyramids_eo.sensors.readers._common.get_sensor", lambda name: broken
         )
         src = _ds(np.ones((2, 2)))
         with pytest.raises(CalibrationError, match="central_wavenumber"):

@@ -1,4 +1,4 @@
-"""Unit tests for `pyramids_eo.readers.read_fci` (offline; synthetic chunks)."""
+"""Unit tests for `pyramids_eo.sensors.readers.read_fci` (offline; synthetic chunks)."""
 
 from __future__ import annotations
 
@@ -7,15 +7,15 @@ import pytest
 from pyramids.dataset import Dataset
 
 from pyramids_eo.errors import CalibrationError, ReaderError, UnknownSensorError
-from pyramids_eo.readers import read_fci
-from pyramids_eo.readers.fci import _default_open_chunk
-from pyramids_eo.registry import (
+from pyramids_eo.sensors.readers import read_fci
+from pyramids_eo.sensors.readers.fci import _default_open_chunk
+from pyramids_eo.sensors.registry import (
     Channel,
     Sensor,
     radiance_to_brightness_temperature,
     radiance_to_reflectance,
 )
-from pyramids_eo.registry import sensors as _sensors
+from pyramids_eo.sensors.registry import sensors as _sensors
 
 
 def _chunk(arr: np.ndarray, tlc=(0.0, 4.0)) -> Dataset:
@@ -171,7 +171,7 @@ class TestReadFci:
             channels={"x": Channel("x", 0.6, 1000, "solar", solar_irradiance=None)},
         )
         monkeypatch.setattr(
-            "pyramids_eo.readers._common.get_sensor", lambda name: broken
+            "pyramids_eo.sensors.readers._common.get_sensor", lambda name: broken
         )
         chunk = _chunk(np.ones((2, 2)))
         with pytest.raises(CalibrationError, match="solar_irradiance"):
@@ -186,7 +186,7 @@ class TestReadFci:
             },
         )
         monkeypatch.setattr(
-            "pyramids_eo.readers._common.get_sensor", lambda name: broken
+            "pyramids_eo.sensors.readers._common.get_sensor", lambda name: broken
         )
         chunk = _chunk(np.ones((2, 2)))
         with pytest.raises(CalibrationError, match="central_wavenumber"):

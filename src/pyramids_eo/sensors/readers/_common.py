@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 
 from pyramids_eo.errors import CalibrationError
-from pyramids_eo.registry import (
+from pyramids_eo.sensors.registry import (
     get_sensor,
     radiance_to_brightness_temperature,
     radiance_to_reflectance,

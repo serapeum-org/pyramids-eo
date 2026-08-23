@@ -20,5 +20,5 @@ def test_error_hierarchy():
 
 
 def test_subpackages_import():
-    import pyramids_eo.readers  # noqa: F401
-    import pyramids_eo.registry  # noqa: F401
+    import pyramids_eo.sensors.readers  # noqa: F401
+    import pyramids_eo.sensors.registry  # noqa: F401

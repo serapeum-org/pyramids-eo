@@ -1,4 +1,4 @@
-"""Unit tests for `pyramids_eo.readers.harmonise` (offline; synthetic grids)."""
+"""Unit tests for `pyramids_eo.sensors.readers.harmonise` (offline; synthetic grids)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import pytest
 from pyramids.dataset import Dataset
 
 from pyramids_eo.errors import ReaderError
-from pyramids_eo.readers import harmonise
+from pyramids_eo.sensors.readers import harmonise
 
 
 def _grid(shape, cell=1.0, tlc=(0.0, 4.0)) -> Dataset:

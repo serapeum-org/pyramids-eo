@@ -12,11 +12,11 @@ and (nominal) calibration constants, backed by YAML tables under
 
 from __future__ import annotations
 
-from pyramids_eo.registry.calibration import (
+from pyramids_eo.sensors.registry.calibration import (
     radiance_to_brightness_temperature,
     radiance_to_reflectance,
 )
-from pyramids_eo.registry.sensors import Channel, Sensor, get_sensor
+from pyramids_eo.sensors.registry.sensors import Channel, Sensor, get_sensor
 
 __all__ = [
     "Channel",

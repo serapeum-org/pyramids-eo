@@ -10,7 +10,7 @@ Two conversions turn raw L1 radiances into physical quantities:
 
 The math is exact; the per-channel constants come from the file metadata where
 available, falling back to the bundled registry tables (see
-`pyramids_eo.registry.get_sensor`).
+`pyramids_eo.sensors.registry.get_sensor`).
 """
 
 from __future__ import annotations
