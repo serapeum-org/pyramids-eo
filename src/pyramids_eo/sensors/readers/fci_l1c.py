@@ -12,9 +12,10 @@ already-opened radiance `Dataset`s), this reads the actual granule layout:
   the same group (`radiance_to_bt_conversion_coefficient_a` / `_b` /
   `_wavenumber` for thermal channels, `channel_effective_solar_irradiance` for
   solar ones), preferred over the nominal registry table;
-* the vertical placement from `start_position_row` / `end_position_row`, used to
-  order and stitch the chunks (a chunk that carries no radiance for the channel —
-  e.g. the `CHK-TRAIL` trailer — is skipped).
+* the chunks are ordered and stitched by their geostationary geotransform Y
+  origin (FCI's `start_position_row` runs opposite to the geospatial Y, so it is
+  read as metadata but is not the stitch key); a chunk that carries no radiance
+  for the channel — e.g. the `CHK-TRAIL` trailer — is skipped.
 
 The granule stores the grid in geostationary *angular* (radian) coordinates with
 a metre geostationary CRS; the metre geotransform is reconstructed as
@@ -213,6 +214,48 @@ def _satellite_height(crs_wkt: str) -> float:
     return float(match.group(1))
 
 
+def _validate_chunks(chunks: list) -> None:
+    """Check the ordered chunks form one consistent geostationary mosaic.
+
+    The chunks must be pre-sorted north -> south by their geotransform Y origin.
+    Validates that they share a CRS, cell size and column count, and that each
+    chunk's bottom edge meets the next chunk's top edge (no vertical gap or
+    overlap) — so concatenating their arrays yields a correctly geolocated grid.
+
+    Args:
+        chunks: The chunk records, sorted by `geotransform[3]` descending.
+
+    Raises:
+        ReaderError: On mixed CRS / cell size / column count, or a vertical gap /
+            overlap between chunks (which would silently mis-stitch the scene).
+    """
+    first = chunks[0]
+    columns = first["radiance"].shape[1]
+    for chunk in chunks[1:]:
+        if chunk["crs"] != first["crs"]:
+            raise ReaderError("read_fci_l1c: chunks have mixed CRS")
+        if not np.isclose(
+            chunk["geotransform"][1], first["geotransform"][1]
+        ) or not np.isclose(chunk["geotransform"][5], first["geotransform"][5]):
+            raise ReaderError("read_fci_l1c: chunks have mixed cell size")
+        if chunk["radiance"].shape[1] != columns:
+            raise ReaderError("read_fci_l1c: chunks have mixed column count")
+
+    # Tolerance scaled to the (angular) row pixel, so it tracks the grid rather
+    # than depending on the coordinate magnitude.
+    atol = abs(first["geotransform"][5]) * 1e-3
+    for upper, lower in zip(chunks, chunks[1:]):
+        upper_bottom = (
+            upper["geotransform"][3]
+            + upper["radiance"].shape[0] * upper["geotransform"][5]
+        )
+        if not np.isclose(upper_bottom, lower["geotransform"][3], rtol=0.0, atol=atol):
+            raise ReaderError(
+                "read_fci_l1c: chunks are not vertically contiguous "
+                f"({upper_bottom} -> {lower['geotransform'][3]})"
+            )
+
+
 def read_fci_l1c(
     paths: Any,
     channel: str,
@@ -224,8 +267,9 @@ def read_fci_l1c(
     """Read one channel across a set of real FCI L1C FDHSI chunk files.
 
     Decodes each chunk (`read_fci_l1c_chunk`), drops those without the channel's
-    radiance (e.g. `CHK-TRAIL`), orders the rest by `start_position_row`, checks
-    they are exactly row-contiguous, stitches the radiance, and calibrates it with
+    radiance (e.g. `CHK-TRAIL`), orders the rest north -> south by their
+    geotransform Y origin, checks they are vertically contiguous (and share a
+    grid), stitches the radiance, and calibrates it with
     the **per-granule** coefficients (reflectance for a solar channel, brightness
     temperature for a thermal one). The result is a geolocated pyramids `Dataset`
     on the granule's geostationary grid (metre geotransform reconstructed from the
@@ -246,8 +290,10 @@ def read_fci_l1c(
         geostationary grid, with NaN nodata and the granule's geostationary CRS.
 
     Raises:
-        ReaderError: When no chunk carries the channel, or the chunks are not
-            row-contiguous.
+        ReaderError: When no chunk carries the channel, a chunk lacks its row
+            position, or the chunks are inconsistent (mixed CRS / cell size /
+            column count, or not row- and geospatially-contiguous — see
+            `_validate_chunks`).
         CalibrationError: When a channel lacks the constants its kind needs.
         UnknownSensorError: When the channel is not in the registry.
     """
@@ -258,14 +304,14 @@ def read_fci_l1c(
     ]
     if not chunks:
         raise ReaderError(f"read_fci_l1c: no chunk carries channel {channel!r}")
+    if any(chunk["start_row"] is None or chunk["end_row"] is None for chunk in chunks):
+        raise ReaderError("read_fci_l1c: a chunk carries no start/end_position_row")
 
-    chunks.sort(key=lambda chunk: chunk["start_row"])
-    for upper, lower in zip(chunks, chunks[1:]):
-        if upper["end_row"] + 1 != lower["start_row"]:
-            raise ReaderError(
-                "read_fci_l1c: chunks are not row-contiguous "
-                f"({upper['end_row']} -> {lower['start_row']})"
-            )
+    # Order north -> south by the geotransform Y origin — the geostationary grid,
+    # NOT the row index, is the geolocation source. (FCI's start_position_row runs
+    # the opposite way to the geospatial Y, so ordering by it would flip the scene.)
+    chunks.sort(key=lambda chunk: chunk["geotransform"][3], reverse=True)
+    _validate_chunks(chunks)
 
     radiance = np.concatenate([chunk["radiance"] for chunk in chunks], axis=0)
     data = (

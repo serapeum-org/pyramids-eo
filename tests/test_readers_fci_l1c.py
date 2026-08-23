@@ -271,12 +271,15 @@ class TestReadFciL1c:
 
     @staticmethod
     def _chunk(radiance, start, end, coeffs=None):
+        # A geotransform whose Y origin follows start_row, so adjacent chunks are
+        # geospatially contiguous (north-up: gt[5] < 0, origin = start * gt[5]).
+        gt5 = -1e-5
         return {
             "radiance": radiance,
             "start_row": start,
             "end_row": end,
             "coeffs": coeffs or _THERMAL,
-            "geotransform": (0.1, -1e-5, 0.0, 0.2, 0.0, 1e-5),
+            "geotransform": (0.1, gt5, 0.0, start * gt5, 0.0, gt5),
             "crs": GEOS_WKT,
         }
 
@@ -284,8 +287,8 @@ class TestReadFciL1c:
         monkeypatch.setattr(fci_l1c, "read_fci_l1c_chunk", lambda p, c: mapping[p])
         monkeypatch.setattr(fci_l1c, "_satellite_height", lambda wkt: 1.0e5)
 
-    def test_orders_by_row_and_skips_trailer(self, monkeypatch):
-        """Chunks are ordered by start_row; a None (trailer) is dropped."""
+    def test_orders_geospatially_and_skips_trailer(self, monkeypatch):
+        """Chunks are ordered north->south by geotransform Y; a trailer is dropped."""
         mapping = {
             "b.nc": self._chunk(np.full((2, 3), 9.0), 142, 143),
             "trail.nc": None,
@@ -295,11 +298,13 @@ class TestReadFciL1c:
         out = read_fci_l1c(["b.nc", "trail.nc", "a.nc"], "ir_105", calibrate=False)
         arr = out.read_array()
         assert arr.shape == (4, 3), f"expected 4 stitched rows, got {arr.shape}"
-        assert np.allclose(arr[:2], 5.0), "the start_row=140 chunk must be on top"
-        assert np.allclose(arr[2:], 9.0), "the start_row=142 chunk must be below"
+        assert np.allclose(arr[:2], 5.0), (
+            "the northernmost (largest gt[3]) chunk is on top"
+        )
+        assert np.allclose(arr[2:], 9.0), "the southern chunk is below"
 
     def test_non_contiguous_raises(self, monkeypatch):
-        """A row gap between chunks is rejected."""
+        """A vertical gap between chunks is rejected."""
         mapping = {
             "a.nc": self._chunk(np.ones((2, 3)), 140, 141),
             "b.nc": self._chunk(np.ones((2, 3)), 279, 280),
@@ -331,6 +336,33 @@ class TestReadFciL1c:
         )
         assert out.epsg is None, "a geostationary grid has no EPSG code"
 
+    def test_missing_position_raises(self, monkeypatch):
+        """A chunk without a row position is a ReaderError, not a TypeError."""
+        chunk = self._chunk(np.ones((2, 3)), 140, 141)
+        chunk["start_row"] = None
+        self._patch(monkeypatch, {"a.nc": chunk})
+        with pytest.raises(ReaderError, match="start/end_position_row"):
+            read_fci_l1c(["a.nc"], "ir_105")
+
+    def test_mixed_column_count_raises(self, monkeypatch):
+        """Chunks with different widths are rejected."""
+        mapping = {
+            "a.nc": self._chunk(np.ones((2, 3)), 140, 141),
+            "b.nc": self._chunk(np.ones((2, 4)), 142, 143),
+        }
+        self._patch(monkeypatch, mapping)
+        with pytest.raises(ReaderError, match="column count"):
+            read_fci_l1c(["a.nc", "b.nc"], "ir_105")
+
+    def test_mixed_crs_raises(self, monkeypatch):
+        """Chunks from a different CRS are rejected."""
+        other = self._chunk(np.ones((2, 3)), 142, 143)
+        other["crs"] = "OTHER_WKT"
+        mapping = {"a.nc": self._chunk(np.ones((2, 3)), 140, 141), "b.nc": other}
+        self._patch(monkeypatch, mapping)
+        with pytest.raises(ReaderError, match="mixed CRS"):
+            read_fci_l1c(["a.nc", "b.nc"], "ir_105")
+
 
 @pytest.mark.live
 def test_read_fci_l1c_real_granule():
@@ -353,4 +385,5 @@ def test_read_fci_l1c_real_granule():
     assert abs(scene.geotransform[1]) == pytest.approx(2000.0, abs=1.0), (
         "ir_105 is 2 km"
     )
+    assert scene.geotransform[5] < 0, "the stitched grid must be north-up (gt[5] < 0)"
     assert np.isnan(scene.no_data_value[0]), "nodata should be NaN"
