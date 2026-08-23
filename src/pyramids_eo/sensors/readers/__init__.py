@@ -5,6 +5,8 @@ Each reader takes a file path / chunk set / `Dataset` and returns a pyramids
 
 * `read_fci` — MTG-FCI L1C (FDHSI): stitch a channel across its chunk set and
   calibrate to reflectance / brightness temperature.
+* `open_fci_l1c_chunk` — canonical `open_chunk` for real FCI L1C FDHSI granules
+  (reads the nested `data/<channel>/measured/effective_radiance` layout).
 * `read_seviri` — MSG-SEVIRI native (`.nat`): calibrate + geolocate a channel
   (the raw `.nat` byte decode is injectable — see its module warning).
 * `harmonise` — align multi-resolution bands onto one common target grid.
@@ -12,12 +14,13 @@ Each reader takes a file path / chunk set / `Dataset` and returns a pyramids
 
 from __future__ import annotations
 
-from pyramids_eo.sensors.readers.fci import read_fci
+from pyramids_eo.sensors.readers.fci import open_fci_l1c_chunk, read_fci
 from pyramids_eo.sensors.readers.harmonise import harmonise
 from pyramids_eo.sensors.readers.seviri import read_seviri
 
 __all__ = [
     "harmonise",
+    "open_fci_l1c_chunk",
     "read_fci",
     "read_seviri",
 ]
