@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -1466,8 +1466,11 @@
 <h1 id="api-reference"><a class="toclink" href="#api-reference">API Reference</a><a class="headerlink" href="#api-reference" title="Permanent link">#</a></h1>
 <p>The pyramids-eo public API.</p>
 <ul>
+<li><strong>Sensors</strong> — the L1 data-access layer:<ul>
 <li><a href="readers/">Readers</a> — instrument readers (the package entry points).</li>
 <li><a href="registry/">Registry</a> — sensor metadata (band → wavelength, native resolution, fill, calibration).</li>
+</ul>
+</li>
 <li><a href="errors/">Errors</a> — the <code>EOError</code> exception family.</li>
 <li><a href="stac/">STAC signers</a> — EO provider asset signers (PC / Earthdata / CDSE / BDC).</li>
 <li><a href="composites/">Composites</a> — day/night compositing (solar geometry, blend).</li>
