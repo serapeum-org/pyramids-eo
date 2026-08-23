@@ -140,7 +140,9 @@ def _valid_bounds(text: Any) -> tuple[float | None, float | None]:
     return float(numbers[0]), float(numbers[-1])
 
 
-def _unpack_radiance(path: Any, channel: str) -> tuple[np.ndarray, tuple, str]:
+def _unpack_radiance(
+    path: Any, channel: str
+) -> tuple[np.ndarray, tuple[float, ...], str]:
     """Read + unpack a chunk's radiance, with its angular geotransform + CRS.
 
     Reads the packed `uint16` `effective_radiance` via a GDAL NetCDF subdataset,
