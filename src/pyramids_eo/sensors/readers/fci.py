@@ -94,8 +94,18 @@ def open_fci_l1c_chunk(
     """
     from pyramids.netcdf import NetCDF
 
-    variable = radiance_group.format(channel=channel)
-    return NetCDF.read_file(str(path)).get_variable(variable)
+    try:
+        variable = radiance_group.format(channel=channel)
+    except (KeyError, IndexError, ValueError) as exc:
+        raise ReaderError(
+            f"invalid radiance_group template {radiance_group!r}: it must contain "
+            f"exactly one '{{channel}}' field ({exc!r})"
+        ) from exc
+    # Group navigation via get_variable needs the file opened as multidimensional;
+    # pass it explicitly rather than relying on read_file's default.
+    return NetCDF.read_file(str(path), open_as_multi_dimensional=True).get_variable(
+        variable
+    )
 
 
 def read_fci(

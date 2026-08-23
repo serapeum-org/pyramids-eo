@@ -230,7 +230,7 @@ class TestOpenFciL1cChunk:
         import pyramids.netcdf as _ncmod
 
         monkeypatch.setattr(
-            _ncmod.NetCDF, "read_file", classmethod(lambda cls, p: _FakeNC())
+            _ncmod.NetCDF, "read_file", classmethod(lambda cls, p, **kw: _FakeNC())
         )
 
     def test_reads_nested_group_qualified_variable(self, monkeypatch):
