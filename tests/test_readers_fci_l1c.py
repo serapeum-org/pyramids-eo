@@ -183,6 +183,10 @@ class TestValidBounds:
         assert _valid_bounds("{}") == (None, None)
         assert _valid_bounds("{5}") == (None, None)
 
+    def test_scientific_and_negative(self):
+        """Scientific-notation and negative bounds parse correctly."""
+        assert _valid_bounds("{-1.5e2, 4.0e3}") == (-150.0, 4000.0)
+
 
 class TestMeasuredGroup:
     """`_measured_group` returns the channel group or None for a trailer."""
