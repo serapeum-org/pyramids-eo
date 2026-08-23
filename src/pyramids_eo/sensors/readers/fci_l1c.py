@@ -128,7 +128,8 @@ def _granule_coeffs(group: Any) -> dict[str, Any]:
 
 
 #: Matches a signed integer/decimal number, optionally in scientific notation.
-_NUMBER = r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?"
+#: Written without overlapping quantifiers so it has linear (no-backtracking) time.
+_NUMBER = r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?"
 
 
 def _valid_bounds(text: Any) -> tuple[float | None, float | None]:
