@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -991,6 +991,56 @@
   
   
   
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Sensors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../reference/readers/" class="md-nav__link">
         
@@ -1036,6 +1086,14 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2200,7 +2258,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <h1 id="the-sensor-registry-and-radiometric-calibration">The sensor registry and radiometric calibration<a class="anchor-link" href="#the-sensor-registry-and-radiometric-calibration">¶</a></h1><p>Raw EO Level-1 imagery is stored as <em>radiance</em> (or packed counts) — physically
 meaningful, but not what analysts reason about. This notebook teaches
-<a href="../reference/registry.md"><code>pyramids_eo.registry</code></a>: the small metadata layer that
+<a href="../reference/registry.md"><code>pyramids_eo.sensors.registry</code></a>: the small metadata layer that
 turns raw channel radiance into <strong>reflectance</strong> (solar bands) and <strong>brightness
 temperature</strong> (thermal bands), using the exact radiometric physics with per-channel
 constants looked up from bundled sensor tables.</p>
@@ -2255,8 +2313,8 @@ satellite granule download is required.</p>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.readers._common</span><span class="w"> </span><span class="kn">import</span> <span class="n">calibrate_channel</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.registry</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.sensors.readers._common</span><span class="w"> </span><span class="kn">import</span> <span class="n">calibrate_channel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.sensors.registry</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">get_sensor</span><span class="p">,</span>
     <span class="n">radiance_to_brightness_temperature</span><span class="p">,</span>
     <span class="n">radiance_to_reflectance</span><span class="p">,</span>
@@ -2268,8 +2326,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from pyramids_eo.readers._common import calibrate_channel
-from pyramids_eo.registry import (
+from pyramids_eo.sensors.readers._common import calibrate_channel
+from pyramids_eo.sensors.registry import (
     get_sensor,
     radiance_to_brightness_temperature,
     radiance_to_reflectance,
@@ -2286,7 +2344,7 @@ from pyramids_eo.registry import (
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="the-sensor-table-get_sensor">The sensor table — <code>get_sensor</code><a class="anchor-link" href="#the-sensor-table-get_sensor">¶</a></h2><p><code>get_sensor(name)</code> loads <code>registry/data/&lt;name&gt;.yaml</code> and returns a <code>Sensor</code> holding a
+<h2 id="the-sensor-table-get_sensor">The sensor table — <code>get_sensor</code><a class="anchor-link" href="#the-sensor-table-get_sensor">¶</a></h2><p><code>get_sensor(name)</code> loads <code>sensors/registry/data/&lt;name&gt;.yaml</code> and returns a <code>Sensor</code> holding a
 frozen <code>Channel</code> record per band. Each channel carries its wavelength, native
 resolution, radiometric <code>kind</code> (<code>solar</code> or <code>thermal</code>), and the <em>nominal</em> calibration
 constants a reader falls back to when a granule does not carry its own. The <code>Sensor</code>

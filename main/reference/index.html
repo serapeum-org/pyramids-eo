@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -958,6 +958,56 @@
   
   
   
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Sensors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="readers/" class="md-nav__link">
         
@@ -1003,6 +1053,14 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -1408,8 +1466,11 @@
 <h1 id="api-reference"><a class="toclink" href="#api-reference">API Reference</a><a class="headerlink" href="#api-reference" title="Permanent link">#</a></h1>
 <p>The pyramids-eo public API.</p>
 <ul>
+<li><strong>Sensors</strong> — the L1 data-access layer:<ul>
 <li><a href="readers/">Readers</a> — instrument readers (the package entry points).</li>
 <li><a href="registry/">Registry</a> — sensor metadata (band → wavelength, native resolution, fill, calibration).</li>
+</ul>
+</li>
 <li><a href="errors/">Errors</a> — the <code>EOError</code> exception family.</li>
 <li><a href="stac/">STAC signers</a> — EO provider asset signers (PC / Earthdata / CDSE / BDC).</li>
 <li><a href="composites/">Composites</a> — day/night compositing (solar geometry, blend).</li>
