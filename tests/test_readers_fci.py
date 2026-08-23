@@ -229,9 +229,11 @@ class TestOpenFciL1cChunk:
 
         import pyramids.netcdf as _ncmod
 
-        monkeypatch.setattr(
-            _ncmod.NetCDF, "read_file", classmethod(lambda cls, p, **kw: _FakeNC())
-        )
+        def _fake_read_file(cls, p, **kw):
+            captured["read_file_kw"] = kw
+            return _FakeNC()
+
+        monkeypatch.setattr(_ncmod.NetCDF, "read_file", classmethod(_fake_read_file))
 
     def test_reads_nested_group_qualified_variable(self, monkeypatch):
         """The opener requests `data/<channel>/measured/effective_radiance`."""
@@ -266,9 +268,22 @@ class TestOpenFciL1cChunk:
         open_fci_l1c_chunk("chunk.nc", "ir_{x}")
         assert captured["name"] == "data/ir_{x}/measured/effective_radiance", captured
 
-    def test_malformed_template_raises_reader_error(self, monkeypatch):
-        """A template whose field is not `channel` raises ReaderError, not KeyError."""
+    def test_opens_file_as_multidimensional(self, monkeypatch):
+        """The opener passes open_as_multi_dimensional=True for group navigation."""
+        captured = {}
+        self._patch_netcdf(monkeypatch, captured)
+        open_fci_l1c_chunk("chunk.nc", "ir_105")
+        assert captured["read_file_kw"].get("open_as_multi_dimensional") is True, (
+            f"expected a multidimensional open, got {captured.get('read_file_kw')}"
+        )
+
+    @pytest.mark.parametrize(
+        "template",
+        ["data/{chan}/rad", "data/{}/rad", "data/{channel"],
+    )
+    def test_malformed_template_raises_reader_error(self, monkeypatch, template):
+        """A malformed template raises ReaderError, not a raw str.format error."""
         captured = {}
         self._patch_netcdf(monkeypatch, captured)
         with pytest.raises(ReaderError, match="radiance_group"):
-            open_fci_l1c_chunk("chunk.nc", "ir_105", radiance_group="data/{chan}/rad")
+            open_fci_l1c_chunk("chunk.nc", "ir_105", radiance_group=template)
