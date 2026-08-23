@@ -62,12 +62,18 @@ def _measured_group(path: Any, channel: str) -> tuple[Any, Any]:
     """
     from osgeo import gdal
 
-    dataset = gdal.OpenEx(str(path), gdal.OF_MULTIDIM_RASTER)
+    try:
+        dataset = gdal.OpenEx(str(path), gdal.OF_MULTIDIM_RASTER)
+    except RuntimeError as exc:  # GDAL exceptions enabled: unopenable/corrupt file
+        raise ReaderError(f"read_fci_l1c: cannot open {path} ({exc!r})") from exc
+    if dataset is None:  # GDAL exceptions disabled
+        raise ReaderError(f"read_fci_l1c: cannot open {path}")
     try:
         group = dataset.GetRootGroup().OpenGroupFromFullname(
             _MEASURED_GROUP.format(channel=channel)
         )
     except RuntimeError:
+        # No such group -> this file does not carry the channel (e.g. CHK-TRAIL).
         return None, None
     return dataset, group
 
@@ -160,8 +166,11 @@ def _unpack_radiance(
     from osgeo import gdal
 
     subdataset = f'NETCDF:"{path}":/data/{channel}/measured/effective_radiance'
-    raster = gdal.Open(subdataset)
-    if raster is None:
+    try:
+        raster = gdal.Open(subdataset)
+    except RuntimeError as exc:  # GDAL exceptions enabled
+        raise ReaderError(f"read_fci_l1c: cannot open {subdataset} ({exc!r})") from exc
+    if raster is None:  # GDAL exceptions disabled
         raise ReaderError(f"read_fci_l1c: cannot open {subdataset}")
     band = raster.GetRasterBand(1)
     raw = np.asarray(band.ReadAsArray())
@@ -186,7 +195,9 @@ def _unpack_radiance(
         invalid |= raw == float(meta["_FillValue"])
     radiance[invalid] = np.nan
     geotransform, crs = raster.GetGeoTransform(), raster.GetProjection()
-    del raster  # release the raster handle deterministically
+    # Drop both the band and the dataset: a live band reference keeps the owning
+    # dataset open, so release both to free the handle at function return.
+    del raster, band
     return radiance, geotransform, crs
 
 

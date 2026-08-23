@@ -151,10 +151,21 @@ class TestUnpackRadiance:
             _unpack_radiance("f.nc", "ir_105")
 
     def test_none_raster_raises(self, monkeypatch):
-        """A None from gdal.Open raises ReaderError, not AttributeError."""
+        """A None from gdal.Open (exceptions off) raises ReaderError."""
         import osgeo.gdal as _g
 
         monkeypatch.setattr(_g, "Open", lambda sub: None)
+        with pytest.raises(ReaderError, match="cannot open"):
+            _unpack_radiance("f.nc", "ir_105")
+
+    def test_open_runtimeerror_raises(self, monkeypatch):
+        """A RuntimeError from gdal.Open (exceptions on) raises ReaderError."""
+        import osgeo.gdal as _g
+
+        def _raise(sub):
+            raise RuntimeError("not a supported file format")
+
+        monkeypatch.setattr(_g, "Open", _raise)
         with pytest.raises(ReaderError, match="cannot open"):
             _unpack_radiance("f.nc", "ir_105")
 
@@ -203,6 +214,25 @@ class TestMeasuredGroup:
         self._patch(monkeypatch, None)
         _dataset, group = _measured_group("trail.nc", "ir_105")
         assert group is None
+
+    def test_open_failure_raises(self, monkeypatch):
+        """A RuntimeError from OpenEx (exceptions on) raises ReaderError."""
+        import osgeo.gdal as _g
+
+        def _raise(path, flags):
+            raise RuntimeError("not recognized as a supported file format")
+
+        monkeypatch.setattr(_g, "OpenEx", _raise)
+        with pytest.raises(ReaderError, match="cannot open"):
+            _measured_group("corrupt.nc", "ir_105")
+
+    def test_none_dataset_raises(self, monkeypatch):
+        """A None from OpenEx (exceptions off) raises ReaderError."""
+        import osgeo.gdal as _g
+
+        monkeypatch.setattr(_g, "OpenEx", lambda path, flags: None)
+        with pytest.raises(ReaderError, match="cannot open"):
+            _measured_group("corrupt.nc", "ir_105")
 
 
 class TestScalar:
