@@ -1,4 +1,4 @@
-# readers
+# Sensors — Readers
 
 Instrument readers that decode L1 formats into calibrated, geolocated pyramids
 `Dataset`s.

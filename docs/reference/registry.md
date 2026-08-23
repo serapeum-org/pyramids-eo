@@ -1,8 +1,8 @@
-# registry
+# Sensors — Registry
 
 Sensor / channel metadata and radiometric calibration for EO instruments
-(MTG-FCI, MSG-SEVIRI). The channel tables live in `registry/data/*.yaml`; the
-calibration functions turn raw L1 radiances into reflectance / brightness
+(MTG-FCI, MSG-SEVIRI). The channel tables live in `sensors/registry/data/*.yaml`;
+the calibration functions turn raw L1 radiances into reflectance / brightness
 temperature.
 
 ::: pyramids_eo.sensors.registry
