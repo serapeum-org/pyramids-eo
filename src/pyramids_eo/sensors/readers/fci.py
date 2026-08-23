@@ -30,7 +30,7 @@ from pyramids_eo.sensors.readers._common import calibrate_channel
 
 
 def _default_open_chunk(path: Any, channel: str) -> Any:
-    """Open one FCI chunk and return the channel's radiance as a `Dataset`.
+    """Open one FCI chunk and return the channel's radiance as a NetCDF view.
 
     Reads `path` with `pyramids.netcdf.NetCDF` and extracts the variable named
     `channel`. See the module warning: real FCI L1C uses nested groups, so a
@@ -42,8 +42,8 @@ def _default_open_chunk(path: Any, channel: str) -> Any:
 
     Returns:
         A pyramids `NetCDF` variable view of the channel's raw radiance (a
-        `Dataset`-like object exposing `read_array` / `geotransform`, as
-        `read_fci` consumes it).
+        `Dataset`-like object exposing `read_array` / `geotransform` / `epsg` /
+        `columns` / `rows`, as `read_fci` consumes it).
     """
     from pyramids.netcdf import NetCDF
 
@@ -96,17 +96,17 @@ def open_fci_l1c_chunk(
 
     Returns:
         A pyramids `NetCDF` variable view of the channel's raw effective radiance
-        (a `Dataset`-like object exposing `read_array` / `geotransform` / `epsg`,
-        as `read_fci` consumes it).
+        (a `Dataset`-like object exposing `read_array` / `geotransform` / `epsg` /
+        `columns` / `rows`, as `read_fci` consumes it).
     """
     from pyramids.netcdf import NetCDF
 
     try:
         variable = radiance_group.format(channel=channel)
-    except (KeyError, IndexError, ValueError) as exc:
+    except (KeyError, IndexError, ValueError, AttributeError, TypeError) as exc:
         raise ReaderError(
-            f"invalid radiance_group template {radiance_group!r}: it must contain "
-            f"exactly one '{{channel}}' field ({exc!r})"
+            f"invalid radiance_group template {radiance_group!r}: it must be a "
+            f"format string with a single '{{channel}}' field ({exc!r})"
         ) from exc
     # Group navigation via get_variable needs the file opened as multidimensional;
     # pass it explicitly rather than relying on read_file's default.
