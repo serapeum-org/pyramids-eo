@@ -16,6 +16,7 @@ from pyramids_eo.sensors.readers.fci_l1c import (
     _satellite_height,
     _scalar,
     _unpack_radiance,
+    _valid_bounds,
     read_fci_l1c,
     read_fci_l1c_chunk,
 )
@@ -127,6 +128,49 @@ class TestUnpackRadiance:
         rad, _gt, _crs = _unpack_radiance("f.nc", "ir_105")
         assert not np.isnan(rad).any(), "nothing should be masked"
         assert rad[0, 1] == pytest.approx(20.0), "counts should still unpack"
+
+    def test_masks_below_valid_min(self, monkeypatch):
+        """A count below the valid_range minimum is masked to NaN."""
+        raw = np.array([[5, 50]], dtype="uint16")
+        meta = {"scale_factor": "1.0", "add_offset": "0.0", "valid_range": "{10, 4095}"}
+        raster = _FakeRaster(_FakeBand(raw, meta), (0,) * 6, "W")
+        import osgeo.gdal as _g
+
+        monkeypatch.setattr(_g, "Open", lambda sub: raster)
+        rad, _gt, _crs = _unpack_radiance("f.nc", "ir_105")
+        assert np.isnan(rad[0, 0]), "a count below valid_min should be NaN"
+        assert rad[0, 1] == pytest.approx(50.0), "an in-range count should survive"
+
+    def test_missing_scale_raises(self, monkeypatch):
+        """Missing scale_factor/add_offset raises ReaderError, not KeyError."""
+        raster = _FakeRaster(_FakeBand(np.ones((1, 1), "uint16"), {}), (0,) * 6, "W")
+        import osgeo.gdal as _g
+
+        monkeypatch.setattr(_g, "Open", lambda sub: raster)
+        with pytest.raises(ReaderError, match="scale_factor"):
+            _unpack_radiance("f.nc", "ir_105")
+
+    def test_none_raster_raises(self, monkeypatch):
+        """A None from gdal.Open raises ReaderError, not AttributeError."""
+        import osgeo.gdal as _g
+
+        monkeypatch.setattr(_g, "Open", lambda sub: None)
+        with pytest.raises(ReaderError, match="cannot open"):
+            _unpack_radiance("f.nc", "ir_105")
+
+
+class TestValidBounds:
+    """`_valid_bounds` parses (min, max) from a valid_range string."""
+
+    def test_parses_pair(self):
+        """A two-number range yields its (min, max)."""
+        assert _valid_bounds("{10, 4095}") == (10.0, 4095.0)
+
+    def test_missing_or_degenerate_yields_none(self):
+        """None or a string without two numbers yields (None, None)."""
+        assert _valid_bounds(None) == (None, None)
+        assert _valid_bounds("{}") == (None, None)
+        assert _valid_bounds("{5}") == (None, None)
 
 
 class TestMeasuredGroup:
@@ -265,6 +309,15 @@ class TestSatelliteHeight:
         with pytest.raises(ReaderError, match="satellite height"):
             _satellite_height(wkt)
 
+    def test_implausible_height_raises(self):
+        """A satellite height far from geostationary is rejected."""
+        from osgeo import osr
+
+        srs = osr.SpatialReference()
+        srs.ImportFromProj4("+proj=geos +lon_0=0 +h=100 +ellps=WGS84 +units=m")
+        with pytest.raises(ReaderError, match="implausible"):
+            _satellite_height(srs.ExportToWkt())
+
 
 class TestReadFciL1c:
     """`read_fci_l1c` orders, validates, stitches and calibrates chunks."""
@@ -361,6 +414,15 @@ class TestReadFciL1c:
         mapping = {"a.nc": self._chunk(np.ones((2, 3)), 140, 141), "b.nc": other}
         self._patch(monkeypatch, mapping)
         with pytest.raises(ReaderError, match="mixed CRS"):
+            read_fci_l1c(["a.nc", "b.nc"], "ir_105")
+
+    def test_mixed_cell_size_raises(self, monkeypatch):
+        """Chunks with a different cell size are rejected."""
+        other = self._chunk(np.ones((2, 3)), 142, 143)
+        other["geotransform"] = (0.1, -2e-5, 0.0, other["geotransform"][3], 0.0, -1e-5)
+        mapping = {"a.nc": self._chunk(np.ones((2, 3)), 140, 141), "b.nc": other}
+        self._patch(monkeypatch, mapping)
+        with pytest.raises(ReaderError, match="cell size"):
             read_fci_l1c(["a.nc", "b.nc"], "ir_105")
 
 

@@ -117,6 +117,29 @@ def _granule_coeffs(group: Any) -> dict[str, Any]:
     }
 
 
+#: Matches a signed integer/decimal number, optionally in scientific notation.
+_NUMBER = r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?"
+
+
+def _valid_bounds(text: Any) -> tuple[float | None, float | None]:
+    """Parse `(min, max)` from a `valid_range` metadata string.
+
+    Args:
+        text: The GDAL `valid_range` metadata value (e.g. `"{0, 4095}"`), or
+            `None`/an unparseable string.
+
+    Returns:
+        The `(valid_min, valid_max)` pair, or `(None, None)` when the string is
+        missing or does not contain two numbers.
+    """
+    if not text:
+        return None, None
+    numbers = re.findall(_NUMBER, str(text))
+    if len(numbers) < 2:
+        return None, None
+    return float(numbers[0]), float(numbers[-1])
+
+
 def _unpack_radiance(path: Any, channel: str) -> tuple[np.ndarray, tuple, str]:
     """Read + unpack a chunk's radiance, with its angular geotransform + CRS.
 
@@ -136,22 +159,29 @@ def _unpack_radiance(path: Any, channel: str) -> tuple[np.ndarray, tuple, str]:
 
     subdataset = f'NETCDF:"{path}":/data/{channel}/measured/effective_radiance'
     raster = gdal.Open(subdataset)
+    if raster is None:
+        raise ReaderError(f"read_fci_l1c: cannot open {subdataset}")
     band = raster.GetRasterBand(1)
     raw = np.asarray(band.ReadAsArray())
     meta = band.GetMetadata()
-    scale = float(meta["scale_factor"])
-    offset = float(meta["add_offset"])
+    try:
+        scale = float(meta["scale_factor"])
+        offset = float(meta["add_offset"])
+    except (KeyError, ValueError) as exc:
+        raise ReaderError(
+            f"read_fci_l1c: effective_radiance for {channel!r} lacks a numeric "
+            f"scale_factor / add_offset ({exc!r})"
+        ) from exc
     radiance = raw.astype(float) * scale + offset
 
-    valid_max = None
-    if "valid_range" in meta:
-        valid_max = float(re.findall(r"[-\d.eE+]+", meta["valid_range"])[-1])
-    fill = float(meta["_FillValue"]) if "_FillValue" in meta else None
     invalid = np.zeros(raw.shape, dtype=bool)
+    valid_min, valid_max = _valid_bounds(meta.get("valid_range"))
+    if valid_min is not None:
+        invalid |= raw < valid_min
     if valid_max is not None:
         invalid |= raw > valid_max
-    if fill is not None:
-        invalid |= raw == fill
+    if "_FillValue" in meta:
+        invalid |= raw == float(meta["_FillValue"])
     radiance[invalid] = np.nan
     geotransform, crs = raster.GetGeoTransform(), raster.GetProjection()
     del raster  # release the raster handle deterministically
@@ -208,10 +238,13 @@ def _satellite_height(crs_wkt: str) -> float:
 
     srs = osr.SpatialReference()
     srs.ImportFromWkt(crs_wkt)
-    match = re.search(r"\+h=([\d.]+)", srs.ExportToProj4())
+    match = re.search(rf"\+h=({_NUMBER})", srs.ExportToProj4())
     if not match:
         raise ReaderError("FCI CRS carries no satellite height (+h)")
-    return float(match.group(1))
+    height = float(match.group(1))
+    if not 1.0e6 < height < 1.0e9:
+        raise ReaderError(f"FCI CRS satellite height {height} m is implausible")
+    return height
 
 
 def _validate_chunks(chunks: list) -> None:
