@@ -16,6 +16,7 @@ from __future__ import annotations
 from pyramids_eo.sensors.readers import (
     harmonise,
     open_fci_l1c_chunk,
+    parse_seviri_native,
     read_fci,
     read_fci_l1c,
     read_seviri,
@@ -34,6 +35,7 @@ __all__ = [
     "get_sensor",
     "harmonise",
     "open_fci_l1c_chunk",
+    "parse_seviri_native",
     "radiance_to_brightness_temperature",
     "radiance_to_reflectance",
     "read_fci",

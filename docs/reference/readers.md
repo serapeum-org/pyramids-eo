@@ -8,6 +8,13 @@ geostationary geotransform Y origin (validated on real MTI1/Meteosat-12
 granules — see issue #40). `open_fci_l1c_chunk` is the lower-level radiance
 opener for use with the generic `read_fci`.
 
+For MSG-SEVIRI Level-1.5 native (`.nat`) granules use `read_seviri`: it decodes
+a VIS/IR channel's 10-bit packed counts, applies the granule's per-channel
+`Cal_Slope` / `Cal_Offset` and the registry calibration, and returns the scene
+north-up on the 3 km geostationary grid (validated on a real Meteosat-10
+granule — see issue #40). `parse_seviri_native` is the underlying `.nat` decoder,
+and a custom `parse` callable can still be injected.
+
 ::: pyramids_eo.sensors.readers
     options:
         show_root_heading: true
