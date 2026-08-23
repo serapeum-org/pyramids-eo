@@ -39,9 +39,15 @@ def radiance_to_reflectance(
     `rho = pi * L * d^2 / E0`, optionally normalised by the cosine of the solar
     zenith angle (`/ cos_sza`) to give a sun-angle-corrected BRF.
 
+    `L` and `E0` must be in **consistent** spectral units for the ratio to be
+    dimensionless — for MSG/MTG L1 that is the wavenumber form (`L` in
+    `mW m-2 sr-1 (cm-1)-1`, `E0` the band-effective solar irradiance in
+    `mW m-2 (cm-1)-1`), which the FCI/SEVIRI registry tables provide.
+
     Args:
-        radiance: Spectral radiance `L` (W m-2 sr-1 um-1), scalar or array.
-        solar_irradiance: Band-integrated solar irradiance `E0` (W m-2 um-1).
+        radiance: Spectral radiance `L`, scalar or array.
+        solar_irradiance: Band-effective solar irradiance `E0`, same spectral
+            grid as `L`.
         sun_earth_distance: Sun-earth distance `d` in astronomical units
             (default 1.0).
         cos_sza: Cosine of the solar zenith angle for the sun-angle correction,
