@@ -3,7 +3,8 @@
 Instrument readers that decode L1 formats into calibrated, geolocated pyramids
 `Dataset`s. For real MTG-FCI L1C FDHSI granules, pass `open_fci_l1c_chunk` to
 `read_fci` as `open_chunk` — it reads the nested
-`data/<channel>/measured/effective_radiance` group layout.
+`data/<channel>/measured/effective_radiance` group layout (not yet validated
+against a real granule — see issue #40).
 
 ::: pyramids_eo.sensors.readers
     options:

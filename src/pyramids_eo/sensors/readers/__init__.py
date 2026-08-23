@@ -5,8 +5,9 @@ Each reader takes a file path / chunk set / `Dataset` and returns a pyramids
 
 * `read_fci` — MTG-FCI L1C (FDHSI): stitch a channel across its chunk set and
   calibrate to reflectance / brightness temperature.
-* `open_fci_l1c_chunk` — canonical `open_chunk` for real FCI L1C FDHSI granules
-  (reads the nested `data/<channel>/measured/effective_radiance` layout).
+* `open_fci_l1c_chunk` — `open_chunk` for the real FCI L1C FDHSI nested
+  `data/<channel>/measured/effective_radiance` layout (not yet validated against
+  a real granule — see issue #40).
 * `read_seviri` — MSG-SEVIRI native (`.nat`): calibrate + geolocate a channel
   (the raw `.nat` byte decode is injectable — see its module warning).
 * `harmonise` — align multi-resolution bands onto one common target grid.
