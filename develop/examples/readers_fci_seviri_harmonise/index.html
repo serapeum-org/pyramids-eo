@@ -974,6 +974,56 @@
   
   
   
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Sensors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../reference/readers/" class="md-nav__link">
         
@@ -1019,6 +1069,14 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2164,7 +2222,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h1 id="the-fci-seviri-readers-and-harmonise">The FCI / SEVIRI readers and <code>harmonise</code><a class="anchor-link" href="#the-fci-seviri-readers-and-harmonise">¶</a></h1><p><a href="../reference/readers.md"><code>pyramids_eo.readers</code></a> turn raw instrument granules into
+<h1 id="the-fci-seviri-readers-and-harmonise">The FCI / SEVIRI readers and <code>harmonise</code><a class="anchor-link" href="#the-fci-seviri-readers-and-harmonise">¶</a></h1><p><a href="../reference/readers.md"><code>pyramids_eo.sensors.readers</code></a> turn raw instrument granules into
 calibrated, geolocated pyramids <code>Dataset</code>s. This notebook teaches the orchestration each
 reader performs:</p>
 <ul>
@@ -2218,7 +2276,7 @@ geolocate logic exercised here is the real code path.</p>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.readers</span><span class="w"> </span><span class="kn">import</span> <span class="n">harmonise</span><span class="p">,</span> <span class="n">read_fci</span><span class="p">,</span> <span class="n">read_seviri</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.sensors.readers</span><span class="w"> </span><span class="kn">import</span> <span class="n">harmonise</span><span class="p">,</span> <span class="n">read_fci</span><span class="p">,</span> <span class="n">read_seviri</span>
 </pre></div>
 <div class="clipboard-copy-txt" id="cell-1">%matplotlib inline
 
@@ -2226,7 +2284,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pyramids.dataset import Dataset
 
-from pyramids_eo.readers import harmonise, read_fci, read_seviri</div>
+from pyramids_eo.sensors.readers import harmonise, read_fci, read_seviri</div>
 </div>
 </div>
 </div>
@@ -2360,7 +2418,7 @@ fig.colorbar(im, ax=axes, shrink=0.8, label="radiance")</div>
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
 <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[3]:</div>
 <div class="jp-RenderedText jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/plain" tabindex="0">
-<pre>&lt;matplotlib.colorbar.Colorbar at 0x24277d61550&gt;</pre>
+<pre>&lt;matplotlib.colorbar.Colorbar at 0x1b5d86a57f0&gt;</pre>
 </div>
 </div>
 <div class="jp-OutputArea-child">
