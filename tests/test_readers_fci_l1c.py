@@ -286,6 +286,18 @@ class TestGranuleCoeffs:
         assert coeffs["central_wavenumber_cm1"] == 950.0, "wavenumber should be read"
         assert coeffs["alpha"] == 0.999 and coeffs["beta"] == 0.36
 
+    def test_thermal_omits_absent_coeffs(self, monkeypatch):
+        """A missing thermal coefficient is omitted so the registry fallback engages."""
+        values = {
+            "channel_effective_solar_irradiance": 9.97e36,
+            "radiance_to_bt_conversion_coefficient_a": 0.999,
+        }
+        monkeypatch.setattr(fci_l1c, "_scalar", lambda g, n: values.get(n))
+        coeffs = _granule_coeffs(object())
+        assert coeffs == {"kind": "thermal", "alpha": 0.999}, (
+            f"absent wavenumber/beta should be omitted, got {coeffs}"
+        )
+
 
 class TestReadFciL1cChunk:
     """`read_fci_l1c_chunk` assembles a chunk record or skips a trailer."""
@@ -458,6 +470,26 @@ class TestReadFciL1c:
         self._patch(monkeypatch, mapping)
         with pytest.raises(ReaderError, match="cell size"):
             read_fci_l1c(["a.nc", "b.nc"], "ir_105")
+
+    def test_mixed_coeffs_raises(self, monkeypatch):
+        """Chunks with different calibration coefficients are rejected."""
+        other = self._chunk(
+            np.ones((2, 3)),
+            -2e-5,
+            coeffs={"kind": "thermal", "central_wavenumber_cm1": 800.0},
+        )
+        mapping = {"a.nc": self._chunk(np.ones((2, 3)), 0.0), "b.nc": other}
+        self._patch(monkeypatch, mapping)
+        with pytest.raises(ReaderError, match="calibration coefficients"):
+            read_fci_l1c(["a.nc", "b.nc"], "ir_105")
+
+    def test_south_up_grid_raises(self, monkeypatch):
+        """A south-up grid (gt[5] >= 0) is rejected with a clear message."""
+        chunk = self._chunk(np.ones((2, 3)), 0.0)
+        chunk["geotransform"] = (0.1, -1e-5, 0.0, 0.0, 0.0, 1e-5)  # gt[5] > 0
+        self._patch(monkeypatch, {"a.nc": chunk})
+        with pytest.raises(ReaderError, match="north-up"):
+            read_fci_l1c(["a.nc"], "ir_105")
 
 
 @pytest.mark.live

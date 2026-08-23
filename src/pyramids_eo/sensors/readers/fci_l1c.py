@@ -108,19 +108,23 @@ def _granule_coeffs(group: Any) -> dict[str, Any]:
 
     Returns:
         A `coeffs` mapping for `calibrate_channel` (keys `kind` plus the
-        channel-kind-specific constants).
+        channel-kind-specific constants). A constant whose variable is absent is
+        omitted, so `calibrate_channel` falls back to the registry value rather
+        than being handed a `None`.
     """
     solar_irradiance = _scalar(group, "channel_effective_solar_irradiance")
     if solar_irradiance is not None and solar_irradiance < _COEFF_FILL:
         return {"kind": "solar", "solar_irradiance": solar_irradiance}
-    return {
-        "kind": "thermal",
-        "central_wavenumber_cm1": _scalar(
-            group, "radiance_to_bt_conversion_coefficient_wavenumber"
-        ),
-        "alpha": _scalar(group, "radiance_to_bt_conversion_coefficient_a"),
-        "beta": _scalar(group, "radiance_to_bt_conversion_coefficient_b"),
-    }
+    coeffs: dict[str, Any] = {"kind": "thermal"}
+    for key, variable in (
+        ("central_wavenumber_cm1", "radiance_to_bt_conversion_coefficient_wavenumber"),
+        ("alpha", "radiance_to_bt_conversion_coefficient_a"),
+        ("beta", "radiance_to_bt_conversion_coefficient_b"),
+    ):
+        value = _scalar(group, variable)
+        if value is not None:
+            coeffs[key] = value
+    return coeffs
 
 
 #: Matches a signed integer/decimal number, optionally in scientific notation.
@@ -272,10 +276,18 @@ def _validate_chunks(chunks: list) -> None:
         chunks: The chunk records, sorted by `geotransform[3]` descending.
 
     Raises:
-        ReaderError: On mixed CRS / cell size / column count, or a vertical gap /
-            overlap between chunks (which would silently mis-stitch the scene).
+        ReaderError: On a non-north-up grid, mixed CRS / cell size / column count /
+            calibration coefficients, or a vertical gap / overlap between chunks
+            (which would silently mis-stitch the scene).
     """
     first = chunks[0]
+    # The sort-descending + top-down concatenation assumes a north-up grid; make
+    # that a first-class check rather than letting a south-up grid fall through to
+    # a misleading "not vertically contiguous" error.
+    if first["geotransform"][5] >= 0:
+        raise ReaderError(
+            "read_fci_l1c: expected a north-up grid (geotransform[5] < 0)"
+        )
     columns = first["radiance"].shape[1]
     for chunk in chunks[1:]:
         if chunk["crs"] != first["crs"]:
@@ -286,6 +298,10 @@ def _validate_chunks(chunks: list) -> None:
             raise ReaderError("read_fci_l1c: chunks have mixed cell size")
         if chunk["radiance"].shape[1] != columns:
             raise ReaderError("read_fci_l1c: chunks have mixed column count")
+        if chunk["coeffs"] != first["coeffs"]:
+            raise ReaderError(
+                "read_fci_l1c: chunks have mixed calibration coefficients"
+            )
 
     # Tolerance scaled to the (angular) row pixel, so it tracks the grid rather
     # than depending on the coordinate magnitude.
