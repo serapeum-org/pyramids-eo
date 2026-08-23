@@ -1,6 +1,6 @@
 """Sensor / channel metadata loaded from the bundled registry tables.
 
-`get_sensor(name)` loads a sensor's channel table from `registry/data/<name>.yaml`
+`get_sensor(name)` loads a sensor's channel table from `sensors/registry/data/<name>.yaml`
 and returns a `Sensor` of frozen `Channel` records — band wavelength, native
 resolution, radiometric `kind` (`solar` / `thermal`), and the nominal calibration
 constants a reader falls back to when the granule metadata does not carry them.
@@ -88,7 +88,7 @@ def get_sensor(name: str) -> Sensor:
 
     Args:
         name: Sensor identifier (e.g. `"fci"`, `"seviri"`), matching a
-            `registry/data/<name>.yaml` table.
+            `sensors/registry/data/<name>.yaml` table.
 
     Returns:
         The `Sensor` with its channel table (cached across calls).

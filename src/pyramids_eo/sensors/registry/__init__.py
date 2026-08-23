@@ -2,7 +2,7 @@
 
 Maps a sensor's bands to their wavelengths, native resolution, radiometric kind,
 and (nominal) calibration constants, backed by YAML tables under
-`registry/data/`. Also exposes the radiometric calibration functions:
+`sensors/registry/data/`. Also exposes the radiometric calibration functions:
 
 * `get_sensor` / `Sensor` / `Channel` — the channel metadata tables.
 * `radiance_to_reflectance` — solar-channel radiance → reflectance.
