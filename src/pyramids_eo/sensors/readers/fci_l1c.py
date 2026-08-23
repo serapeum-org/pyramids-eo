@@ -44,25 +44,31 @@ _MEASURED_GROUP = "/data/{channel}/measured"
 _COEFF_FILL = 1e30
 
 
-def _measured_group(path: Any, channel: str) -> Any:
-    """Return the `/data/<channel>/measured` multidim group, or `None`.
+def _measured_group(path: Any, channel: str) -> tuple[Any, Any]:
+    """Open a chunk and return its `(dataset, /data/<channel>/measured group)`.
+
+    The owning multidimensional `Dataset` is returned alongside the group so the
+    caller can keep it alive while reading the group's arrays (a GDAL child
+    `Group` does not keep its parent dataset alive on its own), then release it.
 
     Args:
         path: Path to an FCI L1C FDHSI chunk NetCDF file.
         channel: Channel identifier (e.g. `"ir_105"`).
 
     Returns:
-        The GDAL multidim group, or `None` when the file has no such group
-        (e.g. the `CHK-TRAIL` trailer).
+        A `(dataset, group)` pair, or `(None, None)` when the file has no such
+        group (e.g. the `CHK-TRAIL` trailer).
     """
     from osgeo import gdal
 
     dataset = gdal.OpenEx(str(path), gdal.OF_MULTIDIM_RASTER)
-    root = dataset.GetRootGroup()
     try:
-        return root.OpenGroupFromFullname(_MEASURED_GROUP.format(channel=channel))
+        group = dataset.GetRootGroup().OpenGroupFromFullname(
+            _MEASURED_GROUP.format(channel=channel)
+        )
     except RuntimeError:
-        return None
+        return None, None
+    return dataset, group
 
 
 def _scalar(group: Any, name: str) -> float | None:
@@ -146,7 +152,9 @@ def _unpack_radiance(path: Any, channel: str) -> tuple[np.ndarray, tuple, str]:
     if fill is not None:
         invalid |= raw == fill
     radiance[invalid] = np.nan
-    return radiance, raster.GetGeoTransform(), raster.GetProjection()
+    geotransform, crs = raster.GetGeoTransform(), raster.GetProjection()
+    del raster  # release the raster handle deterministically
+    return radiance, geotransform, crs
 
 
 def read_fci_l1c_chunk(path: Any, channel: str) -> dict[str, Any] | None:
@@ -162,15 +170,22 @@ def read_fci_l1c_chunk(path: Any, channel: str) -> dict[str, Any] | None:
         `geotransform`, and the geostationary `crs` WKT — or `None` when the file
         does not carry the channel's radiance (e.g. the `CHK-TRAIL` trailer).
     """
-    group = _measured_group(path, channel)
-    if group is None or "effective_radiance" not in set(group.GetMDArrayNames()):
+    dataset, group = _measured_group(path, channel)
+    if group is None or "effective_radiance" not in group.GetMDArrayNames():
         return None
+    start_row = _scalar(group, "start_position_row")
+    end_row = _scalar(group, "end_position_row")
+    coeffs = _granule_coeffs(group)
+    # Release the multidimensional handle before opening the radiance raster, so
+    # only one GDAL file handle is held at a time and the group's reads all
+    # happen while its owning dataset is still alive.
+    del dataset, group
     radiance, geotransform, crs = _unpack_radiance(path, channel)
     return {
         "radiance": radiance,
-        "start_row": _scalar(group, "start_position_row"),
-        "end_row": _scalar(group, "end_position_row"),
-        "coeffs": _granule_coeffs(group),
+        "start_row": start_row,
+        "end_row": end_row,
+        "coeffs": coeffs,
         "geotransform": geotransform,
         "crs": crs,
     }

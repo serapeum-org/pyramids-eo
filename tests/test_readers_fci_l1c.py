@@ -148,15 +148,17 @@ class TestMeasuredGroup:
         monkeypatch.setattr(_g, "OpenEx", lambda p, flags: _DS())
 
     def test_returns_group(self, monkeypatch):
-        """A present channel group is returned."""
+        """A present channel group is returned with its owning dataset."""
         g = _FakeGroup({"effective_radiance": 1})
         self._patch(monkeypatch, g)
-        assert _measured_group("f.nc", "ir_105") is g
+        _dataset, group = _measured_group("f.nc", "ir_105")
+        assert group is g
 
     def test_missing_group_returns_none(self, monkeypatch):
-        """A file without the group (trailer) yields None."""
+        """A file without the group (trailer) yields (None, None)."""
         self._patch(monkeypatch, None)
-        assert _measured_group("trail.nc", "ir_105") is None
+        _dataset, group = _measured_group("trail.nc", "ir_105")
+        assert group is None
 
 
 class TestScalar:
@@ -219,7 +221,7 @@ class TestReadFciL1cChunk:
         monkeypatch.setattr(
             fci_l1c,
             "_measured_group",
-            lambda p, c: _FakeGroup({"effective_radiance": 1}),
+            lambda p, c: (object(), _FakeGroup({"effective_radiance": 1})),
         )
         monkeypatch.setattr(
             fci_l1c,
@@ -234,13 +236,15 @@ class TestReadFciL1cChunk:
 
     def test_none_group_skips(self, monkeypatch):
         """A file without the channel group is skipped (None)."""
-        monkeypatch.setattr(fci_l1c, "_measured_group", lambda p, c: None)
+        monkeypatch.setattr(fci_l1c, "_measured_group", lambda p, c: (None, None))
         assert read_fci_l1c_chunk("trail.nc", "ir_105") is None
 
     def test_group_without_radiance_skips(self, monkeypatch):
         """A group lacking effective_radiance is skipped (None)."""
         monkeypatch.setattr(
-            fci_l1c, "_measured_group", lambda p, c: _FakeGroup({}, names=["x"])
+            fci_l1c,
+            "_measured_group",
+            lambda p, c: (object(), _FakeGroup({}, names=["x"])),
         )
         assert read_fci_l1c_chunk("trail.nc", "ir_105") is None
 
