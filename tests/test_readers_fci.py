@@ -258,3 +258,17 @@ class TestOpenFciL1cChunk:
         )
         assert np.allclose(out.read_array(), 80.0), "nested-opened radiance not used"
         assert captured["name"] == "data/ir_105/measured/effective_radiance", captured
+
+    def test_channel_with_braces_inserted_literally(self, monkeypatch):
+        """A channel value containing braces is inserted literally, not re-parsed."""
+        captured = {}
+        self._patch_netcdf(monkeypatch, captured)
+        open_fci_l1c_chunk("chunk.nc", "ir_{x}")
+        assert captured["name"] == "data/ir_{x}/measured/effective_radiance", captured
+
+    def test_malformed_template_raises_reader_error(self, monkeypatch):
+        """A template whose field is not `channel` raises ReaderError, not KeyError."""
+        captured = {}
+        self._patch_netcdf(monkeypatch, captured)
+        with pytest.raises(ReaderError, match="radiance_group"):
+            open_fci_l1c_chunk("chunk.nc", "ir_105", radiance_group="data/{chan}/rad")
