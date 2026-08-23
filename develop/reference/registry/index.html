@@ -1709,7 +1709,7 @@ temperature.</p>
         <p>Sensor metadata registry.</p>
 <p>Maps a sensor's bands to their wavelengths, native resolution, radiometric kind,
 and (nominal) calibration constants, backed by YAML tables under
-<code>registry/data/</code>. Also exposes the radiometric calibration functions:</p>
+<code>sensors/registry/data/</code>. Also exposes the radiometric calibration functions:</p>
 <ul>
 <li><code>get_sensor</code> / <code>Sensor</code> / <code>Channel</code> — the channel metadata tables.</li>
 <li><code>radiance_to_reflectance</code> — solar-channel radiance → reflectance.</li>
@@ -2722,7 +2722,7 @@ or <code>None</code> to skip it.</p>
             <td>
               <div class="doc-md-description">
                 <p>Sensor identifier (e.g. <code>"fci"</code>, <code>"seviri"</code>), matching a
-<code>registry/data/&lt;name&gt;.yaml</code> table.</p>
+<code>sensors/registry/data/&lt;name&gt;.yaml</code> table.</p>
               </div>
             </td>
             <td>
@@ -2816,7 +2816,7 @@ or <code>None</code> to skip it.</p>
 <a id="__codelineno-0-88" name="__codelineno-0-88"></a>
 <a id="__codelineno-0-89" name="__codelineno-0-89"></a><span class="sd">    Args:</span>
 <a id="__codelineno-0-90" name="__codelineno-0-90"></a><span class="sd">        name: Sensor identifier (e.g. `"fci"`, `"seviri"`), matching a</span>
-<a id="__codelineno-0-91" name="__codelineno-0-91"></a><span class="sd">            `registry/data/&lt;name&gt;.yaml` table.</span>
+<a id="__codelineno-0-91" name="__codelineno-0-91"></a><span class="sd">            `sensors/registry/data/&lt;name&gt;.yaml` table.</span>
 <a id="__codelineno-0-92" name="__codelineno-0-92"></a>
 <a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">    Returns:</span>
 <a id="__codelineno-0-94" name="__codelineno-0-94"></a><span class="sd">        The `Sensor` with its channel table (cached across calls).</span>
@@ -2862,7 +2862,7 @@ or <code>None</code> to skip it.</p>
     <div class="doc doc-contents first">
 
         <p>Sensor / channel metadata loaded from the bundled registry tables.</p>
-<p><code>get_sensor(name)</code> loads a sensor's channel table from <code>registry/data/&lt;name&gt;.yaml</code>
+<p><code>get_sensor(name)</code> loads a sensor's channel table from <code>sensors/registry/data/&lt;name&gt;.yaml</code>
 and returns a <code>Sensor</code> of frozen <code>Channel</code> records — band wavelength, native
 resolution, radiometric <code>kind</code> (<code>solar</code> / <code>thermal</code>), and the nominal calibration
 constants a reader falls back to when the granule metadata does not carry them.</p>
@@ -3411,7 +3411,7 @@ else <code>None</code>.</p>
             <td>
               <div class="doc-md-description">
                 <p>Sensor identifier (e.g. <code>"fci"</code>, <code>"seviri"</code>), matching a
-<code>registry/data/&lt;name&gt;.yaml</code> table.</p>
+<code>sensors/registry/data/&lt;name&gt;.yaml</code> table.</p>
               </div>
             </td>
             <td>
@@ -3505,7 +3505,7 @@ else <code>None</code>.</p>
 <a id="__codelineno-0-88" name="__codelineno-0-88"></a>
 <a id="__codelineno-0-89" name="__codelineno-0-89"></a><span class="sd">    Args:</span>
 <a id="__codelineno-0-90" name="__codelineno-0-90"></a><span class="sd">        name: Sensor identifier (e.g. `"fci"`, `"seviri"`), matching a</span>
-<a id="__codelineno-0-91" name="__codelineno-0-91"></a><span class="sd">            `registry/data/&lt;name&gt;.yaml` table.</span>
+<a id="__codelineno-0-91" name="__codelineno-0-91"></a><span class="sd">            `sensors/registry/data/&lt;name&gt;.yaml` table.</span>
 <a id="__codelineno-0-92" name="__codelineno-0-92"></a>
 <a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">    Returns:</span>
 <a id="__codelineno-0-94" name="__codelineno-0-94"></a><span class="sd">        The `Sensor` with its channel table (cached across calls).</span>

@@ -2344,7 +2344,7 @@ from pyramids_eo.sensors.registry import (
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="the-sensor-table-get_sensor">The sensor table — <code>get_sensor</code><a class="anchor-link" href="#the-sensor-table-get_sensor">¶</a></h2><p><code>get_sensor(name)</code> loads <code>registry/data/&lt;name&gt;.yaml</code> and returns a <code>Sensor</code> holding a
+<h2 id="the-sensor-table-get_sensor">The sensor table — <code>get_sensor</code><a class="anchor-link" href="#the-sensor-table-get_sensor">¶</a></h2><p><code>get_sensor(name)</code> loads <code>sensors/registry/data/&lt;name&gt;.yaml</code> and returns a <code>Sensor</code> holding a
 frozen <code>Channel</code> record per band. Each channel carries its wavelength, native
 resolution, radiometric <code>kind</code> (<code>solar</code> or <code>thermal</code>), and the <em>nominal</em> calibration
 constants a reader falls back to when a granule does not carry its own. The <code>Sensor</code>
