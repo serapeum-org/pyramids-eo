@@ -336,10 +336,9 @@ def read_fci_l1c(
         geostationary grid, with NaN nodata and the granule's geostationary CRS.
 
     Raises:
-        ReaderError: When no chunk carries the channel, a chunk lacks its row
-            position, or the chunks are inconsistent (mixed CRS / cell size /
-            column count, or not row- and geospatially-contiguous — see
-            `_validate_chunks`).
+        ReaderError: When no chunk carries the channel, or the chunks are
+            inconsistent (mixed CRS / cell size / column count, or not vertically
+            contiguous on the geostationary grid — see `_validate_chunks`).
         CalibrationError: When a channel lacks the constants its kind needs.
         UnknownSensorError: When the channel is not in the registry.
     """
@@ -350,12 +349,11 @@ def read_fci_l1c(
     ]
     if not chunks:
         raise ReaderError(f"read_fci_l1c: no chunk carries channel {channel!r}")
-    if any(chunk["start_row"] is None or chunk["end_row"] is None for chunk in chunks):
-        raise ReaderError("read_fci_l1c: a chunk carries no start/end_position_row")
 
     # Order north -> south by the geotransform Y origin — the geostationary grid,
     # NOT the row index, is the geolocation source. (FCI's start_position_row runs
-    # the opposite way to the geospatial Y, so ordering by it would flip the scene.)
+    # the opposite way to the geospatial Y, so ordering by it would flip the scene;
+    # start/end_position_row are kept on the record as metadata only.)
     chunks.sort(key=lambda chunk: chunk["geotransform"][3], reverse=True)
     _validate_chunks(chunks)
 

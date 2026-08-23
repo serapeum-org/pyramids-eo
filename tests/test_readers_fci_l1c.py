@@ -353,16 +353,16 @@ class TestReadFciL1c:
     """`read_fci_l1c` orders, validates, stitches and calibrates chunks."""
 
     @staticmethod
-    def _chunk(radiance, start, end, coeffs=None):
-        # A geotransform whose Y origin follows start_row, so adjacent chunks are
-        # geospatially contiguous (north-up: gt[5] < 0, origin = start * gt[5]).
+    def _chunk(radiance, top_y, *, start=1, end=1, coeffs=None):
+        # The geotransform Y origin (top_y) is independent of the row index, so a
+        # test can make the two disagree (as they do on a real FCI granule).
         gt5 = -1e-5
         return {
             "radiance": radiance,
             "start_row": start,
             "end_row": end,
             "coeffs": coeffs or _THERMAL,
-            "geotransform": (0.1, gt5, 0.0, start * gt5, 0.0, gt5),
+            "geotransform": (0.1, gt5, 0.0, top_y, 0.0, gt5),
             "crs": GEOS_WKT,
         }
 
@@ -370,27 +370,39 @@ class TestReadFciL1c:
         monkeypatch.setattr(fci_l1c, "read_fci_l1c_chunk", lambda p, c: mapping[p])
         monkeypatch.setattr(fci_l1c, "_satellite_height", lambda wkt: 1.0e5)
 
-    def test_orders_geospatially_and_skips_trailer(self, monkeypatch):
-        """Chunks are ordered north->south by geotransform Y; a trailer is dropped."""
+    def test_orders_by_geotransform_not_row_index(self, monkeypatch):
+        """Ordering follows geotransform Y even when start_row disagrees (the flip)."""
+        # On a real granule the NORTH chunk (larger gt[3]) has the LARGER start_row,
+        # so ordering by start_row would flip the scene; ordering by gt[3] must not.
         mapping = {
-            "b.nc": self._chunk(np.full((2, 3), 9.0), 142, 143),
+            "b.nc": self._chunk(np.full((2, 3), 9.0), -2e-5, start=140),  # south
             "trail.nc": None,
-            "a.nc": self._chunk(np.full((2, 3), 5.0), 140, 141),
+            "a.nc": self._chunk(np.full((2, 3), 5.0), 0.0, start=279),  # north
         }
         self._patch(monkeypatch, mapping)
         out = read_fci_l1c(["b.nc", "trail.nc", "a.nc"], "ir_105", calibrate=False)
         arr = out.read_array()
         assert arr.shape == (4, 3), f"expected 4 stitched rows, got {arr.shape}"
         assert np.allclose(arr[:2], 5.0), (
-            "the northernmost (largest gt[3]) chunk is on top"
+            "the north chunk (largest gt[3]) is on top, despite its larger start_row"
         )
-        assert np.allclose(arr[2:], 9.0), "the southern chunk is below"
+        assert np.allclose(arr[2:], 9.0), "the south chunk is below"
 
     def test_non_contiguous_raises(self, monkeypatch):
         """A vertical gap between chunks is rejected."""
         mapping = {
-            "a.nc": self._chunk(np.ones((2, 3)), 140, 141),
-            "b.nc": self._chunk(np.ones((2, 3)), 279, 280),
+            "a.nc": self._chunk(np.ones((2, 3)), 0.0),
+            "b.nc": self._chunk(np.ones((2, 3)), -0.5),  # far below -> gap
+        }
+        self._patch(monkeypatch, mapping)
+        with pytest.raises(ReaderError, match="contiguous"):
+            read_fci_l1c(["a.nc", "b.nc"], "ir_105")
+
+    def test_overlap_raises(self, monkeypatch):
+        """A vertical overlap between chunks is rejected."""
+        mapping = {
+            "a.nc": self._chunk(np.ones((2, 3)), 0.0),
+            "b.nc": self._chunk(np.ones((2, 3)), -1e-5),  # inside a's span -> overlap
         }
         self._patch(monkeypatch, mapping)
         with pytest.raises(ReaderError, match="contiguous"):
@@ -405,33 +417,25 @@ class TestReadFciL1c:
     def test_calibrates_with_granule_coeffs(self, monkeypatch):
         """Calibration uses the per-granule Planck coefficients."""
         radiance = np.full((2, 3), 80.0)
-        self._patch(monkeypatch, {"a.nc": self._chunk(radiance, 140, 141)})
+        self._patch(monkeypatch, {"a.nc": self._chunk(radiance, 0.0)})
         out = read_fci_l1c(["a.nc"], "ir_105")
         expected = radiance_to_brightness_temperature(radiance, 950.0, 0.999, 0.36)
         assert np.allclose(out.read_array(), expected), "BT should use granule coeffs"
 
     def test_geotransform_scaled_by_height(self, monkeypatch):
         """The metre geotransform is the angular one times the satellite height."""
-        self._patch(monkeypatch, {"a.nc": self._chunk(np.ones((2, 3)), 140, 141)})
+        self._patch(monkeypatch, {"a.nc": self._chunk(np.ones((2, 3)), 0.0)})
         out = read_fci_l1c(["a.nc"], "ir_105", calibrate=False)
         assert out.geotransform[1] == pytest.approx(-1e-5 * 1.0e5), (
             "px should be scaled"
         )
         assert out.epsg is None, "a geostationary grid has no EPSG code"
 
-    def test_missing_position_raises(self, monkeypatch):
-        """A chunk without a row position is a ReaderError, not a TypeError."""
-        chunk = self._chunk(np.ones((2, 3)), 140, 141)
-        chunk["start_row"] = None
-        self._patch(monkeypatch, {"a.nc": chunk})
-        with pytest.raises(ReaderError, match="start/end_position_row"):
-            read_fci_l1c(["a.nc"], "ir_105")
-
     def test_mixed_column_count_raises(self, monkeypatch):
         """Chunks with different widths are rejected."""
         mapping = {
-            "a.nc": self._chunk(np.ones((2, 3)), 140, 141),
-            "b.nc": self._chunk(np.ones((2, 4)), 142, 143),
+            "a.nc": self._chunk(np.ones((2, 3)), 0.0),
+            "b.nc": self._chunk(np.ones((2, 4)), -2e-5),
         }
         self._patch(monkeypatch, mapping)
         with pytest.raises(ReaderError, match="column count"):
@@ -439,18 +443,18 @@ class TestReadFciL1c:
 
     def test_mixed_crs_raises(self, monkeypatch):
         """Chunks from a different CRS are rejected."""
-        other = self._chunk(np.ones((2, 3)), 142, 143)
+        other = self._chunk(np.ones((2, 3)), -2e-5)
         other["crs"] = "OTHER_WKT"
-        mapping = {"a.nc": self._chunk(np.ones((2, 3)), 140, 141), "b.nc": other}
+        mapping = {"a.nc": self._chunk(np.ones((2, 3)), 0.0), "b.nc": other}
         self._patch(monkeypatch, mapping)
         with pytest.raises(ReaderError, match="mixed CRS"):
             read_fci_l1c(["a.nc", "b.nc"], "ir_105")
 
     def test_mixed_cell_size_raises(self, monkeypatch):
         """Chunks with a different cell size are rejected."""
-        other = self._chunk(np.ones((2, 3)), 142, 143)
-        other["geotransform"] = (0.1, -2e-5, 0.0, other["geotransform"][3], 0.0, -1e-5)
-        mapping = {"a.nc": self._chunk(np.ones((2, 3)), 140, 141), "b.nc": other}
+        other = self._chunk(np.ones((2, 3)), -2e-5)
+        other["geotransform"] = (0.1, -2e-5, 0.0, -2e-5, 0.0, -1e-5)
+        mapping = {"a.nc": self._chunk(np.ones((2, 3)), 0.0), "b.nc": other}
         self._patch(monkeypatch, mapping)
         with pytest.raises(ReaderError, match="cell size"):
             read_fci_l1c(["a.nc", "b.nc"], "ir_105")
