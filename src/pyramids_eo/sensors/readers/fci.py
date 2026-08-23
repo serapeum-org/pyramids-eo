@@ -41,7 +41,9 @@ def _default_open_chunk(path: Any, channel: str) -> Any:
         channel: Channel identifier / variable name.
 
     Returns:
-        A pyramids `Dataset` of the channel's raw radiance.
+        A pyramids `NetCDF` variable view of the channel's raw radiance (a
+        `Dataset`-like object exposing `read_array` / `geotransform`, as
+        `read_fci` consumes it).
     """
     from pyramids.netcdf import NetCDF
 
@@ -85,12 +87,17 @@ def open_fci_l1c_chunk(
         path: Path to a single FCI L1C FDHSI chunk NetCDF file.
         channel: Channel identifier (e.g. `"ir_105"`), substituted into
             `radiance_group`.
-        radiance_group: Group-qualified variable-name template with a `{channel}`
-            placeholder. Defaults to
-            `data/{channel}/measured/effective_radiance`.
+        radiance_group: Group-qualified variable-name template with a single
+            `{channel}` placeholder. Defaults to
+            `data/{channel}/measured/effective_radiance`. `read_fci` calls the
+            opener positionally, so to thread a non-default template through
+            `read_fci` wrap it with
+            `functools.partial(open_fci_l1c_chunk, radiance_group=...)`.
 
     Returns:
-        A pyramids `Dataset` of the channel's raw effective radiance.
+        A pyramids `NetCDF` variable view of the channel's raw effective radiance
+        (a `Dataset`-like object exposing `read_array` / `geotransform` / `epsg`,
+        as `read_fci` consumes it).
     """
     from pyramids.netcdf import NetCDF
 
