@@ -87,6 +87,8 @@ _EARTH_POLAR_M = 6356583.8
 #: Matches a ``15Header`` / ``15Data`` segment-table row: ``name : length offset``
 #: (the product header pads fields with NUL bytes, normalised to spaces first).
 _SEGMENT_RE = re.compile(r"(15Header|15Data)\s*:\s*(\d+)\s+(\d+)")
+#: Leading bytes scanned for the ASCII segment table (MPH + SPH are ~5114 bytes).
+_PRODUCT_HEADER_SCAN_BYTES = 6000
 
 
 def _segments(product_header: bytes) -> dict[str, tuple[int, int]]:
@@ -194,7 +196,7 @@ def parse_seviri_native(
     except OSError as exc:
         raise ReaderError(f"read_seviri: cannot open {path} ({exc})") from exc
     with handle:
-        segments = _segments(handle.read(6000))
+        segments = _segments(handle.read(_PRODUCT_HEADER_SCAN_BYTES))
         try:
             header_length, header_offset = segments["15Header"]
             data_length, data_offset = segments["15Data"]
@@ -213,13 +215,15 @@ def parse_seviri_native(
         file_size = os.fstat(handle.fileno()).st_size
 
     lines_declared, columns = struct.unpack_from(">ii", header, _REF_GRID_OFFSET)
-    _line_step_km, column_step_km = struct.unpack_from(">ff", header, _GRID_STEP_OFFSET)
+    line_step_km, column_step_km = struct.unpack_from(">ff", header, _GRID_STEP_OFFSET)
     # The reference grid and grid step sit immediately before the calibration
-    # block: sane values here confirm the fixed 15Header layout was found.
+    # block: sane values here confirm the fixed 15Header layout was found. The
+    # line and column steps must match (the VIS/IR grid is isotropic 3 km).
     if not (
         lines_declared == columns
         and 1000 <= columns <= 12000
         and 2.9 < column_step_km < 3.1
+        and np.isclose(line_step_km, column_step_km)
         and columns % 4 == 0
     ):
         raise ReaderError(
@@ -282,8 +286,10 @@ def parse_seviri_native(
     radiance = counts.astype(float) * slope + offset
     radiance[counts == 0] = np.nan  # zero counts mark the off-earth space corners
     # The grid origin is South-East and lines increase northward, columns
-    # eastward; reverse both axes for a north-up, west-left raster.
-    radiance = radiance[::-1, ::-1]
+    # eastward; reverse both axes for a north-up, west-left raster. Copy the
+    # flipped view to a C-contiguous array so no downstream consumer trips on the
+    # negative strides.
+    radiance = np.ascontiguousarray(radiance[::-1, ::-1])
 
     # CGMS/EUMETSAT navigation places the sub-satellite point at the CENTRE of
     # the reference pixel COFF = LOFF = N/2 (1-based; column/line 1856 of the 3712
