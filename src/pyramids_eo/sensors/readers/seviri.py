@@ -285,10 +285,10 @@ def parse_seviri_native(
 
     radiance = counts.astype(float) * slope + offset
     radiance[counts == 0] = np.nan  # zero counts mark the off-earth space corners
-    # The grid origin is South-East and lines increase northward, columns
-    # eastward; reverse both axes for a north-up, west-left raster. Copy the
-    # flipped view to a C-contiguous array so no downstream consumer trips on the
-    # negative strides.
+    # The grid origin is South-East: line numbers increase northward and the
+    # stored columns run east -> west (the first column is East). Reverse both
+    # axes for a north-up, west-left raster. Copy the flipped view to a
+    # C-contiguous array so no downstream consumer trips on the negative strides.
     radiance = np.ascontiguousarray(radiance[::-1, ::-1])
 
     # CGMS/EUMETSAT navigation places the sub-satellite point at the CENTRE of the

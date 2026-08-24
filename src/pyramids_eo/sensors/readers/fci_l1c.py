@@ -41,7 +41,9 @@ from pyramids_eo.sensors.readers._common import calibrate_channel
 
 #: Group holding a channel's measured radiance and per-granule coefficients.
 _MEASURED_GROUP = "/data/{channel}/measured"
-#: netCDF default fill for a float coefficient (solar irradiance on thermal bands).
+#: Upper-bound threshold separating a real band solar irradiance (tens-hundreds)
+#: from the fill sentinel a thermal band carries for it (the netCDF float fill is
+#: ~9.97e36, well above this).
 _COEFF_FILL = 1e30
 
 
