@@ -304,6 +304,13 @@ class TestGranuleCoeffs:
             f"absent wavenumber/beta should be omitted, got {coeffs}"
         )
 
+    def test_no_coeffs_leaves_kind_unset(self, monkeypatch):
+        """With neither irradiance nor thermal coefficients, no kind is claimed."""
+        monkeypatch.setattr(fci_l1c, "_scalar", lambda g, n: None)
+        assert _granule_coeffs(object()) == {}, (
+            "a channel with no granule coeffs must let the registry decide its kind"
+        )
+
 
 class TestReadFciL1cChunk:
     """`read_fci_l1c_chunk` assembles a chunk record or skips a trailer."""

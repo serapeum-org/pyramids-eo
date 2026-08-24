@@ -110,12 +110,15 @@ def _granule_coeffs(group: Any) -> dict[str, Any]:
         A `coeffs` mapping for `calibrate_channel` (keys `kind` plus the
         channel-kind-specific constants). A constant whose variable is absent is
         omitted, so `calibrate_channel` falls back to the registry value rather
-        than being handed a `None`.
+        than being handed a `None`. When the granule carries neither a solar
+        irradiance nor any thermal coefficient, no `kind` is set so the registry
+        decides — a solar channel merely missing its irradiance is not mistyped
+        as thermal (which would fail with a misleading "no central_wavenumber").
     """
     solar_irradiance = _scalar(group, "channel_effective_solar_irradiance")
     if solar_irradiance is not None and solar_irradiance < _COEFF_FILL:
         return {"kind": "solar", "solar_irradiance": solar_irradiance}
-    coeffs: dict[str, Any] = {"kind": "thermal"}
+    coeffs: dict[str, Any] = {}
     for key, variable in (
         ("central_wavenumber_cm1", "radiance_to_bt_conversion_coefficient_wavenumber"),
         ("alpha", "radiance_to_bt_conversion_coefficient_a"),
@@ -124,6 +127,10 @@ def _granule_coeffs(group: Any) -> dict[str, Any]:
         value = _scalar(group, variable)
         if value is not None:
             coeffs[key] = value
+    # Only claim the thermal kind when the granule actually carries a thermal
+    # coefficient; otherwise leave it unset for the registry to resolve.
+    if coeffs:
+        coeffs["kind"] = "thermal"
     return coeffs
 
 
