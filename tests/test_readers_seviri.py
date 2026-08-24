@@ -135,7 +135,8 @@ class TestUnpack10Bit:
         """The all-ones and all-zeros quartets unpack to 1023 and 0."""
         counts = np.array([1023, 1023, 1023, 1023, 0, 0, 0, 0], dtype=np.uint16)
         out = _unpack_10bit(_pack_10bit(counts), counts.size)
-        assert out[0] == 1023 and out[4] == 0, "extreme counts should survive"
+        assert out[0] == 1023, "the all-ones quartet unpacks to 1023"
+        assert out[4] == 0, "the all-zeros quartet unpacks to 0"
 
 
 class TestSegments:
@@ -477,9 +478,8 @@ class TestReadSeviri:
         assert np.allclose(out.read_array(), expected), (
             "native path should calibrate to BT"
         )
-        assert out.epsg is None and "Geostationary" in str(out.crs), (
-            "geos CRS preserved"
-        )
+        assert out.epsg is None, "a geostationary grid has no EPSG code"
+        assert "Geostationary" in str(out.crs), "geos CRS preserved"
         assert np.isnan(out.no_data_value[0]), "nodata should be NaN"
 
     def test_native_path_threads_subsatellite_longitude(self, tmp_path):

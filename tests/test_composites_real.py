@@ -69,7 +69,8 @@ def test_seviri_true_color_from_real_granule():
     rgb = np.asarray(true_color(red, red, veg, gamma=2.2, clip=True))
     assert rgb.shape == (3, *red.shape), f"expected (3,H,W), got {rgb.shape}"
     assert np.isfinite(rgb).all(), "RGB should be finite after clip"
-    assert rgb.min() >= 0.0 and rgb.max() <= 1.0, "clipped RGB must be in [0, 1]"
+    assert rgb.min() >= 0.0, "clipped RGB floors at 0"
+    assert rgb.max() <= 1.0, "clipped RGB caps at 1"
     assert rgb.mean() > 0.05, "a daylit scene should carry real signal, not be black"
 
 
@@ -83,8 +84,10 @@ def test_fci_true_color_from_real_chunks():
     assert red.shape == blue.shape == veg.shape, "the RGB bands must share one grid"
     rgb = np.asarray(true_color(red, blue, veg, gamma=1.8, clip=True))
     assert rgb.shape == (3, *red.shape), f"expected (3,H,W), got {rgb.shape}"
-    assert rgb.min() >= 0.0 and rgb.max() <= 1.0, "clipped RGB must be in [0, 1]"
-    assert np.isfinite(rgb).all() and rgb.max() > 0.0, "the strip should carry signal"
+    assert rgb.min() >= 0.0, "clipped RGB floors at 0"
+    assert rgb.max() <= 1.0, "clipped RGB caps at 1"
+    assert np.isfinite(rgb).all(), "the clipped RGB is finite"
+    assert rgb.max() > 0.0, "the strip should carry signal"
 
 
 @pytest.mark.live
@@ -124,9 +127,8 @@ def test_seviri_true_color_with_night_ir_chain():
     # must be finite and in range.
     assert np.isfinite(out).mean() > 0.5, "most (on-disk) pixels should be finite"
     finite = out[np.isfinite(out)]
-    assert finite.min() >= 0.0 and finite.max() <= 1.0, (
-        "blended values must be in [0, 1]"
-    )
+    assert finite.min() >= 0.0, "blended values floor at 0"
+    assert finite.max() <= 1.0, "blended values cap at 1"
     day_side = np.nanmean(out[:, :, : width // 5])
     night_side = np.nanmean(out[:, :, -width // 5 :])
     assert day_side > night_side, "the day edge should be brighter than the night edge"
