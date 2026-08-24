@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -3232,7 +3232,9 @@ contiguous (an unexpected channel selection or layout).</p>
 <span class="normal"><a href="#__codelineno-0-309">309</a></span>
 <span class="normal"><a href="#__codelineno-0-310">310</a></span>
 <span class="normal"><a href="#__codelineno-0-311">311</a></span>
-<span class="normal"><a href="#__codelineno-0-312">312</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="k">def</span><span class="w"> </span><span class="nf">parse_seviri_native</span><span class="p">(</span>
+<span class="normal"><a href="#__codelineno-0-312">312</a></span>
+<span class="normal"><a href="#__codelineno-0-313">313</a></span>
+<span class="normal"><a href="#__codelineno-0-314">314</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="k">def</span><span class="w"> </span><span class="nf">parse_seviri_native</span><span class="p">(</span>
 <a id="__codelineno-0-153" name="__codelineno-0-153"></a>    <span class="n">path</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">subsatellite_longitude</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <a id="__codelineno-0-154" name="__codelineno-0-154"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <a id="__codelineno-0-155" name="__codelineno-0-155"></a><span class="w">    </span><span class="sd">"""Decode one VIS/IR channel of an MSG Level-1.5 native (`.nat`) granule.</span>
@@ -3374,25 +3376,27 @@ contiguous (an unexpected channel selection or layout).</p>
 <a id="__codelineno-0-291" name="__codelineno-0-291"></a>    <span class="c1"># negative strides.</span>
 <a id="__codelineno-0-292" name="__codelineno-0-292"></a>    <span class="n">radiance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">::</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
 <a id="__codelineno-0-293" name="__codelineno-0-293"></a>
-<a id="__codelineno-0-294" name="__codelineno-0-294"></a>    <span class="c1"># CGMS/EUMETSAT navigation places the sub-satellite point at the CENTRE of</span>
-<a id="__codelineno-0-295" name="__codelineno-0-295"></a>    <span class="c1"># the reference pixel COFF = LOFF = N/2 (1-based; column/line 1856 of the 3712</span>
-<a id="__codelineno-0-296" name="__codelineno-0-296"></a>    <span class="c1"># grid), not at the even grid's geometric mid-line. Register the metre</span>
-<a id="__codelineno-0-297" name="__codelineno-0-297"></a>    <span class="c1"># geotransform so that pixel's centre is (x=0, y=0) — a half-pixel (~1.5 km)</span>
-<a id="__codelineno-0-298" name="__codelineno-0-298"></a>    <span class="c1"># offset from the naive grid centre. Line numbers increase north and columns</span>
-<a id="__codelineno-0-299" name="__codelineno-0-299"></a>    <span class="c1"># east, so after the north-up/west-left flip row 0 is the northmost line.</span>
-<a id="__codelineno-0-300" name="__codelineno-0-300"></a>    <span class="n">reference_line</span> <span class="o">=</span> <span class="n">lines_declared</span> <span class="o">/</span> <span class="mf">2.0</span>
-<a id="__codelineno-0-301" name="__codelineno-0-301"></a>    <span class="n">reference_column</span> <span class="o">=</span> <span class="n">columns</span> <span class="o">/</span> <span class="mf">2.0</span>
-<a id="__codelineno-0-302" name="__codelineno-0-302"></a>    <span class="n">y_north_edge</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">line_numbers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="n">reference_line</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">pixel_m</span>
-<a id="__codelineno-0-303" name="__codelineno-0-303"></a>    <span class="n">x_west_edge</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">reference_column</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">pixel_m</span>
-<a id="__codelineno-0-304" name="__codelineno-0-304"></a>    <span class="n">geo</span> <span class="o">=</span> <span class="p">(</span><span class="n">x_west_edge</span><span class="p">,</span> <span class="n">pixel_m</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">y_north_edge</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="n">pixel_m</span><span class="p">)</span>
-<a id="__codelineno-0-305" name="__codelineno-0-305"></a>
-<a id="__codelineno-0-306" name="__codelineno-0-306"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-0-294" name="__codelineno-0-294"></a>    <span class="c1"># CGMS/EUMETSAT navigation places the sub-satellite point at the CENTRE of the</span>
+<a id="__codelineno-0-295" name="__codelineno-0-295"></a>    <span class="c1"># reference pixel N/2 (0-based, both axes; e.g. pixel 1856 of the 3712 grid) —</span>
+<a id="__codelineno-0-296" name="__codelineno-0-296"></a>    <span class="c1"># the COFF = LOFF convention, which reproduces the published MSG full-disk area</span>
+<a id="__codelineno-0-297" name="__codelineno-0-297"></a>    <span class="c1"># extent (west edge -(N/2 + 0.5) * px). All columns are present (full width) so</span>
+<a id="__codelineno-0-298" name="__codelineno-0-298"></a>    <span class="c1"># the SSP column is N/2; only a subset of lines may be present, so the SSP row</span>
+<a id="__codelineno-0-299" name="__codelineno-0-299"></a>    <span class="c1"># is N/2 measured from the northmost present line (row 0 after the north-up</span>
+<a id="__codelineno-0-300" name="__codelineno-0-300"></a>    <span class="c1"># flip). Register the metre geotransform so that reference pixel's centre is</span>
+<a id="__codelineno-0-301" name="__codelineno-0-301"></a>    <span class="c1"># (x=0, y=0).</span>
+<a id="__codelineno-0-302" name="__codelineno-0-302"></a>    <span class="n">reference</span> <span class="o">=</span> <span class="n">columns</span> <span class="o">/</span> <span class="mf">2.0</span>  <span class="c1"># == lines_declared / 2.0 for the square VIS/IR grid</span>
+<a id="__codelineno-0-303" name="__codelineno-0-303"></a>    <span class="n">ssp_row</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">line_numbers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="n">reference</span>
+<a id="__codelineno-0-304" name="__codelineno-0-304"></a>    <span class="n">x_west_edge</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">reference</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">pixel_m</span>
+<a id="__codelineno-0-305" name="__codelineno-0-305"></a>    <span class="n">y_north_edge</span> <span class="o">=</span> <span class="p">(</span><span class="n">ssp_row</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">pixel_m</span>
+<a id="__codelineno-0-306" name="__codelineno-0-306"></a>    <span class="n">geo</span> <span class="o">=</span> <span class="p">(</span><span class="n">x_west_edge</span><span class="p">,</span> <span class="n">pixel_m</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">y_north_edge</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="n">pixel_m</span><span class="p">)</span>
 <a id="__codelineno-0-307" name="__codelineno-0-307"></a>
-<a id="__codelineno-0-308" name="__codelineno-0-308"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">create_from_array</span><span class="p">(</span>
-<a id="__codelineno-0-309" name="__codelineno-0-309"></a>        <span class="n">radiance</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">,</span> <span class="n">epsg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">no_data_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span>
-<a id="__codelineno-0-310" name="__codelineno-0-310"></a>    <span class="p">)</span>
-<a id="__codelineno-0-311" name="__codelineno-0-311"></a>    <span class="n">dataset</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">_geostationary_wkt</span><span class="p">(</span><span class="n">subsatellite_longitude</span><span class="p">)</span>
-<a id="__codelineno-0-312" name="__codelineno-0-312"></a>    <span class="k">return</span> <span class="n">dataset</span>
+<a id="__codelineno-0-308" name="__codelineno-0-308"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-0-309" name="__codelineno-0-309"></a>
+<a id="__codelineno-0-310" name="__codelineno-0-310"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">create_from_array</span><span class="p">(</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311"></a>        <span class="n">radiance</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">,</span> <span class="n">epsg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">no_data_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+<a id="__codelineno-0-312" name="__codelineno-0-312"></a>    <span class="p">)</span>
+<a id="__codelineno-0-313" name="__codelineno-0-313"></a>    <span class="n">dataset</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">_geostationary_wkt</span><span class="p">(</span><span class="n">subsatellite_longitude</span><span class="p">)</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a>    <span class="k">return</span> <span class="n">dataset</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -3655,9 +3659,7 @@ the prime service); ignored when a custom <code>parse</code> is supplied.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/sensors/readers/seviri.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-315">315</a></span>
-<span class="normal"><a href="#__codelineno-0-316">316</a></span>
-<span class="normal"><a href="#__codelineno-0-317">317</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-317">317</a></span>
 <span class="normal"><a href="#__codelineno-0-318">318</a></span>
 <span class="normal"><a href="#__codelineno-0-319">319</a></span>
 <span class="normal"><a href="#__codelineno-0-320">320</a></span>
@@ -3735,87 +3737,89 @@ the prime service); ignored when a custom <code>parse</code> is supplied.</p>
 <span class="normal"><a href="#__codelineno-0-392">392</a></span>
 <span class="normal"><a href="#__codelineno-0-393">393</a></span>
 <span class="normal"><a href="#__codelineno-0-394">394</a></span>
-<span class="normal"><a href="#__codelineno-0-395">395</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-315" name="__codelineno-0-315"></a><span class="k">def</span><span class="w"> </span><span class="nf">read_seviri</span><span class="p">(</span>
-<a id="__codelineno-0-316" name="__codelineno-0-316"></a>    <span class="n">source</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-317" name="__codelineno-0-317"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-318" name="__codelineno-0-318"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-319" name="__codelineno-0-319"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"seviri"</span><span class="p">,</span>
-<a id="__codelineno-0-320" name="__codelineno-0-320"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-0-321" name="__codelineno-0-321"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
-<a id="__codelineno-0-322" name="__codelineno-0-322"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-323" name="__codelineno-0-323"></a>    <span class="n">coeffs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-324" name="__codelineno-0-324"></a>    <span class="n">parse</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-325" name="__codelineno-0-325"></a>    <span class="n">subsatellite_longitude</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
-<a id="__codelineno-0-326" name="__codelineno-0-326"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-327" name="__codelineno-0-327"></a><span class="w">    </span><span class="sd">"""Read one SEVIRI channel into a calibrated, geolocated `Dataset`.</span>
-<a id="__codelineno-0-328" name="__codelineno-0-328"></a>
-<a id="__codelineno-0-329" name="__codelineno-0-329"></a><span class="sd">    Decodes the channel radiance (from a `.nat` granule via `parse`, or straight</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330"></a><span class="sd">    from a `Dataset` source), then calibrates it to reflectance (solar) or</span>
-<a id="__codelineno-0-331" name="__codelineno-0-331"></a><span class="sd">    brightness temperature (thermal) via the registry and returns a pyramids</span>
-<a id="__codelineno-0-332" name="__codelineno-0-332"></a><span class="sd">    `Dataset` carrying the source's CRS + geotransform.</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333"></a>
-<a id="__codelineno-0-334" name="__codelineno-0-334"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-335" name="__codelineno-0-335"></a><span class="sd">        source: A path to an MSG Level-1.5 native `.nat` file (decoded by</span>
-<a id="__codelineno-0-336" name="__codelineno-0-336"></a><span class="sd">            `parse`), or a pyramids `Dataset` already holding the channel radiance.</span>
-<a id="__codelineno-0-337" name="__codelineno-0-337"></a><span class="sd">        channel: Channel identifier (e.g. `"IR_108"`, `"VIS006"`).</span>
-<a id="__codelineno-0-338" name="__codelineno-0-338"></a><span class="sd">        sensor: Registry sensor name (default `"seviri"`).</span>
-<a id="__codelineno-0-339" name="__codelineno-0-339"></a><span class="sd">        calibrate: When `True` (default), calibrate to a physical quantity; when</span>
-<a id="__codelineno-0-340" name="__codelineno-0-340"></a><span class="sd">            `False`, return the raw radiance.</span>
-<a id="__codelineno-0-341" name="__codelineno-0-341"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
-<a id="__codelineno-0-342" name="__codelineno-0-342"></a><span class="sd">            The default `1.0` leaves reflectance up to ~3.4% off (`d` ranges</span>
-<a id="__codelineno-0-343" name="__codelineno-0-343"></a><span class="sd">            ~0.983-1.017 AU over the year); pass the granule's `d` for absolute</span>
-<a id="__codelineno-0-344" name="__codelineno-0-344"></a><span class="sd">            accuracy.</span>
-<a id="__codelineno-0-345" name="__codelineno-0-345"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle</span>
-<a id="__codelineno-0-346" name="__codelineno-0-346"></a><span class="sd">            correction, or `None`.</span>
-<a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="sd">        coeffs: Per-granule calibration coefficients preferred over the registry</span>
-<a id="__codelineno-0-348" name="__codelineno-0-348"></a><span class="sd">            fallback (see `calibrate_channel`), or `None` to use the registry.</span>
-<a id="__codelineno-0-349" name="__codelineno-0-349"></a><span class="sd">        parse: Callable `(source, channel) -&gt; Dataset` used when `source` is not</span>
-<a id="__codelineno-0-350" name="__codelineno-0-350"></a><span class="sd">            already a `Dataset`. Defaults to the native `.nat` parser</span>
-<a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="sd">            (`parse_seviri_native`).</span>
-<a id="__codelineno-0-352" name="__codelineno-0-352"></a><span class="sd">        subsatellite_longitude: Sub-satellite longitude (degrees east) passed to</span>
-<a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="sd">            the default native parser for the geostationary CRS (default `0.0`,</span>
-<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">            the prime service); ignored when a custom `parse` is supplied.</span>
-<a id="__codelineno-0-355" name="__codelineno-0-355"></a>
-<a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-357" name="__codelineno-0-357"></a><span class="sd">        A pyramids `Dataset` of the calibrated (or raw) channel.</span>
-<a id="__codelineno-0-358" name="__codelineno-0-358"></a>
-<a id="__codelineno-0-359" name="__codelineno-0-359"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-360" name="__codelineno-0-360"></a><span class="sd">        ReaderError: When `source` is `None`, or the native parse fails.</span>
-<a id="__codelineno-0-361" name="__codelineno-0-361"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
-<a id="__codelineno-0-362" name="__codelineno-0-362"></a><span class="sd">        UnknownSensorError: When the sensor / channel is not in the registry.</span>
-<a id="__codelineno-0-363" name="__codelineno-0-363"></a><span class="sd">    """</span>
-<a id="__codelineno-0-364" name="__codelineno-0-364"></a>    <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-365" name="__codelineno-0-365"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"read_seviri: source is required"</span><span class="p">)</span>
-<a id="__codelineno-0-366" name="__codelineno-0-366"></a>
-<a id="__codelineno-0-367" name="__codelineno-0-367"></a>    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s2">"read_array"</span><span class="p">):</span>
-<a id="__codelineno-0-368" name="__codelineno-0-368"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">source</span>
-<a id="__codelineno-0-369" name="__codelineno-0-369"></a>    <span class="k">elif</span> <span class="n">parse</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-370" name="__codelineno-0-370"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">parse</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
-<a id="__codelineno-0-371" name="__codelineno-0-371"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-372" name="__codelineno-0-372"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">parse_seviri_native</span><span class="p">(</span>
-<a id="__codelineno-0-373" name="__codelineno-0-373"></a>            <span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">subsatellite_longitude</span><span class="o">=</span><span class="n">subsatellite_longitude</span>
-<a id="__codelineno-0-374" name="__codelineno-0-374"></a>        <span class="p">)</span>
-<a id="__codelineno-0-375" name="__codelineno-0-375"></a>    <span class="n">radiance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">read_array</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-<a id="__codelineno-0-376" name="__codelineno-0-376"></a>    <span class="n">data</span> <span class="o">=</span> <span class="p">(</span>
-<a id="__codelineno-0-377" name="__codelineno-0-377"></a>        <span class="n">calibrate_channel</span><span class="p">(</span>
-<a id="__codelineno-0-378" name="__codelineno-0-378"></a>            <span class="n">radiance</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">sensor</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="p">,</span> <span class="n">cos_sza</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="n">coeffs</span>
-<a id="__codelineno-0-379" name="__codelineno-0-379"></a>        <span class="p">)</span>
-<a id="__codelineno-0-380" name="__codelineno-0-380"></a>        <span class="k">if</span> <span class="n">calibrate</span>
-<a id="__codelineno-0-381" name="__codelineno-0-381"></a>        <span class="k">else</span> <span class="n">radiance</span>
-<a id="__codelineno-0-382" name="__codelineno-0-382"></a>    <span class="p">)</span>
-<a id="__codelineno-0-383" name="__codelineno-0-383"></a>
-<a id="__codelineno-0-384" name="__codelineno-0-384"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<span class="normal"><a href="#__codelineno-0-395">395</a></span>
+<span class="normal"><a href="#__codelineno-0-396">396</a></span>
+<span class="normal"><a href="#__codelineno-0-397">397</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-317" name="__codelineno-0-317"></a><span class="k">def</span><span class="w"> </span><span class="nf">read_seviri</span><span class="p">(</span>
+<a id="__codelineno-0-318" name="__codelineno-0-318"></a>    <span class="n">source</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-319" name="__codelineno-0-319"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-320" name="__codelineno-0-320"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-321" name="__codelineno-0-321"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"seviri"</span><span class="p">,</span>
+<a id="__codelineno-0-322" name="__codelineno-0-322"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-323" name="__codelineno-0-323"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+<a id="__codelineno-0-324" name="__codelineno-0-324"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-325" name="__codelineno-0-325"></a>    <span class="n">coeffs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-326" name="__codelineno-0-326"></a>    <span class="n">parse</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-327" name="__codelineno-0-327"></a>    <span class="n">subsatellite_longitude</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+<a id="__codelineno-0-328" name="__codelineno-0-328"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-329" name="__codelineno-0-329"></a><span class="w">    </span><span class="sd">"""Read one SEVIRI channel into a calibrated, geolocated `Dataset`.</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a>
+<a id="__codelineno-0-331" name="__codelineno-0-331"></a><span class="sd">    Decodes the channel radiance (from a `.nat` granule via `parse`, or straight</span>
+<a id="__codelineno-0-332" name="__codelineno-0-332"></a><span class="sd">    from a `Dataset` source), then calibrates it to reflectance (solar) or</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a><span class="sd">    brightness temperature (thermal) via the registry and returns a pyramids</span>
+<a id="__codelineno-0-334" name="__codelineno-0-334"></a><span class="sd">    `Dataset` carrying the source's CRS + geotransform.</span>
+<a id="__codelineno-0-335" name="__codelineno-0-335"></a>
+<a id="__codelineno-0-336" name="__codelineno-0-336"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-337" name="__codelineno-0-337"></a><span class="sd">        source: A path to an MSG Level-1.5 native `.nat` file (decoded by</span>
+<a id="__codelineno-0-338" name="__codelineno-0-338"></a><span class="sd">            `parse`), or a pyramids `Dataset` already holding the channel radiance.</span>
+<a id="__codelineno-0-339" name="__codelineno-0-339"></a><span class="sd">        channel: Channel identifier (e.g. `"IR_108"`, `"VIS006"`).</span>
+<a id="__codelineno-0-340" name="__codelineno-0-340"></a><span class="sd">        sensor: Registry sensor name (default `"seviri"`).</span>
+<a id="__codelineno-0-341" name="__codelineno-0-341"></a><span class="sd">        calibrate: When `True` (default), calibrate to a physical quantity; when</span>
+<a id="__codelineno-0-342" name="__codelineno-0-342"></a><span class="sd">            `False`, return the raw radiance.</span>
+<a id="__codelineno-0-343" name="__codelineno-0-343"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
+<a id="__codelineno-0-344" name="__codelineno-0-344"></a><span class="sd">            The default `1.0` leaves reflectance up to ~3.4% off (`d` ranges</span>
+<a id="__codelineno-0-345" name="__codelineno-0-345"></a><span class="sd">            ~0.983-1.017 AU over the year); pass the granule's `d` for absolute</span>
+<a id="__codelineno-0-346" name="__codelineno-0-346"></a><span class="sd">            accuracy.</span>
+<a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle</span>
+<a id="__codelineno-0-348" name="__codelineno-0-348"></a><span class="sd">            correction, or `None`.</span>
+<a id="__codelineno-0-349" name="__codelineno-0-349"></a><span class="sd">        coeffs: Per-granule calibration coefficients preferred over the registry</span>
+<a id="__codelineno-0-350" name="__codelineno-0-350"></a><span class="sd">            fallback (see `calibrate_channel`), or `None` to use the registry.</span>
+<a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="sd">        parse: Callable `(source, channel) -&gt; Dataset` used when `source` is not</span>
+<a id="__codelineno-0-352" name="__codelineno-0-352"></a><span class="sd">            already a `Dataset`. Defaults to the native `.nat` parser</span>
+<a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="sd">            (`parse_seviri_native`).</span>
+<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">        subsatellite_longitude: Sub-satellite longitude (degrees east) passed to</span>
+<a id="__codelineno-0-355" name="__codelineno-0-355"></a><span class="sd">            the default native parser for the geostationary CRS (default `0.0`,</span>
+<a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">            the prime service); ignored when a custom `parse` is supplied.</span>
+<a id="__codelineno-0-357" name="__codelineno-0-357"></a>
+<a id="__codelineno-0-358" name="__codelineno-0-358"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-359" name="__codelineno-0-359"></a><span class="sd">        A pyramids `Dataset` of the calibrated (or raw) channel.</span>
+<a id="__codelineno-0-360" name="__codelineno-0-360"></a>
+<a id="__codelineno-0-361" name="__codelineno-0-361"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-362" name="__codelineno-0-362"></a><span class="sd">        ReaderError: When `source` is `None`, or the native parse fails.</span>
+<a id="__codelineno-0-363" name="__codelineno-0-363"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
+<a id="__codelineno-0-364" name="__codelineno-0-364"></a><span class="sd">        UnknownSensorError: When the sensor / channel is not in the registry.</span>
+<a id="__codelineno-0-365" name="__codelineno-0-365"></a><span class="sd">    """</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366"></a>    <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-367" name="__codelineno-0-367"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"read_seviri: source is required"</span><span class="p">)</span>
+<a id="__codelineno-0-368" name="__codelineno-0-368"></a>
+<a id="__codelineno-0-369" name="__codelineno-0-369"></a>    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s2">"read_array"</span><span class="p">):</span>
+<a id="__codelineno-0-370" name="__codelineno-0-370"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">source</span>
+<a id="__codelineno-0-371" name="__codelineno-0-371"></a>    <span class="k">elif</span> <span class="n">parse</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-372" name="__codelineno-0-372"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">parse</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
+<a id="__codelineno-0-373" name="__codelineno-0-373"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-374" name="__codelineno-0-374"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">parse_seviri_native</span><span class="p">(</span>
+<a id="__codelineno-0-375" name="__codelineno-0-375"></a>            <span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">subsatellite_longitude</span><span class="o">=</span><span class="n">subsatellite_longitude</span>
+<a id="__codelineno-0-376" name="__codelineno-0-376"></a>        <span class="p">)</span>
+<a id="__codelineno-0-377" name="__codelineno-0-377"></a>    <span class="n">radiance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">read_array</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<a id="__codelineno-0-378" name="__codelineno-0-378"></a>    <span class="n">data</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-0-379" name="__codelineno-0-379"></a>        <span class="n">calibrate_channel</span><span class="p">(</span>
+<a id="__codelineno-0-380" name="__codelineno-0-380"></a>            <span class="n">radiance</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">sensor</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="p">,</span> <span class="n">cos_sza</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="n">coeffs</span>
+<a id="__codelineno-0-381" name="__codelineno-0-381"></a>        <span class="p">)</span>
+<a id="__codelineno-0-382" name="__codelineno-0-382"></a>        <span class="k">if</span> <span class="n">calibrate</span>
+<a id="__codelineno-0-383" name="__codelineno-0-383"></a>        <span class="k">else</span> <span class="n">radiance</span>
+<a id="__codelineno-0-384" name="__codelineno-0-384"></a>    <span class="p">)</span>
 <a id="__codelineno-0-385" name="__codelineno-0-385"></a>
-<a id="__codelineno-0-386" name="__codelineno-0-386"></a>    <span class="c1"># Calibration can produce NaN (terminator reflectance / non-positive</span>
-<a id="__codelineno-0-387" name="__codelineno-0-387"></a>    <span class="c1"># radiance), so declare NaN as nodata rather than the default -9999.</span>
-<a id="__codelineno-0-388" name="__codelineno-0-388"></a>    <span class="n">epsg</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">epsg</span> <span class="k">if</span> <span class="n">dataset</span><span class="o">.</span><span class="n">epsg</span> <span class="k">else</span> <span class="kc">None</span>
-<a id="__codelineno-0-389" name="__codelineno-0-389"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">create_from_array</span><span class="p">(</span>
-<a id="__codelineno-0-390" name="__codelineno-0-390"></a>        <span class="n">data</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">dataset</span><span class="o">.</span><span class="n">geotransform</span><span class="p">,</span> <span class="n">epsg</span><span class="o">=</span><span class="n">epsg</span><span class="p">,</span> <span class="n">no_data_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span>
-<a id="__codelineno-0-391" name="__codelineno-0-391"></a>    <span class="p">)</span>
-<a id="__codelineno-0-392" name="__codelineno-0-392"></a>    <span class="k">if</span> <span class="n">epsg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-393" name="__codelineno-0-393"></a>        <span class="c1"># A non-EPSG CRS (e.g. the geostationary grid) must be carried explicitly.</span>
-<a id="__codelineno-0-394" name="__codelineno-0-394"></a>        <span class="n">result</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">crs</span>
-<a id="__codelineno-0-395" name="__codelineno-0-395"></a>    <span class="k">return</span> <span class="n">result</span>
+<a id="__codelineno-0-386" name="__codelineno-0-386"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-0-387" name="__codelineno-0-387"></a>
+<a id="__codelineno-0-388" name="__codelineno-0-388"></a>    <span class="c1"># Calibration can produce NaN (terminator reflectance / non-positive</span>
+<a id="__codelineno-0-389" name="__codelineno-0-389"></a>    <span class="c1"># radiance), so declare NaN as nodata rather than the default -9999.</span>
+<a id="__codelineno-0-390" name="__codelineno-0-390"></a>    <span class="n">epsg</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">epsg</span> <span class="k">if</span> <span class="n">dataset</span><span class="o">.</span><span class="n">epsg</span> <span class="k">else</span> <span class="kc">None</span>
+<a id="__codelineno-0-391" name="__codelineno-0-391"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">create_from_array</span><span class="p">(</span>
+<a id="__codelineno-0-392" name="__codelineno-0-392"></a>        <span class="n">data</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">dataset</span><span class="o">.</span><span class="n">geotransform</span><span class="p">,</span> <span class="n">epsg</span><span class="o">=</span><span class="n">epsg</span><span class="p">,</span> <span class="n">no_data_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+<a id="__codelineno-0-393" name="__codelineno-0-393"></a>    <span class="p">)</span>
+<a id="__codelineno-0-394" name="__codelineno-0-394"></a>    <span class="k">if</span> <span class="n">epsg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-395" name="__codelineno-0-395"></a>        <span class="c1"># A non-EPSG CRS (e.g. the geostationary grid) must be carried explicitly.</span>
+<a id="__codelineno-0-396" name="__codelineno-0-396"></a>        <span class="n">result</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">crs</span>
+<a id="__codelineno-0-397" name="__codelineno-0-397"></a>    <span class="k">return</span> <span class="n">result</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -5562,7 +5566,9 @@ contiguous (an unexpected channel selection or layout).</p>
 <span class="normal"><a href="#__codelineno-0-309">309</a></span>
 <span class="normal"><a href="#__codelineno-0-310">310</a></span>
 <span class="normal"><a href="#__codelineno-0-311">311</a></span>
-<span class="normal"><a href="#__codelineno-0-312">312</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="k">def</span><span class="w"> </span><span class="nf">parse_seviri_native</span><span class="p">(</span>
+<span class="normal"><a href="#__codelineno-0-312">312</a></span>
+<span class="normal"><a href="#__codelineno-0-313">313</a></span>
+<span class="normal"><a href="#__codelineno-0-314">314</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="k">def</span><span class="w"> </span><span class="nf">parse_seviri_native</span><span class="p">(</span>
 <a id="__codelineno-0-153" name="__codelineno-0-153"></a>    <span class="n">path</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">subsatellite_longitude</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <a id="__codelineno-0-154" name="__codelineno-0-154"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <a id="__codelineno-0-155" name="__codelineno-0-155"></a><span class="w">    </span><span class="sd">"""Decode one VIS/IR channel of an MSG Level-1.5 native (`.nat`) granule.</span>
@@ -5704,25 +5710,27 @@ contiguous (an unexpected channel selection or layout).</p>
 <a id="__codelineno-0-291" name="__codelineno-0-291"></a>    <span class="c1"># negative strides.</span>
 <a id="__codelineno-0-292" name="__codelineno-0-292"></a>    <span class="n">radiance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">::</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
 <a id="__codelineno-0-293" name="__codelineno-0-293"></a>
-<a id="__codelineno-0-294" name="__codelineno-0-294"></a>    <span class="c1"># CGMS/EUMETSAT navigation places the sub-satellite point at the CENTRE of</span>
-<a id="__codelineno-0-295" name="__codelineno-0-295"></a>    <span class="c1"># the reference pixel COFF = LOFF = N/2 (1-based; column/line 1856 of the 3712</span>
-<a id="__codelineno-0-296" name="__codelineno-0-296"></a>    <span class="c1"># grid), not at the even grid's geometric mid-line. Register the metre</span>
-<a id="__codelineno-0-297" name="__codelineno-0-297"></a>    <span class="c1"># geotransform so that pixel's centre is (x=0, y=0) — a half-pixel (~1.5 km)</span>
-<a id="__codelineno-0-298" name="__codelineno-0-298"></a>    <span class="c1"># offset from the naive grid centre. Line numbers increase north and columns</span>
-<a id="__codelineno-0-299" name="__codelineno-0-299"></a>    <span class="c1"># east, so after the north-up/west-left flip row 0 is the northmost line.</span>
-<a id="__codelineno-0-300" name="__codelineno-0-300"></a>    <span class="n">reference_line</span> <span class="o">=</span> <span class="n">lines_declared</span> <span class="o">/</span> <span class="mf">2.0</span>
-<a id="__codelineno-0-301" name="__codelineno-0-301"></a>    <span class="n">reference_column</span> <span class="o">=</span> <span class="n">columns</span> <span class="o">/</span> <span class="mf">2.0</span>
-<a id="__codelineno-0-302" name="__codelineno-0-302"></a>    <span class="n">y_north_edge</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">line_numbers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="n">reference_line</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">pixel_m</span>
-<a id="__codelineno-0-303" name="__codelineno-0-303"></a>    <span class="n">x_west_edge</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">reference_column</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">pixel_m</span>
-<a id="__codelineno-0-304" name="__codelineno-0-304"></a>    <span class="n">geo</span> <span class="o">=</span> <span class="p">(</span><span class="n">x_west_edge</span><span class="p">,</span> <span class="n">pixel_m</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">y_north_edge</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="n">pixel_m</span><span class="p">)</span>
-<a id="__codelineno-0-305" name="__codelineno-0-305"></a>
-<a id="__codelineno-0-306" name="__codelineno-0-306"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-0-294" name="__codelineno-0-294"></a>    <span class="c1"># CGMS/EUMETSAT navigation places the sub-satellite point at the CENTRE of the</span>
+<a id="__codelineno-0-295" name="__codelineno-0-295"></a>    <span class="c1"># reference pixel N/2 (0-based, both axes; e.g. pixel 1856 of the 3712 grid) —</span>
+<a id="__codelineno-0-296" name="__codelineno-0-296"></a>    <span class="c1"># the COFF = LOFF convention, which reproduces the published MSG full-disk area</span>
+<a id="__codelineno-0-297" name="__codelineno-0-297"></a>    <span class="c1"># extent (west edge -(N/2 + 0.5) * px). All columns are present (full width) so</span>
+<a id="__codelineno-0-298" name="__codelineno-0-298"></a>    <span class="c1"># the SSP column is N/2; only a subset of lines may be present, so the SSP row</span>
+<a id="__codelineno-0-299" name="__codelineno-0-299"></a>    <span class="c1"># is N/2 measured from the northmost present line (row 0 after the north-up</span>
+<a id="__codelineno-0-300" name="__codelineno-0-300"></a>    <span class="c1"># flip). Register the metre geotransform so that reference pixel's centre is</span>
+<a id="__codelineno-0-301" name="__codelineno-0-301"></a>    <span class="c1"># (x=0, y=0).</span>
+<a id="__codelineno-0-302" name="__codelineno-0-302"></a>    <span class="n">reference</span> <span class="o">=</span> <span class="n">columns</span> <span class="o">/</span> <span class="mf">2.0</span>  <span class="c1"># == lines_declared / 2.0 for the square VIS/IR grid</span>
+<a id="__codelineno-0-303" name="__codelineno-0-303"></a>    <span class="n">ssp_row</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">line_numbers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="n">reference</span>
+<a id="__codelineno-0-304" name="__codelineno-0-304"></a>    <span class="n">x_west_edge</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">reference</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">pixel_m</span>
+<a id="__codelineno-0-305" name="__codelineno-0-305"></a>    <span class="n">y_north_edge</span> <span class="o">=</span> <span class="p">(</span><span class="n">ssp_row</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">pixel_m</span>
+<a id="__codelineno-0-306" name="__codelineno-0-306"></a>    <span class="n">geo</span> <span class="o">=</span> <span class="p">(</span><span class="n">x_west_edge</span><span class="p">,</span> <span class="n">pixel_m</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">y_north_edge</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="n">pixel_m</span><span class="p">)</span>
 <a id="__codelineno-0-307" name="__codelineno-0-307"></a>
-<a id="__codelineno-0-308" name="__codelineno-0-308"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">create_from_array</span><span class="p">(</span>
-<a id="__codelineno-0-309" name="__codelineno-0-309"></a>        <span class="n">radiance</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">,</span> <span class="n">epsg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">no_data_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span>
-<a id="__codelineno-0-310" name="__codelineno-0-310"></a>    <span class="p">)</span>
-<a id="__codelineno-0-311" name="__codelineno-0-311"></a>    <span class="n">dataset</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">_geostationary_wkt</span><span class="p">(</span><span class="n">subsatellite_longitude</span><span class="p">)</span>
-<a id="__codelineno-0-312" name="__codelineno-0-312"></a>    <span class="k">return</span> <span class="n">dataset</span>
+<a id="__codelineno-0-308" name="__codelineno-0-308"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-0-309" name="__codelineno-0-309"></a>
+<a id="__codelineno-0-310" name="__codelineno-0-310"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">create_from_array</span><span class="p">(</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311"></a>        <span class="n">radiance</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">,</span> <span class="n">epsg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">no_data_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+<a id="__codelineno-0-312" name="__codelineno-0-312"></a>    <span class="p">)</span>
+<a id="__codelineno-0-313" name="__codelineno-0-313"></a>    <span class="n">dataset</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">_geostationary_wkt</span><span class="p">(</span><span class="n">subsatellite_longitude</span><span class="p">)</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a>    <span class="k">return</span> <span class="n">dataset</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -5985,9 +5993,7 @@ the prime service); ignored when a custom <code>parse</code> is supplied.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/sensors/readers/seviri.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-315">315</a></span>
-<span class="normal"><a href="#__codelineno-0-316">316</a></span>
-<span class="normal"><a href="#__codelineno-0-317">317</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-317">317</a></span>
 <span class="normal"><a href="#__codelineno-0-318">318</a></span>
 <span class="normal"><a href="#__codelineno-0-319">319</a></span>
 <span class="normal"><a href="#__codelineno-0-320">320</a></span>
@@ -6065,87 +6071,89 @@ the prime service); ignored when a custom <code>parse</code> is supplied.</p>
 <span class="normal"><a href="#__codelineno-0-392">392</a></span>
 <span class="normal"><a href="#__codelineno-0-393">393</a></span>
 <span class="normal"><a href="#__codelineno-0-394">394</a></span>
-<span class="normal"><a href="#__codelineno-0-395">395</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-315" name="__codelineno-0-315"></a><span class="k">def</span><span class="w"> </span><span class="nf">read_seviri</span><span class="p">(</span>
-<a id="__codelineno-0-316" name="__codelineno-0-316"></a>    <span class="n">source</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-317" name="__codelineno-0-317"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-318" name="__codelineno-0-318"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-319" name="__codelineno-0-319"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"seviri"</span><span class="p">,</span>
-<a id="__codelineno-0-320" name="__codelineno-0-320"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-0-321" name="__codelineno-0-321"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
-<a id="__codelineno-0-322" name="__codelineno-0-322"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-323" name="__codelineno-0-323"></a>    <span class="n">coeffs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-324" name="__codelineno-0-324"></a>    <span class="n">parse</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-325" name="__codelineno-0-325"></a>    <span class="n">subsatellite_longitude</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
-<a id="__codelineno-0-326" name="__codelineno-0-326"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-327" name="__codelineno-0-327"></a><span class="w">    </span><span class="sd">"""Read one SEVIRI channel into a calibrated, geolocated `Dataset`.</span>
-<a id="__codelineno-0-328" name="__codelineno-0-328"></a>
-<a id="__codelineno-0-329" name="__codelineno-0-329"></a><span class="sd">    Decodes the channel radiance (from a `.nat` granule via `parse`, or straight</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330"></a><span class="sd">    from a `Dataset` source), then calibrates it to reflectance (solar) or</span>
-<a id="__codelineno-0-331" name="__codelineno-0-331"></a><span class="sd">    brightness temperature (thermal) via the registry and returns a pyramids</span>
-<a id="__codelineno-0-332" name="__codelineno-0-332"></a><span class="sd">    `Dataset` carrying the source's CRS + geotransform.</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333"></a>
-<a id="__codelineno-0-334" name="__codelineno-0-334"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-335" name="__codelineno-0-335"></a><span class="sd">        source: A path to an MSG Level-1.5 native `.nat` file (decoded by</span>
-<a id="__codelineno-0-336" name="__codelineno-0-336"></a><span class="sd">            `parse`), or a pyramids `Dataset` already holding the channel radiance.</span>
-<a id="__codelineno-0-337" name="__codelineno-0-337"></a><span class="sd">        channel: Channel identifier (e.g. `"IR_108"`, `"VIS006"`).</span>
-<a id="__codelineno-0-338" name="__codelineno-0-338"></a><span class="sd">        sensor: Registry sensor name (default `"seviri"`).</span>
-<a id="__codelineno-0-339" name="__codelineno-0-339"></a><span class="sd">        calibrate: When `True` (default), calibrate to a physical quantity; when</span>
-<a id="__codelineno-0-340" name="__codelineno-0-340"></a><span class="sd">            `False`, return the raw radiance.</span>
-<a id="__codelineno-0-341" name="__codelineno-0-341"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
-<a id="__codelineno-0-342" name="__codelineno-0-342"></a><span class="sd">            The default `1.0` leaves reflectance up to ~3.4% off (`d` ranges</span>
-<a id="__codelineno-0-343" name="__codelineno-0-343"></a><span class="sd">            ~0.983-1.017 AU over the year); pass the granule's `d` for absolute</span>
-<a id="__codelineno-0-344" name="__codelineno-0-344"></a><span class="sd">            accuracy.</span>
-<a id="__codelineno-0-345" name="__codelineno-0-345"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle</span>
-<a id="__codelineno-0-346" name="__codelineno-0-346"></a><span class="sd">            correction, or `None`.</span>
-<a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="sd">        coeffs: Per-granule calibration coefficients preferred over the registry</span>
-<a id="__codelineno-0-348" name="__codelineno-0-348"></a><span class="sd">            fallback (see `calibrate_channel`), or `None` to use the registry.</span>
-<a id="__codelineno-0-349" name="__codelineno-0-349"></a><span class="sd">        parse: Callable `(source, channel) -&gt; Dataset` used when `source` is not</span>
-<a id="__codelineno-0-350" name="__codelineno-0-350"></a><span class="sd">            already a `Dataset`. Defaults to the native `.nat` parser</span>
-<a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="sd">            (`parse_seviri_native`).</span>
-<a id="__codelineno-0-352" name="__codelineno-0-352"></a><span class="sd">        subsatellite_longitude: Sub-satellite longitude (degrees east) passed to</span>
-<a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="sd">            the default native parser for the geostationary CRS (default `0.0`,</span>
-<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">            the prime service); ignored when a custom `parse` is supplied.</span>
-<a id="__codelineno-0-355" name="__codelineno-0-355"></a>
-<a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-357" name="__codelineno-0-357"></a><span class="sd">        A pyramids `Dataset` of the calibrated (or raw) channel.</span>
-<a id="__codelineno-0-358" name="__codelineno-0-358"></a>
-<a id="__codelineno-0-359" name="__codelineno-0-359"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-360" name="__codelineno-0-360"></a><span class="sd">        ReaderError: When `source` is `None`, or the native parse fails.</span>
-<a id="__codelineno-0-361" name="__codelineno-0-361"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
-<a id="__codelineno-0-362" name="__codelineno-0-362"></a><span class="sd">        UnknownSensorError: When the sensor / channel is not in the registry.</span>
-<a id="__codelineno-0-363" name="__codelineno-0-363"></a><span class="sd">    """</span>
-<a id="__codelineno-0-364" name="__codelineno-0-364"></a>    <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-365" name="__codelineno-0-365"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"read_seviri: source is required"</span><span class="p">)</span>
-<a id="__codelineno-0-366" name="__codelineno-0-366"></a>
-<a id="__codelineno-0-367" name="__codelineno-0-367"></a>    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s2">"read_array"</span><span class="p">):</span>
-<a id="__codelineno-0-368" name="__codelineno-0-368"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">source</span>
-<a id="__codelineno-0-369" name="__codelineno-0-369"></a>    <span class="k">elif</span> <span class="n">parse</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-370" name="__codelineno-0-370"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">parse</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
-<a id="__codelineno-0-371" name="__codelineno-0-371"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-372" name="__codelineno-0-372"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">parse_seviri_native</span><span class="p">(</span>
-<a id="__codelineno-0-373" name="__codelineno-0-373"></a>            <span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">subsatellite_longitude</span><span class="o">=</span><span class="n">subsatellite_longitude</span>
-<a id="__codelineno-0-374" name="__codelineno-0-374"></a>        <span class="p">)</span>
-<a id="__codelineno-0-375" name="__codelineno-0-375"></a>    <span class="n">radiance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">read_array</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-<a id="__codelineno-0-376" name="__codelineno-0-376"></a>    <span class="n">data</span> <span class="o">=</span> <span class="p">(</span>
-<a id="__codelineno-0-377" name="__codelineno-0-377"></a>        <span class="n">calibrate_channel</span><span class="p">(</span>
-<a id="__codelineno-0-378" name="__codelineno-0-378"></a>            <span class="n">radiance</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">sensor</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="p">,</span> <span class="n">cos_sza</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="n">coeffs</span>
-<a id="__codelineno-0-379" name="__codelineno-0-379"></a>        <span class="p">)</span>
-<a id="__codelineno-0-380" name="__codelineno-0-380"></a>        <span class="k">if</span> <span class="n">calibrate</span>
-<a id="__codelineno-0-381" name="__codelineno-0-381"></a>        <span class="k">else</span> <span class="n">radiance</span>
-<a id="__codelineno-0-382" name="__codelineno-0-382"></a>    <span class="p">)</span>
-<a id="__codelineno-0-383" name="__codelineno-0-383"></a>
-<a id="__codelineno-0-384" name="__codelineno-0-384"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<span class="normal"><a href="#__codelineno-0-395">395</a></span>
+<span class="normal"><a href="#__codelineno-0-396">396</a></span>
+<span class="normal"><a href="#__codelineno-0-397">397</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-317" name="__codelineno-0-317"></a><span class="k">def</span><span class="w"> </span><span class="nf">read_seviri</span><span class="p">(</span>
+<a id="__codelineno-0-318" name="__codelineno-0-318"></a>    <span class="n">source</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-319" name="__codelineno-0-319"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-320" name="__codelineno-0-320"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-321" name="__codelineno-0-321"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"seviri"</span><span class="p">,</span>
+<a id="__codelineno-0-322" name="__codelineno-0-322"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-323" name="__codelineno-0-323"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+<a id="__codelineno-0-324" name="__codelineno-0-324"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-325" name="__codelineno-0-325"></a>    <span class="n">coeffs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-326" name="__codelineno-0-326"></a>    <span class="n">parse</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-327" name="__codelineno-0-327"></a>    <span class="n">subsatellite_longitude</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+<a id="__codelineno-0-328" name="__codelineno-0-328"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-329" name="__codelineno-0-329"></a><span class="w">    </span><span class="sd">"""Read one SEVIRI channel into a calibrated, geolocated `Dataset`.</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a>
+<a id="__codelineno-0-331" name="__codelineno-0-331"></a><span class="sd">    Decodes the channel radiance (from a `.nat` granule via `parse`, or straight</span>
+<a id="__codelineno-0-332" name="__codelineno-0-332"></a><span class="sd">    from a `Dataset` source), then calibrates it to reflectance (solar) or</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a><span class="sd">    brightness temperature (thermal) via the registry and returns a pyramids</span>
+<a id="__codelineno-0-334" name="__codelineno-0-334"></a><span class="sd">    `Dataset` carrying the source's CRS + geotransform.</span>
+<a id="__codelineno-0-335" name="__codelineno-0-335"></a>
+<a id="__codelineno-0-336" name="__codelineno-0-336"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-337" name="__codelineno-0-337"></a><span class="sd">        source: A path to an MSG Level-1.5 native `.nat` file (decoded by</span>
+<a id="__codelineno-0-338" name="__codelineno-0-338"></a><span class="sd">            `parse`), or a pyramids `Dataset` already holding the channel radiance.</span>
+<a id="__codelineno-0-339" name="__codelineno-0-339"></a><span class="sd">        channel: Channel identifier (e.g. `"IR_108"`, `"VIS006"`).</span>
+<a id="__codelineno-0-340" name="__codelineno-0-340"></a><span class="sd">        sensor: Registry sensor name (default `"seviri"`).</span>
+<a id="__codelineno-0-341" name="__codelineno-0-341"></a><span class="sd">        calibrate: When `True` (default), calibrate to a physical quantity; when</span>
+<a id="__codelineno-0-342" name="__codelineno-0-342"></a><span class="sd">            `False`, return the raw radiance.</span>
+<a id="__codelineno-0-343" name="__codelineno-0-343"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
+<a id="__codelineno-0-344" name="__codelineno-0-344"></a><span class="sd">            The default `1.0` leaves reflectance up to ~3.4% off (`d` ranges</span>
+<a id="__codelineno-0-345" name="__codelineno-0-345"></a><span class="sd">            ~0.983-1.017 AU over the year); pass the granule's `d` for absolute</span>
+<a id="__codelineno-0-346" name="__codelineno-0-346"></a><span class="sd">            accuracy.</span>
+<a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle</span>
+<a id="__codelineno-0-348" name="__codelineno-0-348"></a><span class="sd">            correction, or `None`.</span>
+<a id="__codelineno-0-349" name="__codelineno-0-349"></a><span class="sd">        coeffs: Per-granule calibration coefficients preferred over the registry</span>
+<a id="__codelineno-0-350" name="__codelineno-0-350"></a><span class="sd">            fallback (see `calibrate_channel`), or `None` to use the registry.</span>
+<a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="sd">        parse: Callable `(source, channel) -&gt; Dataset` used when `source` is not</span>
+<a id="__codelineno-0-352" name="__codelineno-0-352"></a><span class="sd">            already a `Dataset`. Defaults to the native `.nat` parser</span>
+<a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="sd">            (`parse_seviri_native`).</span>
+<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="sd">        subsatellite_longitude: Sub-satellite longitude (degrees east) passed to</span>
+<a id="__codelineno-0-355" name="__codelineno-0-355"></a><span class="sd">            the default native parser for the geostationary CRS (default `0.0`,</span>
+<a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">            the prime service); ignored when a custom `parse` is supplied.</span>
+<a id="__codelineno-0-357" name="__codelineno-0-357"></a>
+<a id="__codelineno-0-358" name="__codelineno-0-358"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-359" name="__codelineno-0-359"></a><span class="sd">        A pyramids `Dataset` of the calibrated (or raw) channel.</span>
+<a id="__codelineno-0-360" name="__codelineno-0-360"></a>
+<a id="__codelineno-0-361" name="__codelineno-0-361"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-362" name="__codelineno-0-362"></a><span class="sd">        ReaderError: When `source` is `None`, or the native parse fails.</span>
+<a id="__codelineno-0-363" name="__codelineno-0-363"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
+<a id="__codelineno-0-364" name="__codelineno-0-364"></a><span class="sd">        UnknownSensorError: When the sensor / channel is not in the registry.</span>
+<a id="__codelineno-0-365" name="__codelineno-0-365"></a><span class="sd">    """</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366"></a>    <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-367" name="__codelineno-0-367"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"read_seviri: source is required"</span><span class="p">)</span>
+<a id="__codelineno-0-368" name="__codelineno-0-368"></a>
+<a id="__codelineno-0-369" name="__codelineno-0-369"></a>    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s2">"read_array"</span><span class="p">):</span>
+<a id="__codelineno-0-370" name="__codelineno-0-370"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">source</span>
+<a id="__codelineno-0-371" name="__codelineno-0-371"></a>    <span class="k">elif</span> <span class="n">parse</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-372" name="__codelineno-0-372"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">parse</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
+<a id="__codelineno-0-373" name="__codelineno-0-373"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-374" name="__codelineno-0-374"></a>        <span class="n">dataset</span> <span class="o">=</span> <span class="n">parse_seviri_native</span><span class="p">(</span>
+<a id="__codelineno-0-375" name="__codelineno-0-375"></a>            <span class="n">source</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">subsatellite_longitude</span><span class="o">=</span><span class="n">subsatellite_longitude</span>
+<a id="__codelineno-0-376" name="__codelineno-0-376"></a>        <span class="p">)</span>
+<a id="__codelineno-0-377" name="__codelineno-0-377"></a>    <span class="n">radiance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">read_array</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<a id="__codelineno-0-378" name="__codelineno-0-378"></a>    <span class="n">data</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-0-379" name="__codelineno-0-379"></a>        <span class="n">calibrate_channel</span><span class="p">(</span>
+<a id="__codelineno-0-380" name="__codelineno-0-380"></a>            <span class="n">radiance</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">sensor</span><span class="p">,</span> <span class="n">sun_earth_distance</span><span class="p">,</span> <span class="n">cos_sza</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="n">coeffs</span>
+<a id="__codelineno-0-381" name="__codelineno-0-381"></a>        <span class="p">)</span>
+<a id="__codelineno-0-382" name="__codelineno-0-382"></a>        <span class="k">if</span> <span class="n">calibrate</span>
+<a id="__codelineno-0-383" name="__codelineno-0-383"></a>        <span class="k">else</span> <span class="n">radiance</span>
+<a id="__codelineno-0-384" name="__codelineno-0-384"></a>    <span class="p">)</span>
 <a id="__codelineno-0-385" name="__codelineno-0-385"></a>
-<a id="__codelineno-0-386" name="__codelineno-0-386"></a>    <span class="c1"># Calibration can produce NaN (terminator reflectance / non-positive</span>
-<a id="__codelineno-0-387" name="__codelineno-0-387"></a>    <span class="c1"># radiance), so declare NaN as nodata rather than the default -9999.</span>
-<a id="__codelineno-0-388" name="__codelineno-0-388"></a>    <span class="n">epsg</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">epsg</span> <span class="k">if</span> <span class="n">dataset</span><span class="o">.</span><span class="n">epsg</span> <span class="k">else</span> <span class="kc">None</span>
-<a id="__codelineno-0-389" name="__codelineno-0-389"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">create_from_array</span><span class="p">(</span>
-<a id="__codelineno-0-390" name="__codelineno-0-390"></a>        <span class="n">data</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">dataset</span><span class="o">.</span><span class="n">geotransform</span><span class="p">,</span> <span class="n">epsg</span><span class="o">=</span><span class="n">epsg</span><span class="p">,</span> <span class="n">no_data_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span>
-<a id="__codelineno-0-391" name="__codelineno-0-391"></a>    <span class="p">)</span>
-<a id="__codelineno-0-392" name="__codelineno-0-392"></a>    <span class="k">if</span> <span class="n">epsg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-393" name="__codelineno-0-393"></a>        <span class="c1"># A non-EPSG CRS (e.g. the geostationary grid) must be carried explicitly.</span>
-<a id="__codelineno-0-394" name="__codelineno-0-394"></a>        <span class="n">result</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">crs</span>
-<a id="__codelineno-0-395" name="__codelineno-0-395"></a>    <span class="k">return</span> <span class="n">result</span>
+<a id="__codelineno-0-386" name="__codelineno-0-386"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-0-387" name="__codelineno-0-387"></a>
+<a id="__codelineno-0-388" name="__codelineno-0-388"></a>    <span class="c1"># Calibration can produce NaN (terminator reflectance / non-positive</span>
+<a id="__codelineno-0-389" name="__codelineno-0-389"></a>    <span class="c1"># radiance), so declare NaN as nodata rather than the default -9999.</span>
+<a id="__codelineno-0-390" name="__codelineno-0-390"></a>    <span class="n">epsg</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">epsg</span> <span class="k">if</span> <span class="n">dataset</span><span class="o">.</span><span class="n">epsg</span> <span class="k">else</span> <span class="kc">None</span>
+<a id="__codelineno-0-391" name="__codelineno-0-391"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">create_from_array</span><span class="p">(</span>
+<a id="__codelineno-0-392" name="__codelineno-0-392"></a>        <span class="n">data</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">dataset</span><span class="o">.</span><span class="n">geotransform</span><span class="p">,</span> <span class="n">epsg</span><span class="o">=</span><span class="n">epsg</span><span class="p">,</span> <span class="n">no_data_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+<a id="__codelineno-0-393" name="__codelineno-0-393"></a>    <span class="p">)</span>
+<a id="__codelineno-0-394" name="__codelineno-0-394"></a>    <span class="k">if</span> <span class="n">epsg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-395" name="__codelineno-0-395"></a>        <span class="c1"># A non-EPSG CRS (e.g. the geostationary grid) must be carried explicitly.</span>
+<a id="__codelineno-0-396" name="__codelineno-0-396"></a>        <span class="n">result</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">crs</span>
+<a id="__codelineno-0-397" name="__codelineno-0-397"></a>    <span class="k">return</span> <span class="n">result</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
