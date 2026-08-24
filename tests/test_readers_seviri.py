@@ -335,7 +335,8 @@ class TestParseSeviriNative:
             columns=columns,
             position=0,
             stride=block,
-            trailer_bytes=3 * block + 17,  # several strides of trailer, as a real product has
+            trailer_bytes=3 * block
+            + 17,  # several strides of trailer, as a real product has
         )
         scene = parse_seviri_native(_write(tmp_path, "full.nat", payload), "VIS006")
         assert scene.read_array().shape == (columns, columns), "the full disk decodes"
@@ -360,10 +361,16 @@ class TestLayoutOffsets:
     def test_layout_offsets_match_expected_values(self):
         """The module constants equal the byte offsets verified on a real granule."""
         assert _LINE_NUMBER_OFFSET == 51, "line_number is at block offset 51"
-        assert _LINE_SIDE_INFO_BYTES == 65, "the per-channel side-info header is 65 bytes"
-        assert _REF_GRID_OFFSET == 386936, "ReferenceGridVIS_IR is at 15Header offset 386936"
+        assert _LINE_SIDE_INFO_BYTES == 65, (
+            "the per-channel side-info header is 65 bytes"
+        )
+        assert _REF_GRID_OFFSET == 386936, (
+            "ReferenceGridVIS_IR is at 15Header offset 386936"
+        )
         assert _GRID_STEP_OFFSET == 386944, "the grid step is at 15Header offset 386944"
-        assert _CALIBRATION_OFFSET == 387104, "the calibration block is at 15Header offset 387104"
+        assert _CALIBRATION_OFFSET == 387104, (
+            "the calibration block is at 15Header offset 387104"
+        )
 
     def test_decodes_a_granule_built_from_literal_offsets(self, tmp_path):
         """A granule assembled from literal offsets (not the module constants) decodes.
@@ -377,11 +384,19 @@ class TestLayoutOffsets:
         packed = columns * 10 // 8
         block = 65 + packed  # literal side-info size + packed pixels
         stride = 11 * block
-        header_length = 387104 + 12 * 16  # literal calibration offset + 12 slope/offset pairs
+        header_length = (
+            387104 + 12 * 16
+        )  # literal calibration offset + 12 slope/offset pairs
         header = bytearray(header_length)
-        struct.pack_into(">ii", header, 386936, columns, columns)  # literal ref-grid offset
-        struct.pack_into(">ff", header, 386944, 3.0004032, 3.0004032)  # literal grid-step offset
-        struct.pack_into(">dd", header, 387104 + position * 16, 0.5, -2.0)  # literal cal offset
+        struct.pack_into(
+            ">ii", header, 386936, columns, columns
+        )  # literal ref-grid offset
+        struct.pack_into(
+            ">ff", header, 386944, 3.0004032, 3.0004032
+        )  # literal grid-step offset
+        struct.pack_into(
+            ">dd", header, 387104 + position * 16, 0.5, -2.0
+        )  # literal cal offset
         header_offset = 200
         data_offset = header_offset + header_length
         mph = bytearray(b" " * header_offset)
@@ -393,12 +408,16 @@ class TestLayoutOffsets:
         data = bytearray(stride * 2)
         for index, line in enumerate((900, 901)):
             record = index * stride
-            struct.pack_into(">i", data, record + position * block + 51, line)  # literal lineno
+            struct.pack_into(
+                ">i", data, record + position * block + 51, line
+            )  # literal lineno
             start = record + position * block + 65  # literal side-info size
             data[start : start + packed] = _pack_10bit(np.full(columns, 700, np.uint16))
         payload = bytes(mph) + bytes(header) + bytes(data)
         scene = parse_seviri_native(_write(tmp_path, "golden.nat", payload), "IR_108")
-        assert np.allclose(scene.read_array(), 700 * 0.5 - 2.0), "literal-offset granule decodes"
+        assert np.allclose(scene.read_array(), 700 * 0.5 - 2.0), (
+            "literal-offset granule decodes"
+        )
 
 
 class TestReadSeviri:
@@ -589,7 +608,9 @@ def test_read_seviri_real_granule_subsatellite_geolocation():
     col_c, row_c = np.meshgrid(np.arange(cols), np.arange(rows))
     xs = gt[0] + (col_c + 0.5) * gt[1]
     ys = gt[3] + (row_c + 0.5) * gt[5]
-    lon, lat = Transformer.from_crs(str(scene.crs), "EPSG:4326", always_xy=True).transform(xs, ys)
+    lon, lat = Transformer.from_crs(
+        str(scene.crs), "EPSG:4326", always_xy=True
+    ).transform(xs, ys)
     on_disk = np.isfinite(lon) & np.isfinite(lat)
     nearest = np.nanargmin(np.where(on_disk, np.abs(lon) + np.abs(lat), np.inf))
     assert abs(lon.ravel()[nearest]) < 0.005, "a pixel centre coincides with 0 deg E"
