@@ -340,6 +340,19 @@ class TestParseSeviriNative:
         scene = parse_seviri_native(_write(tmp_path, "full.nat", payload), "VIS006")
         assert scene.read_array().shape == (columns, columns), "the full disk decodes"
 
+    def test_subsatellite_longitude_sets_crs(self, tmp_path):
+        """A non-zero sub-satellite longitude is carried into the geostationary CRS."""
+        row = np.full(1024, 400, np.uint16)
+        payload = _build_nat(records=[(600, row), (601, row)])
+        scene = parse_seviri_native(
+            _write(tmp_path, "iodc.nat", payload), "IR_108", subsatellite_longitude=41.5
+        )
+        from osgeo import osr
+
+        srs = osr.SpatialReference()
+        srs.ImportFromWkt(str(scene.crs))
+        assert "lon_0=41.5" in srs.ExportToProj4(), "SSP longitude should set lon_0"
+
 
 class TestReadSeviri:
     """`read_seviri` calibrates and geolocates a single channel."""
@@ -402,6 +415,22 @@ class TestReadSeviri:
             "geos CRS preserved"
         )
         assert np.isnan(out.no_data_value[0]), "nodata should be NaN"
+
+    def test_native_path_threads_subsatellite_longitude(self, tmp_path):
+        """read_seviri forwards subsatellite_longitude to the default native parser."""
+        from osgeo import osr
+
+        row = np.full(1024, 400, np.uint16)
+        payload = _build_nat(records=[(600, row), (601, row)])
+        out = read_seviri(
+            _write(tmp_path, "iodc.nat", payload),
+            "IR_108",
+            calibrate=False,
+            subsatellite_longitude=9.5,
+        )
+        srs = osr.SpatialReference()
+        srs.ImportFromWkt(str(out.crs))
+        assert "lon_0=9.5" in srs.ExportToProj4(), "SSP longitude should reach the CRS"
 
     def test_parse_used_for_non_dataset(self):
         """A non-Dataset source is decoded via the injected `parse` callable."""

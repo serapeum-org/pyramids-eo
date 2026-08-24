@@ -140,7 +140,9 @@ def _geostationary_wkt(longitude_of_projection_origin: float) -> str:
     return str(srs.ExportToWkt())
 
 
-def parse_seviri_native(path: Any, channel: str) -> Any:
+def parse_seviri_native(
+    path: Any, channel: str, *, subsatellite_longitude: float = 0.0
+) -> Any:
     """Decode one VIS/IR channel of an MSG Level-1.5 native (`.nat`) granule.
 
     Reads the segment table and the fixed-layout ``15Header`` (reference grid,
@@ -155,6 +157,10 @@ def parse_seviri_native(path: Any, channel: str) -> Any:
         path: Path to an MSG SEVIRI Level-1.5 native `.nat` file.
         channel: A VIS/IR channel identifier (e.g. `"IR_108"`, `"VIS006"`); HRV
             is not supported.
+        subsatellite_longitude: Sub-satellite longitude (degrees east) for the
+            geostationary CRS. Defaults to `0.0`, the nominal prime service
+            (`MSG15`); pass the service longitude for IODC (41.5) or rapid-scan
+            (9.5) granules, whose `.nat` header the reader does not parse for it.
 
     Returns:
         A pyramids `Dataset` holding the channel radiance on the geostationary
@@ -289,7 +295,7 @@ def parse_seviri_native(path: Any, channel: str) -> Any:
     dataset = Dataset.create_from_array(
         radiance, geo=geo, epsg=None, no_data_value=np.nan
     )
-    dataset.crs = _geostationary_wkt(0.0)
+    dataset.crs = _geostationary_wkt(subsatellite_longitude)
     return dataset
 
 
@@ -303,6 +309,7 @@ def read_seviri(
     cos_sza: Any = None,
     coeffs: dict[str, Any] | None = None,
     parse: Any = None,
+    subsatellite_longitude: float = 0.0,
 ) -> Any:
     """Read one SEVIRI channel into a calibrated, geolocated `Dataset`.
 
@@ -326,6 +333,9 @@ def read_seviri(
         parse: Callable `(source, channel) -> Dataset` used when `source` is not
             already a `Dataset`. Defaults to the native `.nat` parser
             (`parse_seviri_native`).
+        subsatellite_longitude: Sub-satellite longitude (degrees east) passed to
+            the default native parser for the geostationary CRS (default `0.0`,
+            the prime service); ignored when a custom `parse` is supplied.
 
     Returns:
         A pyramids `Dataset` of the calibrated (or raw) channel.
@@ -338,8 +348,14 @@ def read_seviri(
     if source is None:
         raise ReaderError("read_seviri: source is required")
 
-    parser = parse or parse_seviri_native
-    dataset = source if hasattr(source, "read_array") else parser(source, channel)
+    if hasattr(source, "read_array"):
+        dataset = source
+    elif parse is not None:
+        dataset = parse(source, channel)
+    else:
+        dataset = parse_seviri_native(
+            source, channel, subsatellite_longitude=subsatellite_longitude
+        )
     radiance = np.asarray(dataset.read_array(), dtype=float)
     data = (
         calibrate_channel(
