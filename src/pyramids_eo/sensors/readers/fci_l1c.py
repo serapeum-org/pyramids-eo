@@ -352,6 +352,9 @@ def read_fci_l1c(
         calibrate: When `True` (default), calibrate to reflectance / brightness
             temperature; when `False`, return the stitched raw radiance.
         sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.
+            The default `1.0` leaves reflectance up to ~3.4% off (`d` ranges
+            ~0.983-1.017 AU over the year); pass the granule's `d` for absolute
+            accuracy.
         cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle
             correction, or `None`.
 

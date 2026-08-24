@@ -339,6 +339,9 @@ def read_seviri(
         calibrate: When `True` (default), calibrate to a physical quantity; when
             `False`, return the raw radiance.
         sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.
+            The default `1.0` leaves reflectance up to ~3.4% off (`d` ranges
+            ~0.983-1.017 AU over the year); pass the granule's `d` for absolute
+            accuracy.
         cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle
             correction, or `None`.
         coeffs: Per-granule calibration coefficients preferred over the registry
