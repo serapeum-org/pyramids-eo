@@ -3853,7 +3853,7 @@ environment, and <code>s3://eodata/&lt;key&gt;</code> hrefs are rewritten to the
 <a id="__codelineno-0-641" name="__codelineno-0-641"></a><span class="w">        </span><span class="sd">"""Leave the outgoing search request unchanged (CDSE search is anonymous)."""</span>
 <a id="__codelineno-0-642" name="__codelineno-0-642"></a>        <span class="k">return</span> <span class="kc">None</span>
 <a id="__codelineno-0-643" name="__codelineno-0-643"></a>
-<a id="__codelineno-0-644" name="__codelineno-0-644"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">sign_item</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-644" name="__codelineno-0-644"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">sign_item</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_item</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <a id="__codelineno-0-645" name="__codelineno-0-645"></a><span class="w">        </span><span class="sd">"""Leave returned Items unchanged — asset auth is via the GDAL env, not the href."""</span>
 <a id="__codelineno-0-646" name="__codelineno-0-646"></a>        <span class="k">return</span> <span class="kc">None</span>
 <a id="__codelineno-0-647" name="__codelineno-0-647"></a>
@@ -4068,7 +4068,7 @@ environment, and <code>s3://eodata/&lt;key&gt;</code> hrefs are rewritten to the
 
 
 <h5 id="pyramids_eo.stac.signers.CdseS3Signer.sign_item" class="doc doc-heading"><a href="#pyramids_eo.stac.signers.CdseS3Signer.sign_item" class="toclink">
-            <code class="highlight language-python"><span class="n">sign_item</span><span class="p">(</span><span class="n">item</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">sign_item</span><span class="p">(</span><span class="n">_item</span><span class="p">)</span></code>
 
 </a><a href="#pyramids_eo.stac.signers.CdseS3Signer.sign_item" class="headerlink" title="Permanent link">#</a></h5>
 
@@ -4082,7 +4082,7 @@ environment, and <code>s3://eodata/&lt;key&gt;</code> hrefs are rewritten to the
               <summary>Source code in <code>src/pyramids_eo/stac/signers.py</code></summary>
               <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-644">644</a></span>
 <span class="normal"><a href="#__codelineno-0-645">645</a></span>
-<span class="normal"><a href="#__codelineno-0-646">646</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-644" name="__codelineno-0-644"></a><span class="k">def</span><span class="w"> </span><span class="nf">sign_item</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="normal"><a href="#__codelineno-0-646">646</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-644" name="__codelineno-0-644"></a><span class="k">def</span><span class="w"> </span><span class="nf">sign_item</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_item</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <a id="__codelineno-0-645" name="__codelineno-0-645"></a><span class="w">    </span><span class="sd">"""Leave returned Items unchanged — asset auth is via the GDAL env, not the href."""</span>
 <a id="__codelineno-0-646" name="__codelineno-0-646"></a>    <span class="k">return</span> <span class="kc">None</span>
 </code></pre></div></td></tr></table></div>
