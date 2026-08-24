@@ -155,6 +155,24 @@ class TestGetSensor:
         assert vis.solar_irradiance is not None, "solar channel should carry E0"
         assert vis.central_wavenumber_cm1 is None, "solar channel has no wavenumber"
 
+    def test_solar_irradiance_is_per_wavenumber(self):
+        """Solar E0 is the wavenumber-form band irradiance (mW m-2 (cm-1)-1).
+
+        Guards against a regression to the per-wavelength nominal (W m-2 um-1,
+        ~200-2000), which is ~25x too large and makes reflectance 25x too low
+        since the L1 radiance is per wavenumber. The band-effective values sit in
+        the tens; bound them generously.
+        """
+        for sensor, channels in (
+            ("fci", ("vis_04", "vis_06", "vis_08", "nir_16")),
+            ("seviri", ("VIS006", "VIS008", "IR_016")),
+        ):
+            for name in channels:
+                e0 = get_sensor(sensor).get_channel(name).solar_irradiance
+                assert 20.0 < e0 < 100.0, (
+                    f"{sensor} {name} E0={e0} is not a per-wavenumber band irradiance"
+                )
+
 
 class TestSensorChannel:
     """`Sensor.get_channel` and the `Channel` record."""

@@ -6,14 +6,17 @@ the sensor registry, and returns a geolocated pyramids `Dataset` ready for
 `to_crs` / `warped_view`.
 
 Warning:
-    The default per-chunk extraction assumes each chunk exposes the requested
-    channel's radiance as a NetCDF **variable named like the channel**. Real FCI
-    L1C FDHSI stores radiance in nested groups
+    The zero-config default (`_default_open_chunk`) assumes each chunk exposes
+    the requested channel's radiance as a NetCDF **variable named like the
+    channel**. Real FCI L1C FDHSI stores radiance in nested groups
     (`data/<channel>/measured/effective_radiance`) with the calibration
-    coefficients in group attributes — so for real granules pass a custom
-    `open_chunk` (or the coefficients via `coeffs`). The stitch + calibrate +
-    geolocate logic is unit-tested on synthetic chunks; the exact FCI variable
-    layout still needs validation against a real granule.
+    coefficients in group attributes — for those granules pass
+    `open_fci_l1c_chunk` (which reads that nested layout) as `open_chunk`, plus
+    the coefficients via `coeffs`. The stitch + calibrate + geolocate logic is
+    unit-tested on synthetic chunks, and `open_fci_l1c_chunk` is unit-tested for
+    its group-path resolution, but the exact FCI variable layout and the
+    per-granule coefficient attributes still need validation against a real
+    granule (see issue #40).
 """
 
 from __future__ import annotations
@@ -27,7 +30,7 @@ from pyramids_eo.sensors.readers._common import calibrate_channel
 
 
 def _default_open_chunk(path: Any, channel: str) -> Any:
-    """Open one FCI chunk and return the channel's radiance as a `Dataset`.
+    """Open one FCI chunk and return the channel's radiance as a NetCDF view.
 
     Reads `path` with `pyramids.netcdf.NetCDF` and extracts the variable named
     `channel`. See the module warning: real FCI L1C uses nested groups, so a
@@ -38,11 +41,78 @@ def _default_open_chunk(path: Any, channel: str) -> Any:
         channel: Channel identifier / variable name.
 
     Returns:
-        A pyramids `Dataset` of the channel's raw radiance.
+        A pyramids `NetCDF` variable view of the channel's raw radiance (a
+        `Dataset`-like object exposing `read_array` / `geotransform` / `epsg` /
+        `columns` / `rows`, as `read_fci` consumes it).
     """
     from pyramids.netcdf import NetCDF
 
     return NetCDF.read_file(str(path)).get_variable(channel)
+
+
+#: Group-qualified variable-name template for FCI L1C FDHSI channel radiance.
+_FCI_RADIANCE_GROUP = "data/{channel}/measured/effective_radiance"
+
+
+def open_fci_l1c_chunk(
+    path: Any,
+    channel: str,
+    *,
+    radiance_group: str = _FCI_RADIANCE_GROUP,
+) -> Any:
+    """Open one real FCI L1C FDHSI chunk from its nested group layout.
+
+    Unlike `_default_open_chunk` (which assumes a flat variable named like the
+    channel), this reads the radiance from the nested group path a real FCI L1C
+    FDHSI chunk uses — by default `data/<channel>/measured/effective_radiance` —
+    through pyramids' group-qualified `NetCDF.get_variable`, which navigates the
+    `/`-separated group path. Pass it to `read_fci` as `open_chunk` for real
+    granules:
+
+    ```python
+    from pyramids_eo.sensors.readers import open_fci_l1c_chunk, read_fci
+
+    scene = read_fci(chunk_paths, "ir_105", open_chunk=open_fci_l1c_chunk)
+    ```
+
+    Warning:
+        The nested group path matches the documented FDHSI layout, but has not
+        been validated byte-for-byte against a real EUMETSAT granule, and this
+        opener does not (yet) extract the per-granule calibration coefficients
+        from the chunk's group attributes — supply them via
+        `read_fci(..., coeffs=...)` or rely on the registry fallback. See issue
+        #40.
+
+    Args:
+        path: Path to a single FCI L1C FDHSI chunk NetCDF file.
+        channel: Channel identifier (e.g. `"ir_105"`), substituted into
+            `radiance_group`.
+        radiance_group: Group-qualified variable-name template with a single
+            `{channel}` placeholder. Defaults to
+            `data/{channel}/measured/effective_radiance`. `read_fci` calls the
+            opener positionally, so to thread a non-default template through
+            `read_fci` wrap it with
+            `functools.partial(open_fci_l1c_chunk, radiance_group=...)`.
+
+    Returns:
+        A pyramids `NetCDF` variable view of the channel's raw effective radiance
+        (a `Dataset`-like object exposing `read_array` / `geotransform` / `epsg` /
+        `columns` / `rows`, as `read_fci` consumes it).
+    """
+    from pyramids.netcdf import NetCDF
+
+    try:
+        variable = radiance_group.format(channel=channel)
+    except (KeyError, IndexError, ValueError, AttributeError, TypeError) as exc:
+        raise ReaderError(
+            f"invalid radiance_group template {radiance_group!r}: it must be a "
+            f"format string with a single '{{channel}}' field ({exc!r})"
+        ) from exc
+    # Group navigation via get_variable needs the file opened as multidimensional;
+    # pass it explicitly rather than relying on read_file's default.
+    return NetCDF.read_file(str(path), open_as_multi_dimensional=True).get_variable(
+        variable
+    )
 
 
 def read_fci(

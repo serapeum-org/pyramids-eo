@@ -8,7 +8,7 @@ from pyramids.dataset import Dataset
 
 from pyramids_eo.errors import CalibrationError, ReaderError, UnknownSensorError
 from pyramids_eo.sensors.readers import read_fci
-from pyramids_eo.sensors.readers.fci import _default_open_chunk
+from pyramids_eo.sensors.readers.fci import _default_open_chunk, open_fci_l1c_chunk
 from pyramids_eo.sensors.registry import (
     Channel,
     Sensor,
@@ -213,3 +213,77 @@ class TestDefaultOpenChunk:
         assert _default_open_chunk("chunk.nc", "ir_105") is marker, (
             "variable not returned"
         )
+
+
+class TestOpenFciL1cChunk:
+    """`open_fci_l1c_chunk` reads the nested FCI L1C FDHSI radiance group."""
+
+    @staticmethod
+    def _patch_netcdf(monkeypatch, captured):
+        """Patch NetCDF.read_file to a fake recording the requested variable."""
+
+        class _FakeNC:
+            def get_variable(self, name):
+                captured["name"] = name
+                return captured.get("dataset", object())
+
+        import pyramids.netcdf as _ncmod
+
+        def _fake_read_file(cls, p, **kw):
+            captured["read_file_kw"] = kw
+            return _FakeNC()
+
+        monkeypatch.setattr(_ncmod.NetCDF, "read_file", classmethod(_fake_read_file))
+
+    def test_reads_nested_group_qualified_variable(self, monkeypatch):
+        """The opener requests `data/<channel>/measured/effective_radiance`."""
+        captured = {}
+        self._patch_netcdf(monkeypatch, captured)
+        open_fci_l1c_chunk("chunk.nc", "ir_105")
+        assert captured["name"] == "data/ir_105/measured/effective_radiance", (
+            f"unexpected group path {captured.get('name')!r}"
+        )
+
+    def test_custom_radiance_group_template(self, monkeypatch):
+        """A custom radiance_group template overrides the default path."""
+        captured = {}
+        self._patch_netcdf(monkeypatch, captured)
+        open_fci_l1c_chunk("chunk.nc", "vis_06", radiance_group="state/{channel}/rad")
+        assert captured["name"] == "state/vis_06/rad", captured
+
+    def test_wires_through_read_fci_as_open_chunk(self, monkeypatch):
+        """read_fci uses open_fci_l1c_chunk to open a non-Dataset chunk."""
+        captured = {"dataset": _chunk(np.full((2, 3), 80.0))}
+        self._patch_netcdf(monkeypatch, captured)
+        out = read_fci(
+            ["chunk0.nc"], "ir_105", calibrate=False, open_chunk=open_fci_l1c_chunk
+        )
+        assert np.allclose(out.read_array(), 80.0), "nested-opened radiance not used"
+        assert captured["name"] == "data/ir_105/measured/effective_radiance", captured
+
+    def test_channel_with_braces_inserted_literally(self, monkeypatch):
+        """A channel value containing braces is inserted literally, not re-parsed."""
+        captured = {}
+        self._patch_netcdf(monkeypatch, captured)
+        open_fci_l1c_chunk("chunk.nc", "ir_{x}")
+        assert captured["name"] == "data/ir_{x}/measured/effective_radiance", captured
+
+    def test_opens_file_as_multidimensional(self, monkeypatch):
+        """The opener passes open_as_multi_dimensional=True for group navigation."""
+        captured = {}
+        self._patch_netcdf(monkeypatch, captured)
+        open_fci_l1c_chunk("chunk.nc", "ir_105")
+        assert captured["read_file_kw"].get("open_as_multi_dimensional") is True, (
+            f"expected a multidimensional open, got {captured.get('read_file_kw')}"
+        )
+
+    @pytest.mark.parametrize(
+        "template",
+        ["data/{chan}/rad", "data/{}/rad", "data/{channel"],
+    )
+    def test_malformed_template_raises_reader_error(self, monkeypatch, template):
+        """A malformed template raises ReaderError, not a raw str.format error."""
+        captured = {}
+        self._patch_netcdf(monkeypatch, captured)
+        with pytest.raises(ReaderError, match="radiance_group"):
+            open_fci_l1c_chunk("chunk.nc", "ir_105", radiance_group=template)

@@ -5,7 +5,7 @@ granules into calibrated, geolocated pyramids `Dataset`s:
 
 * `registry` — radiometric calibration (radiance -> reflectance / brightness
   temperature) plus the bundled FCI/SEVIRI sensor and channel tables.
-* `readers` — `read_fci`, `read_seviri`, and `harmonise`.
+* `readers` — `read_fci`, `read_seviri`, `harmonise`, and `open_fci_l1c_chunk`.
 
 These sit below `pyramids_eo.composites`, which consumes the calibrated bands
 they produce (composites import nothing from here — the dependency runs one way).
@@ -13,7 +13,14 @@ they produce (composites import nothing from here — the dependency runs one wa
 
 from __future__ import annotations
 
-from pyramids_eo.sensors.readers import harmonise, read_fci, read_seviri
+from pyramids_eo.sensors.readers import (
+    harmonise,
+    open_fci_l1c_chunk,
+    parse_seviri_native,
+    read_fci,
+    read_fci_l1c,
+    read_seviri,
+)
 from pyramids_eo.sensors.registry import (
     Channel,
     Sensor,
@@ -27,8 +34,11 @@ __all__ = [
     "Sensor",
     "get_sensor",
     "harmonise",
+    "open_fci_l1c_chunk",
+    "parse_seviri_native",
     "radiance_to_brightness_temperature",
     "radiance_to_reflectance",
     "read_fci",
+    "read_fci_l1c",
     "read_seviri",
 ]

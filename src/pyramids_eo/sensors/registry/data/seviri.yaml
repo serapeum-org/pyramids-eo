@@ -2,14 +2,21 @@
 #
 # The thermal central_wavenumber_cm1 / alpha / beta are the published Meteosat-9
 # effective-radiance-to-brightness-temperature constants (EUMETSAT MSG Level 1.5
-# calibration); solar_irradiance is nominal. These vary per Meteosat spacecraft
-# (MSG-8/9/10/11) — a reader should PREFER the per-granule metadata and use this
-# table (Meteosat-9 class) only as a fallback.
+# calibration). solar_irradiance is the band-effective solar irradiance in the
+# wavenumber form the L1.5 radiance uses (mW m-2 (cm-1)-1, per the EUMETSAT
+# "Conversion from radiances to reflectances for SEVIRI warm channels"), so
+# reflectance = pi * L * d^2 / solar_irradiance is dimensionless. The `.nat` header
+# carries no per-channel irradiance, so these are used directly: they are the
+# nominal spectral irradiance reconciled to the wavenumber grid (E_lambda *
+# wavelength_um^2 * 0.1), cross-validated to ~1-5% against MTG-FCI's published
+# effective solar irradiances for the overlapping bands. The thermal constants vary
+# per Meteosat spacecraft (MSG-8/9/10/11) — a reader should PREFER per-granule
+# metadata and use this Meteosat-9-class table only as a fallback.
 name: seviri
 channels:
-  VIS006: {wavelength_um: 0.635, resolution_m: 3000, kind: solar, solar_irradiance: 1630.0}
-  VIS008: {wavelength_um: 0.810, resolution_m: 3000, kind: solar, solar_irradiance: 1100.0}
-  IR_016: {wavelength_um: 1.640, resolution_m: 3000, kind: solar, solar_irradiance: 240.0}
+  VIS006: {wavelength_um: 0.635, resolution_m: 3000, kind: solar, solar_irradiance: 65.7}
+  VIS008: {wavelength_um: 0.810, resolution_m: 3000, kind: solar, solar_irradiance: 72.2}
+  IR_016: {wavelength_um: 1.640, resolution_m: 3000, kind: solar, solar_irradiance: 64.5}
   IR_039: {wavelength_um: 3.900,  resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 2567.330, alpha: 0.9956, beta: 3.410}
   WV_062: {wavelength_um: 6.250,  resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 1598.103, alpha: 0.9962, beta: 2.218}
   WV_073: {wavelength_um: 7.350,  resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 1362.081, alpha: 0.9991, beta: 0.478}
@@ -18,4 +25,4 @@ channels:
   IR_108: {wavelength_um: 10.800, resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 930.647,  alpha: 0.9983, beta: 0.625}
   IR_120: {wavelength_um: 12.000, resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 839.660,  alpha: 0.9988, beta: 0.397}
   IR_134: {wavelength_um: 13.400, resolution_m: 3000, kind: thermal, central_wavenumber_cm1: 752.387,  alpha: 0.9981, beta: 0.578}
-  HRV:    {wavelength_um: 0.700, resolution_m: 1000, kind: solar, solar_irradiance: 1370.0}
+  HRV:    {wavelength_um: 0.700, resolution_m: 1000, kind: solar, solar_irradiance: 67.1}

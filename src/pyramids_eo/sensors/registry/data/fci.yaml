@@ -1,20 +1,23 @@
 # MTG-FCI (FDHSI) channel table.
 #
 # NOMINAL constants — wavelengths / resolutions / kinds are from the instrument
-# spec; solar_irradiance is nominal and the thermal central_wavenumber_cm1 is the
-# nominal 1e4/wavelength with an identity band correction (alpha=1, beta=0).
-# A reader should PREFER the per-granule calibration metadata and use this table
+# spec; the thermal central_wavenumber_cm1 is the nominal 1e4/wavelength with an
+# identity band correction (alpha=1, beta=0). solar_irradiance is the band-effective
+# solar irradiance in the wavenumber form the L1 radiance uses (mW m-2 (cm-1)-1), so
+# reflectance = pi * L * d^2 / solar_irradiance is dimensionless; the values are the
+# published MTG-I1 channel_effective_solar_irradiance. A reader should PREFER the
+# per-granule calibration metadata (real FDHSI granules carry it) and use this table
 # only as a fallback. Verify against the official EUMETSAT FCI calibration tables
 # before relying on these numbers for quantitative products.
 name: fci
 channels:
-  vis_04:  {wavelength_um: 0.444, resolution_m: 1000, kind: solar, solar_irradiance: 1700.0}
-  vis_05:  {wavelength_um: 0.510, resolution_m: 1000, kind: solar, solar_irradiance: 1900.0}
-  vis_06:  {wavelength_um: 0.640, resolution_m: 500,  kind: solar, solar_irradiance: 1580.0}
-  vis_08:  {wavelength_um: 0.865, resolution_m: 1000, kind: solar, solar_irradiance: 970.0}
-  nir_13:  {wavelength_um: 1.380, resolution_m: 1000, kind: solar, solar_irradiance: 360.0}
-  nir_16:  {wavelength_um: 1.610, resolution_m: 1000, kind: solar, solar_irradiance: 250.0}
-  nir_22:  {wavelength_um: 2.250, resolution_m: 500,  kind: solar, solar_irradiance: 78.0}
+  vis_04:  {wavelength_um: 0.444, resolution_m: 1000, kind: solar, solar_irradiance: 38.10}
+  vis_05:  {wavelength_um: 0.510, resolution_m: 1000, kind: solar, solar_irradiance: 49.66}
+  vis_06:  {wavelength_um: 0.640, resolution_m: 500,  kind: solar, solar_irradiance: 65.73}
+  vis_08:  {wavelength_um: 0.865, resolution_m: 1000, kind: solar, solar_irradiance: 71.42}
+  nir_13:  {wavelength_um: 1.380, resolution_m: 1000, kind: solar, solar_irradiance: 67.48}
+  nir_16:  {wavelength_um: 1.610, resolution_m: 1000, kind: solar, solar_irradiance: 61.79}
+  nir_22:  {wavelength_um: 2.250, resolution_m: 500,  kind: solar, solar_irradiance: 37.79}
   ir_38:   {wavelength_um: 3.800, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 2631.6, alpha: 1.0, beta: 0.0}
   wv_63:   {wavelength_um: 6.300, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 1587.3, alpha: 1.0, beta: 0.0}
   wv_73:   {wavelength_um: 7.350, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 1360.5, alpha: 1.0, beta: 0.0}

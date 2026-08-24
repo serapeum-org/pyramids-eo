@@ -641,7 +641,7 @@ class CdseS3Signer:
         """Leave the outgoing search request unchanged (CDSE search is anonymous)."""
         return None
 
-    def sign_item(self, item: Any) -> None:
+    def sign_item(self, _item: Any) -> None:
         """Leave returned Items unchanged — asset auth is via the GDAL env, not the href."""
         return None
 
@@ -1017,15 +1017,15 @@ class _AnonymousS3Signer:
         """
         return href
 
-    def sign_item(self, item: Any) -> None:
-        """Leave `item` unchanged and return `None`.
+    def sign_item(self, _item: Any) -> None:
+        """Leave the returned Item unchanged and return `None`.
 
         pystac-client's `modifier` contract requires `sign_item` to return
         `None` (it warns on a non-`None` return); the anonymous signer has
         nothing to rewrite, so it is a pure no-op.
 
         Args:
-            item: A STAC item.
+            _item: A STAC item (unused — this signer does not rewrite items).
 
         Returns:
             None.
