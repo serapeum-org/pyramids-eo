@@ -162,7 +162,8 @@ class TestCdseS3Signer:
         assert env["AWS_ACCESS_KEY_ID"] == "ak"
         assert env["AWS_SECRET_ACCESS_KEY"] == "sk"
         assert env["AWS_VIRTUAL_HOSTING"] == "FALSE"
-        assert "GDAL_HTTP_HEADERS" not in env and "Authorization" not in str(env)
+        assert "GDAL_HTTP_HEADERS" not in env, "no auth headers leak into the env"
+        assert "Authorization" not in str(env), "no Authorization in the env"
 
 
 class TestPlanetaryComputerSigner:
@@ -274,8 +275,9 @@ class TestPlanetaryComputerSigner:
     def test_malformed_token_response_raises(self, monkeypatch):
         """A PC token response missing the token key raises AuthenticationError."""
         _patch_urlopen(monkeypatch, [{"nope": 1}])
+        signer = PlanetaryComputerSigner()
         with pytest.raises(AuthenticationError, match="Planetary Computer"):
-            PlanetaryComputerSigner()._fetch_token("acct", "cont")
+            signer._fetch_token("acct", "cont")
 
     def test_sign_request_is_noop(self):
         """Search is anonymous — sign_request leaves the request unchanged."""
@@ -362,8 +364,9 @@ class TestEarthdataSigner:
         """No token and no username/password raises a clear AuthenticationError."""
         for var in _EARTHDATA_ENV:
             monkeypatch.delenv(var, raising=False)
+        signer = EarthdataSigner()
         with pytest.raises(AuthenticationError, match="EARTHDATA_USERNAME"):
-            EarthdataSigner().gdal_env()
+            signer.gdal_env()
 
     def test_empty_minted_token_raises(self, monkeypatch):
         """An empty access_token from the endpoint raises rather than sending 'Bearer '."""
@@ -373,16 +376,18 @@ class TestEarthdataSigner:
             monkeypatch,
             [{"access_token": "", "expiration_date": "2099-01-01T00:00:00Z"}],
         )
+        signer = EarthdataSigner(username="u", password="p")
         with pytest.raises(AuthenticationError, match="empty or non-string"):
-            EarthdataSigner(username="u", password="p").gdal_env()
+            signer.gdal_env()
 
     def test_malformed_token_response_raises(self, monkeypatch):
         """An EDL token response missing access_token raises AuthenticationError."""
         for var in _EARTHDATA_ENV:
             monkeypatch.delenv(var, raising=False)
         _patch_urlopen(monkeypatch, [{"nope": 1}])
+        signer = EarthdataSigner(username="u", password="p")
         with pytest.raises(AuthenticationError, match="Earthdata"):
-            EarthdataSigner(username="u", password="p").gdal_env()
+            signer.gdal_env()
 
     def test_minted_token_is_cached(self, monkeypatch):
         """A minted EDL token is reused until expiry — one network mint for two reads."""
@@ -451,8 +456,9 @@ class TestCDSESigner:
         """No username/password raises a clear AuthenticationError."""
         for var in ("CDSE_USERNAME", "CDSE_PASSWORD"):
             monkeypatch.delenv(var, raising=False)
+        signer = CDSESigner()
         with pytest.raises(AuthenticationError, match="CDSE_USERNAME"):
-            CDSESigner().gdal_env()
+            signer.gdal_env()
 
     def test_bearer_is_not_url_side(self):
         """sign_href is identity — CDSE bearer auth is header-side."""
@@ -540,8 +546,9 @@ class TestCDSESigner:
         for var in _CDSE_ENV:
             monkeypatch.delenv(var, raising=False)
         _patch_urlopen(monkeypatch, [{"nope": 1}])
+        signer = CDSESigner(username="u", password="p")
         with pytest.raises(AuthenticationError, match="CDSE"):
-            CDSESigner(username="u", password="p")._fetch_token()
+            signer._fetch_token()
 
     def test_request_token_defaults_expires_in(self, monkeypatch):
         """A token response without expires_in defaults the access-token TTL to 600s."""
@@ -558,8 +565,9 @@ class TestBearerProviderSigner:
 
     def test_fetch_token_not_implemented(self):
         """The base _fetch_token is abstract and must be overridden."""
+        signer = _BearerProviderSigner()
         with pytest.raises(NotImplementedError):
-            _BearerProviderSigner()._fetch_token()
+            signer._fetch_token()
 
     def test_token_inner_recheck_returns_cached(self):
         """The locked recheck returns a token that became fresh, skipping the fetch."""
@@ -802,8 +810,9 @@ class TestBdcTokenSigner:
     def test_missing_token_raises_authentication_error(self, monkeypatch):
         """Missing $BDC_ACCESS_TOKEN raises AuthenticationError naming the env var."""
         monkeypatch.delenv("BDC_ACCESS_TOKEN", raising=False)
+        signer = BdcTokenSigner()
         with pytest.raises(AuthenticationError, match="BDC_ACCESS_TOKEN"):
-            BdcTokenSigner().sign_href("https://x/y.tif")
+            signer.sign_href("https://x/y.tif")
 
     def test_sign_request_and_item_are_noops(self):
         """BDC search is anonymous — sign_request and sign_item return None."""
