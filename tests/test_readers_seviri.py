@@ -609,7 +609,9 @@ def test_read_seviri_real_granule_absolute_geolocation():
     _rows, cols = array.shape
     px = abs(gt[1])
     # The full-width west edge equals the published MSG full-disk extent.
-    assert gt[0] == pytest.approx(-(cols / 2 + 0.5) * px, abs=1.0), "west edge matches MSG extent"
+    assert gt[0] == pytest.approx(-(cols / 2 + 0.5) * px, abs=1.0), (
+        "west edge matches MSG extent"
+    )
     # Sub-satellite column from the disk's own E-W symmetry (data-derived, not the gt):
     # the midpoint of the widest finite row is the 0-deg-E column.
     finite = np.isfinite(array)
@@ -617,5 +619,7 @@ def test_read_seviri_real_granule_absolute_geolocation():
     present = np.where(finite[widest])[0]
     ssp_col = (present[0] + present[-1]) / 2.0
     x = gt[0] + (ssp_col + 0.5) * gt[1]
-    lon, _lat = Transformer.from_crs(str(scene.crs), "EPSG:4326", always_xy=True).transform(x, 0.0)
+    lon, _lat = Transformer.from_crs(
+        str(scene.crs), "EPSG:4326", always_xy=True
+    ).transform(x, 0.0)
     assert abs(lon) < 0.005, f"the disk-centre column should map to 0 deg E, got {lon}"
