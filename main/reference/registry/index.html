@@ -2369,13 +2369,7 @@ Non-positive values yield NaN.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/sensors/registry/calibration.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-72"> 72</a></span>
-<span class="normal"><a href="#__codelineno-0-73"> 73</a></span>
-<span class="normal"><a href="#__codelineno-0-74"> 74</a></span>
-<span class="normal"><a href="#__codelineno-0-75"> 75</a></span>
-<span class="normal"><a href="#__codelineno-0-76"> 76</a></span>
-<span class="normal"><a href="#__codelineno-0-77"> 77</a></span>
-<span class="normal"><a href="#__codelineno-0-78"> 78</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-78"> 78</a></span>
 <span class="normal"><a href="#__codelineno-0-79"> 79</a></span>
 <span class="normal"><a href="#__codelineno-0-80"> 80</a></span>
 <span class="normal"><a href="#__codelineno-0-81"> 81</a></span>
@@ -2407,45 +2401,51 @@ Non-positive values yield NaN.</p>
 <span class="normal"><a href="#__codelineno-0-107">107</a></span>
 <span class="normal"><a href="#__codelineno-0-108">108</a></span>
 <span class="normal"><a href="#__codelineno-0-109">109</a></span>
-<span class="normal"><a href="#__codelineno-0-110">110</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-72" name="__codelineno-0-72"></a><span class="k">def</span><span class="w"> </span><span class="nf">radiance_to_brightness_temperature</span><span class="p">(</span>
-<a id="__codelineno-0-73" name="__codelineno-0-73"></a>    <span class="n">radiance</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-74" name="__codelineno-0-74"></a>    <span class="n">central_wavenumber_cm1</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-<a id="__codelineno-0-75" name="__codelineno-0-75"></a>    <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
-<a id="__codelineno-0-76" name="__codelineno-0-76"></a>    <span class="n">beta</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
-<a id="__codelineno-0-77" name="__codelineno-0-77"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
-<a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="w">    </span><span class="sd">"""Convert thermal-channel radiance to brightness temperature (kelvin).</span>
-<a id="__codelineno-0-79" name="__codelineno-0-79"></a>
-<a id="__codelineno-0-80" name="__codelineno-0-80"></a><span class="sd">    Applies the EUMETSAT effective-radiance inverse Planck function</span>
-<a id="__codelineno-0-81" name="__codelineno-0-81"></a><span class="sd">    `Tb* = C2 * nu / ln(1 + C1 * nu^3 / L)` followed by the per-channel band</span>
-<a id="__codelineno-0-82" name="__codelineno-0-82"></a><span class="sd">    correction `Tb = (Tb* - beta) / alpha`, with `nu` the channel central</span>
-<a id="__codelineno-0-83" name="__codelineno-0-83"></a><span class="sd">    wavenumber (cm-1) and `L` in mW m-2 sr-1 (cm-1)-1.</span>
-<a id="__codelineno-0-84" name="__codelineno-0-84"></a>
-<a id="__codelineno-0-85" name="__codelineno-0-85"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-86" name="__codelineno-0-86"></a><span class="sd">        radiance: Spectral radiance `L` (mW m-2 sr-1 (cm-1)-1), scalar or array.</span>
-<a id="__codelineno-0-87" name="__codelineno-0-87"></a><span class="sd">            Non-positive values yield NaN.</span>
-<a id="__codelineno-0-88" name="__codelineno-0-88"></a><span class="sd">        central_wavenumber_cm1: Channel central wavenumber `nu` (cm-1).</span>
-<a id="__codelineno-0-89" name="__codelineno-0-89"></a><span class="sd">        alpha: Band-correction slope (default 1.0).</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90"></a><span class="sd">        beta: Band-correction offset in kelvin (default 0.0).</span>
-<a id="__codelineno-0-91" name="__codelineno-0-91"></a>
-<a id="__codelineno-0-92" name="__codelineno-0-92"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">        The brightness temperature in kelvin, same shape as `radiance`.</span>
-<a id="__codelineno-0-94" name="__codelineno-0-94"></a>
-<a id="__codelineno-0-95" name="__codelineno-0-95"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-96" name="__codelineno-0-96"></a><span class="sd">        CalibrationError: When `central_wavenumber_cm1` is not positive or</span>
-<a id="__codelineno-0-97" name="__codelineno-0-97"></a><span class="sd">            `alpha` is zero.</span>
-<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    """</span>
-<a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="k">if</span> <span class="n">central_wavenumber_cm1</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-0-100" name="__codelineno-0-100"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
-<a id="__codelineno-0-101" name="__codelineno-0-101"></a>            <span class="sa">f</span><span class="s2">"central_wavenumber_cm1 must be positive; got </span><span class="si">{</span><span class="n">central_wavenumber_cm1</span><span class="si">}</span><span class="s2">"</span>
-<a id="__codelineno-0-102" name="__codelineno-0-102"></a>        <span class="p">)</span>
-<a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="k">if</span> <span class="n">alpha</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-0-104" name="__codelineno-0-104"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span><span class="s2">"alpha must be non-zero"</span><span class="p">)</span>
-<a id="__codelineno-0-105" name="__codelineno-0-105"></a>    <span class="n">nu</span> <span class="o">=</span> <span class="n">central_wavenumber_cm1</span>
-<a id="__codelineno-0-106" name="__codelineno-0-106"></a>    <span class="n">radiance_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-<a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
-<a id="__codelineno-0-108" name="__codelineno-0-108"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">C2</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log1p</span><span class="p">(</span><span class="n">C1</span> <span class="o">*</span> <span class="n">nu</span><span class="o">**</span><span class="mi">3</span> <span class="o">/</span> <span class="n">radiance_arr</span><span class="p">)</span>
-<a id="__codelineno-0-109" name="__codelineno-0-109"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">radiance_arr</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">tb_star</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
-<a id="__codelineno-0-110" name="__codelineno-0-110"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">((</span><span class="n">tb_star</span> <span class="o">-</span> <span class="n">beta</span><span class="p">)</span> <span class="o">/</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-110">110</a></span>
+<span class="normal"><a href="#__codelineno-0-111">111</a></span>
+<span class="normal"><a href="#__codelineno-0-112">112</a></span>
+<span class="normal"><a href="#__codelineno-0-113">113</a></span>
+<span class="normal"><a href="#__codelineno-0-114">114</a></span>
+<span class="normal"><a href="#__codelineno-0-115">115</a></span>
+<span class="normal"><a href="#__codelineno-0-116">116</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="k">def</span><span class="w"> </span><span class="nf">radiance_to_brightness_temperature</span><span class="p">(</span>
+<a id="__codelineno-0-79" name="__codelineno-0-79"></a>    <span class="n">radiance</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-80" name="__codelineno-0-80"></a>    <span class="n">central_wavenumber_cm1</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="__codelineno-0-81" name="__codelineno-0-81"></a>    <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+<a id="__codelineno-0-82" name="__codelineno-0-82"></a>    <span class="n">beta</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+<a id="__codelineno-0-83" name="__codelineno-0-83"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<a id="__codelineno-0-84" name="__codelineno-0-84"></a><span class="w">    </span><span class="sd">"""Convert thermal-channel radiance to brightness temperature (kelvin).</span>
+<a id="__codelineno-0-85" name="__codelineno-0-85"></a>
+<a id="__codelineno-0-86" name="__codelineno-0-86"></a><span class="sd">    Applies the EUMETSAT effective-radiance inverse Planck function</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a><span class="sd">    `Tb* = C2 * nu / ln(1 + C1 * nu^3 / L)` followed by the per-channel band</span>
+<a id="__codelineno-0-88" name="__codelineno-0-88"></a><span class="sd">    correction `Tb = (Tb* - beta) / alpha`, with `nu` the channel central</span>
+<a id="__codelineno-0-89" name="__codelineno-0-89"></a><span class="sd">    wavenumber (cm-1) and `L` in mW m-2 sr-1 (cm-1)-1.</span>
+<a id="__codelineno-0-90" name="__codelineno-0-90"></a>
+<a id="__codelineno-0-91" name="__codelineno-0-91"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-92" name="__codelineno-0-92"></a><span class="sd">        radiance: Spectral radiance `L` (mW m-2 sr-1 (cm-1)-1), scalar or array.</span>
+<a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">            Non-positive values yield NaN.</span>
+<a id="__codelineno-0-94" name="__codelineno-0-94"></a><span class="sd">        central_wavenumber_cm1: Channel central wavenumber `nu` (cm-1).</span>
+<a id="__codelineno-0-95" name="__codelineno-0-95"></a><span class="sd">        alpha: Band-correction slope (default 1.0).</span>
+<a id="__codelineno-0-96" name="__codelineno-0-96"></a><span class="sd">        beta: Band-correction offset in kelvin (default 0.0).</span>
+<a id="__codelineno-0-97" name="__codelineno-0-97"></a>
+<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-99" name="__codelineno-0-99"></a><span class="sd">        The brightness temperature in kelvin, same shape as `radiance`.</span>
+<a id="__codelineno-0-100" name="__codelineno-0-100"></a>
+<a id="__codelineno-0-101" name="__codelineno-0-101"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-102" name="__codelineno-0-102"></a><span class="sd">        CalibrationError: When `central_wavenumber_cm1` is not positive or</span>
+<a id="__codelineno-0-103" name="__codelineno-0-103"></a><span class="sd">            `alpha` is zero.</span>
+<a id="__codelineno-0-104" name="__codelineno-0-104"></a><span class="sd">    """</span>
+<a id="__codelineno-0-105" name="__codelineno-0-105"></a>    <span class="k">if</span> <span class="n">central_wavenumber_cm1</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-0-106" name="__codelineno-0-106"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
+<a id="__codelineno-0-107" name="__codelineno-0-107"></a>            <span class="sa">f</span><span class="s2">"central_wavenumber_cm1 must be positive; got </span><span class="si">{</span><span class="n">central_wavenumber_cm1</span><span class="si">}</span><span class="s2">"</span>
+<a id="__codelineno-0-108" name="__codelineno-0-108"></a>        <span class="p">)</span>
+<a id="__codelineno-0-109" name="__codelineno-0-109"></a>    <span class="k">if</span> <span class="n">alpha</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-0-110" name="__codelineno-0-110"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span><span class="s2">"alpha must be non-zero"</span><span class="p">)</span>
+<a id="__codelineno-0-111" name="__codelineno-0-111"></a>    <span class="n">nu</span> <span class="o">=</span> <span class="n">central_wavenumber_cm1</span>
+<a id="__codelineno-0-112" name="__codelineno-0-112"></a>    <span class="n">radiance_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<a id="__codelineno-0-113" name="__codelineno-0-113"></a>    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
+<a id="__codelineno-0-114" name="__codelineno-0-114"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">C2</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log1p</span><span class="p">(</span><span class="n">C1</span> <span class="o">*</span> <span class="n">nu</span><span class="o">**</span><span class="mi">3</span> <span class="o">/</span> <span class="n">radiance_arr</span><span class="p">)</span>
+<a id="__codelineno-0-115" name="__codelineno-0-115"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">radiance_arr</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">tb_star</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+<a id="__codelineno-0-116" name="__codelineno-0-116"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">((</span><span class="n">tb_star</span> <span class="o">-</span> <span class="n">beta</span><span class="p">)</span> <span class="o">/</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2467,6 +2467,10 @@ Non-positive values yield NaN.</p>
 <p>Computes the bidirectional reflectance factor
 <code>rho = pi * L * d^2 / E0</code>, optionally normalised by the cosine of the solar
 zenith angle (<code>/ cos_sza</code>) to give a sun-angle-corrected BRF.</p>
+<p><code>L</code> and <code>E0</code> must be in <strong>consistent</strong> spectral units for the ratio to be
+dimensionless — for MSG/MTG L1 that is the wavenumber form (<code>L</code> in
+<code>mW m-2 sr-1 (cm-1)-1</code>, <code>E0</code> the band-effective solar irradiance in
+<code>mW m-2 (cm-1)-1</code>), which the FCI/SEVIRI registry tables provide.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2489,7 +2493,7 @@ zenith angle (<code>/ cos_sza</code>) to give a sun-angle-corrected BRF.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Spectral radiance <code>L</code> (W m-2 sr-1 um-1), scalar or array.</p>
+                <p>Spectral radiance <code>L</code>, scalar or array.</p>
               </div>
             </td>
             <td>
@@ -2505,7 +2509,8 @@ zenith angle (<code>/ cos_sza</code>) to give a sun-angle-corrected BRF.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Band-integrated solar irradiance <code>E0</code> (W m-2 um-1).</p>
+                <p>Band-effective solar irradiance <code>E0</code>, same spectral
+grid as <code>L</code>.</p>
               </div>
             </td>
             <td>
@@ -2637,7 +2642,13 @@ or <code>None</code> to skip it.</p>
 <span class="normal"><a href="#__codelineno-0-66">66</a></span>
 <span class="normal"><a href="#__codelineno-0-67">67</a></span>
 <span class="normal"><a href="#__codelineno-0-68">68</a></span>
-<span class="normal"><a href="#__codelineno-0-69">69</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="k">def</span><span class="w"> </span><span class="nf">radiance_to_reflectance</span><span class="p">(</span>
+<span class="normal"><a href="#__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#__codelineno-0-70">70</a></span>
+<span class="normal"><a href="#__codelineno-0-71">71</a></span>
+<span class="normal"><a href="#__codelineno-0-72">72</a></span>
+<span class="normal"><a href="#__codelineno-0-73">73</a></span>
+<span class="normal"><a href="#__codelineno-0-74">74</a></span>
+<span class="normal"><a href="#__codelineno-0-75">75</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="k">def</span><span class="w"> </span><span class="nf">radiance_to_reflectance</span><span class="p">(</span>
 <a id="__codelineno-0-31" name="__codelineno-0-31"></a>    <span class="n">radiance</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 <a id="__codelineno-0-32" name="__codelineno-0-32"></a>    <span class="n">solar_irradiance</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
 <a id="__codelineno-0-33" name="__codelineno-0-33"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
@@ -2649,34 +2660,40 @@ or <code>None</code> to skip it.</p>
 <a id="__codelineno-0-39" name="__codelineno-0-39"></a><span class="sd">    `rho = pi * L * d^2 / E0`, optionally normalised by the cosine of the solar</span>
 <a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="sd">    zenith angle (`/ cos_sza`) to give a sun-angle-corrected BRF.</span>
 <a id="__codelineno-0-41" name="__codelineno-0-41"></a>
-<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="sd">        radiance: Spectral radiance `L` (W m-2 sr-1 um-1), scalar or array.</span>
-<a id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="sd">        solar_irradiance: Band-integrated solar irradiance `E0` (W m-2 um-1).</span>
-<a id="__codelineno-0-45" name="__codelineno-0-45"></a><span class="sd">        sun_earth_distance: Sun-earth distance `d` in astronomical units</span>
-<a id="__codelineno-0-46" name="__codelineno-0-46"></a><span class="sd">            (default 1.0).</span>
-<a id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the sun-angle correction,</span>
-<a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="sd">            or `None` to skip it.</span>
-<a id="__codelineno-0-49" name="__codelineno-0-49"></a>
-<a id="__codelineno-0-50" name="__codelineno-0-50"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-51" name="__codelineno-0-51"></a><span class="sd">        The reflectance, same shape as `radiance`.</span>
-<a id="__codelineno-0-52" name="__codelineno-0-52"></a>
-<a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="sd">        CalibrationError: When `solar_irradiance` is not positive.</span>
-<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="sd">    """</span>
-<a id="__codelineno-0-56" name="__codelineno-0-56"></a>    <span class="k">if</span> <span class="n">solar_irradiance</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-0-57" name="__codelineno-0-57"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
-<a id="__codelineno-0-58" name="__codelineno-0-58"></a>            <span class="sa">f</span><span class="s2">"solar_irradiance must be positive; got </span><span class="si">{</span><span class="n">solar_irradiance</span><span class="si">}</span><span class="s2">"</span>
-<a id="__codelineno-0-59" name="__codelineno-0-59"></a>        <span class="p">)</span>
-<a id="__codelineno-0-60" name="__codelineno-0-60"></a>    <span class="n">reflectance</span> <span class="o">=</span> <span class="p">(</span>
-<a id="__codelineno-0-61" name="__codelineno-0-61"></a>        <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">sun_earth_distance</span><span class="o">**</span><span class="mi">2</span>
-<a id="__codelineno-0-62" name="__codelineno-0-62"></a>    <span class="p">)</span> <span class="o">/</span> <span class="n">solar_irradiance</span>
-<a id="__codelineno-0-63" name="__codelineno-0-63"></a>    <span class="k">if</span> <span class="n">cos_sza</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-64" name="__codelineno-0-64"></a>        <span class="n">cos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">cos_sza</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-<a id="__codelineno-0-65" name="__codelineno-0-65"></a>        <span class="c1"># At/below the terminator (cos_sza &lt;= 0) the sun-angle correction is</span>
-<a id="__codelineno-0-66" name="__codelineno-0-66"></a>        <span class="c1"># undefined; map those pixels to NaN instead of emitting inf + a warning.</span>
-<a id="__codelineno-0-67" name="__codelineno-0-67"></a>        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
-<a id="__codelineno-0-68" name="__codelineno-0-68"></a>            <span class="n">reflectance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">cos</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">reflectance</span> <span class="o">/</span> <span class="n">cos</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
-<a id="__codelineno-0-69" name="__codelineno-0-69"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">reflectance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">    `L` and `E0` must be in **consistent** spectral units for the ratio to be</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="sd">    dimensionless — for MSG/MTG L1 that is the wavenumber form (`L` in</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="sd">    `mW m-2 sr-1 (cm-1)-1`, `E0` the band-effective solar irradiance in</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45"></a><span class="sd">    `mW m-2 (cm-1)-1`), which the FCI/SEVIRI registry tables provide.</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46"></a>
+<a id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="sd">        radiance: Spectral radiance `L`, scalar or array.</span>
+<a id="__codelineno-0-49" name="__codelineno-0-49"></a><span class="sd">        solar_irradiance: Band-effective solar irradiance `E0`, same spectral</span>
+<a id="__codelineno-0-50" name="__codelineno-0-50"></a><span class="sd">            grid as `L`.</span>
+<a id="__codelineno-0-51" name="__codelineno-0-51"></a><span class="sd">        sun_earth_distance: Sun-earth distance `d` in astronomical units</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52"></a><span class="sd">            (default 1.0).</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the sun-angle correction,</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="sd">            or `None` to skip it.</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a>
+<a id="__codelineno-0-56" name="__codelineno-0-56"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">        The reflectance, same shape as `radiance`.</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58"></a>
+<a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="sd">        CalibrationError: When `solar_irradiance` is not positive.</span>
+<a id="__codelineno-0-61" name="__codelineno-0-61"></a><span class="sd">    """</span>
+<a id="__codelineno-0-62" name="__codelineno-0-62"></a>    <span class="k">if</span> <span class="n">solar_irradiance</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-0-63" name="__codelineno-0-63"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a>            <span class="sa">f</span><span class="s2">"solar_irradiance must be positive; got </span><span class="si">{</span><span class="n">solar_irradiance</span><span class="si">}</span><span class="s2">"</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65"></a>        <span class="p">)</span>
+<a id="__codelineno-0-66" name="__codelineno-0-66"></a>    <span class="n">reflectance</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-0-67" name="__codelineno-0-67"></a>        <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">sun_earth_distance</span><span class="o">**</span><span class="mi">2</span>
+<a id="__codelineno-0-68" name="__codelineno-0-68"></a>    <span class="p">)</span> <span class="o">/</span> <span class="n">solar_irradiance</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a>    <span class="k">if</span> <span class="n">cos_sza</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70"></a>        <span class="n">cos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">cos_sza</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<a id="__codelineno-0-71" name="__codelineno-0-71"></a>        <span class="c1"># At/below the terminator (cos_sza &lt;= 0) the sun-angle correction is</span>
+<a id="__codelineno-0-72" name="__codelineno-0-72"></a>        <span class="c1"># undefined; map those pixels to NaN instead of emitting inf + a warning.</span>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a>        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
+<a id="__codelineno-0-74" name="__codelineno-0-74"></a>            <span class="n">reflectance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">cos</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">reflectance</span> <span class="o">/</span> <span class="n">cos</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">reflectance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -3598,6 +3615,10 @@ available, falling back to the bundled registry tables (see
 <p>Computes the bidirectional reflectance factor
 <code>rho = pi * L * d^2 / E0</code>, optionally normalised by the cosine of the solar
 zenith angle (<code>/ cos_sza</code>) to give a sun-angle-corrected BRF.</p>
+<p><code>L</code> and <code>E0</code> must be in <strong>consistent</strong> spectral units for the ratio to be
+dimensionless — for MSG/MTG L1 that is the wavenumber form (<code>L</code> in
+<code>mW m-2 sr-1 (cm-1)-1</code>, <code>E0</code> the band-effective solar irradiance in
+<code>mW m-2 (cm-1)-1</code>), which the FCI/SEVIRI registry tables provide.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3620,7 +3641,7 @@ zenith angle (<code>/ cos_sza</code>) to give a sun-angle-corrected BRF.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Spectral radiance <code>L</code> (W m-2 sr-1 um-1), scalar or array.</p>
+                <p>Spectral radiance <code>L</code>, scalar or array.</p>
               </div>
             </td>
             <td>
@@ -3636,7 +3657,8 @@ zenith angle (<code>/ cos_sza</code>) to give a sun-angle-corrected BRF.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Band-integrated solar irradiance <code>E0</code> (W m-2 um-1).</p>
+                <p>Band-effective solar irradiance <code>E0</code>, same spectral
+grid as <code>L</code>.</p>
               </div>
             </td>
             <td>
@@ -3768,7 +3790,13 @@ or <code>None</code> to skip it.</p>
 <span class="normal"><a href="#__codelineno-0-66">66</a></span>
 <span class="normal"><a href="#__codelineno-0-67">67</a></span>
 <span class="normal"><a href="#__codelineno-0-68">68</a></span>
-<span class="normal"><a href="#__codelineno-0-69">69</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="k">def</span><span class="w"> </span><span class="nf">radiance_to_reflectance</span><span class="p">(</span>
+<span class="normal"><a href="#__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#__codelineno-0-70">70</a></span>
+<span class="normal"><a href="#__codelineno-0-71">71</a></span>
+<span class="normal"><a href="#__codelineno-0-72">72</a></span>
+<span class="normal"><a href="#__codelineno-0-73">73</a></span>
+<span class="normal"><a href="#__codelineno-0-74">74</a></span>
+<span class="normal"><a href="#__codelineno-0-75">75</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="k">def</span><span class="w"> </span><span class="nf">radiance_to_reflectance</span><span class="p">(</span>
 <a id="__codelineno-0-31" name="__codelineno-0-31"></a>    <span class="n">radiance</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 <a id="__codelineno-0-32" name="__codelineno-0-32"></a>    <span class="n">solar_irradiance</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
 <a id="__codelineno-0-33" name="__codelineno-0-33"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
@@ -3780,34 +3808,40 @@ or <code>None</code> to skip it.</p>
 <a id="__codelineno-0-39" name="__codelineno-0-39"></a><span class="sd">    `rho = pi * L * d^2 / E0`, optionally normalised by the cosine of the solar</span>
 <a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="sd">    zenith angle (`/ cos_sza`) to give a sun-angle-corrected BRF.</span>
 <a id="__codelineno-0-41" name="__codelineno-0-41"></a>
-<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="sd">        radiance: Spectral radiance `L` (W m-2 sr-1 um-1), scalar or array.</span>
-<a id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="sd">        solar_irradiance: Band-integrated solar irradiance `E0` (W m-2 um-1).</span>
-<a id="__codelineno-0-45" name="__codelineno-0-45"></a><span class="sd">        sun_earth_distance: Sun-earth distance `d` in astronomical units</span>
-<a id="__codelineno-0-46" name="__codelineno-0-46"></a><span class="sd">            (default 1.0).</span>
-<a id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the sun-angle correction,</span>
-<a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="sd">            or `None` to skip it.</span>
-<a id="__codelineno-0-49" name="__codelineno-0-49"></a>
-<a id="__codelineno-0-50" name="__codelineno-0-50"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-51" name="__codelineno-0-51"></a><span class="sd">        The reflectance, same shape as `radiance`.</span>
-<a id="__codelineno-0-52" name="__codelineno-0-52"></a>
-<a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="sd">        CalibrationError: When `solar_irradiance` is not positive.</span>
-<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="sd">    """</span>
-<a id="__codelineno-0-56" name="__codelineno-0-56"></a>    <span class="k">if</span> <span class="n">solar_irradiance</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-0-57" name="__codelineno-0-57"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
-<a id="__codelineno-0-58" name="__codelineno-0-58"></a>            <span class="sa">f</span><span class="s2">"solar_irradiance must be positive; got </span><span class="si">{</span><span class="n">solar_irradiance</span><span class="si">}</span><span class="s2">"</span>
-<a id="__codelineno-0-59" name="__codelineno-0-59"></a>        <span class="p">)</span>
-<a id="__codelineno-0-60" name="__codelineno-0-60"></a>    <span class="n">reflectance</span> <span class="o">=</span> <span class="p">(</span>
-<a id="__codelineno-0-61" name="__codelineno-0-61"></a>        <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">sun_earth_distance</span><span class="o">**</span><span class="mi">2</span>
-<a id="__codelineno-0-62" name="__codelineno-0-62"></a>    <span class="p">)</span> <span class="o">/</span> <span class="n">solar_irradiance</span>
-<a id="__codelineno-0-63" name="__codelineno-0-63"></a>    <span class="k">if</span> <span class="n">cos_sza</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-64" name="__codelineno-0-64"></a>        <span class="n">cos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">cos_sza</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-<a id="__codelineno-0-65" name="__codelineno-0-65"></a>        <span class="c1"># At/below the terminator (cos_sza &lt;= 0) the sun-angle correction is</span>
-<a id="__codelineno-0-66" name="__codelineno-0-66"></a>        <span class="c1"># undefined; map those pixels to NaN instead of emitting inf + a warning.</span>
-<a id="__codelineno-0-67" name="__codelineno-0-67"></a>        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
-<a id="__codelineno-0-68" name="__codelineno-0-68"></a>            <span class="n">reflectance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">cos</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">reflectance</span> <span class="o">/</span> <span class="n">cos</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
-<a id="__codelineno-0-69" name="__codelineno-0-69"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">reflectance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">    `L` and `E0` must be in **consistent** spectral units for the ratio to be</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="sd">    dimensionless — for MSG/MTG L1 that is the wavenumber form (`L` in</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="sd">    `mW m-2 sr-1 (cm-1)-1`, `E0` the band-effective solar irradiance in</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45"></a><span class="sd">    `mW m-2 (cm-1)-1`), which the FCI/SEVIRI registry tables provide.</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46"></a>
+<a id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="sd">        radiance: Spectral radiance `L`, scalar or array.</span>
+<a id="__codelineno-0-49" name="__codelineno-0-49"></a><span class="sd">        solar_irradiance: Band-effective solar irradiance `E0`, same spectral</span>
+<a id="__codelineno-0-50" name="__codelineno-0-50"></a><span class="sd">            grid as `L`.</span>
+<a id="__codelineno-0-51" name="__codelineno-0-51"></a><span class="sd">        sun_earth_distance: Sun-earth distance `d` in astronomical units</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52"></a><span class="sd">            (default 1.0).</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the sun-angle correction,</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="sd">            or `None` to skip it.</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a>
+<a id="__codelineno-0-56" name="__codelineno-0-56"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">        The reflectance, same shape as `radiance`.</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58"></a>
+<a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="sd">        CalibrationError: When `solar_irradiance` is not positive.</span>
+<a id="__codelineno-0-61" name="__codelineno-0-61"></a><span class="sd">    """</span>
+<a id="__codelineno-0-62" name="__codelineno-0-62"></a>    <span class="k">if</span> <span class="n">solar_irradiance</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-0-63" name="__codelineno-0-63"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a>            <span class="sa">f</span><span class="s2">"solar_irradiance must be positive; got </span><span class="si">{</span><span class="n">solar_irradiance</span><span class="si">}</span><span class="s2">"</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65"></a>        <span class="p">)</span>
+<a id="__codelineno-0-66" name="__codelineno-0-66"></a>    <span class="n">reflectance</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-0-67" name="__codelineno-0-67"></a>        <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">sun_earth_distance</span><span class="o">**</span><span class="mi">2</span>
+<a id="__codelineno-0-68" name="__codelineno-0-68"></a>    <span class="p">)</span> <span class="o">/</span> <span class="n">solar_irradiance</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a>    <span class="k">if</span> <span class="n">cos_sza</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70"></a>        <span class="n">cos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">cos_sza</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<a id="__codelineno-0-71" name="__codelineno-0-71"></a>        <span class="c1"># At/below the terminator (cos_sza &lt;= 0) the sun-angle correction is</span>
+<a id="__codelineno-0-72" name="__codelineno-0-72"></a>        <span class="c1"># undefined; map those pixels to NaN instead of emitting inf + a warning.</span>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a>        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
+<a id="__codelineno-0-74" name="__codelineno-0-74"></a>            <span class="n">reflectance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">cos</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">reflectance</span> <span class="o">/</span> <span class="n">cos</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">reflectance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -3961,13 +3995,7 @@ Non-positive values yield NaN.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/sensors/registry/calibration.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-72"> 72</a></span>
-<span class="normal"><a href="#__codelineno-0-73"> 73</a></span>
-<span class="normal"><a href="#__codelineno-0-74"> 74</a></span>
-<span class="normal"><a href="#__codelineno-0-75"> 75</a></span>
-<span class="normal"><a href="#__codelineno-0-76"> 76</a></span>
-<span class="normal"><a href="#__codelineno-0-77"> 77</a></span>
-<span class="normal"><a href="#__codelineno-0-78"> 78</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-78"> 78</a></span>
 <span class="normal"><a href="#__codelineno-0-79"> 79</a></span>
 <span class="normal"><a href="#__codelineno-0-80"> 80</a></span>
 <span class="normal"><a href="#__codelineno-0-81"> 81</a></span>
@@ -3999,45 +4027,51 @@ Non-positive values yield NaN.</p>
 <span class="normal"><a href="#__codelineno-0-107">107</a></span>
 <span class="normal"><a href="#__codelineno-0-108">108</a></span>
 <span class="normal"><a href="#__codelineno-0-109">109</a></span>
-<span class="normal"><a href="#__codelineno-0-110">110</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-72" name="__codelineno-0-72"></a><span class="k">def</span><span class="w"> </span><span class="nf">radiance_to_brightness_temperature</span><span class="p">(</span>
-<a id="__codelineno-0-73" name="__codelineno-0-73"></a>    <span class="n">radiance</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-74" name="__codelineno-0-74"></a>    <span class="n">central_wavenumber_cm1</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-<a id="__codelineno-0-75" name="__codelineno-0-75"></a>    <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
-<a id="__codelineno-0-76" name="__codelineno-0-76"></a>    <span class="n">beta</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
-<a id="__codelineno-0-77" name="__codelineno-0-77"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
-<a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="w">    </span><span class="sd">"""Convert thermal-channel radiance to brightness temperature (kelvin).</span>
-<a id="__codelineno-0-79" name="__codelineno-0-79"></a>
-<a id="__codelineno-0-80" name="__codelineno-0-80"></a><span class="sd">    Applies the EUMETSAT effective-radiance inverse Planck function</span>
-<a id="__codelineno-0-81" name="__codelineno-0-81"></a><span class="sd">    `Tb* = C2 * nu / ln(1 + C1 * nu^3 / L)` followed by the per-channel band</span>
-<a id="__codelineno-0-82" name="__codelineno-0-82"></a><span class="sd">    correction `Tb = (Tb* - beta) / alpha`, with `nu` the channel central</span>
-<a id="__codelineno-0-83" name="__codelineno-0-83"></a><span class="sd">    wavenumber (cm-1) and `L` in mW m-2 sr-1 (cm-1)-1.</span>
-<a id="__codelineno-0-84" name="__codelineno-0-84"></a>
-<a id="__codelineno-0-85" name="__codelineno-0-85"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-86" name="__codelineno-0-86"></a><span class="sd">        radiance: Spectral radiance `L` (mW m-2 sr-1 (cm-1)-1), scalar or array.</span>
-<a id="__codelineno-0-87" name="__codelineno-0-87"></a><span class="sd">            Non-positive values yield NaN.</span>
-<a id="__codelineno-0-88" name="__codelineno-0-88"></a><span class="sd">        central_wavenumber_cm1: Channel central wavenumber `nu` (cm-1).</span>
-<a id="__codelineno-0-89" name="__codelineno-0-89"></a><span class="sd">        alpha: Band-correction slope (default 1.0).</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90"></a><span class="sd">        beta: Band-correction offset in kelvin (default 0.0).</span>
-<a id="__codelineno-0-91" name="__codelineno-0-91"></a>
-<a id="__codelineno-0-92" name="__codelineno-0-92"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">        The brightness temperature in kelvin, same shape as `radiance`.</span>
-<a id="__codelineno-0-94" name="__codelineno-0-94"></a>
-<a id="__codelineno-0-95" name="__codelineno-0-95"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-96" name="__codelineno-0-96"></a><span class="sd">        CalibrationError: When `central_wavenumber_cm1` is not positive or</span>
-<a id="__codelineno-0-97" name="__codelineno-0-97"></a><span class="sd">            `alpha` is zero.</span>
-<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    """</span>
-<a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="k">if</span> <span class="n">central_wavenumber_cm1</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-0-100" name="__codelineno-0-100"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
-<a id="__codelineno-0-101" name="__codelineno-0-101"></a>            <span class="sa">f</span><span class="s2">"central_wavenumber_cm1 must be positive; got </span><span class="si">{</span><span class="n">central_wavenumber_cm1</span><span class="si">}</span><span class="s2">"</span>
-<a id="__codelineno-0-102" name="__codelineno-0-102"></a>        <span class="p">)</span>
-<a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="k">if</span> <span class="n">alpha</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-0-104" name="__codelineno-0-104"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span><span class="s2">"alpha must be non-zero"</span><span class="p">)</span>
-<a id="__codelineno-0-105" name="__codelineno-0-105"></a>    <span class="n">nu</span> <span class="o">=</span> <span class="n">central_wavenumber_cm1</span>
-<a id="__codelineno-0-106" name="__codelineno-0-106"></a>    <span class="n">radiance_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-<a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
-<a id="__codelineno-0-108" name="__codelineno-0-108"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">C2</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log1p</span><span class="p">(</span><span class="n">C1</span> <span class="o">*</span> <span class="n">nu</span><span class="o">**</span><span class="mi">3</span> <span class="o">/</span> <span class="n">radiance_arr</span><span class="p">)</span>
-<a id="__codelineno-0-109" name="__codelineno-0-109"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">radiance_arr</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">tb_star</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
-<a id="__codelineno-0-110" name="__codelineno-0-110"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">((</span><span class="n">tb_star</span> <span class="o">-</span> <span class="n">beta</span><span class="p">)</span> <span class="o">/</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-110">110</a></span>
+<span class="normal"><a href="#__codelineno-0-111">111</a></span>
+<span class="normal"><a href="#__codelineno-0-112">112</a></span>
+<span class="normal"><a href="#__codelineno-0-113">113</a></span>
+<span class="normal"><a href="#__codelineno-0-114">114</a></span>
+<span class="normal"><a href="#__codelineno-0-115">115</a></span>
+<span class="normal"><a href="#__codelineno-0-116">116</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="k">def</span><span class="w"> </span><span class="nf">radiance_to_brightness_temperature</span><span class="p">(</span>
+<a id="__codelineno-0-79" name="__codelineno-0-79"></a>    <span class="n">radiance</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-80" name="__codelineno-0-80"></a>    <span class="n">central_wavenumber_cm1</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="__codelineno-0-81" name="__codelineno-0-81"></a>    <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+<a id="__codelineno-0-82" name="__codelineno-0-82"></a>    <span class="n">beta</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+<a id="__codelineno-0-83" name="__codelineno-0-83"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<a id="__codelineno-0-84" name="__codelineno-0-84"></a><span class="w">    </span><span class="sd">"""Convert thermal-channel radiance to brightness temperature (kelvin).</span>
+<a id="__codelineno-0-85" name="__codelineno-0-85"></a>
+<a id="__codelineno-0-86" name="__codelineno-0-86"></a><span class="sd">    Applies the EUMETSAT effective-radiance inverse Planck function</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a><span class="sd">    `Tb* = C2 * nu / ln(1 + C1 * nu^3 / L)` followed by the per-channel band</span>
+<a id="__codelineno-0-88" name="__codelineno-0-88"></a><span class="sd">    correction `Tb = (Tb* - beta) / alpha`, with `nu` the channel central</span>
+<a id="__codelineno-0-89" name="__codelineno-0-89"></a><span class="sd">    wavenumber (cm-1) and `L` in mW m-2 sr-1 (cm-1)-1.</span>
+<a id="__codelineno-0-90" name="__codelineno-0-90"></a>
+<a id="__codelineno-0-91" name="__codelineno-0-91"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-92" name="__codelineno-0-92"></a><span class="sd">        radiance: Spectral radiance `L` (mW m-2 sr-1 (cm-1)-1), scalar or array.</span>
+<a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="sd">            Non-positive values yield NaN.</span>
+<a id="__codelineno-0-94" name="__codelineno-0-94"></a><span class="sd">        central_wavenumber_cm1: Channel central wavenumber `nu` (cm-1).</span>
+<a id="__codelineno-0-95" name="__codelineno-0-95"></a><span class="sd">        alpha: Band-correction slope (default 1.0).</span>
+<a id="__codelineno-0-96" name="__codelineno-0-96"></a><span class="sd">        beta: Band-correction offset in kelvin (default 0.0).</span>
+<a id="__codelineno-0-97" name="__codelineno-0-97"></a>
+<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-99" name="__codelineno-0-99"></a><span class="sd">        The brightness temperature in kelvin, same shape as `radiance`.</span>
+<a id="__codelineno-0-100" name="__codelineno-0-100"></a>
+<a id="__codelineno-0-101" name="__codelineno-0-101"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-102" name="__codelineno-0-102"></a><span class="sd">        CalibrationError: When `central_wavenumber_cm1` is not positive or</span>
+<a id="__codelineno-0-103" name="__codelineno-0-103"></a><span class="sd">            `alpha` is zero.</span>
+<a id="__codelineno-0-104" name="__codelineno-0-104"></a><span class="sd">    """</span>
+<a id="__codelineno-0-105" name="__codelineno-0-105"></a>    <span class="k">if</span> <span class="n">central_wavenumber_cm1</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-0-106" name="__codelineno-0-106"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span>
+<a id="__codelineno-0-107" name="__codelineno-0-107"></a>            <span class="sa">f</span><span class="s2">"central_wavenumber_cm1 must be positive; got </span><span class="si">{</span><span class="n">central_wavenumber_cm1</span><span class="si">}</span><span class="s2">"</span>
+<a id="__codelineno-0-108" name="__codelineno-0-108"></a>        <span class="p">)</span>
+<a id="__codelineno-0-109" name="__codelineno-0-109"></a>    <span class="k">if</span> <span class="n">alpha</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-0-110" name="__codelineno-0-110"></a>        <span class="k">raise</span> <span class="n">CalibrationError</span><span class="p">(</span><span class="s2">"alpha must be non-zero"</span><span class="p">)</span>
+<a id="__codelineno-0-111" name="__codelineno-0-111"></a>    <span class="n">nu</span> <span class="o">=</span> <span class="n">central_wavenumber_cm1</span>
+<a id="__codelineno-0-112" name="__codelineno-0-112"></a>    <span class="n">radiance_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<a id="__codelineno-0-113" name="__codelineno-0-113"></a>    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
+<a id="__codelineno-0-114" name="__codelineno-0-114"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">C2</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log1p</span><span class="p">(</span><span class="n">C1</span> <span class="o">*</span> <span class="n">nu</span><span class="o">**</span><span class="mi">3</span> <span class="o">/</span> <span class="n">radiance_arr</span><span class="p">)</span>
+<a id="__codelineno-0-115" name="__codelineno-0-115"></a>        <span class="n">tb_star</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">radiance_arr</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">tb_star</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+<a id="__codelineno-0-116" name="__codelineno-0-116"></a>    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">((</span><span class="n">tb_star</span> <span class="o">-</span> <span class="n">beta</span><span class="p">)</span> <span class="o">/</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
