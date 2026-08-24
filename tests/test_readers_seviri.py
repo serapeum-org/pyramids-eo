@@ -66,6 +66,7 @@ def _build_nat(
     data_length=None,
     header_offset=200,
     write_segment_table=True,
+    trailer_bytes=0,
 ) -> bytes:
     """Build a minimal but format-faithful MSG L1.5 native `.nat` byte string.
 
@@ -111,7 +112,8 @@ def _build_nat(
         )
         start = record + block_start + _LINE_SIDE_INFO_BYTES
         data[start : start + packed_bytes] = _pack_10bit(np.asarray(counts, np.uint16))
-    return bytes(product_header) + bytes(header) + bytes(data)
+    # A real product appends a 15Trailer segment after 15Data.
+    return bytes(product_header) + bytes(header) + bytes(data) + b"\x00" * trailer_bytes
 
 
 def _write(tmp_path: Path, name: str, payload: bytes) -> str:
@@ -312,6 +314,29 @@ class TestParseSeviriNative:
         payload = _build_nat(records=[(600, row), (602, row)])  # gap at 601
         with pytest.raises(ReaderError, match="not contiguous"):
             parse_seviri_native(_write(tmp_path, "s.nat", payload), "IR_108")
+
+    def test_full_disk_with_trailer_decodes(self, tmp_path):
+        """A full product (all declared lines) plus a 15Trailer decodes to the disk.
+
+        The record count is capped at the declared line count, not derived from
+        the file size — otherwise the trailer bytes are read as extra records and
+        the contiguity guard rejects a valid full-disk product.
+        """
+        columns = 1000  # smallest square grid that passes the layout sanity check
+        block = _LINE_SIDE_INFO_BYTES + columns * 10 // 8
+        rows = [
+            (line, np.full(columns, 300, np.uint16))
+            for line in range(1, columns + 1)  # every declared line, contiguous
+        ]
+        payload = _build_nat(
+            records=rows,
+            columns=columns,
+            position=0,
+            stride=block,
+            trailer_bytes=3 * block + 17,  # several strides of trailer, as a real product has
+        )
+        scene = parse_seviri_native(_write(tmp_path, "full.nat", payload), "VIS006")
+        assert scene.read_array().shape == (columns, columns), "the full disk decodes"
 
 
 class TestReadSeviri:

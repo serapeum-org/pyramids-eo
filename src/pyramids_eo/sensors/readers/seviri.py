@@ -237,7 +237,12 @@ def parse_seviri_native(path: Any, channel: str) -> Any:
     if data_start + packed_bytes > stride:
         raise ReaderError("read_seviri: channel block exceeds the line-record stride")
 
-    available = (file_size - data_offset) // stride
+    # The declared 15Data holds exactly `lines_declared` records; a full product
+    # has a 15Trailer segment after it, so cap the count at the declared line
+    # count. Without this cap the trailer bytes get read as extra "line records",
+    # break the +1 contiguity of `line_numbers`, and reject a valid full disk.
+    # The file-size term still handles a header-preserved subset (fewer records).
+    available = min((file_size - data_offset) // stride, lines_declared)
     if available < 1:
         raise ReaderError("read_seviri: file carries no complete image line record")
 
