@@ -291,16 +291,18 @@ def parse_seviri_native(
     # negative strides.
     radiance = np.ascontiguousarray(radiance[::-1, ::-1])
 
-    # CGMS/EUMETSAT navigation places the sub-satellite point at the CENTRE of
-    # the reference pixel COFF = LOFF = N/2 (1-based; column/line 1856 of the 3712
-    # grid), not at the even grid's geometric mid-line. Register the metre
-    # geotransform so that pixel's centre is (x=0, y=0) — a half-pixel (~1.5 km)
-    # offset from the naive grid centre. Line numbers increase north and columns
-    # east, so after the north-up/west-left flip row 0 is the northmost line.
-    reference_line = lines_declared / 2.0
-    reference_column = columns / 2.0
-    y_north_edge = (int(line_numbers[-1]) - reference_line + 0.5) * pixel_m
-    x_west_edge = -(reference_column - 0.5) * pixel_m
+    # CGMS/EUMETSAT navigation places the sub-satellite point at the CENTRE of the
+    # reference pixel N/2 (0-based, both axes; e.g. pixel 1856 of the 3712 grid) —
+    # the COFF = LOFF convention, which reproduces the published MSG full-disk area
+    # extent (west edge -(N/2 + 0.5) * px). All columns are present (full width) so
+    # the SSP column is N/2; only a subset of lines may be present, so the SSP row
+    # is N/2 measured from the northmost present line (row 0 after the north-up
+    # flip). Register the metre geotransform so that reference pixel's centre is
+    # (x=0, y=0).
+    reference = columns / 2.0  # == lines_declared / 2.0 for the square VIS/IR grid
+    ssp_row = int(line_numbers[-1]) - reference
+    x_west_edge = -(reference + 0.5) * pixel_m
+    y_north_edge = (ssp_row + 0.5) * pixel_m
     geo = (x_west_edge, pixel_m, 0.0, y_north_edge, 0.0, -pixel_m)
 
     from pyramids.dataset import Dataset

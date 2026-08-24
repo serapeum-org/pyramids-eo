@@ -195,11 +195,11 @@ class TestParseSeviriNative:
         assert gt[1] == pytest.approx(px), "px is the grid step in metres"
         assert gt[5] == pytest.approx(-px), "north-up grid (negative row step)"
         # SSP at the centre of reference pixel N/2 (CGMS COFF=LOFF): the west edge
-        # is a half-pixel in from -(N/2)*px, and line 601 sits above the reference.
-        assert gt[0] == pytest.approx(-(columns / 2 - 0.5) * px), (
-            "west edge (SSP at reference pixel N/2)"
+        # is -(N/2 + 0.5)*px (the published MSG extent), line 601 above the reference.
+        reference = columns / 2  # 0-based reference pixel: COFF = LOFF = N/2
+        assert gt[0] == pytest.approx(-(reference + 0.5) * px), (
+            "west edge (SSP column at pixel N/2)"
         )
-        reference = columns / 2  # square grid: COFF = LOFF = N/2 (1-based)
         assert gt[3] == pytest.approx((601 - reference + 0.5) * px), (
             "north edge of line 601"
         )
@@ -588,13 +588,14 @@ def test_read_seviri_real_granule():
 
 
 @pytest.mark.live
-def test_read_seviri_real_granule_subsatellite_geolocation():
-    """A real granule's grid places the sub-satellite point at a pixel centre (0N/0E).
+def test_read_seviri_real_granule_absolute_geolocation():
+    """A real granule's grid matches the published MSG full-disk registration.
 
-    Independent absolute-geolocation check: transform every pixel centre to
-    lon/lat and confirm the pixel nearest the sub-satellite point sits at
-    (0, 0) to well within half a pixel — i.e. the CGMS reference-pixel
-    convention, not the naive grid centre (which would be a half-pixel off).
+    Absolute (not by-construction) checks: the west edge equals the CGMS
+    `-(N/2 + 0.5) * px` extent, and the sub-satellite column derived from the
+    disk's OWN east-west symmetry (the finite-column midpoint of the widest row)
+    transforms to 0 deg E. A whole-pixel column offset fails this — unlike a
+    nearest-pixel-to-zero search, which passes for any registration.
     """
     fixtures = Path(os.environ.get("SEVIRI_FIXTURES_DIR", "tests/data/seviri"))
     granules = sorted(fixtures.glob("*.nat"))
@@ -604,14 +605,17 @@ def test_read_seviri_real_granule_subsatellite_geolocation():
 
     scene = read_seviri(str(granules[0]), "IR_108")
     gt = scene.geotransform
-    rows, cols = np.asarray(scene.read_array()).shape
-    col_c, row_c = np.meshgrid(np.arange(cols), np.arange(rows))
-    xs = gt[0] + (col_c + 0.5) * gt[1]
-    ys = gt[3] + (row_c + 0.5) * gt[5]
-    lon, lat = Transformer.from_crs(
-        str(scene.crs), "EPSG:4326", always_xy=True
-    ).transform(xs, ys)
-    on_disk = np.isfinite(lon) & np.isfinite(lat)
-    nearest = np.nanargmin(np.where(on_disk, np.abs(lon) + np.abs(lat), np.inf))
-    assert abs(lon.ravel()[nearest]) < 0.005, "a pixel centre coincides with 0 deg E"
-    assert abs(lat.ravel()[nearest]) < 0.005, "a pixel centre coincides with 0 deg N"
+    array = np.asarray(scene.read_array(), dtype=float)
+    _rows, cols = array.shape
+    px = abs(gt[1])
+    # The full-width west edge equals the published MSG full-disk extent.
+    assert gt[0] == pytest.approx(-(cols / 2 + 0.5) * px, abs=1.0), "west edge matches MSG extent"
+    # Sub-satellite column from the disk's own E-W symmetry (data-derived, not the gt):
+    # the midpoint of the widest finite row is the 0-deg-E column.
+    finite = np.isfinite(array)
+    widest = int(np.argmax(finite.sum(axis=1)))
+    present = np.where(finite[widest])[0]
+    ssp_col = (present[0] + present[-1]) / 2.0
+    x = gt[0] + (ssp_col + 0.5) * gt[1]
+    lon, _lat = Transformer.from_crs(str(scene.crs), "EPSG:4326", always_xy=True).transform(x, 0.0)
+    assert abs(lon) < 0.005, f"the disk-centre column should map to 0 deg E, got {lon}"
