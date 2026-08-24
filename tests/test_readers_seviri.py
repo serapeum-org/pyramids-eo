@@ -258,16 +258,18 @@ class TestParseSeviriNative:
         payload = _build_nat(
             records=[(600, np.full(1024, 5, np.uint16))], write_segment_table=False
         )
+        path = _write(tmp_path, "s.nat", payload)
         with pytest.raises(ReaderError, match="segment table"):
-            parse_seviri_native(_write(tmp_path, "s.nat", payload), "IR_108")
+            parse_seviri_native(path, "IR_108")
 
     def test_truncated_header_raises(self, tmp_path):
         """A 15Header too short for the fixed layout raises ReaderError."""
         payload = _build_nat(
             records=[(600, np.full(1024, 5, np.uint16))], header_length=100
         )
+        path = _write(tmp_path, "s.nat", payload)
         with pytest.raises(ReaderError, match="truncated"):
-            parse_seviri_native(_write(tmp_path, "s.nat", payload), "IR_108")
+            parse_seviri_native(path, "IR_108")
 
     def test_bad_reference_grid_raises(self, tmp_path):
         """A 15Header whose reference grid fails the sanity check is rejected."""
@@ -278,45 +280,51 @@ class TestParseSeviriNative:
         struct.pack_into(
             ">ii", payload, 200 + _REF_GRID_OFFSET, 7, 9
         )  # lines != cols, tiny
+        path = _write(tmp_path, "s.nat", bytes(payload))
         with pytest.raises(ReaderError, match="unexpected 15Header layout"):
-            parse_seviri_native(_write(tmp_path, "s.nat", bytes(payload)), "IR_108")
+            parse_seviri_native(path, "IR_108")
 
     def test_non_physical_slope_raises(self, tmp_path):
         """A non-positive calibration slope signals a wrong header layout."""
         payload = _build_nat(
             records=[(600, np.full(1024, 5, np.uint16))], slope=-1.0, offset=0.0
         )
+        path = _write(tmp_path, "s.nat", payload)
         with pytest.raises(ReaderError, match="calibration slope"):
-            parse_seviri_native(_write(tmp_path, "s.nat", payload), "IR_108")
+            parse_seviri_native(path, "IR_108")
 
     def test_data_length_not_whole_records_raises(self, tmp_path):
         """A 15Data length that is not a whole number of records is rejected."""
         payload = _build_nat(
             records=[(600, np.full(1024, 5, np.uint16))], data_length=99999
         )
+        path = _write(tmp_path, "s.nat", payload)
         with pytest.raises(ReaderError, match="whole number of line records"):
-            parse_seviri_native(_write(tmp_path, "s.nat", payload), "IR_108")
+            parse_seviri_native(path, "IR_108")
 
     def test_channel_block_exceeds_stride_raises(self, tmp_path):
         """A stride too small to hold the channel's block is rejected."""
         columns = 1024
         visir_block = _LINE_SIDE_INFO_BYTES + columns * 10 // 8
         payload = _build_nat(records=[], columns=columns, stride=3 * visir_block)
+        path = _write(tmp_path, "s.nat", payload)
         with pytest.raises(ReaderError, match="exceeds the line-record stride"):
-            parse_seviri_native(_write(tmp_path, "s.nat", payload), "IR_108")
+            parse_seviri_native(path, "IR_108")
 
     def test_no_complete_record_raises(self, tmp_path):
         """A file with the headers but no image record is rejected."""
         payload = _build_nat(records=[])
+        path = _write(tmp_path, "s.nat", payload)
         with pytest.raises(ReaderError, match="no complete image line record"):
-            parse_seviri_native(_write(tmp_path, "s.nat", payload), "IR_108")
+            parse_seviri_native(path, "IR_108")
 
     def test_non_contiguous_lines_raise(self, tmp_path):
         """Line records that skip a line signal a wrong layout / selection."""
         row = np.full(1024, 5, np.uint16)
         payload = _build_nat(records=[(600, row), (602, row)])  # gap at 601
+        path = _write(tmp_path, "s.nat", payload)
         with pytest.raises(ReaderError, match="not contiguous"):
-            parse_seviri_native(_write(tmp_path, "s.nat", payload), "IR_108")
+            parse_seviri_native(path, "IR_108")
 
     def test_full_disk_with_trailer_decodes(self, tmp_path):
         """A full product (all declared lines) plus a 15Trailer decodes to the disk.
