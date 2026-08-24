@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -3320,7 +3320,7 @@ contiguous (an unexpected channel selection or layout).</p>
 <a id="__codelineno-0-235" name="__codelineno-0-235"></a>    <span class="n">slope</span><span class="p">,</span> <span class="n">offset</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack_from</span><span class="p">(</span>
 <a id="__codelineno-0-236" name="__codelineno-0-236"></a>        <span class="s2">"&gt;dd"</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">_CALIBRATION_OFFSET</span> <span class="o">+</span> <span class="n">position</span> <span class="o">*</span> <span class="mi">16</span>
 <a id="__codelineno-0-237" name="__codelineno-0-237"></a>    <span class="p">)</span>
-<a id="__codelineno-0-238" name="__codelineno-0-238"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">slope</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-0-238" name="__codelineno-0-238"></a>    <span class="k">if</span> <span class="n">slope</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
 <a id="__codelineno-0-239" name="__codelineno-0-239"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
 <a id="__codelineno-0-240" name="__codelineno-0-240"></a>            <span class="s2">"read_seviri: non-physical calibration slope (unexpected header layout)"</span>
 <a id="__codelineno-0-241" name="__codelineno-0-241"></a>        <span class="p">)</span>
@@ -5654,7 +5654,7 @@ contiguous (an unexpected channel selection or layout).</p>
 <a id="__codelineno-0-235" name="__codelineno-0-235"></a>    <span class="n">slope</span><span class="p">,</span> <span class="n">offset</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack_from</span><span class="p">(</span>
 <a id="__codelineno-0-236" name="__codelineno-0-236"></a>        <span class="s2">"&gt;dd"</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">_CALIBRATION_OFFSET</span> <span class="o">+</span> <span class="n">position</span> <span class="o">*</span> <span class="mi">16</span>
 <a id="__codelineno-0-237" name="__codelineno-0-237"></a>    <span class="p">)</span>
-<a id="__codelineno-0-238" name="__codelineno-0-238"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">slope</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-0-238" name="__codelineno-0-238"></a>    <span class="k">if</span> <span class="n">slope</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
 <a id="__codelineno-0-239" name="__codelineno-0-239"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
 <a id="__codelineno-0-240" name="__codelineno-0-240"></a>            <span class="s2">"read_seviri: non-physical calibration slope (unexpected header layout)"</span>
 <a id="__codelineno-0-241" name="__codelineno-0-241"></a>        <span class="p">)</span>
