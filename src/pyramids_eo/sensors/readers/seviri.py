@@ -272,11 +272,16 @@ def parse_seviri_native(path: Any, channel: str) -> Any:
     # eastward; reverse both axes for a north-up, west-left raster.
     radiance = radiance[::-1, ::-1]
 
-    # Sub-satellite point at the grid centre; place the north/west edges of the
-    # present rows/columns, with a north-up (negative row step) geotransform.
-    centre = (lines_declared + 1) / 2.0
-    y_north_edge = (int(line_numbers[-1]) - centre + 0.5) * pixel_m
-    x_west_edge = -(columns / 2.0) * pixel_m
+    # CGMS/EUMETSAT navigation places the sub-satellite point at the CENTRE of
+    # the reference pixel COFF = LOFF = N/2 (1-based; column/line 1856 of the 3712
+    # grid), not at the even grid's geometric mid-line. Register the metre
+    # geotransform so that pixel's centre is (x=0, y=0) — a half-pixel (~1.5 km)
+    # offset from the naive grid centre. Line numbers increase north and columns
+    # east, so after the north-up/west-left flip row 0 is the northmost line.
+    reference_line = lines_declared / 2.0
+    reference_column = columns / 2.0
+    y_north_edge = (int(line_numbers[-1]) - reference_line + 0.5) * pixel_m
+    x_west_edge = -(reference_column - 0.5) * pixel_m
     geo = (x_west_edge, pixel_m, 0.0, y_north_edge, 0.0, -pixel_m)
 
     from pyramids.dataset import Dataset

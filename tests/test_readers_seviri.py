@@ -194,11 +194,13 @@ class TestParseSeviriNative:
         gt = scene.geotransform
         assert gt[1] == pytest.approx(px), "px is the grid step in metres"
         assert gt[5] == pytest.approx(-px), "north-up grid (negative row step)"
-        assert gt[0] == pytest.approx(-(columns / 2) * px), (
-            "west edge of the full-width disk"
+        # SSP at the centre of reference pixel N/2 (CGMS COFF=LOFF): the west edge
+        # is a half-pixel in from -(N/2)*px, and line 601 sits above the reference.
+        assert gt[0] == pytest.approx(-(columns / 2 - 0.5) * px), (
+            "west edge (SSP at reference pixel N/2)"
         )
-        centre = (columns + 1) / 2  # square grid, so the line centre matches columns
-        assert gt[3] == pytest.approx((601 - centre + 0.5) * px), (
+        reference = columns / 2  # square grid: COFF = LOFF = N/2 (1-based)
+        assert gt[3] == pytest.approx((601 - reference + 0.5) * px), (
             "north edge of line 601"
         )
 
@@ -488,3 +490,31 @@ def test_read_seviri_real_granule():
     )
     assert scene.geotransform[5] < 0, "the grid must be north-up (gt[5] < 0)"
     assert np.isnan(scene.no_data_value[0]), "nodata should be NaN"
+
+
+@pytest.mark.live
+def test_read_seviri_real_granule_subsatellite_geolocation():
+    """A real granule's grid places the sub-satellite point at a pixel centre (0N/0E).
+
+    Independent absolute-geolocation check: transform every pixel centre to
+    lon/lat and confirm the pixel nearest the sub-satellite point sits at
+    (0, 0) to well within half a pixel — i.e. the CGMS reference-pixel
+    convention, not the naive grid centre (which would be a half-pixel off).
+    """
+    fixtures = Path(os.environ.get("SEVIRI_FIXTURES_DIR", "tests/data/seviri"))
+    granules = sorted(fixtures.glob("*.nat"))
+    if not granules:
+        pytest.skip("real SEVIRI fixtures not available (set SEVIRI_FIXTURES_DIR)")
+    from pyproj import Transformer
+
+    scene = read_seviri(str(granules[0]), "IR_108")
+    gt = scene.geotransform
+    rows, cols = np.asarray(scene.read_array()).shape
+    col_c, row_c = np.meshgrid(np.arange(cols), np.arange(rows))
+    xs = gt[0] + (col_c + 0.5) * gt[1]
+    ys = gt[3] + (row_c + 0.5) * gt[5]
+    lon, lat = Transformer.from_crs(str(scene.crs), "EPSG:4326", always_xy=True).transform(xs, ys)
+    on_disk = np.isfinite(lon) & np.isfinite(lat)
+    nearest = np.nanargmin(np.where(on_disk, np.abs(lon) + np.abs(lat), np.inf))
+    assert abs(lon.ravel()[nearest]) < 0.005, "a pixel centre coincides with 0 deg E"
+    assert abs(lat.ravel()[nearest]) < 0.005, "a pixel centre coincides with 0 deg N"
