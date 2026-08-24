@@ -235,7 +235,7 @@ def parse_seviri_native(
     slope, offset = struct.unpack_from(
         ">dd", header, _CALIBRATION_OFFSET + position * 16
     )
-    if not slope > 0:
+    if slope <= 0:
         raise ReaderError(
             "read_seviri: non-physical calibration slope (unexpected header layout)"
         )
