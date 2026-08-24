@@ -60,8 +60,15 @@ _LINE_NUMBER_OFFSET = 51
 
 # --- 15Header layout (byte offsets from the 15Header segment start) ----------
 # The Level-1.5 header is a fixed-size, fixed-layout binary structure, so these
-# offsets are format constants (cross-checked at read time against the reference
-# grid / grid step, which sit immediately before the calibration block).
+# offsets are format constants. They were reverse-engineered from and validated
+# against a real Meteosat-10 (MSG3) full-disk granule: the calibration block
+# decodes IR_108 to a physical brightness-temperature range and the reference
+# grid / grid step read 3712 / 3.0004 km at the offsets below. The offline suite
+# cannot prove them against reality (its fixtures are built from these same
+# constants); the `live` `test_read_seviri_real_granule*` cases are the
+# CI-independent ground truth, and `test_layout_offsets_match_expected_values`
+# pins them so an accidental edit is caught. They are cross-checked at read time
+# against the reference grid / grid step, which sit just before the calibration.
 #: ``ReferenceGridVIS_IR``: NumberOfLines (int32) then NumberOfColumns (int32).
 _REF_GRID_OFFSET = 386936
 #: ``ReferenceGridVIS_IR``: LineDirGridStep (float32 km) then ColumnDirGridStep.

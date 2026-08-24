@@ -354,6 +354,53 @@ class TestParseSeviriNative:
         assert "lon_0=41.5" in srs.ExportToProj4(), "SSP longitude should set lon_0"
 
 
+class TestLayoutOffsets:
+    """The on-disk byte offsets are pinned and validated independently of the module."""
+
+    def test_layout_offsets_match_expected_values(self):
+        """The module constants equal the byte offsets verified on a real granule."""
+        assert _LINE_NUMBER_OFFSET == 51, "line_number is at block offset 51"
+        assert _LINE_SIDE_INFO_BYTES == 65, "the per-channel side-info header is 65 bytes"
+        assert _REF_GRID_OFFSET == 386936, "ReferenceGridVIS_IR is at 15Header offset 386936"
+        assert _GRID_STEP_OFFSET == 386944, "the grid step is at 15Header offset 386944"
+        assert _CALIBRATION_OFFSET == 387104, "the calibration block is at 15Header offset 387104"
+
+    def test_decodes_a_granule_built_from_literal_offsets(self, tmp_path):
+        """A granule assembled from literal offsets (not the module constants) decodes.
+
+        `_build_nat` reuses the module constants, so a wrong constant round-trips
+        through it undetected. This fixture writes every field at a hard-coded
+        literal offset, so a drifted module constant makes the reader read the
+        wrong bytes and the decoded radiance no longer matches.
+        """
+        columns, position = 1024, 8  # IR_108 is on-disk block 8
+        packed = columns * 10 // 8
+        block = 65 + packed  # literal side-info size + packed pixels
+        stride = 11 * block
+        header_length = 387104 + 12 * 16  # literal calibration offset + 12 slope/offset pairs
+        header = bytearray(header_length)
+        struct.pack_into(">ii", header, 386936, columns, columns)  # literal ref-grid offset
+        struct.pack_into(">ff", header, 386944, 3.0004032, 3.0004032)  # literal grid-step offset
+        struct.pack_into(">dd", header, 387104 + position * 16, 0.5, -2.0)  # literal cal offset
+        header_offset = 200
+        data_offset = header_offset + header_length
+        mph = bytearray(b" " * header_offset)
+        table = (
+            f"15Header : {header_length} {header_offset}\n"
+            f"15Data : {stride * columns} {data_offset}\n"
+        ).encode()
+        mph[: len(table)] = table
+        data = bytearray(stride * 2)
+        for index, line in enumerate((900, 901)):
+            record = index * stride
+            struct.pack_into(">i", data, record + position * block + 51, line)  # literal lineno
+            start = record + position * block + 65  # literal side-info size
+            data[start : start + packed] = _pack_10bit(np.full(columns, 700, np.uint16))
+        payload = bytes(mph) + bytes(header) + bytes(data)
+        scene = parse_seviri_native(_write(tmp_path, "golden.nat", payload), "IR_108")
+        assert np.allclose(scene.read_array(), 700 * 0.5 - 2.0), "literal-offset granule decodes"
+
+
 class TestReadSeviri:
     """`read_seviri` calibrates and geolocates a single channel."""
 
