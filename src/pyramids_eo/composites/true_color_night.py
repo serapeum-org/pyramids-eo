@@ -23,7 +23,7 @@ from typing import Any
 
 import numpy as np
 
-from pyramids_eo.composites._common import _as_array, _wrap_like
+from pyramids_eo.composites._common import _as_array, _coverage, _wrap_like
 from pyramids_eo.composites.blend import day_night_blend
 from pyramids_eo.composites.overlay import alpha_overlay
 
@@ -63,6 +63,7 @@ def true_color_with_night_ir(
     *,
     lim_low: float = 78.0,
     lim_high: float = 88.0,
+    keep_alpha: bool = False,
 ) -> Any:
     """Compose the full `true_color_with_night_ir` day/night image.
 
@@ -78,10 +79,64 @@ def true_color_with_night_ir(
         sza: Per-pixel solar zenith angle in degrees, from `solar_zenith_angle`.
         lim_low: SZA at/below which it is fully day (default 78).
         lim_high: SZA at/above which it is fully night (default 88).
+        keep_alpha: When `True`, append a coverage / alpha band to the `(3, H, W)`
+            result, giving `(4, H, W)`. Coverage is derived from the two
+            *satellite-derived* inputs before the global background is merged in —
+            the `day` true-colour image (valid on the day side of the disk) and
+            the `night_ir_rgba` clouds (valid on the night side) — so it marks the
+            whole sensor disk, including dark-but-valid night pixels, and is `0`
+            off-disk. Where the band is `0` the RGB is set to a finite `0` so a
+            premultiplied composite stays NaN-free. Default `False` returns the
+            3-band image unchanged.
 
     Returns:
         The composed day/night image — a pyramids `Dataset` when the inputs carry
-        one, otherwise an ndarray.
+        one, otherwise an ndarray. `(4, H, W)` when `keep_alpha=True`, else
+        `(3, H, W)`.
+
+    Examples:
+        - Compose a day/night frame from the primitives:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import night_ir, true_color_with_night_ir
+            >>> day = np.ones((3, 1, 2))
+            >>> clouds = night_ir(np.ones((1, 2)), np.ones((1, 2)), np.ones((1, 2)))
+            >>> bg = np.zeros((3, 1, 2))
+            >>> true_color_with_night_ir(day, clouds, bg, np.zeros((1, 2))).shape
+            (3, 1, 2)
+
+            ```
+        - Keep a coverage band for edge feathering (4-band RGBA):
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import night_ir, true_color_with_night_ir
+            >>> day = np.ones((3, 1, 2))
+            >>> clouds = night_ir(np.ones((1, 2)), np.ones((1, 2)), np.ones((1, 2)))
+            >>> bg = np.zeros((3, 1, 2))
+            >>> out = true_color_with_night_ir(
+            ...     day, clouds, bg, np.zeros((1, 2)), keep_alpha=True
+            ... )
+            >>> out.shape
+            (4, 1, 2)
+
+            ```
     """
     night = alpha_overlay(night_ir_rgba, background)
-    return day_night_blend(day, night, sza, lim_low=lim_low, lim_high=lim_high)
+    blended = day_night_blend(day, night, sza, lim_low=lim_low, lim_high=lim_high)
+    if not keep_alpha:
+        return blended
+
+    # Coverage from the satellite-derived inputs *before* the global background
+    # is merged in: the day true-colour image covers the day side of the disk,
+    # the night-IR clouds (RGB, ignoring their own alpha) cover the night side.
+    # Their union is the sensor disk. Intersect it with the finite blended pixels
+    # so alpha is never 1 over a NaN, and zero the RGB wherever it is not finite
+    # so a downstream premultiplied (RGB * alpha) composite cannot leak NaN.
+    disk = _coverage(day) | _coverage(_as_array(night_ir_rgba)[:3])
+    blended_arr = _as_array(blended)
+    rgb = blended_arr if blended_arr.ndim >= 3 else blended_arr[np.newaxis, ...]
+    finite_rgb = _coverage(rgb)
+    coverage = disk & finite_rgb
+    rgb = np.where(finite_rgb[np.newaxis, ...], rgb, 0.0)
+    rgba = np.concatenate([rgb, coverage.astype(float)[np.newaxis, ...]], axis=0)
+    return _wrap_like(rgba, day, night_ir_rgba, background)

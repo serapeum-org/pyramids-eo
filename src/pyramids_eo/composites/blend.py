@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from pyramids_eo.composites._common import _as_array, _wrap_like
+from pyramids_eo.composites._common import _as_array, _coverage, _wrap_like
 
 _MODES = ("day_night", "day_only", "night_only")
 
@@ -66,6 +66,7 @@ def day_night_blend(
     lim_low: float = 78.0,
     lim_high: float = 88.0,
     mode: str = "day_night",
+    keep_alpha: bool = False,
 ) -> Any:
     """Cross-fade a day and a night image by solar zenith angle.
 
@@ -84,11 +85,19 @@ def day_night_blend(
         lim_high: SZA at/above which it is fully night (default 88).
         mode: `"day_night"` (blend, default), `"day_only"` (`day * weight`), or
             `"night_only"` (`night * (1 - weight)`).
+        keep_alpha: When `True`, append a coverage / alpha band — `1.0` where the
+            contributing input(s) are finite, the geometry is defined, and the
+            blended pixel itself is finite; `0.0` otherwise (see
+            :func:`pyramids_eo.composites._common._coverage`). The band comes from
+            data validity, not brightness, so a dark-but-valid pixel stays covered
+            while a NaN-producing twilight pixel does not. Default `False` leaves
+            the output unchanged.
 
     Returns:
         The blended image. A pyramids `Dataset` (carrying `day`'s / `night`'s
         geotransform + CRS) when either input is a `Dataset`, otherwise an
-        ndarray.
+        ndarray. With `keep_alpha=True` the output carries one extra (alpha)
+        band.
 
     Raises:
         ValueError: When `mode` is unknown or `lim_low >= lim_high`.
@@ -105,14 +114,26 @@ def day_night_blend(
             [[1.0, 0.5], [0.0, 0.0]]
 
             ```
+        - `keep_alpha` appends a coverage band, giving a 4-band RGBA result:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import day_night_blend
+            >>> day = np.ones((3, 1, 2))
+            >>> night = np.zeros((3, 1, 2))
+            >>> sza = np.array([[0.0, 0.0]])
+            >>> day_night_blend(day, night, sza, keep_alpha=True).shape
+            (4, 1, 2)
+
+            ```
     """
     if mode not in _MODES:
         raise ValueError(f"mode must be one of {_MODES}; got {mode!r}")
 
-    weight = day_weight(_as_array(sza), lim_low=lim_low, lim_high=lim_high)
+    weight2d = day_weight(_as_array(sza), lim_low=lim_low, lim_high=lim_high)
     day_arr = _as_array(day)
-    if weight.ndim == 2 and day_arr.ndim == 3:
-        weight = weight[np.newaxis, ...]
+    weight = weight2d
+    if weight2d.ndim == 2 and day_arr.ndim == 3:
+        weight = weight2d[np.newaxis, ...]
 
     # np.where zeros each image's contribution where its weight is 0, so a NaN
     # in a fully-weighted-out region (e.g. sun-angle-normalised day reflectance,
@@ -131,4 +152,46 @@ def day_night_blend(
     # pixel masked as NaN rather than collapsing it to 0 — matching day_weight's
     # NaN propagation (the weight-zeroing above only handles image-side NaN).
     out = np.where(np.isnan(weight), np.nan, out)
+
+    if keep_alpha:
+        out = _append_alpha(out, day, night, weight2d, mode)
+
     return _wrap_like(out, day, night)
+
+
+def _append_alpha(
+    out: np.ndarray, day: Any, night: Any, weight2d: np.ndarray, mode: str
+) -> np.ndarray:
+    """Append a coverage / alpha band to a blended image.
+
+    Coverage is the validity of the mode's contributing input(s) — `day` for
+    `"day_only"`, `night` for `"night_only"`, their union for `"day_night"` —
+    masked out where the SZA geometry (weight) is undefined.
+
+    Args:
+        out: The blended image, `(H, W)` or `(band, H, W)`.
+        day: The day input (array-like or `Dataset`).
+        night: The night input (array-like or `Dataset`).
+        weight2d: The 2-D day weight, used to mask undefined-geometry pixels.
+        mode: The blend mode driving which inputs contribute.
+
+    Returns:
+        `out` with one extra trailing (alpha) band: `1.0` covered, `0.0` not.
+    """
+    if mode == "day_only":
+        covered = _coverage(day)
+    elif mode == "night_only":
+        covered = _coverage(night)
+    else:
+        covered = _coverage(day) | _coverage(night)
+    # Intersect with the finite blended output so alpha is never 1 over a NaN
+    # pixel — in the twilight band both inputs contribute, so a single NaN input
+    # yields NaN RGB there even though the input-union coverage is 1.
+    covered = covered & ~np.isnan(np.asarray(weight2d, dtype=float)) & _coverage(out)
+    alpha = np.asarray(covered, dtype=float)
+
+    if out.ndim >= 3:
+        alpha = np.broadcast_to(alpha, out.shape[1:])
+        return np.concatenate([out, alpha[np.newaxis, ...]], axis=0)
+    alpha = np.broadcast_to(alpha, out.shape)
+    return np.stack([out, alpha], axis=0)
