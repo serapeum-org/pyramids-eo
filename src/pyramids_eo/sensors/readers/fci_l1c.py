@@ -341,6 +341,56 @@ def read_fci_l1c_chunks(
     return records
 
 
+def _channel_carries_radiance(data: Any, name: str) -> bool:
+    """Whether the `data/<name>` group holds a `measured/effective_radiance` array.
+
+    Args:
+        data: The chunk's `/data` group.
+        name: A channel group name under `/data`.
+
+    Returns:
+        `True` when `data/<name>/measured` exists and carries an
+        `effective_radiance` array, `False` otherwise.
+    """
+    # Handle both GDAL modes: OpenGroup raises (exceptions on) or returns None
+    # (exceptions off) when a group is absent.
+    try:
+        channel_group = data.OpenGroup(name)
+        measured = channel_group.OpenGroup("measured") if channel_group else None
+    except RuntimeError:
+        measured = None
+    return measured is not None and "effective_radiance" in measured.GetMDArrayNames()
+
+
+def _channels_in_chunk(path: Any) -> set[str]:
+    """The VIS/IR channel names one FCI L1C FDHSI chunk carries.
+
+    Args:
+        path: Path to a single FCI L1C FDHSI chunk NetCDF file.
+
+    Returns:
+        The channel names whose `data/<channel>/measured` group carries an
+        `effective_radiance` array; an empty set for a chunk with no `/data`
+        group (e.g. a `CHK-TRAIL` trailer or a malformed chunk).
+    """
+    dataset, root = _open_root(path)
+    try:
+        try:
+            data = root.OpenGroup("data")
+        except RuntimeError:
+            data = None
+        if data is None:  # no /data group (e.g. a trailer / malformed chunk)
+            return set()
+        return {
+            name
+            for name in data.GetGroupNames()
+            if _channel_carries_radiance(data, name)
+        }
+    finally:
+        # Always release the multidim handle, even on an unexpected error.
+        del root, dataset
+
+
 def available_channels(chunks: Any) -> list[str]:
     """List the VIS/IR channels present across FCI L1C FDHSI chunk file(s).
 
@@ -360,32 +410,7 @@ def available_channels(chunks: Any) -> list[str]:
     paths = [chunks] if isinstance(chunks, (str, bytes, os.PathLike)) else list(chunks)
     found: set[str] = set()
     for path in paths:
-        dataset, root = _open_root(path)
-        try:
-            try:
-                data = root.OpenGroup("data")
-            except RuntimeError:
-                data = None
-            if data is None:  # no /data group (e.g. a trailer / malformed chunk)
-                continue
-            for name in data.GetGroupNames():
-                # Handle both GDAL modes: OpenGroup raises (exceptions on) or
-                # returns None (exceptions off) when a group is absent.
-                try:
-                    channel_group = data.OpenGroup(name)
-                    measured = (
-                        channel_group.OpenGroup("measured") if channel_group else None
-                    )
-                except RuntimeError:
-                    measured = None
-                if (
-                    measured is not None
-                    and "effective_radiance" in measured.GetMDArrayNames()
-                ):
-                    found.add(name)
-        finally:
-            # Always release the multidim handle, even on an unexpected error.
-            del root, dataset
+        found |= _channels_in_chunk(path)
     return sorted(found)
 
 

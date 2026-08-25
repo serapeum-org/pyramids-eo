@@ -104,8 +104,9 @@ class TestReadFci:
 
     def test_channels_with_pre_opened_dataset_raises(self):
         """`channels=[...]` with pre-opened Dataset chunks is rejected."""
+        chunk = _chunk(np.ones((2, 2)))
         with pytest.raises(ReaderError, match="path-like chunks"):
-            read_fci([_chunk(np.ones((2, 2)))], channels=["ir_105", "vis_06"])
+            read_fci([chunk], channels=["ir_105", "vis_06"])
 
     def test_channels_with_coeffs_raises(self):
         """`coeffs` is a single-channel override; combining it with channels is rejected."""
@@ -118,13 +119,15 @@ class TestReadFci:
 
     def test_neither_channel_nor_channels_raises(self):
         """Passing neither `channel` nor `channels` is rejected."""
+        chunk = _chunk(np.ones((2, 2)))
         with pytest.raises(ReaderError, match="exactly one"):
-            read_fci([_chunk(np.ones((2, 2)))])
+            read_fci([chunk])
 
     def test_both_channel_and_channels_raises(self):
         """Passing both `channel` and `channels` is rejected."""
+        chunk = _chunk(np.ones((2, 2)))
         with pytest.raises(ReaderError, match="exactly one"):
-            read_fci([_chunk(np.ones((2, 2)))], "ir_105", channels=["ir_105"])
+            read_fci([chunk], "ir_105", channels=["ir_105"])
 
     def test_calibrate_false_returns_raw(self):
         """With calibrate=False the stitched raw radiance is returned."""
