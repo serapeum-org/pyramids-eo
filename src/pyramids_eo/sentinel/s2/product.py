@@ -61,7 +61,7 @@ class S2Subdataset:
     @property
     def connection(self) -> str:
         """The GDAL connection string for this subdataset."""
-        return self._sd.name
+        return str(self._sd.name)
 
     def open(self) -> Any:
         """Open the subdataset as a pyramids ``Dataset``."""
