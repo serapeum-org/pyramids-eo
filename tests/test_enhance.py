@@ -185,3 +185,48 @@ class TestReturnType:
         """An unknown stretch kind is rejected."""
         with pytest.raises(ValueError, match="kind"):
             stretch(np.array([[0.5]]), kind="nope")
+
+
+class TestPreserveAlpha:
+    """`preserve_alpha` passes a trailing coverage band through uncurved."""
+
+    @staticmethod
+    def _rgba() -> np.ndarray:
+        """A (4, 1, 2) RGBA frame with a 0/1 alpha band."""
+        rgb = [np.full((1, 2), 0.5), np.full((1, 2), 0.5), np.full((1, 2), 0.5)]
+        return np.stack([*rgb, np.array([[0.0, 1.0]])])
+
+    def test_alpha_band_untouched_under_cira(self):
+        """The alpha band maps 0->0 and 1->255, not through the cira curve."""
+        out = stretch(self._rgba(), kind="cira", preserve_alpha=True)
+        assert out[3].tolist() == [[0, 255]], f"alpha band curved: {out[3]}"
+
+    def test_without_preserve_alpha_the_band_is_corrupted(self):
+        """Without the flag, cira curves alpha 1.0 below 1.0 (the M2 hazard)."""
+        out = stretch(self._rgba(), kind="cira", dtype="float64")
+        assert out[3, 0, 1] < 1.0, "alpha 1.0 should be curved when unprotected"
+
+    def test_preserve_alpha_ignored_for_single_band(self):
+        """A single-band image has no alpha to protect; it is stretched normally."""
+        out = stretch(
+            np.array([[0.0, 1.0]]),
+            kind="crude",
+            min_stretch=0.0,
+            max_stretch=1.0,
+            preserve_alpha=True,
+        )
+        assert out.tolist() == [[0, 255]], f"single band mishandled: {out}"
+
+
+class TestCutoffsValidation:
+    """`cutoffs` are validated up front with a clear error."""
+
+    def test_negative_cutoff_rejected(self):
+        """A negative percentile fraction is rejected."""
+        with pytest.raises(ValueError, match="cutoffs"):
+            stretch(np.array([[0.5]]), cutoffs=(-0.1, 0.0))
+
+    def test_cutoffs_summing_to_one_rejected(self):
+        """Cutoffs that leave no interior range are rejected."""
+        with pytest.raises(ValueError, match="cutoffs"):
+            stretch(np.array([[0.5]]), cutoffs=(0.6, 0.6))

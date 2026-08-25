@@ -9,15 +9,21 @@ Four curves are provided:
 
 * `"linear"` — percentile-clip (the `cutoffs`) then rescale to `[0, 1]`.
 * `"crude"` — fixed min/max linear rescale, `(x - lo) / (hi - lo)`.
-* `"cira"` — a logarithmic, human-vision-tuned stretch; the recommended default
-  for a true-colour composite (no gamma needed).
+* `"cira"` — a logarithmic, human-vision-tuned stretch; recommended for a
+  true-colour composite (no gamma needed). Note it is not the signature default;
+  pass `kind="cira"` explicitly.
 * `"histogram"` — histogram equalisation.
 
 The stretch is computed over the whole array (shared across bands), preserving
 inter-band ratios — important for a true-colour image. NaN / nodata pixels are
 excluded from the statistics and preserved (float output) or filled with 0
-(integer output). Reflectance is expected in `[0, 1]`; scale first if it is in
-percent.
+(integer output). For an RGBA input carrying a coverage / alpha band (e.g. from
+`keep_alpha`), pass `preserve_alpha=True` so the trailing band is passed through
+untouched instead of being curved like image data. Reflectance is expected in
+`[0, 1]`; scale first if it is in percent.
+
+For an integer frame, 0 is used for both a masked pixel and a valid-black pixel,
+so the coverage / alpha band — not the nodata value — is the reliable mask.
 """
 
 from __future__ import annotations
@@ -155,6 +161,7 @@ def stretch(
     max_stretch: float | None = None,
     gamma: float | None = None,
     cutoffs: tuple[float, float] = (0.005, 0.005),
+    preserve_alpha: bool = False,
     dtype: Any = "uint8",
 ) -> Any:
     """Map a composite's physical values to a display range and dtype.
@@ -169,7 +176,12 @@ def stretch(
         max_stretch: Fixed upper bound for `linear`/`crude`; `None` derives it.
         gamma: Optional power curve `x ** (1 / gamma)` applied after the stretch.
         cutoffs: `(left, right)` percentile fractions clipped by the `linear`
-            curve (default 0.5% per side). Ignored by the other kinds.
+            curve (default 0.5% per side). Ignored by the other kinds. Each must
+            be non-negative and the two must sum to less than 1.
+        preserve_alpha: When `True` and `image` is `(band, H, W)` with 2+ bands,
+            the trailing band is treated as a coverage / alpha band — passed
+            through untouched (only cast to `dtype`) rather than curved. Use it
+            when stretching an RGBA frame from `keep_alpha`.
         dtype: Output dtype. Integer dtypes scale `[0, 1]` onto `[0, max]` and
             fill NaN with 0; float dtypes keep `[0, 1]` and preserve NaN.
 
@@ -179,7 +191,8 @@ def stretch(
         `image` is a `Dataset`, otherwise an ndarray.
 
     Raises:
-        ValueError: When `kind` is unknown, or `gamma` is not positive.
+        ValueError: When `kind` is unknown, `gamma` is not positive, or `cutoffs`
+            are negative or sum to 1 or more.
 
     Examples:
         - Crude-stretch reflectance onto the 8-bit display range:
@@ -209,16 +222,48 @@ def stretch(
         raise ValueError(f"kind must be one of {_KINDS}; got {kind!r}")
     if gamma is not None and gamma <= 0:
         raise ValueError(f"gamma must be > 0, got {gamma}")
+    if cutoffs[0] < 0 or cutoffs[1] < 0 or cutoffs[0] + cutoffs[1] >= 1:
+        raise ValueError(
+            f"cutoffs must be non-negative and sum to < 1; got {cutoffs!r}"
+        )
 
     values, template = _read(image)
-    norm = _normalise(values, kind, min_stretch, max_stretch, cutoffs)
+    if preserve_alpha and values.ndim >= 3 and values.shape[0] >= 2:
+        rgb = _curve(values[:-1], kind, min_stretch, max_stretch, gamma, cutoffs)
+        alpha = np.clip(values[-1], 0.0, 1.0)
+        norm = np.concatenate([rgb, alpha[np.newaxis, ...]], axis=0)
+    else:
+        norm = _curve(values, kind, min_stretch, max_stretch, gamma, cutoffs)
 
-    if gamma is not None:
-        norm = np.clip(norm, 0.0, None) ** (1.0 / gamma)
-
-    norm = np.clip(norm, 0.0, 1.0)
     out = _to_dtype(norm, dtype)
     return _wrap(out, template, dtype)
+
+
+def _curve(
+    values: np.ndarray,
+    kind: str,
+    min_stretch: float | None,
+    max_stretch: float | None,
+    gamma: float | None,
+    cutoffs: tuple[float, float],
+) -> np.ndarray:
+    """Normalise, gamma-correct and clip `values` to `[0, 1]` (NaN preserved).
+
+    Args:
+        values: The float input array (all image bands, no alpha).
+        kind: One of `_KINDS`.
+        min_stretch: Optional fixed lower bound (linear/crude).
+        max_stretch: Optional fixed upper bound (linear/crude).
+        gamma: Optional power curve applied after the stretch.
+        cutoffs: `(left, right)` percentile fractions for the linear curve.
+
+    Returns:
+        The stretched array clipped to `[0, 1]`, NaN where the input was NaN.
+    """
+    norm = _normalise(values, kind, min_stretch, max_stretch, cutoffs)
+    if gamma is not None:
+        norm = np.clip(norm, 0.0, None) ** (1.0 / gamma)
+    return np.asarray(np.clip(norm, 0.0, 1.0))
 
 
 def _to_dtype(norm: np.ndarray, dtype: Any) -> np.ndarray:
