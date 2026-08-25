@@ -178,6 +178,14 @@ def read_fci(
     chunk_list = list(chunks)
     if not chunk_list:
         raise ReaderError("read_fci: no chunks given")
+    # A pre-opened Dataset holds exactly one channel's radiance, so it cannot serve
+    # a multi-channel request — every channel would alias the same array. Reject it
+    # rather than return a physically meaningless dict.
+    if not single and any(hasattr(chunk, "read_array") for chunk in chunk_list):
+        raise ReaderError(
+            "read_fci: channels=[...] needs path-like chunks read per channel via "
+            "open_chunk; a pre-opened Dataset already holds a single channel"
+        )
     opener = open_chunk or _default_open_chunk
 
     from pyramids.dataset import Dataset
