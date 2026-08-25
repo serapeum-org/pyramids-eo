@@ -91,6 +91,33 @@ def true_color_with_night_ir(
         The composed day/night image — a pyramids `Dataset` when the inputs carry
         one, otherwise an ndarray. `(4, H, W)` when `keep_alpha=True`, else
         `(3, H, W)`.
+
+    Examples:
+        - Compose a day/night frame from the primitives:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import night_ir, true_color_with_night_ir
+            >>> day = np.ones((3, 1, 2))
+            >>> clouds = night_ir(np.ones((1, 2)), np.ones((1, 2)), np.ones((1, 2)))
+            >>> bg = np.zeros((3, 1, 2))
+            >>> true_color_with_night_ir(day, clouds, bg, np.zeros((1, 2))).shape
+            (3, 1, 2)
+
+            ```
+        - Keep a coverage band for edge feathering (4-band RGBA):
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import night_ir, true_color_with_night_ir
+            >>> day = np.ones((3, 1, 2))
+            >>> clouds = night_ir(np.ones((1, 2)), np.ones((1, 2)), np.ones((1, 2)))
+            >>> bg = np.zeros((3, 1, 2))
+            >>> out = true_color_with_night_ir(
+            ...     day, clouds, bg, np.zeros((1, 2)), keep_alpha=True
+            ... )
+            >>> out.shape
+            (4, 1, 2)
+
+            ```
     """
     night = alpha_overlay(night_ir_rgba, background)
     blended = day_night_blend(day, night, sza, lim_low=lim_low, lim_high=lim_high)

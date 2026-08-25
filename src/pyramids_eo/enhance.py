@@ -180,6 +180,30 @@ def stretch(
 
     Raises:
         ValueError: When `kind` is unknown, or `gamma` is not positive.
+
+    Examples:
+        - Crude-stretch reflectance onto the 8-bit display range:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.enhance import stretch
+            >>> stretch(
+            ...     np.array([[0.0, 0.5, 1.0]]),
+            ...     kind="crude",
+            ...     min_stretch=0.0,
+            ...     max_stretch=1.0,
+            ... ).tolist()
+            [[0, 128, 255]]
+
+            ```
+        - The CIRA log stretch keeps NaN and lifts low reflectance (float out):
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.enhance import stretch
+            >>> out = stretch(np.array([[0.02, 0.5]]), kind="cira", dtype="float64")
+            >>> bool(out[0, 1] > out[0, 0])
+            True
+
+            ```
     """
     if kind not in _KINDS:
         raise ValueError(f"kind must be one of {_KINDS}; got {kind!r}")

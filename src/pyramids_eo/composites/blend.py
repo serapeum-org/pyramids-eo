@@ -112,6 +112,17 @@ def day_night_blend(
             [[1.0, 0.5], [0.0, 0.0]]
 
             ```
+        - `keep_alpha` appends a coverage band, giving a 4-band RGBA result:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import day_night_blend
+            >>> day = np.ones((3, 1, 2))
+            >>> night = np.zeros((3, 1, 2))
+            >>> sza = np.array([[0.0, 0.0]])
+            >>> day_night_blend(day, night, sza, keep_alpha=True).shape
+            (4, 1, 2)
+
+            ```
     """
     if mode not in _MODES:
         raise ValueError(f"mode must be one of {_MODES}; got {mode!r}")

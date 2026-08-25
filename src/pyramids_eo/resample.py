@@ -60,6 +60,21 @@ def to_area(
         ValueError: When `dataset` has no raster handle, `extent` is malformed,
             `width`/`height` are not positive, or `method` is unknown.
         RuntimeError: When the GDAL warp fails.
+
+    Examples:
+        - Warp a small WGS84 raster onto an exact 4x4 grid:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids.dataset import Dataset
+            >>> from pyramids_eo.resample import to_area
+            >>> src = Dataset.create_from_array(
+            ...     np.ones((2, 2)), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+            ... )
+            >>> out = to_area(src, 4326, (0.0, 0.0, 2.0, 2.0), 4, 4)
+            >>> out.read_array().shape
+            (4, 4)
+
+            ```
     """
     raster = getattr(dataset, "raster", None)
     if raster is None:

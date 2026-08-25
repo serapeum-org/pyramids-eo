@@ -137,6 +137,32 @@ def true_color(
     Raises:
         ValueError: When `green_mode` is unknown, or a native/ndvi_hybrid mode is
             requested without a `green=` band.
+
+    Examples:
+        - Synthetic CIMSS green (SEVIRI-style) from red / blue / NIR reflectance:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import true_color
+            >>> r, b, n = np.full((1, 1), 0.2), np.full((1, 1), 0.6), np.full((1, 1), 0.9)
+            >>> true_color(r, b, n)[1].round(3).tolist()
+            [[0.45]]
+
+            ```
+        - Use FCI's native green band directly (`green_mode="native"`):
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import true_color
+            >>> out = true_color(
+            ...     np.full((1, 1), 0.2),
+            ...     np.full((1, 1), 0.6),
+            ...     np.full((1, 1), 0.9),
+            ...     green=np.full((1, 1), 0.44),
+            ...     green_mode="native",
+            ... )
+            >>> out[1].tolist()
+            [[0.44]]
+
+            ```
     """
     if green_mode not in _GREEN_MODES:
         raise ValueError(
