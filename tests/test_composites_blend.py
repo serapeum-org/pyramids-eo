@@ -304,6 +304,17 @@ class TestDayNightBlendKeepAlpha:
         assert out[-1][0, 0] == 0.0, "NaN night pixel should be uncovered"
         assert out[-1][0, 1] == 1.0, "finite night pixel should be covered"
 
+    def test_twilight_single_nan_input_is_uncovered(self):
+        """In the twilight band a single NaN input yields NaN RGB, so alpha is 0."""
+        out = day_night_blend(
+            np.array([[0.5]]),
+            np.array([[np.nan]]),
+            np.array([[83.0]]),
+            keep_alpha=True,
+        )
+        assert np.isnan(out[0][0, 0]), "twilight blend of a NaN input should be NaN"
+        assert out[-1][0, 0] == 0.0, "alpha must not claim coverage over a NaN pixel"
+
 
 class TestAsArray:
     """`_as_array` normalises arrays and Datasets to float ndarrays."""

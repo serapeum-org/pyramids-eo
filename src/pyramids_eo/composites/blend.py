@@ -86,10 +86,12 @@ def day_night_blend(
         mode: `"day_night"` (blend, default), `"day_only"` (`day * weight`), or
             `"night_only"` (`night * (1 - weight)`).
         keep_alpha: When `True`, append a coverage / alpha band — `1.0` where the
-            contributing input(s) are finite and the geometry is defined, `0.0`
-            otherwise (see :func:`pyramids_eo.composites._common._coverage`). The
-            band comes from data validity, not brightness, so a dark-but-valid
-            pixel stays covered. Default `False` leaves the output unchanged.
+            contributing input(s) are finite, the geometry is defined, and the
+            blended pixel itself is finite; `0.0` otherwise (see
+            :func:`pyramids_eo.composites._common._coverage`). The band comes from
+            data validity, not brightness, so a dark-but-valid pixel stays covered
+            while a NaN-producing twilight pixel does not. Default `False` leaves
+            the output unchanged.
 
     Returns:
         The blended image. A pyramids `Dataset` (carrying `day`'s / `night`'s
@@ -182,7 +184,10 @@ def _append_alpha(
         covered = _coverage(night)
     else:
         covered = _coverage(day) | _coverage(night)
-    covered = covered & ~np.isnan(np.asarray(weight2d, dtype=float))
+    # Intersect with the finite blended output so alpha is never 1 over a NaN
+    # pixel — in the twilight band both inputs contribute, so a single NaN input
+    # yields NaN RGB there even though the input-union coverage is 1.
+    covered = covered & ~np.isnan(np.asarray(weight2d, dtype=float)) & _coverage(out)
     alpha = np.asarray(covered, dtype=float)
 
     if out.ndim >= 3:
