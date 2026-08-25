@@ -20,6 +20,7 @@ Rayleigh-corrected image. A correction can be opted in per call via the
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from typing import Any
 
@@ -60,6 +61,7 @@ def _ndvi_hybrid_green(
         strength: Non-linear sharpening exponent applied to the NDVI; `1.0`
             leaves it linear. Must be `> 0`.
         limits: The `(low_ndvi, high_ndvi)` NIR fractions the NDVI is mapped onto.
+            Fractions outside `[0, 1]` extrapolate the green beyond `[green, nir]`.
         ndvi_min: Lower NDVI clip / mapping bound.
         ndvi_max: Upper NDVI clip / mapping bound.
 
@@ -67,19 +69,69 @@ def _ndvi_hybrid_green(
         The blended green channel, same shape as the inputs.
 
     Raises:
-        ValueError: When `strength <= 0`.
+        ValueError: When `strength <= 0` or `limits` is not a 2-tuple.
     """
     if strength <= 0:
         raise ValueError(f"strength must be > 0, got {strength}")
+    if len(limits) != 2:
+        raise ValueError(f"limits must be a 2-tuple (low, high); got {limits!r}")
+    red = np.asarray(red, dtype=float)
+    nir = np.asarray(nir, dtype=float)
+    green = np.asarray(green, dtype=float)
     denom = nir + red
     ndvi = np.divide(nir - red, denom, out=np.zeros_like(denom), where=denom != 0)
     ndvi = np.clip(np.nan_to_num(ndvi), ndvi_min, ndvi_max)
-    if strength != 1.0:
+    if not math.isclose(strength, 1.0):
         powered = ndvi**strength
         ndvi = powered / (powered + (1.0 - ndvi) ** strength)
     span = ndvi_max - ndvi_min
     fraction = (ndvi - ndvi_min) / span * (limits[1] - limits[0]) + limits[0]
     return np.asarray((1.0 - fraction) * green + fraction * nir, dtype=float)
+
+
+def _build_green_channel(
+    green_mode: str,
+    r: np.ndarray,
+    b: np.ndarray,
+    n: np.ndarray,
+    g_native: np.ndarray | None,
+    green_weights: tuple[float, float, float],
+    ndvi_strength: float,
+    ndvi_limits: tuple[float, float],
+) -> np.ndarray:
+    """Build the green channel for the requested `green_mode`.
+
+    Args:
+        green_mode: `"synthetic"`, `"native"`, or `"ndvi_hybrid"`.
+        r: Red reflectance (already rayleigh-corrected if requested).
+        b: Blue reflectance.
+        n: Near-IR reflectance.
+        g_native: The native green band, or `None`.
+        green_weights: The `(red, nir, blue)` weights for the synthetic green.
+        ndvi_strength: NDVI sharpening for `"ndvi_hybrid"`.
+        ndvi_limits: The `(low, high)` NIR fractions for `"ndvi_hybrid"`.
+
+    Returns:
+        The green-channel array.
+
+    Raises:
+        ValueError: When `green_weights` is not a 3-tuple, or a native /
+            ndvi_hybrid mode is requested without a `green=` band.
+    """
+    if green_mode == "synthetic":
+        if len(green_weights) != 3:
+            raise ValueError(
+                f"green_weights must be a 3-tuple (red, nir, blue); got {green_weights!r}"
+            )
+        wr, wn, wb = green_weights
+        return wr * r + wn * n + wb * b
+    if g_native is None:
+        raise ValueError(f"green_mode={green_mode!r} requires a `green=` band")
+    if green_mode == "native":
+        return g_native
+    return _ndvi_hybrid_green(
+        g_native, r, n, strength=ndvi_strength, limits=ndvi_limits
+    )
 
 
 def true_color(
@@ -182,23 +234,9 @@ def true_color(
         if g_native is not None:
             g_native = np.asarray(rayleigh(g_native), dtype=float)
 
-    if green_mode == "synthetic":
-        if len(green_weights) != 3:
-            raise ValueError(
-                f"green_weights must be a 3-tuple (red, nir, blue); got {green_weights!r}"
-            )
-        wr, wn, wb = green_weights
-        green_ch = wr * r + wn * n + wb * b
-    elif green_mode == "native":
-        if g_native is None:
-            raise ValueError("green_mode='native' requires a `green=` band")
-        green_ch = g_native
-    else:  # "ndvi_hybrid"
-        if g_native is None:
-            raise ValueError("green_mode='ndvi_hybrid' requires a `green=` band")
-        green_ch = _ndvi_hybrid_green(
-            g_native, r, n, strength=ndvi_strength, limits=ndvi_limits
-        )
+    green_ch = _build_green_channel(
+        green_mode, r, b, n, g_native, green_weights, ndvi_strength, ndvi_limits
+    )
 
     rgb = np.stack([r, green_ch, b], axis=0)
 

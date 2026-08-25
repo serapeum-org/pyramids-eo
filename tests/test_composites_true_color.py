@@ -191,6 +191,30 @@ class TestTrueColorGreenModes:
         # NDVI=0.6 -> fraction=0.6*(0.05-0.15)+0.15=0.09 -> 0.91*0.5 + 0.09*0.8
         assert out.item() == pytest.approx(0.527), f"linear-strength blend wrong: {out}"
 
+    def test_ndvi_hybrid_accepts_integer_inputs(self):
+        """Integer-dtype inputs do not crash (a float accumulator is forced)."""
+        out = _ndvi_hybrid_green(np.array([[1]]), np.array([[2]]), np.array([[4]]))
+        assert np.isfinite(out).all(), f"integer inputs should give finite green: {out}"
+
+    def test_ndvi_limits_wrong_length_raises(self):
+        """A limits that is not a 2-tuple is rejected by name."""
+        with pytest.raises(ValueError, match="limits"):
+            _ndvi_hybrid_green(
+                np.ones((1, 1)), np.ones((1, 1)), np.ones((1, 1)), limits=(0.1,)
+            )
+
+    def test_true_color_bad_ndvi_limits_raises(self):
+        """A wrong-length ndvi_limits propagates a named error from true_color."""
+        with pytest.raises(ValueError, match="limits"):
+            true_color(
+                np.ones((1, 1)),
+                np.ones((1, 1)),
+                np.ones((1, 1)),
+                green=np.ones((1, 1)),
+                green_mode="ndvi_hybrid",
+                ndvi_limits=(0.1,),
+            )
+
 
 class TestTrueColorRayleigh:
     """The `rayleigh` hook corrects each solar band before green synthesis."""
