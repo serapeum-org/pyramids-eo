@@ -241,7 +241,11 @@ def _unpack_radiance(
 
 
 def read_fci_l1c_chunk(path: Any, channel: str) -> dict[str, Any] | None:
-    """Decode one real FCI L1C FDHSI chunk for `channel`.
+    """Decode one real FCI L1C FDHSI chunk for a single `channel`.
+
+    A standalone single-chunk decoder; `read_fci_l1c` decodes a whole channel set
+    via `read_fci_l1c_chunks` (one structure open per chunk), so it does not call
+    this internally.
 
     Args:
         path: Path to a single FCI L1C FDHSI chunk NetCDF file.
@@ -295,23 +299,27 @@ def read_fci_l1c_chunks(
     """
     dataset, root = _open_root(path)
     structure: dict[str, dict[str, Any] | None] = {}
-    for channel in channels:
-        try:
-            group = root.OpenGroupFromFullname(_MEASURED_GROUP.format(channel=channel))
-        except RuntimeError:
-            group = None
-        if group is None or "effective_radiance" not in group.GetMDArrayNames():
-            structure[channel] = None
-            continue
-        structure[channel] = {
-            "start_row": _scalar(group, "start_position_row"),
-            "end_row": _scalar(group, "end_position_row"),
-            "coeffs": _granule_coeffs(group),
-        }
-    # Release the multidim handle before the per-channel radiance opens, so the
-    # coefficient reads all happen while the owning dataset is alive and only one
-    # handle is held at a time.
-    del root, dataset
+    try:
+        for channel in channels:
+            try:
+                group = root.OpenGroupFromFullname(
+                    _MEASURED_GROUP.format(channel=channel)
+                )
+            except RuntimeError:
+                group = None
+            if group is None or "effective_radiance" not in group.GetMDArrayNames():
+                structure[channel] = None
+                continue
+            structure[channel] = {
+                "start_row": _scalar(group, "start_position_row"),
+                "end_row": _scalar(group, "end_position_row"),
+                "coeffs": _granule_coeffs(group),
+            }
+    finally:
+        # Always release the multidim handle before the per-channel radiance opens,
+        # so the coefficient reads all happen while the owning dataset is alive and
+        # only one handle is held at a time (even if a structure read raises).
+        del root, dataset
 
     records: dict[str, dict[str, Any] | None] = {}
     for channel, meta in structure.items():

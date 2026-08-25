@@ -51,6 +51,9 @@ def resolve_channels(
     requested = list(channels)
     if not requested:
         raise ReaderError(f"{reader}: `channels` is empty")
+    if len(set(requested)) != len(requested):
+        duplicates = sorted({c for c in requested if requested.count(c) > 1})
+        raise ReaderError(f"{reader}: duplicate channels in `channels`: {duplicates}")
     return requested, False
 
 

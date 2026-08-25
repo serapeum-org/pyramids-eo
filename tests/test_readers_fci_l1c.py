@@ -566,6 +566,28 @@ class TestReadFciL1c:
             "vis_06 keeps its own data"
         )
 
+    def test_channel_absent_in_one_chunk(self, monkeypatch):
+        """A channel absent from one chunk is stitched only from the chunks carrying it."""
+        rec_a = self._chunk(np.full((2, 3), 5.0), 0.0)
+        rec_b = self._chunk(np.full((2, 3), 5.0), -2e-5)  # contiguous below rec_a
+        mapping = {
+            "a.nc": {"ir_105": rec_a, "vis_06": rec_a},
+            "b.nc": {"ir_105": rec_b, "vis_06": None},  # vis_06 absent from b.nc
+        }
+        monkeypatch.setattr(
+            fci_l1c, "read_fci_l1c_chunks", lambda p, channels: mapping[p]
+        )
+        monkeypatch.setattr(fci_l1c, "_satellite_height", lambda wkt: 1.0e5)
+        out = read_fci_l1c(
+            ["a.nc", "b.nc"], channels=["ir_105", "vis_06"], calibrate=False
+        )
+        assert out["ir_105"].read_array().shape[0] == 4, (
+            "ir_105 stitched from both chunks"
+        )
+        assert out["vis_06"].read_array().shape[0] == 2, (
+            "vis_06 only from the chunk with it"
+        )
+
 
 class TestResolveChannels:
     """`resolve_channels` normalises the channel / channels arguments."""
@@ -600,6 +622,11 @@ class TestResolveChannels:
         """A bare string for `channels` is rejected, not split char-by-char."""
         with pytest.raises(ReaderError, match="sequence of channel names"):
             resolve_channels(None, "ir_105", "read_fci")
+
+    def test_duplicate_channels_raises(self):
+        """Duplicate channel names are rejected rather than silently de-duplicated."""
+        with pytest.raises(ReaderError, match="duplicate channels"):
+            resolve_channels(None, ["ir_105", "vis_06", "ir_105"], "read_fci")
 
 
 class TestReadFciL1cChunks:
