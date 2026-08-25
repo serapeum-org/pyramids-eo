@@ -25,3 +25,20 @@ class CalibrationError(EOError):
 
 class AuthenticationError(EOError):
     """Raised when provider credentials for a signed EO asset are missing or invalid."""
+
+
+class ProductError(EOError):
+    """Raised when a satellite product cannot be parsed or is malformed.
+
+    Covers a container whose subdatasets / metadata cannot be read, a requested
+    band / resolution / tile that the product does not contain, and any other
+    structural problem discovered while modelling the product.
+    """
+
+
+class UnsupportedProductError(ProductError):
+    """Raised when a path is opened as a product type this package cannot model.
+
+    Distinct from `ProductError`: the input is a valid raster, but its GDAL
+    driver / product family is not one the Sentinel readers understand.
+    """
