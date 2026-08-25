@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from pyramids.dataset import Dataset
-from pyramids_eo.resample import _scalar_nodata, to_area
+from pyramids_eo.resample import _warp_nodata, to_area
 
 
 def _gradient(bands: int = 1, rows: int = 8, cols: int = 8) -> Dataset:
@@ -98,6 +98,30 @@ class TestToAreaCrs:
         assert isinstance(out, Dataset), f"expected Dataset, got {type(out)}"
         assert _shape(out)[-2:] == (8, 8), f"grid not pinned: {_shape(out)}"
 
+    def test_numpy_integer_crs(self):
+        """A NumPy-integer EPSG code (not a Python int) is accepted."""
+        out = to_area(_gradient(), np.int64(4326), (0.0, 0.0, 8.0, 8.0), 8, 8)
+        assert isinstance(out, Dataset), f"expected Dataset, got {type(out)}"
+        assert out.epsg == 4326, f"CRS not set from numpy int, got {out.epsg}"
+
+    def test_output_geotransform_matches_request(self):
+        """The output extent and pixel size equal the requested grid exactly."""
+        out = to_area(_gradient(), 4326, (0.0, 0.0, 8.0, 8.0), 8, 4)
+        gt = out.geotransform
+        assert gt[0] == pytest.approx(0.0), f"min_x wrong: {gt}"
+        assert gt[3] == pytest.approx(8.0), f"max_y wrong: {gt}"
+        assert gt[1] == pytest.approx(1.0), f"x pixel size wrong: {gt}"
+        assert gt[5] == pytest.approx(-2.0), f"y pixel size wrong: {gt}"
+
+    def test_reprojection_lands_requested_grid(self):
+        """A true reprojection (4326 -> 3857) lands the exact requested grid."""
+        out = to_area(_gradient(), 3857, (-1.0e6, -1.0e6, 1.0e6, 1.0e6), 10, 10)
+        assert out.epsg == 3857, f"target CRS not applied, got {out.epsg}"
+        gt = out.geotransform
+        assert gt[0] == pytest.approx(-1.0e6), f"min_x wrong: {gt}"
+        assert gt[3] == pytest.approx(1.0e6), f"max_y wrong: {gt}"
+        assert gt[1] == pytest.approx(2.0e5), f"x pixel size wrong: {gt}"
+
 
 class TestToAreaValidation:
     """Argument validation."""
@@ -128,21 +152,29 @@ class TestToAreaValidation:
             to_area(_gradient(), 4326, (0.0, 0.0, 8.0), 8, 8)
 
 
-class TestScalarNodata:
-    """`_scalar_nodata` reduces a scalar or per-band nodata to one value."""
+class TestWarpNodata:
+    """`_warp_nodata` maps a scalar or per-band nodata to a GDAL nodata arg."""
 
     def test_scalar_passes_through(self):
         """A scalar nodata is returned unchanged."""
-        assert _scalar_nodata(-9999) == -9999, "scalar nodata should pass through"
+        assert _warp_nodata(-9999) == -9999, "scalar nodata should pass through"
 
-    def test_list_returns_first_band(self):
-        """A per-band list returns the first band's nodata."""
-        assert _scalar_nodata([5.0, 6.0, 7.0]) == 5.0, "should take the first band"
+    def test_single_band_list_returns_scalar(self):
+        """A one-band list unwraps to that band's scalar value."""
+        assert _warp_nodata([5.0]) == 5.0, "single-band list should unwrap"
+
+    def test_per_band_returns_space_joined(self):
+        """Distinct per-band values are preserved as a space-separated string."""
+        assert _warp_nodata([1.0, 2.0, 3.0]) == "1.0 2.0 3.0", "per-band not preserved"
+
+    def test_all_none_list_returns_none(self):
+        """A list of only None yields None (no nodata to carry)."""
+        assert _warp_nodata([None]) is None, "all-None list should give None"
 
     def test_empty_list_returns_none(self):
-        """An empty per-band list yields None (nothing to carry)."""
-        assert _scalar_nodata([]) is None, "empty list should give None"
+        """An empty per-band list yields None."""
+        assert _warp_nodata([]) is None, "empty list should give None"
 
     def test_none_returns_none(self):
         """A missing nodata (None) yields None."""
-        assert _scalar_nodata(None) is None, "None should give None"
+        assert _warp_nodata(None) is None, "None should give None"

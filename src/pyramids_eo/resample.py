@@ -11,6 +11,7 @@ the same primitive the Earth Engine reader keeps for the same reason.
 
 from __future__ import annotations
 
+import numbers
 from typing import Any
 
 import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osgeo)
@@ -94,9 +95,11 @@ def to_area(
     if width <= 0 or height <= 0:
         raise ValueError(f"width and height must be positive; got {width}x{height}")
 
-    # An int EPSG code must be a string GDAL's SRS parser accepts. `outputBounds`
-    # is left in the target CRS (dstSRS), so no separate `-te_srs` is needed.
-    dst_srs = f"EPSG:{crs}" if isinstance(crs, int) else str(crs)
+    # An integer EPSG code must be a string GDAL's SRS parser accepts — including
+    # a NumPy integer (e.g. an epsg looked up from an array), which is not a
+    # Python `int`. `outputBounds` is left in the target CRS (dstSRS), so no
+    # separate `-te_srs` is needed.
+    dst_srs = f"EPSG:{int(crs)}" if isinstance(crs, numbers.Integral) else str(crs)
     warp_kwargs: dict[str, Any] = {
         "format": "MEM",
         "outputBounds": [min_x, min_y, max_x, max_y],
@@ -105,7 +108,7 @@ def to_area(
         "height": int(height),
         "resampleAlg": _RESAMPLERS[method],
     }
-    nodata = _scalar_nodata(getattr(dataset, "no_data_value", None))
+    nodata = _warp_nodata(getattr(dataset, "no_data_value", None))
     if nodata is not None:
         warp_kwargs["srcNodata"] = nodata
         warp_kwargs["dstNodata"] = nodata
@@ -118,16 +121,23 @@ def to_area(
     return Dataset(out)
 
 
-def _scalar_nodata(no_data_value: Any) -> Any:
-    """Return a single nodata value from a scalar or per-band nodata.
+def _warp_nodata(no_data_value: Any) -> Any:
+    """Return a GDAL `srcNodata`/`dstNodata` value from a scalar or per-band nodata.
 
     Args:
-        no_data_value: A scalar nodata, a per-band list/tuple, or `None`.
+        no_data_value: A scalar nodata, a per-band list/tuple (which may hold
+            `None` entries), or `None`.
 
     Returns:
-        The scalar nodata (the first band's, for a list), or `None` when there
-        is none to carry through.
+        The scalar for one band, a space-separated per-band string for several
+        bands (each band's own value preserved, the form GDAL accepts), or
+        `None` when there is no nodata to carry through.
     """
     if isinstance(no_data_value, (list, tuple)):
-        return no_data_value[0] if no_data_value else None
+        values = [value for value in no_data_value if value is not None]
+        if not values:
+            return None
+        if len(values) == 1:
+            return values[0]
+        return " ".join(str(value) for value in values)
     return no_data_value
