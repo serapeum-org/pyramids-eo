@@ -135,8 +135,9 @@ def true_color(
         an ndarray.
 
     Raises:
-        ValueError: When `green_mode` is unknown, or a native/ndvi_hybrid mode is
-            requested without a `green=` band.
+        ValueError: When `green_mode` is unknown, a native/ndvi_hybrid mode is
+            requested without a `green=` band, or `green_weights` is not a
+            3-tuple.
 
     Examples:
         - Synthetic CIMSS green (SEVIRI-style) from red / blue / NIR reflectance:
@@ -182,6 +183,10 @@ def true_color(
             g_native = np.asarray(rayleigh(g_native), dtype=float)
 
     if green_mode == "synthetic":
+        if len(green_weights) != 3:
+            raise ValueError(
+                f"green_weights must be a 3-tuple (red, nir, blue); got {green_weights!r}"
+            )
         wr, wn, wb = green_weights
         green_ch = wr * r + wn * n + wb * b
     elif green_mode == "native":

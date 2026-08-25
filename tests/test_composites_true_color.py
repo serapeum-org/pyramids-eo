@@ -163,6 +163,16 @@ class TestTrueColorGreenModes:
                 np.ones((1, 1)), np.ones((1, 1)), np.ones((1, 1)), green_mode="nope"
             )
 
+    def test_wrong_length_green_weights_raises(self):
+        """A green_weights that is not a 3-tuple is rejected by name."""
+        with pytest.raises(ValueError, match="green_weights"):
+            true_color(
+                np.ones((1, 1)),
+                np.ones((1, 1)),
+                np.ones((1, 1)),
+                green_weights=(0.5, 0.5),
+            )
+
     def test_ndvi_hybrid_strength_must_be_positive(self):
         """A non-positive NDVI strength is rejected."""
         with pytest.raises(ValueError, match="strength"):
