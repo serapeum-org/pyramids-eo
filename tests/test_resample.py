@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from pyramids.dataset import Dataset
+
 from pyramids_eo.resample import _warp_nodata, to_area
 
 
@@ -128,28 +129,45 @@ class TestToAreaValidation:
 
     def test_ndarray_input_rejected(self):
         """A plain ndarray has no grid to place and is rejected."""
+        arr = np.ones((8, 8))
         with pytest.raises(ValueError, match="Dataset"):
-            to_area(np.ones((8, 8)), 4326, (0.0, 0.0, 8.0, 8.0), 8, 8)
+            to_area(arr, 4326, (0.0, 0.0, 8.0, 8.0), 8, 8)
 
     def test_unknown_method_rejected(self):
         """An unknown resampling method is rejected."""
+        src = _gradient()
         with pytest.raises(ValueError, match="method"):
-            to_area(_gradient(), 4326, (0.0, 0.0, 8.0, 8.0), 8, 8, method="nope")
+            to_area(src, 4326, (0.0, 0.0, 8.0, 8.0), 8, 8, method="nope")
 
     def test_bad_extent_rejected(self):
         """An extent with min >= max is rejected."""
+        src = _gradient()
         with pytest.raises(ValueError, match="extent"):
-            to_area(_gradient(), 4326, (8.0, 0.0, 0.0, 8.0), 8, 8)
+            to_area(src, 4326, (8.0, 0.0, 0.0, 8.0), 8, 8)
 
     def test_non_positive_size_rejected(self):
         """Zero / negative width or height is rejected."""
+        src = _gradient()
         with pytest.raises(ValueError, match="positive"):
-            to_area(_gradient(), 4326, (0.0, 0.0, 8.0, 8.0), 0, 8)
+            to_area(src, 4326, (0.0, 0.0, 8.0, 8.0), 0, 8)
 
     def test_wrong_length_extent_rejected(self):
         """An extent that is not a 4-tuple is rejected."""
+        src = _gradient()
         with pytest.raises(ValueError, match="extent"):
-            to_area(_gradient(), 4326, (0.0, 0.0, 8.0), 8, 8)
+            to_area(src, 4326, (0.0, 0.0, 8.0), 8, 8)
+
+    def test_non_integer_size_rejected(self):
+        """A fractional width / height is rejected rather than truncated."""
+        src = _gradient()
+        with pytest.raises(ValueError, match="whole"):
+            to_area(src, 4326, (0.0, 0.0, 8.0, 8.0), 8.5, 8)
+
+    def test_bool_crs_rejected(self):
+        """A bool CRS (an Integral) is rejected rather than mapped to EPSG:1."""
+        src = _gradient()
+        with pytest.raises(ValueError, match="bool"):
+            to_area(src, True, (0.0, 0.0, 8.0, 8.0), 8, 8)
 
 
 class TestWarpNodata:

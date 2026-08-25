@@ -59,7 +59,8 @@ def to_area(
 
     Raises:
         ValueError: When `dataset` has no raster handle, `extent` is malformed,
-            `width`/`height` are not positive, or `method` is unknown.
+            `width`/`height` are not whole positive pixel counts, `method` is
+            unknown, or `crs` is a bool.
         RuntimeError: When the GDAL warp fails.
 
     Examples:
@@ -92,13 +93,22 @@ def to_area(
         raise ValueError(
             f"extent must have min_x < max_x and min_y < max_y; got {extent!r}"
         )
+    if int(width) != width or int(height) != height:
+        raise ValueError(
+            f"width and height must be whole numbers of pixels; got {width}x{height}"
+        )
     if width <= 0 or height <= 0:
         raise ValueError(f"width and height must be positive; got {width}x{height}")
 
     # An integer EPSG code must be a string GDAL's SRS parser accepts — including
     # a NumPy integer (e.g. an epsg looked up from an array), which is not a
-    # Python `int`. `outputBounds` is left in the target CRS (dstSRS), so no
-    # separate `-te_srs` is needed.
+    # Python `int`. A `bool` is also `Integral` but is never a real code, so
+    # reject it rather than mapping `True` to "EPSG:1". `outputBounds` is left in
+    # the target CRS (dstSRS), so no separate `-te_srs` is needed.
+    if isinstance(crs, bool):
+        raise ValueError(
+            f"crs must be an EPSG code or CRS string, not a bool; got {crs!r}"
+        )
     dst_srs = f"EPSG:{int(crs)}" if isinstance(crs, numbers.Integral) else str(crs)
     warp_kwargs: dict[str, Any] = {
         "format": "MEM",
