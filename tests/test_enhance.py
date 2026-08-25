@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from pyramids.dataset import Dataset
+
 from pyramids_eo.enhance import _CIRA_DENOM, _CIRA_LOG_ROOT, stretch
 
 
@@ -96,7 +97,8 @@ class TestStretchHistogram:
         """Equalised output lies in [0, 1]."""
         rng = np.random.default_rng(0)
         out = stretch(rng.random((16, 16)), kind="histogram", dtype="float64")
-        assert out.min() >= 0.0 and out.max() <= 1.0, "equalised out of range"
+        assert out.min() >= 0.0, f"equalised output below 0: {out.min()}"
+        assert out.max() <= 1.0, f"equalised output above 1: {out.max()}"
 
     def test_monotone_in_value(self):
         """Equalisation is order-preserving (a sorted input stays sorted)."""
@@ -216,6 +218,18 @@ class TestPreserveAlpha:
             preserve_alpha=True,
         )
         assert out.tolist() == [[0, 255]], f"single band mishandled: {out}"
+
+    def test_preserve_alpha_on_dataset(self):
+        """A 4-band RGBA Dataset keeps its alpha band and returns a Dataset."""
+        rgba = np.stack(
+            [np.full((2, 2), 0.5)] * 3 + [np.array([[0.0, 1.0], [1.0, 0.0]])]
+        )
+        ds = Dataset.create_from_array(
+            rgba, top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+        )
+        out = stretch(ds, kind="cira", preserve_alpha=True)
+        assert isinstance(out, Dataset), f"expected a Dataset, got {type(out)}"
+        assert out.read_array()[3].tolist() == [[0, 255], [255, 0]], "alpha changed"
 
 
 class TestCutoffsValidation:
