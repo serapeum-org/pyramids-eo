@@ -23,6 +23,15 @@ def _chunk(arr: np.ndarray, tlc=(0.0, 4.0)) -> Dataset:
     return Dataset.create_from_array(arr, top_left_corner=tlc, cell_size=1.0, epsg=4326)
 
 
+def _channel_opener(per_channel: dict[str, np.ndarray]):
+    """An `open_chunk` yielding a distinct Dataset per channel from `per_channel`."""
+
+    def _open(path, channel):
+        return _chunk(per_channel[channel])
+
+    return _open
+
+
 class TestReadFci:
     """`read_fci` stitches chunks row-wise and calibrates via the registry."""
 
@@ -58,6 +67,67 @@ class TestReadFci:
         ch = _sensors.get_sensor("fci").get_channel("vis_06")
         expected = radiance_to_reflectance(radiance, ch.solar_irradiance)
         assert np.allclose(out.read_array(), expected), "reflectance mismatch"
+
+    def test_channels_returns_dict(self):
+        """`channels=[...]` returns a dict with each channel's own calibrated data.
+
+        The opener yields distinct radiance per channel, so a cross-channel mix-up
+        (wrong key or wrong data) would fail — the entries are not aliased.
+        """
+        data = {"ir_105": np.full((2, 2), 80.0), "vis_06": np.full((2, 2), 120.0)}
+        out = read_fci(
+            ["c0.nc"], channels=["ir_105", "vis_06"], open_chunk=_channel_opener(data)
+        )
+        assert isinstance(out, dict), f"expected a dict, got {type(out)}"
+        assert set(out) == {"ir_105", "vis_06"}, "one entry per requested channel"
+        ir = _sensors.get_sensor("fci").get_channel("ir_105")
+        assert np.allclose(
+            out["ir_105"].read_array(),
+            radiance_to_brightness_temperature(
+                data["ir_105"], ir.central_wavenumber_cm1, ir.alpha, ir.beta
+            ),
+        ), "ir_105 entry should be its own brightness temperature"
+        vis = _sensors.get_sensor("fci").get_channel("vis_06")
+        assert np.allclose(
+            out["vis_06"].read_array(),
+            radiance_to_reflectance(data["vis_06"], vis.solar_irradiance),
+        ), "vis_06 entry should be its own reflectance"
+
+    def test_channels_dict_equals_single(self):
+        """A dict entry equals the single-channel result for that channel."""
+        opener = _channel_opener({"ir_105": np.full((2, 2), 80.0)})
+        single = read_fci(["c0.nc"], "ir_105", open_chunk=opener)
+        multi = read_fci(["c0.nc"], channels=["ir_105"], open_chunk=opener)
+        assert np.allclose(multi["ir_105"].read_array(), single.read_array()), (
+            "channels=[...] must match calling per channel"
+        )
+
+    def test_channels_with_pre_opened_dataset_raises(self):
+        """`channels=[...]` with pre-opened Dataset chunks is rejected."""
+        chunk = _chunk(np.ones((2, 2)))
+        with pytest.raises(ReaderError, match="path-like chunks"):
+            read_fci([chunk], channels=["ir_105", "vis_06"])
+
+    def test_channels_with_coeffs_raises(self):
+        """`coeffs` is a single-channel override; combining it with channels is rejected."""
+        with pytest.raises(ReaderError, match="coeffs"):
+            read_fci(
+                ["c0.nc"],
+                channels=["ir_105", "vis_06"],
+                coeffs={"solar_irradiance": 100.0},
+            )
+
+    def test_neither_channel_nor_channels_raises(self):
+        """Passing neither `channel` nor `channels` is rejected."""
+        chunk = _chunk(np.ones((2, 2)))
+        with pytest.raises(ReaderError, match="exactly one"):
+            read_fci([chunk])
+
+    def test_both_channel_and_channels_raises(self):
+        """Passing both `channel` and `channels` is rejected."""
+        chunk = _chunk(np.ones((2, 2)))
+        with pytest.raises(ReaderError, match="exactly one"):
+            read_fci([chunk], "ir_105", channels=["ir_105"])
 
     def test_calibrate_false_returns_raw(self):
         """With calibrate=False the stitched raw radiance is returned."""

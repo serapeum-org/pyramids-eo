@@ -2,16 +2,59 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
 
-from pyramids_eo.errors import CalibrationError
+from pyramids_eo.errors import CalibrationError, ReaderError
 from pyramids_eo.sensors.registry import (
     get_sensor,
     radiance_to_brightness_temperature,
     radiance_to_reflectance,
 )
+
+
+def resolve_channels(
+    channel: str | None, channels: Sequence[str] | None, reader: str
+) -> tuple[list[str], bool]:
+    """Normalise the `channel` / `channels` arguments a multi-channel reader takes.
+
+    A reader accepts exactly one of a single `channel` (returning a `Dataset`) or a
+    `channels` sequence (returning a `dict[str, Dataset]`). This validates that
+    exactly one was given and returns the channel list plus a flag for which shape
+    the caller asked for.
+
+    Args:
+        channel: A single channel identifier, or `None`.
+        channels: A sequence of channel identifiers, or `None`.
+        reader: The calling reader's name, for error messages.
+
+    Returns:
+        A `(channel_list, single)` pair — `single` is `True` when a lone `channel`
+        was given (the caller wants one `Dataset`), `False` for a `channels`
+        sequence (the caller wants a `dict`).
+
+    Raises:
+        ReaderError: When both or neither of `channel` / `channels` are given, or
+            when `channels` is empty.
+    """
+    if (channel is None) == (channels is None):
+        raise ReaderError(f"{reader}: pass exactly one of `channel` or `channels`")
+    if channels is None:
+        return [channel], True  # type: ignore[list-item]
+    if isinstance(channels, (str, bytes)):
+        raise ReaderError(
+            f"{reader}: `channels` must be a sequence of channel names, not a single "
+            f"string; use `channel=` for one channel"
+        )
+    requested = list(channels)
+    if not requested:
+        raise ReaderError(f"{reader}: `channels` is empty")
+    if len(set(requested)) != len(requested):
+        duplicates = sorted({c for c in requested if requested.count(c) > 1})
+        raise ReaderError(f"{reader}: duplicate channels in `channels`: {duplicates}")
+    return requested, False
 
 
 def calibrate_channel(
