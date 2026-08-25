@@ -107,6 +107,15 @@ class TestReadFci:
         with pytest.raises(ReaderError, match="path-like chunks"):
             read_fci([_chunk(np.ones((2, 2)))], channels=["ir_105", "vis_06"])
 
+    def test_channels_with_coeffs_raises(self):
+        """`coeffs` is a single-channel override; combining it with channels is rejected."""
+        with pytest.raises(ReaderError, match="coeffs"):
+            read_fci(
+                ["c0.nc"],
+                channels=["ir_105", "vis_06"],
+                coeffs={"solar_irradiance": 100.0},
+            )
+
     def test_neither_channel_nor_channels_raises(self):
         """Passing neither `channel` nor `channels` is rejected."""
         with pytest.raises(ReaderError, match="exactly one"):

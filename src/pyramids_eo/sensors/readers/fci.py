@@ -158,7 +158,10 @@ def read_fci(
         cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle
             correction, or `None`.
         coeffs: Per-granule calibration coefficients preferred over the registry
-            fallback (see `calibrate_channel`), or `None` to use the registry.
+            fallback (see `calibrate_channel`), or `None` to use the registry. They
+            override a **single** channel's calibration, so they are only accepted
+            with `channel=` — passing `coeffs` together with `channels=[...]` is an
+            error (each channel would need its own).
         open_chunk: Callable `(chunk, channel) -> Dataset` used for chunks that
             are not already Datasets. Defaults to a NetCDF reader (see the module
             warning about the FCI layout).
@@ -185,6 +188,13 @@ def read_fci(
         raise ReaderError(
             "read_fci: channels=[...] needs path-like chunks read per channel via "
             "open_chunk; a pre-opened Dataset already holds a single channel"
+        )
+    # `coeffs` overrides one channel's calibration; sharing it across a channel set
+    # would mis-calibrate the others. Require the single-channel form for an override.
+    if not single and coeffs is not None:
+        raise ReaderError(
+            "read_fci: `coeffs` overrides a single channel's calibration; pass it "
+            "with `channel=`, not `channels=[...]` (each channel calibrates on its own)"
         )
     opener = open_chunk or _default_open_chunk
 
