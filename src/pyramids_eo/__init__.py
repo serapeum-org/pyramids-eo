@@ -32,6 +32,7 @@ from pyramids_eo.earthengine import (
 )
 from pyramids_eo.sentinel import (
     SclClass,
+    collection_from_sentinel2,
     from_sentinel2,
     open_product,
     scl_mask,
@@ -47,6 +48,7 @@ __all__ = [
     "SclClass",
     "__version__",
     "collection_from_earthengine",
+    "collection_from_sentinel2",
     "from_earthengine",
     "from_sentinel2",
     "open_product",

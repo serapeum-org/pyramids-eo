@@ -24,11 +24,17 @@ import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osg
 # isort: on
 
 from pyramids_eo.sentinel.product import SentinelProduct, open_product
-from pyramids_eo.sentinel.s2 import SclClass, from_sentinel2, scl_mask
+from pyramids_eo.sentinel.s2 import (
+    SclClass,
+    collection_from_sentinel2,
+    from_sentinel2,
+    scl_mask,
+)
 
 __all__ = [
     "SclClass",
     "SentinelProduct",
+    "collection_from_sentinel2",
     "from_sentinel2",
     "open_product",
     "scl_mask",

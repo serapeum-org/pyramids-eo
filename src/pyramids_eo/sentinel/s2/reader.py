@@ -21,6 +21,7 @@ import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osg
 
 # isort: on
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,7 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
     crs: str | int | None = None,
     reflectance: bool = True,
     mask_scl: list[Any] | None = None,
+    resample: str = "nearest",
     path_out: str | Path | None = None,
 ) -> Any:
     """Read a Sentinel-2 product into a pyramids ``Dataset``.
@@ -96,19 +98,11 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
 
     epsg = _resolve_epsg(product, epsg)
     wanted = _resolve_bands(product, bands, resolution, epsg)
-    target_res = (
-        resolution
-        if resolution is not None
-        else _finest_resolution_for(product, wanted, epsg)
-    )
-    subdataset = product.subdataset_for(target_res, epsg)
-    _check_bands_present(subdataset, wanted)
-
-    dataset = _select_bands(subdataset, wanted)
+    dataset, target_res, offsets = _read(product, wanted, resolution, epsg, resample)
     _set_nodata(dataset, product)
 
     if reflectance:
-        dataset = _scaling.tag_reflectance(dataset, product)
+        dataset = _scaling.tag_reflectance(dataset, product, offsets=offsets)
     if mask_scl:
         dataset = _apply_scl_mask(dataset, product, target_res, epsg, mask_scl)
     if bbox is not None:
@@ -118,6 +112,62 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
     if path_out is not None:
         dataset.to_file(str(path_out))
     return dataset
+
+
+def collection_from_sentinel2(
+    paths: Sequence[str | Path],
+    *,
+    root_dir: str | Path,
+    **kwargs: Any,
+) -> Any:
+    """Read a time series of Sentinel-2 products into a ``DatasetCollection``.
+
+    Each product in ``paths`` is read with :func:`from_sentinel2` (passing
+    ``**kwargs`` through) and written as a GeoTIFF under ``root_dir``; the
+    written files are then assembled into a ``DatasetCollection``.
+
+    The collection is **file-backed on purpose**: ``DatasetCollection``'s dask
+    path (time-axis reductions, ``to_zarr``, out-of-core scale) works only for a
+    file-backed collection, so the per-scene rasters are materialised to disk
+    rather than held in memory (mirroring ``collection_from_earthengine``).
+
+    Args:
+        paths: The Sentinel-2 products (any form :func:`from_sentinel2` accepts).
+        root_dir: Directory the per-scene GeoTIFFs are written to (created if
+            absent).
+        **kwargs: Forwarded to :func:`from_sentinel2` (``bands`` / ``resolution``
+            / ``epsg`` / ``reflectance`` / ``mask_scl`` / …), applied to every
+            scene.
+
+    Returns:
+        A ``pyramids.dataset.DatasetCollection`` over the written scenes.
+
+    Raises:
+        ProductError: ``paths`` is empty.
+    """
+    from pyramids.dataset import DatasetCollection
+
+    products = list(paths)
+    if not products:
+        raise ProductError("collection_from_sentinel2: no product paths given")
+
+    root = Path(root_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    for index, product_path in enumerate(products):
+        out = root / f"{_scene_stem(product_path, index)}.tif"
+        from_sentinel2(product_path, path_out=out, **kwargs)
+        written.append(out)
+    return DatasetCollection.from_files(written)
+
+
+def _scene_stem(path: str | Path | S2Product, index: int) -> str:
+    """A unique output stem for a scene (product basename + index)."""
+    if isinstance(path, S2Product):
+        base = Path(path.path).stem or "scene"
+    else:
+        base = Path(str(path)).stem or "scene"
+    return f"{index:03d}_{base}"
 
 
 # -- resolution / band planning -------------------------------------------
@@ -158,14 +208,14 @@ def _resolve_bands(
     )
 
 
-def _finest_resolution_for(
+def _single_resolution_for(
     product: S2Product, wanted: list[str], epsg: int | None
-) -> int:
-    """Finest resolution whose single subdataset carries every wanted band.
+) -> int | None:
+    """Finest resolution whose one subdataset carries every wanted band.
 
-    Raises:
-        ProductError: No single resolution carries all the requested bands
-            (cross-resolution harmonisation is a planned follow-up).
+    Returns ``None`` when no single resolution holds them all — the caller then
+    reads each band from its native resolution and harmonises onto a common
+    grid.
     """
     for res in product.resolutions:  # ascending
         try:
@@ -174,12 +224,99 @@ def _finest_resolution_for(
             continue
         if all(_has_band(sd.bands, b) for b in wanted):
             return res
-    spread = {b: product.resolution_of(b) for b in wanted}
-    raise ProductError(
-        "requested bands span resolutions "
-        f"{spread}; pass an explicit resolution= that contains them all "
-        "(cross-resolution harmonise is a planned follow-up)."
+    return None
+
+
+def _read(
+    product: S2Product,
+    wanted: list[str],
+    resolution: int | None,
+    epsg: int | None,
+    resample: str,
+) -> tuple[Any, int, list[float]]:
+    """Read ``wanted`` bands into one ``Dataset``; return it, its resolution, and
+    the per-band radiometric offsets.
+
+    Single-subdataset when one resolution carries every band (or ``resolution``
+    is pinned); otherwise each band is read at its native resolution and
+    harmonised onto the finest requested grid.
+    """
+    if resolution is not None:
+        subdataset = product.subdataset_for(resolution, epsg)
+        _check_bands_present(subdataset, wanted)
+        dataset = _select_bands(subdataset, wanted)
+        return dataset, resolution, _offsets_of(dataset)
+
+    single_res = _single_resolution_for(product, wanted, epsg)
+    if single_res is not None:
+        subdataset = product.subdataset_for(single_res, epsg)
+        dataset = _select_bands(subdataset, wanted)
+        return dataset, single_res, _offsets_of(dataset)
+
+    return _read_harmonised(product, wanted, epsg, resample)
+
+
+def _read_harmonised(
+    product: S2Product, wanted: list[str], epsg: int | None, resample: str
+) -> tuple[Any, int, list[float]]:
+    """Read each band at its native resolution and stack onto the finest grid.
+
+    The bands span resolutions (e.g. B04 at 10 m and B11 at 20 m). Each band is
+    read from its native subdataset, coarser bands are resampled onto the finest
+    band's grid via :func:`pyramids_eo.sensors.readers.harmonise`, and the aligned
+    single-band results are stacked into one multi-band ``Dataset`` (band order
+    follows ``wanted``).
+    """
+    import numpy as np
+    from pyramids.dataset import Dataset
+
+    from pyramids_eo.sensors.readers.harmonise import harmonise
+
+    native = [(b, _native_subdataset(product, b, epsg)) for b in wanted]
+    target_res = min(sd.resolution_m for _, sd in native)
+
+    per_band = []  # (band, resolution_m, single_band_dataset, offset)
+    for band, sd in native:
+        band_ds = _select_bands(sd, [band])
+        per_band.append((band, sd.resolution_m, band_ds, _offsets_of(band_ds)[0]))
+
+    reference = next(ds for _, res, ds, _ in per_band if res == target_res)
+    arrays = []
+    for _band, res, band_ds, _off in per_band:
+        aligned = (
+            band_ds
+            if res == target_res
+            else harmonise([band_ds], reference, method=resample)[0]
+        )
+        arrays.append(np.asarray(aligned.read_array(band=0)))
+
+    combined = Dataset.create_from_array(
+        arr=np.stack(arrays, axis=0),
+        geo=reference.raster.GetGeoTransform(),
+        epsg=reference.epsg,
     )
+    combined.band_names = list(wanted)
+    offsets = [off for _, _, _, off in per_band]
+    return combined, target_res, offsets
+
+
+def _native_subdataset(product: S2Product, band: str, epsg: int | None) -> S2Subdataset:
+    """Finest image subdataset (at ``epsg``) that carries ``band``."""
+    candidates = [
+        sd
+        for sd in product.image_subdatasets
+        if (epsg is None or sd.epsg == epsg) and _has_band(sd.bands, band)
+    ]
+    if not candidates:
+        raise ProductError(
+            f"band {band!r} not in product; available: {sorted(product.available_bands)}"
+        )
+    return min(candidates, key=lambda sd: sd.resolution_m)
+
+
+def _offsets_of(dataset: Any) -> list[float]:
+    """Per-band radiometric offsets (BOA/RADIO_ADD_OFFSET), ``0.0`` if absent."""
+    return [_scaling._band_offset(meta) for meta in dataset.band_meta_data]
 
 
 def _check_bands_present(subdataset: S2Subdataset, wanted: list[str]) -> None:
@@ -239,7 +376,7 @@ def _apply_scl_mask(
     if scl_sd.resolution_m != target_res:
         # Align the coarser/finer SCL grid onto the data grid (nearest — SCL is
         # categorical). harmonise returns the aligned band.
-        from pyramids_eo.readers.harmonise import harmonise
+        from pyramids_eo.sensors.readers.harmonise import harmonise
 
         scl_ds = harmonise([scl_ds], dataset, method="nearest")[0]
     return _masks.scl_mask(dataset, classes, scl=scl_ds)

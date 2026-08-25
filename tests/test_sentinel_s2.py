@@ -13,7 +13,12 @@ import numpy as np
 import pytest
 
 from pyramids_eo.errors import ProductError
-from pyramids_eo.sentinel import from_sentinel2, open_product, scl_mask
+from pyramids_eo.sentinel import (
+    collection_from_sentinel2,
+    from_sentinel2,
+    open_product,
+    scl_mask,
+)
 from pyramids_eo.sentinel.s2 import S2Level, S2Product
 from pyramids_eo.sentinel.s2.masks import SclClass
 
@@ -73,6 +78,33 @@ def test_open_product_l1c_level():
     product = open_product(_L1C)
     assert product.level is S2Level.L1C
     assert any(b.upper().startswith("B") for b in product.available_bands)
+
+
+def test_l1c_resolutions_span_10_20_60():
+    product = open_product(_L1C)
+    assert product.resolutions == [10, 20, 60]
+    assert product.quantification == 10000.0
+
+
+def test_cross_resolution_harmonise_to_finest_grid():
+    # B04/B08 are 10 m, B11 is 20 m → all harmonised onto the 10 m grid.
+    ds = from_sentinel2(_L1C, bands=["B04", "B08", "B11"])
+    assert ds.band_count == 3
+    assert ds.cell_size == 10.0
+    # reflectance tags applied uniformly (1 / 10000).
+    assert all(s == pytest.approx(1.0 / 10000.0) for s in ds.scale)
+
+
+def test_single_resolution_when_bands_share_one():
+    ds = from_sentinel2(_L1C, bands=["B05", "B11"])  # both 20 m
+    assert ds.band_count == 2
+    assert ds.cell_size == 20.0
+
+
+def test_explicit_resolution_pins_the_subdataset():
+    ds = from_sentinel2(_L1C, bands=["B02", "B03", "B04"], resolution=10)
+    assert ds.band_count == 3
+    assert ds.cell_size == 10.0
 
 
 def test_band_name_alias_b4_equals_b04():
@@ -163,3 +195,24 @@ def test_scl_mask_unknown_class_name_raises():
     full = product.subdataset_for(60).open()
     with pytest.raises(ProductError):
         scl_mask(full, ["NOT_A_CLASS"])
+
+
+# -- collection ------------------------------------------------------------
+
+
+def test_collection_from_sentinel2_is_file_backed(tmp_path):
+    # A degenerate two-scene series (same product twice) proves the file-backed
+    # collection assembles from written GeoTIFFs.
+    collection = collection_from_sentinel2(
+        [_L2A, _L2A], root_dir=tmp_path / "series", bands=["B04", "B8A"]
+    )
+    from pyramids.dataset import DatasetCollection
+
+    assert isinstance(collection, DatasetCollection)
+    written = sorted((tmp_path / "series").glob("*.tif"))
+    assert len(written) == 2
+
+
+def test_collection_empty_raises(tmp_path):
+    with pytest.raises(ProductError):
+        collection_from_sentinel2([], root_dir=tmp_path / "series")

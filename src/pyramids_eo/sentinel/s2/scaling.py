@@ -48,7 +48,9 @@ def _band_offset(band_meta: dict[str, str]) -> float:
     return 0.0
 
 
-def tag_reflectance(dataset: Any, product: S2Product) -> Any:
+def tag_reflectance(
+    dataset: Any, product: S2Product, *, offsets: list[float] | None = None
+) -> Any:
     """Tag ``dataset``'s spectral bands so a scaled read yields reflectance.
 
     Sets per-band GDAL scale/offset on ``dataset`` in place and returns it.
@@ -61,6 +63,10 @@ def tag_reflectance(dataset: Any, product: S2Product) -> Any:
         dataset: A pyramids ``Dataset`` of Sentinel-2 bands (must be writable —
             e.g. the result of ``Dataset.bands.select`` or a MEM copy).
         product: The :class:`S2Product` supplying the quantification value.
+        offsets: Optional per-band radiometric offsets, in band order. Passed by
+            the cross-resolution read path, which stacks bands into a fresh
+            dataset that no longer carries the driver's ``BOA_ADD_OFFSET``
+            metadata. ``None`` reads the offsets from each band's metadata.
 
     Returns:
         The same ``dataset``, tagged.
@@ -77,21 +83,24 @@ def tag_reflectance(dataset: Any, product: S2Product) -> Any:
     band_names = dataset.band_names
     band_meta = dataset.band_meta_data
     scales: list[float] = []
-    offsets: list[float] = []
+    tagged_offsets: list[float] = []
     for i, name in enumerate(band_names):
         # Prefer the driver's BANDNAME tag; fall back to the display name.
         tag = (band_meta[i].get("BANDNAME") if i < len(band_meta) else None) or name
         if _is_spectral(_normalise_band(tag)):
-            scales.append(1.0 / quant)
-            offsets.append(
-                _band_offset(band_meta[i] if i < len(band_meta) else {}) / quant
+            band_offset = (
+                offsets[i]
+                if offsets is not None
+                else _band_offset(band_meta[i] if i < len(band_meta) else {})
             )
+            scales.append(1.0 / quant)
+            tagged_offsets.append(band_offset / quant)
         else:
             scales.append(1.0)
-            offsets.append(0.0)
+            tagged_offsets.append(0.0)
 
     dataset.scale = scales
-    dataset.offset = offsets
+    dataset.offset = tagged_offsets
     _stamp_baseline(dataset, product)
     return dataset
 
