@@ -169,6 +169,15 @@ class TestToAreaValidation:
         with pytest.raises(ValueError, match="bool"):
             to_area(src, True, (0.0, 0.0, 8.0, 8.0), 8, 8)
 
+    def test_warp_returning_none_raises_runtime_error(self, monkeypatch):
+        """A GDAL warp that returns None surfaces as a clear RuntimeError."""
+        import pyramids_eo.resample as resample_mod
+
+        src = _gradient()
+        monkeypatch.setattr(resample_mod.gdal, "Warp", lambda *a, **k: None)
+        with pytest.raises(RuntimeError, match="gdal.Warp failed"):
+            to_area(src, 4326, (0.0, 0.0, 8.0, 8.0), 8, 8)
+
 
 class TestWarpNodata:
     """`_warp_nodata` maps a scalar or per-band nodata to a GDAL nodata arg."""
