@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -2809,7 +2809,14 @@ channel names instead of hard-coding them. The union across chunks is returned
 <span class="normal"><a href="#__codelineno-0-367">367</a></span>
 <span class="normal"><a href="#__codelineno-0-368">368</a></span>
 <span class="normal"><a href="#__codelineno-0-369">369</a></span>
-<span class="normal"><a href="#__codelineno-0-370">370</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-336" name="__codelineno-0-336"></a><span class="k">def</span><span class="w"> </span><span class="nf">available_channels</span><span class="p">(</span><span class="n">chunks</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="normal"><a href="#__codelineno-0-370">370</a></span>
+<span class="normal"><a href="#__codelineno-0-371">371</a></span>
+<span class="normal"><a href="#__codelineno-0-372">372</a></span>
+<span class="normal"><a href="#__codelineno-0-373">373</a></span>
+<span class="normal"><a href="#__codelineno-0-374">374</a></span>
+<span class="normal"><a href="#__codelineno-0-375">375</a></span>
+<span class="normal"><a href="#__codelineno-0-376">376</a></span>
+<span class="normal"><a href="#__codelineno-0-377">377</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-336" name="__codelineno-0-336"></a><span class="k">def</span><span class="w"> </span><span class="nf">available_channels</span><span class="p">(</span><span class="n">chunks</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <a id="__codelineno-0-337" name="__codelineno-0-337"></a><span class="w">    </span><span class="sd">"""List the VIS/IR channels present across FCI L1C FDHSI chunk file(s).</span>
 <a id="__codelineno-0-338" name="__codelineno-0-338"></a>
 <a id="__codelineno-0-339" name="__codelineno-0-339"></a><span class="sd">    Opens each chunk's multidimensional dataset and reports the `data/&lt;channel&gt;`</span>
@@ -2828,22 +2835,29 @@ channel names instead of hard-coding them. The union across chunks is returned
 <a id="__codelineno-0-352" name="__codelineno-0-352"></a>    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
 <a id="__codelineno-0-353" name="__codelineno-0-353"></a>        <span class="n">dataset</span><span class="p">,</span> <span class="n">root</span> <span class="o">=</span> <span class="n">_open_root</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
 <a id="__codelineno-0-354" name="__codelineno-0-354"></a>        <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-355" name="__codelineno-0-355"></a>            <span class="n">data</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span>
-<a id="__codelineno-0-356" name="__codelineno-0-356"></a>        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
-<a id="__codelineno-0-357" name="__codelineno-0-357"></a>            <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-0-358" name="__codelineno-0-358"></a>        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-359" name="__codelineno-0-359"></a>            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">GetGroupNames</span><span class="p">():</span>
-<a id="__codelineno-0-360" name="__codelineno-0-360"></a>                <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-361" name="__codelineno-0-361"></a>                    <span class="n">measured</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="s2">"measured"</span><span class="p">)</span>
-<a id="__codelineno-0-362" name="__codelineno-0-362"></a>                <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
-<a id="__codelineno-0-363" name="__codelineno-0-363"></a>                    <span class="k">continue</span>
-<a id="__codelineno-0-364" name="__codelineno-0-364"></a>                <span class="k">if</span> <span class="p">(</span>
-<a id="__codelineno-0-365" name="__codelineno-0-365"></a>                    <span class="n">measured</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-<a id="__codelineno-0-366" name="__codelineno-0-366"></a>                    <span class="ow">and</span> <span class="s2">"effective_radiance"</span> <span class="ow">in</span> <span class="n">measured</span><span class="o">.</span><span class="n">GetMDArrayNames</span><span class="p">()</span>
-<a id="__codelineno-0-367" name="__codelineno-0-367"></a>                <span class="p">):</span>
-<a id="__codelineno-0-368" name="__codelineno-0-368"></a>                    <span class="n">found</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
-<a id="__codelineno-0-369" name="__codelineno-0-369"></a>        <span class="k">del</span> <span class="n">root</span><span class="p">,</span> <span class="n">dataset</span>
-<a id="__codelineno-0-370" name="__codelineno-0-370"></a>    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">found</span><span class="p">)</span>
+<a id="__codelineno-0-355" name="__codelineno-0-355"></a>            <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-356" name="__codelineno-0-356"></a>                <span class="n">data</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span>
+<a id="__codelineno-0-357" name="__codelineno-0-357"></a>            <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+<a id="__codelineno-0-358" name="__codelineno-0-358"></a>                <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-359" name="__codelineno-0-359"></a>            <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># no /data group (e.g. a trailer / malformed chunk)</span>
+<a id="__codelineno-0-360" name="__codelineno-0-360"></a>                <span class="k">continue</span>
+<a id="__codelineno-0-361" name="__codelineno-0-361"></a>            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">GetGroupNames</span><span class="p">():</span>
+<a id="__codelineno-0-362" name="__codelineno-0-362"></a>                <span class="c1"># Handle both GDAL modes: OpenGroup raises (exceptions on) or</span>
+<a id="__codelineno-0-363" name="__codelineno-0-363"></a>                <span class="c1"># returns None (exceptions off) when a group is absent.</span>
+<a id="__codelineno-0-364" name="__codelineno-0-364"></a>                <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-365" name="__codelineno-0-365"></a>                    <span class="n">channel_group</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366"></a>                    <span class="n">measured</span> <span class="o">=</span> <span class="n">channel_group</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="s2">"measured"</span><span class="p">)</span> <span class="k">if</span> <span class="n">channel_group</span> <span class="k">else</span> <span class="kc">None</span>
+<a id="__codelineno-0-367" name="__codelineno-0-367"></a>                <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+<a id="__codelineno-0-368" name="__codelineno-0-368"></a>                    <span class="n">measured</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-369" name="__codelineno-0-369"></a>                <span class="k">if</span> <span class="p">(</span>
+<a id="__codelineno-0-370" name="__codelineno-0-370"></a>                    <span class="n">measured</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<a id="__codelineno-0-371" name="__codelineno-0-371"></a>                    <span class="ow">and</span> <span class="s2">"effective_radiance"</span> <span class="ow">in</span> <span class="n">measured</span><span class="o">.</span><span class="n">GetMDArrayNames</span><span class="p">()</span>
+<a id="__codelineno-0-372" name="__codelineno-0-372"></a>                <span class="p">):</span>
+<a id="__codelineno-0-373" name="__codelineno-0-373"></a>                    <span class="n">found</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+<a id="__codelineno-0-374" name="__codelineno-0-374"></a>        <span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-0-375" name="__codelineno-0-375"></a>            <span class="c1"># Always release the multidim handle, even on an unexpected error.</span>
+<a id="__codelineno-0-376" name="__codelineno-0-376"></a>            <span class="k">del</span> <span class="n">root</span><span class="p">,</span> <span class="n">dataset</span>
+<a id="__codelineno-0-377" name="__codelineno-0-377"></a>    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">found</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -3086,15 +3100,7 @@ see <code>_validate_chunks</code>).</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/sensors/readers/fci_l1c.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-513">513</a></span>
-<span class="normal"><a href="#__codelineno-0-514">514</a></span>
-<span class="normal"><a href="#__codelineno-0-515">515</a></span>
-<span class="normal"><a href="#__codelineno-0-516">516</a></span>
-<span class="normal"><a href="#__codelineno-0-517">517</a></span>
-<span class="normal"><a href="#__codelineno-0-518">518</a></span>
-<span class="normal"><a href="#__codelineno-0-519">519</a></span>
-<span class="normal"><a href="#__codelineno-0-520">520</a></span>
-<span class="normal"><a href="#__codelineno-0-521">521</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-521">521</a></span>
 <span class="normal"><a href="#__codelineno-0-522">522</a></span>
 <span class="normal"><a href="#__codelineno-0-523">523</a></span>
 <span class="normal"><a href="#__codelineno-0-524">524</a></span>
@@ -3158,79 +3164,87 @@ see <code>_validate_chunks</code>).</p>
 <span class="normal"><a href="#__codelineno-0-582">582</a></span>
 <span class="normal"><a href="#__codelineno-0-583">583</a></span>
 <span class="normal"><a href="#__codelineno-0-584">584</a></span>
-<span class="normal"><a href="#__codelineno-0-585">585</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-513" name="__codelineno-0-513"></a><span class="k">def</span><span class="w"> </span><span class="nf">read_fci_l1c</span><span class="p">(</span>
-<a id="__codelineno-0-514" name="__codelineno-0-514"></a>    <span class="n">paths</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-515" name="__codelineno-0-515"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-516" name="__codelineno-0-516"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-517" name="__codelineno-0-517"></a>    <span class="n">channels</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-518" name="__codelineno-0-518"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-0-519" name="__codelineno-0-519"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
-<a id="__codelineno-0-520" name="__codelineno-0-520"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-521" name="__codelineno-0-521"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-522" name="__codelineno-0-522"></a><span class="w">    </span><span class="sd">"""Read one or several channels across a set of real FCI L1C FDHSI chunks.</span>
-<a id="__codelineno-0-523" name="__codelineno-0-523"></a>
-<a id="__codelineno-0-524" name="__codelineno-0-524"></a><span class="sd">    Decodes each chunk once for the whole requested channel set</span>
-<a id="__codelineno-0-525" name="__codelineno-0-525"></a><span class="sd">    (`read_fci_l1c_chunks` opens the chunk's structure a single time), drops chunks</span>
-<a id="__codelineno-0-526" name="__codelineno-0-526"></a><span class="sd">    without a channel's radiance (e.g. `CHK-TRAIL`), then for each channel orders</span>
-<a id="__codelineno-0-527" name="__codelineno-0-527"></a><span class="sd">    the chunks north -&gt; south by their geotransform Y origin, checks they are</span>
-<a id="__codelineno-0-528" name="__codelineno-0-528"></a><span class="sd">    vertically contiguous (and share a grid), stitches the radiance, and calibrates</span>
-<a id="__codelineno-0-529" name="__codelineno-0-529"></a><span class="sd">    it with the **per-granule** coefficients (reflectance for a solar channel,</span>
-<a id="__codelineno-0-530" name="__codelineno-0-530"></a><span class="sd">    brightness temperature for a thermal one). Each result is a geolocated pyramids</span>
-<a id="__codelineno-0-531" name="__codelineno-0-531"></a><span class="sd">    `Dataset` on the granule's geostationary grid (metre geotransform reconstructed</span>
-<a id="__codelineno-0-532" name="__codelineno-0-532"></a><span class="sd">    from the angular grid and the CRS satellite height).</span>
-<a id="__codelineno-0-533" name="__codelineno-0-533"></a>
-<a id="__codelineno-0-534" name="__codelineno-0-534"></a><span class="sd">    Pass exactly one of `channel` (returns a `Dataset`) or `channels` (returns a</span>
-<a id="__codelineno-0-535" name="__codelineno-0-535"></a><span class="sd">    `dict[str, Dataset]`); `read_fci_l1c(paths, "ir_105")` is unchanged.</span>
-<a id="__codelineno-0-536" name="__codelineno-0-536"></a>
-<a id="__codelineno-0-537" name="__codelineno-0-537"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-538" name="__codelineno-0-538"></a><span class="sd">        paths: Iterable of FCI L1C FDHSI chunk file paths (any order; trailer /</span>
-<a id="__codelineno-0-539" name="__codelineno-0-539"></a><span class="sd">            non-imagery chunks are skipped).</span>
-<a id="__codelineno-0-540" name="__codelineno-0-540"></a><span class="sd">        channel: A single channel identifier (e.g. `"ir_105"`, `"vis_06"`) for a</span>
-<a id="__codelineno-0-541" name="__codelineno-0-541"></a><span class="sd">            `Dataset` result; mutually exclusive with `channels`.</span>
-<a id="__codelineno-0-542" name="__codelineno-0-542"></a><span class="sd">        channels: A sequence of channel identifiers for a `dict[str, Dataset]`</span>
-<a id="__codelineno-0-543" name="__codelineno-0-543"></a><span class="sd">            result (each chunk opened once for the whole set); mutually exclusive</span>
-<a id="__codelineno-0-544" name="__codelineno-0-544"></a><span class="sd">            with `channel`.</span>
-<a id="__codelineno-0-545" name="__codelineno-0-545"></a><span class="sd">        calibrate: When `True` (default), calibrate to reflectance / brightness</span>
-<a id="__codelineno-0-546" name="__codelineno-0-546"></a><span class="sd">            temperature; when `False`, return the stitched raw radiance.</span>
-<a id="__codelineno-0-547" name="__codelineno-0-547"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
-<a id="__codelineno-0-548" name="__codelineno-0-548"></a><span class="sd">            The default `1.0` leaves reflectance up to ~3.4% off (`d` ranges</span>
-<a id="__codelineno-0-549" name="__codelineno-0-549"></a><span class="sd">            ~0.983-1.017 AU over the year); pass the granule's `d` for absolute</span>
-<a id="__codelineno-0-550" name="__codelineno-0-550"></a><span class="sd">            accuracy.</span>
-<a id="__codelineno-0-551" name="__codelineno-0-551"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle</span>
-<a id="__codelineno-0-552" name="__codelineno-0-552"></a><span class="sd">            correction, or `None`.</span>
-<a id="__codelineno-0-553" name="__codelineno-0-553"></a>
-<a id="__codelineno-0-554" name="__codelineno-0-554"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-555" name="__codelineno-0-555"></a><span class="sd">        A pyramids `Dataset` (for `channel`) or a `dict[str, Dataset]` keyed by</span>
-<a id="__codelineno-0-556" name="__codelineno-0-556"></a><span class="sd">        channel (for `channels`) of the calibrated (or raw) channel(s) on the</span>
-<a id="__codelineno-0-557" name="__codelineno-0-557"></a><span class="sd">        stitched geostationary grid, with NaN nodata and the geostationary CRS.</span>
-<a id="__codelineno-0-558" name="__codelineno-0-558"></a>
-<a id="__codelineno-0-559" name="__codelineno-0-559"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-560" name="__codelineno-0-560"></a><span class="sd">        ReaderError: When neither / both of `channel` / `channels` are given, when</span>
-<a id="__codelineno-0-561" name="__codelineno-0-561"></a><span class="sd">            no chunk carries a requested channel, or the chunks are inconsistent</span>
-<a id="__codelineno-0-562" name="__codelineno-0-562"></a><span class="sd">            (mixed CRS / cell size / column count, or not vertically contiguous —</span>
-<a id="__codelineno-0-563" name="__codelineno-0-563"></a><span class="sd">            see `_validate_chunks`).</span>
-<a id="__codelineno-0-564" name="__codelineno-0-564"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
-<a id="__codelineno-0-565" name="__codelineno-0-565"></a><span class="sd">        UnknownSensorError: When a channel is not in the registry.</span>
-<a id="__codelineno-0-566" name="__codelineno-0-566"></a><span class="sd">    """</span>
-<a id="__codelineno-0-567" name="__codelineno-0-567"></a>    <span class="n">requested</span><span class="p">,</span> <span class="n">single</span> <span class="o">=</span> <span class="n">resolve_channels</span><span class="p">(</span><span class="n">channel</span><span class="p">,</span> <span class="n">channels</span><span class="p">,</span> <span class="s2">"read_fci_l1c"</span><span class="p">)</span>
-<a id="__codelineno-0-568" name="__codelineno-0-568"></a>
-<a id="__codelineno-0-569" name="__codelineno-0-569"></a>    <span class="n">per_channel</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">requested</span><span class="p">}</span>
-<a id="__codelineno-0-570" name="__codelineno-0-570"></a>    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
-<a id="__codelineno-0-571" name="__codelineno-0-571"></a>        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">read_fci_l1c_chunks</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">requested</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-572" name="__codelineno-0-572"></a>            <span class="k">if</span> <span class="n">record</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-573" name="__codelineno-0-573"></a>                <span class="n">per_channel</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
-<a id="__codelineno-0-574" name="__codelineno-0-574"></a>
-<a id="__codelineno-0-575" name="__codelineno-0-575"></a>    <span class="n">results</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-0-576" name="__codelineno-0-576"></a>        <span class="n">name</span><span class="p">:</span> <span class="n">_assemble_channel</span><span class="p">(</span>
-<a id="__codelineno-0-577" name="__codelineno-0-577"></a>            <span class="n">per_channel</span><span class="p">[</span><span class="n">name</span><span class="p">],</span>
-<a id="__codelineno-0-578" name="__codelineno-0-578"></a>            <span class="n">name</span><span class="p">,</span>
-<a id="__codelineno-0-579" name="__codelineno-0-579"></a>            <span class="n">calibrate</span><span class="o">=</span><span class="n">calibrate</span><span class="p">,</span>
-<a id="__codelineno-0-580" name="__codelineno-0-580"></a>            <span class="n">sun_earth_distance</span><span class="o">=</span><span class="n">sun_earth_distance</span><span class="p">,</span>
-<a id="__codelineno-0-581" name="__codelineno-0-581"></a>            <span class="n">cos_sza</span><span class="o">=</span><span class="n">cos_sza</span><span class="p">,</span>
-<a id="__codelineno-0-582" name="__codelineno-0-582"></a>        <span class="p">)</span>
-<a id="__codelineno-0-583" name="__codelineno-0-583"></a>        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">requested</span>
-<a id="__codelineno-0-584" name="__codelineno-0-584"></a>    <span class="p">}</span>
-<a id="__codelineno-0-585" name="__codelineno-0-585"></a>    <span class="k">return</span> <span class="n">results</span><span class="p">[</span><span class="n">requested</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="k">if</span> <span class="n">single</span> <span class="k">else</span> <span class="n">results</span>
+<span class="normal"><a href="#__codelineno-0-585">585</a></span>
+<span class="normal"><a href="#__codelineno-0-586">586</a></span>
+<span class="normal"><a href="#__codelineno-0-587">587</a></span>
+<span class="normal"><a href="#__codelineno-0-588">588</a></span>
+<span class="normal"><a href="#__codelineno-0-589">589</a></span>
+<span class="normal"><a href="#__codelineno-0-590">590</a></span>
+<span class="normal"><a href="#__codelineno-0-591">591</a></span>
+<span class="normal"><a href="#__codelineno-0-592">592</a></span>
+<span class="normal"><a href="#__codelineno-0-593">593</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-521" name="__codelineno-0-521"></a><span class="k">def</span><span class="w"> </span><span class="nf">read_fci_l1c</span><span class="p">(</span>
+<a id="__codelineno-0-522" name="__codelineno-0-522"></a>    <span class="n">paths</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-523" name="__codelineno-0-523"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-524" name="__codelineno-0-524"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-525" name="__codelineno-0-525"></a>    <span class="n">channels</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-526" name="__codelineno-0-526"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-527" name="__codelineno-0-527"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+<a id="__codelineno-0-528" name="__codelineno-0-528"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-529" name="__codelineno-0-529"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-530" name="__codelineno-0-530"></a><span class="w">    </span><span class="sd">"""Read one or several channels across a set of real FCI L1C FDHSI chunks.</span>
+<a id="__codelineno-0-531" name="__codelineno-0-531"></a>
+<a id="__codelineno-0-532" name="__codelineno-0-532"></a><span class="sd">    Decodes each chunk once for the whole requested channel set</span>
+<a id="__codelineno-0-533" name="__codelineno-0-533"></a><span class="sd">    (`read_fci_l1c_chunks` opens the chunk's structure a single time), drops chunks</span>
+<a id="__codelineno-0-534" name="__codelineno-0-534"></a><span class="sd">    without a channel's radiance (e.g. `CHK-TRAIL`), then for each channel orders</span>
+<a id="__codelineno-0-535" name="__codelineno-0-535"></a><span class="sd">    the chunks north -&gt; south by their geotransform Y origin, checks they are</span>
+<a id="__codelineno-0-536" name="__codelineno-0-536"></a><span class="sd">    vertically contiguous (and share a grid), stitches the radiance, and calibrates</span>
+<a id="__codelineno-0-537" name="__codelineno-0-537"></a><span class="sd">    it with the **per-granule** coefficients (reflectance for a solar channel,</span>
+<a id="__codelineno-0-538" name="__codelineno-0-538"></a><span class="sd">    brightness temperature for a thermal one). Each result is a geolocated pyramids</span>
+<a id="__codelineno-0-539" name="__codelineno-0-539"></a><span class="sd">    `Dataset` on the granule's geostationary grid (metre geotransform reconstructed</span>
+<a id="__codelineno-0-540" name="__codelineno-0-540"></a><span class="sd">    from the angular grid and the CRS satellite height).</span>
+<a id="__codelineno-0-541" name="__codelineno-0-541"></a>
+<a id="__codelineno-0-542" name="__codelineno-0-542"></a><span class="sd">    Pass exactly one of `channel` (returns a `Dataset`) or `channels` (returns a</span>
+<a id="__codelineno-0-543" name="__codelineno-0-543"></a><span class="sd">    `dict[str, Dataset]`); `read_fci_l1c(paths, "ir_105")` is unchanged.</span>
+<a id="__codelineno-0-544" name="__codelineno-0-544"></a>
+<a id="__codelineno-0-545" name="__codelineno-0-545"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-546" name="__codelineno-0-546"></a><span class="sd">        paths: Iterable of FCI L1C FDHSI chunk file paths (any order; trailer /</span>
+<a id="__codelineno-0-547" name="__codelineno-0-547"></a><span class="sd">            non-imagery chunks are skipped).</span>
+<a id="__codelineno-0-548" name="__codelineno-0-548"></a><span class="sd">        channel: A single channel identifier (e.g. `"ir_105"`, `"vis_06"`) for a</span>
+<a id="__codelineno-0-549" name="__codelineno-0-549"></a><span class="sd">            `Dataset` result; mutually exclusive with `channels`.</span>
+<a id="__codelineno-0-550" name="__codelineno-0-550"></a><span class="sd">        channels: A sequence of channel identifiers for a `dict[str, Dataset]`</span>
+<a id="__codelineno-0-551" name="__codelineno-0-551"></a><span class="sd">            result (each chunk opened once for the whole set); mutually exclusive</span>
+<a id="__codelineno-0-552" name="__codelineno-0-552"></a><span class="sd">            with `channel`.</span>
+<a id="__codelineno-0-553" name="__codelineno-0-553"></a><span class="sd">        calibrate: When `True` (default), calibrate to reflectance / brightness</span>
+<a id="__codelineno-0-554" name="__codelineno-0-554"></a><span class="sd">            temperature; when `False`, return the stitched raw radiance.</span>
+<a id="__codelineno-0-555" name="__codelineno-0-555"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
+<a id="__codelineno-0-556" name="__codelineno-0-556"></a><span class="sd">            The default `1.0` leaves reflectance up to ~3.4% off (`d` ranges</span>
+<a id="__codelineno-0-557" name="__codelineno-0-557"></a><span class="sd">            ~0.983-1.017 AU over the year); pass the granule's `d` for absolute</span>
+<a id="__codelineno-0-558" name="__codelineno-0-558"></a><span class="sd">            accuracy.</span>
+<a id="__codelineno-0-559" name="__codelineno-0-559"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle</span>
+<a id="__codelineno-0-560" name="__codelineno-0-560"></a><span class="sd">            correction, or `None`.</span>
+<a id="__codelineno-0-561" name="__codelineno-0-561"></a>
+<a id="__codelineno-0-562" name="__codelineno-0-562"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-563" name="__codelineno-0-563"></a><span class="sd">        A pyramids `Dataset` (for `channel`) or a `dict[str, Dataset]` keyed by</span>
+<a id="__codelineno-0-564" name="__codelineno-0-564"></a><span class="sd">        channel (for `channels`) of the calibrated (or raw) channel(s) on the</span>
+<a id="__codelineno-0-565" name="__codelineno-0-565"></a><span class="sd">        stitched geostationary grid, with NaN nodata and the geostationary CRS.</span>
+<a id="__codelineno-0-566" name="__codelineno-0-566"></a>
+<a id="__codelineno-0-567" name="__codelineno-0-567"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-568" name="__codelineno-0-568"></a><span class="sd">        ReaderError: When neither / both of `channel` / `channels` are given, when</span>
+<a id="__codelineno-0-569" name="__codelineno-0-569"></a><span class="sd">            no chunk carries a requested channel, or the chunks are inconsistent</span>
+<a id="__codelineno-0-570" name="__codelineno-0-570"></a><span class="sd">            (mixed CRS / cell size / column count, or not vertically contiguous —</span>
+<a id="__codelineno-0-571" name="__codelineno-0-571"></a><span class="sd">            see `_validate_chunks`).</span>
+<a id="__codelineno-0-572" name="__codelineno-0-572"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
+<a id="__codelineno-0-573" name="__codelineno-0-573"></a><span class="sd">        UnknownSensorError: When a channel is not in the registry.</span>
+<a id="__codelineno-0-574" name="__codelineno-0-574"></a><span class="sd">    """</span>
+<a id="__codelineno-0-575" name="__codelineno-0-575"></a>    <span class="n">requested</span><span class="p">,</span> <span class="n">single</span> <span class="o">=</span> <span class="n">resolve_channels</span><span class="p">(</span><span class="n">channel</span><span class="p">,</span> <span class="n">channels</span><span class="p">,</span> <span class="s2">"read_fci_l1c"</span><span class="p">)</span>
+<a id="__codelineno-0-576" name="__codelineno-0-576"></a>
+<a id="__codelineno-0-577" name="__codelineno-0-577"></a>    <span class="n">per_channel</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">requested</span><span class="p">}</span>
+<a id="__codelineno-0-578" name="__codelineno-0-578"></a>    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+<a id="__codelineno-0-579" name="__codelineno-0-579"></a>        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">read_fci_l1c_chunks</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">requested</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-580" name="__codelineno-0-580"></a>            <span class="k">if</span> <span class="n">record</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-581" name="__codelineno-0-581"></a>                <span class="n">per_channel</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+<a id="__codelineno-0-582" name="__codelineno-0-582"></a>
+<a id="__codelineno-0-583" name="__codelineno-0-583"></a>    <span class="n">results</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-584" name="__codelineno-0-584"></a>        <span class="n">name</span><span class="p">:</span> <span class="n">_assemble_channel</span><span class="p">(</span>
+<a id="__codelineno-0-585" name="__codelineno-0-585"></a>            <span class="n">per_channel</span><span class="p">[</span><span class="n">name</span><span class="p">],</span>
+<a id="__codelineno-0-586" name="__codelineno-0-586"></a>            <span class="n">name</span><span class="p">,</span>
+<a id="__codelineno-0-587" name="__codelineno-0-587"></a>            <span class="n">calibrate</span><span class="o">=</span><span class="n">calibrate</span><span class="p">,</span>
+<a id="__codelineno-0-588" name="__codelineno-0-588"></a>            <span class="n">sun_earth_distance</span><span class="o">=</span><span class="n">sun_earth_distance</span><span class="p">,</span>
+<a id="__codelineno-0-589" name="__codelineno-0-589"></a>            <span class="n">cos_sza</span><span class="o">=</span><span class="n">cos_sza</span><span class="p">,</span>
+<a id="__codelineno-0-590" name="__codelineno-0-590"></a>        <span class="p">)</span>
+<a id="__codelineno-0-591" name="__codelineno-0-591"></a>        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">requested</span>
+<a id="__codelineno-0-592" name="__codelineno-0-592"></a>    <span class="p">}</span>
+<a id="__codelineno-0-593" name="__codelineno-0-593"></a>    <span class="k">return</span> <span class="n">results</span><span class="p">[</span><span class="n">requested</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="k">if</span> <span class="n">single</span> <span class="k">else</span> <span class="n">results</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -4725,7 +4739,14 @@ channel names instead of hard-coding them. The union across chunks is returned
 <span class="normal"><a href="#__codelineno-0-367">367</a></span>
 <span class="normal"><a href="#__codelineno-0-368">368</a></span>
 <span class="normal"><a href="#__codelineno-0-369">369</a></span>
-<span class="normal"><a href="#__codelineno-0-370">370</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-336" name="__codelineno-0-336"></a><span class="k">def</span><span class="w"> </span><span class="nf">available_channels</span><span class="p">(</span><span class="n">chunks</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="normal"><a href="#__codelineno-0-370">370</a></span>
+<span class="normal"><a href="#__codelineno-0-371">371</a></span>
+<span class="normal"><a href="#__codelineno-0-372">372</a></span>
+<span class="normal"><a href="#__codelineno-0-373">373</a></span>
+<span class="normal"><a href="#__codelineno-0-374">374</a></span>
+<span class="normal"><a href="#__codelineno-0-375">375</a></span>
+<span class="normal"><a href="#__codelineno-0-376">376</a></span>
+<span class="normal"><a href="#__codelineno-0-377">377</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-336" name="__codelineno-0-336"></a><span class="k">def</span><span class="w"> </span><span class="nf">available_channels</span><span class="p">(</span><span class="n">chunks</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <a id="__codelineno-0-337" name="__codelineno-0-337"></a><span class="w">    </span><span class="sd">"""List the VIS/IR channels present across FCI L1C FDHSI chunk file(s).</span>
 <a id="__codelineno-0-338" name="__codelineno-0-338"></a>
 <a id="__codelineno-0-339" name="__codelineno-0-339"></a><span class="sd">    Opens each chunk's multidimensional dataset and reports the `data/&lt;channel&gt;`</span>
@@ -4744,22 +4765,29 @@ channel names instead of hard-coding them. The union across chunks is returned
 <a id="__codelineno-0-352" name="__codelineno-0-352"></a>    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
 <a id="__codelineno-0-353" name="__codelineno-0-353"></a>        <span class="n">dataset</span><span class="p">,</span> <span class="n">root</span> <span class="o">=</span> <span class="n">_open_root</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
 <a id="__codelineno-0-354" name="__codelineno-0-354"></a>        <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-355" name="__codelineno-0-355"></a>            <span class="n">data</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span>
-<a id="__codelineno-0-356" name="__codelineno-0-356"></a>        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
-<a id="__codelineno-0-357" name="__codelineno-0-357"></a>            <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-0-358" name="__codelineno-0-358"></a>        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-359" name="__codelineno-0-359"></a>            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">GetGroupNames</span><span class="p">():</span>
-<a id="__codelineno-0-360" name="__codelineno-0-360"></a>                <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-361" name="__codelineno-0-361"></a>                    <span class="n">measured</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="s2">"measured"</span><span class="p">)</span>
-<a id="__codelineno-0-362" name="__codelineno-0-362"></a>                <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
-<a id="__codelineno-0-363" name="__codelineno-0-363"></a>                    <span class="k">continue</span>
-<a id="__codelineno-0-364" name="__codelineno-0-364"></a>                <span class="k">if</span> <span class="p">(</span>
-<a id="__codelineno-0-365" name="__codelineno-0-365"></a>                    <span class="n">measured</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-<a id="__codelineno-0-366" name="__codelineno-0-366"></a>                    <span class="ow">and</span> <span class="s2">"effective_radiance"</span> <span class="ow">in</span> <span class="n">measured</span><span class="o">.</span><span class="n">GetMDArrayNames</span><span class="p">()</span>
-<a id="__codelineno-0-367" name="__codelineno-0-367"></a>                <span class="p">):</span>
-<a id="__codelineno-0-368" name="__codelineno-0-368"></a>                    <span class="n">found</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
-<a id="__codelineno-0-369" name="__codelineno-0-369"></a>        <span class="k">del</span> <span class="n">root</span><span class="p">,</span> <span class="n">dataset</span>
-<a id="__codelineno-0-370" name="__codelineno-0-370"></a>    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">found</span><span class="p">)</span>
+<a id="__codelineno-0-355" name="__codelineno-0-355"></a>            <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-356" name="__codelineno-0-356"></a>                <span class="n">data</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span>
+<a id="__codelineno-0-357" name="__codelineno-0-357"></a>            <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+<a id="__codelineno-0-358" name="__codelineno-0-358"></a>                <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-359" name="__codelineno-0-359"></a>            <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># no /data group (e.g. a trailer / malformed chunk)</span>
+<a id="__codelineno-0-360" name="__codelineno-0-360"></a>                <span class="k">continue</span>
+<a id="__codelineno-0-361" name="__codelineno-0-361"></a>            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">GetGroupNames</span><span class="p">():</span>
+<a id="__codelineno-0-362" name="__codelineno-0-362"></a>                <span class="c1"># Handle both GDAL modes: OpenGroup raises (exceptions on) or</span>
+<a id="__codelineno-0-363" name="__codelineno-0-363"></a>                <span class="c1"># returns None (exceptions off) when a group is absent.</span>
+<a id="__codelineno-0-364" name="__codelineno-0-364"></a>                <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-365" name="__codelineno-0-365"></a>                    <span class="n">channel_group</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366"></a>                    <span class="n">measured</span> <span class="o">=</span> <span class="n">channel_group</span><span class="o">.</span><span class="n">OpenGroup</span><span class="p">(</span><span class="s2">"measured"</span><span class="p">)</span> <span class="k">if</span> <span class="n">channel_group</span> <span class="k">else</span> <span class="kc">None</span>
+<a id="__codelineno-0-367" name="__codelineno-0-367"></a>                <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+<a id="__codelineno-0-368" name="__codelineno-0-368"></a>                    <span class="n">measured</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-369" name="__codelineno-0-369"></a>                <span class="k">if</span> <span class="p">(</span>
+<a id="__codelineno-0-370" name="__codelineno-0-370"></a>                    <span class="n">measured</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<a id="__codelineno-0-371" name="__codelineno-0-371"></a>                    <span class="ow">and</span> <span class="s2">"effective_radiance"</span> <span class="ow">in</span> <span class="n">measured</span><span class="o">.</span><span class="n">GetMDArrayNames</span><span class="p">()</span>
+<a id="__codelineno-0-372" name="__codelineno-0-372"></a>                <span class="p">):</span>
+<a id="__codelineno-0-373" name="__codelineno-0-373"></a>                    <span class="n">found</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+<a id="__codelineno-0-374" name="__codelineno-0-374"></a>        <span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-0-375" name="__codelineno-0-375"></a>            <span class="c1"># Always release the multidim handle, even on an unexpected error.</span>
+<a id="__codelineno-0-376" name="__codelineno-0-376"></a>            <span class="k">del</span> <span class="n">root</span><span class="p">,</span> <span class="n">dataset</span>
+<a id="__codelineno-0-377" name="__codelineno-0-377"></a>    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">found</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -5002,15 +5030,7 @@ see <code>_validate_chunks</code>).</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/sensors/readers/fci_l1c.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-513">513</a></span>
-<span class="normal"><a href="#__codelineno-0-514">514</a></span>
-<span class="normal"><a href="#__codelineno-0-515">515</a></span>
-<span class="normal"><a href="#__codelineno-0-516">516</a></span>
-<span class="normal"><a href="#__codelineno-0-517">517</a></span>
-<span class="normal"><a href="#__codelineno-0-518">518</a></span>
-<span class="normal"><a href="#__codelineno-0-519">519</a></span>
-<span class="normal"><a href="#__codelineno-0-520">520</a></span>
-<span class="normal"><a href="#__codelineno-0-521">521</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-521">521</a></span>
 <span class="normal"><a href="#__codelineno-0-522">522</a></span>
 <span class="normal"><a href="#__codelineno-0-523">523</a></span>
 <span class="normal"><a href="#__codelineno-0-524">524</a></span>
@@ -5074,79 +5094,87 @@ see <code>_validate_chunks</code>).</p>
 <span class="normal"><a href="#__codelineno-0-582">582</a></span>
 <span class="normal"><a href="#__codelineno-0-583">583</a></span>
 <span class="normal"><a href="#__codelineno-0-584">584</a></span>
-<span class="normal"><a href="#__codelineno-0-585">585</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-513" name="__codelineno-0-513"></a><span class="k">def</span><span class="w"> </span><span class="nf">read_fci_l1c</span><span class="p">(</span>
-<a id="__codelineno-0-514" name="__codelineno-0-514"></a>    <span class="n">paths</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-515" name="__codelineno-0-515"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-516" name="__codelineno-0-516"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-517" name="__codelineno-0-517"></a>    <span class="n">channels</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-518" name="__codelineno-0-518"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-0-519" name="__codelineno-0-519"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
-<a id="__codelineno-0-520" name="__codelineno-0-520"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-521" name="__codelineno-0-521"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-522" name="__codelineno-0-522"></a><span class="w">    </span><span class="sd">"""Read one or several channels across a set of real FCI L1C FDHSI chunks.</span>
-<a id="__codelineno-0-523" name="__codelineno-0-523"></a>
-<a id="__codelineno-0-524" name="__codelineno-0-524"></a><span class="sd">    Decodes each chunk once for the whole requested channel set</span>
-<a id="__codelineno-0-525" name="__codelineno-0-525"></a><span class="sd">    (`read_fci_l1c_chunks` opens the chunk's structure a single time), drops chunks</span>
-<a id="__codelineno-0-526" name="__codelineno-0-526"></a><span class="sd">    without a channel's radiance (e.g. `CHK-TRAIL`), then for each channel orders</span>
-<a id="__codelineno-0-527" name="__codelineno-0-527"></a><span class="sd">    the chunks north -&gt; south by their geotransform Y origin, checks they are</span>
-<a id="__codelineno-0-528" name="__codelineno-0-528"></a><span class="sd">    vertically contiguous (and share a grid), stitches the radiance, and calibrates</span>
-<a id="__codelineno-0-529" name="__codelineno-0-529"></a><span class="sd">    it with the **per-granule** coefficients (reflectance for a solar channel,</span>
-<a id="__codelineno-0-530" name="__codelineno-0-530"></a><span class="sd">    brightness temperature for a thermal one). Each result is a geolocated pyramids</span>
-<a id="__codelineno-0-531" name="__codelineno-0-531"></a><span class="sd">    `Dataset` on the granule's geostationary grid (metre geotransform reconstructed</span>
-<a id="__codelineno-0-532" name="__codelineno-0-532"></a><span class="sd">    from the angular grid and the CRS satellite height).</span>
-<a id="__codelineno-0-533" name="__codelineno-0-533"></a>
-<a id="__codelineno-0-534" name="__codelineno-0-534"></a><span class="sd">    Pass exactly one of `channel` (returns a `Dataset`) or `channels` (returns a</span>
-<a id="__codelineno-0-535" name="__codelineno-0-535"></a><span class="sd">    `dict[str, Dataset]`); `read_fci_l1c(paths, "ir_105")` is unchanged.</span>
-<a id="__codelineno-0-536" name="__codelineno-0-536"></a>
-<a id="__codelineno-0-537" name="__codelineno-0-537"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-538" name="__codelineno-0-538"></a><span class="sd">        paths: Iterable of FCI L1C FDHSI chunk file paths (any order; trailer /</span>
-<a id="__codelineno-0-539" name="__codelineno-0-539"></a><span class="sd">            non-imagery chunks are skipped).</span>
-<a id="__codelineno-0-540" name="__codelineno-0-540"></a><span class="sd">        channel: A single channel identifier (e.g. `"ir_105"`, `"vis_06"`) for a</span>
-<a id="__codelineno-0-541" name="__codelineno-0-541"></a><span class="sd">            `Dataset` result; mutually exclusive with `channels`.</span>
-<a id="__codelineno-0-542" name="__codelineno-0-542"></a><span class="sd">        channels: A sequence of channel identifiers for a `dict[str, Dataset]`</span>
-<a id="__codelineno-0-543" name="__codelineno-0-543"></a><span class="sd">            result (each chunk opened once for the whole set); mutually exclusive</span>
-<a id="__codelineno-0-544" name="__codelineno-0-544"></a><span class="sd">            with `channel`.</span>
-<a id="__codelineno-0-545" name="__codelineno-0-545"></a><span class="sd">        calibrate: When `True` (default), calibrate to reflectance / brightness</span>
-<a id="__codelineno-0-546" name="__codelineno-0-546"></a><span class="sd">            temperature; when `False`, return the stitched raw radiance.</span>
-<a id="__codelineno-0-547" name="__codelineno-0-547"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
-<a id="__codelineno-0-548" name="__codelineno-0-548"></a><span class="sd">            The default `1.0` leaves reflectance up to ~3.4% off (`d` ranges</span>
-<a id="__codelineno-0-549" name="__codelineno-0-549"></a><span class="sd">            ~0.983-1.017 AU over the year); pass the granule's `d` for absolute</span>
-<a id="__codelineno-0-550" name="__codelineno-0-550"></a><span class="sd">            accuracy.</span>
-<a id="__codelineno-0-551" name="__codelineno-0-551"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle</span>
-<a id="__codelineno-0-552" name="__codelineno-0-552"></a><span class="sd">            correction, or `None`.</span>
-<a id="__codelineno-0-553" name="__codelineno-0-553"></a>
-<a id="__codelineno-0-554" name="__codelineno-0-554"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-555" name="__codelineno-0-555"></a><span class="sd">        A pyramids `Dataset` (for `channel`) or a `dict[str, Dataset]` keyed by</span>
-<a id="__codelineno-0-556" name="__codelineno-0-556"></a><span class="sd">        channel (for `channels`) of the calibrated (or raw) channel(s) on the</span>
-<a id="__codelineno-0-557" name="__codelineno-0-557"></a><span class="sd">        stitched geostationary grid, with NaN nodata and the geostationary CRS.</span>
-<a id="__codelineno-0-558" name="__codelineno-0-558"></a>
-<a id="__codelineno-0-559" name="__codelineno-0-559"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-560" name="__codelineno-0-560"></a><span class="sd">        ReaderError: When neither / both of `channel` / `channels` are given, when</span>
-<a id="__codelineno-0-561" name="__codelineno-0-561"></a><span class="sd">            no chunk carries a requested channel, or the chunks are inconsistent</span>
-<a id="__codelineno-0-562" name="__codelineno-0-562"></a><span class="sd">            (mixed CRS / cell size / column count, or not vertically contiguous —</span>
-<a id="__codelineno-0-563" name="__codelineno-0-563"></a><span class="sd">            see `_validate_chunks`).</span>
-<a id="__codelineno-0-564" name="__codelineno-0-564"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
-<a id="__codelineno-0-565" name="__codelineno-0-565"></a><span class="sd">        UnknownSensorError: When a channel is not in the registry.</span>
-<a id="__codelineno-0-566" name="__codelineno-0-566"></a><span class="sd">    """</span>
-<a id="__codelineno-0-567" name="__codelineno-0-567"></a>    <span class="n">requested</span><span class="p">,</span> <span class="n">single</span> <span class="o">=</span> <span class="n">resolve_channels</span><span class="p">(</span><span class="n">channel</span><span class="p">,</span> <span class="n">channels</span><span class="p">,</span> <span class="s2">"read_fci_l1c"</span><span class="p">)</span>
-<a id="__codelineno-0-568" name="__codelineno-0-568"></a>
-<a id="__codelineno-0-569" name="__codelineno-0-569"></a>    <span class="n">per_channel</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">requested</span><span class="p">}</span>
-<a id="__codelineno-0-570" name="__codelineno-0-570"></a>    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
-<a id="__codelineno-0-571" name="__codelineno-0-571"></a>        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">read_fci_l1c_chunks</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">requested</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-572" name="__codelineno-0-572"></a>            <span class="k">if</span> <span class="n">record</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-573" name="__codelineno-0-573"></a>                <span class="n">per_channel</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
-<a id="__codelineno-0-574" name="__codelineno-0-574"></a>
-<a id="__codelineno-0-575" name="__codelineno-0-575"></a>    <span class="n">results</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-0-576" name="__codelineno-0-576"></a>        <span class="n">name</span><span class="p">:</span> <span class="n">_assemble_channel</span><span class="p">(</span>
-<a id="__codelineno-0-577" name="__codelineno-0-577"></a>            <span class="n">per_channel</span><span class="p">[</span><span class="n">name</span><span class="p">],</span>
-<a id="__codelineno-0-578" name="__codelineno-0-578"></a>            <span class="n">name</span><span class="p">,</span>
-<a id="__codelineno-0-579" name="__codelineno-0-579"></a>            <span class="n">calibrate</span><span class="o">=</span><span class="n">calibrate</span><span class="p">,</span>
-<a id="__codelineno-0-580" name="__codelineno-0-580"></a>            <span class="n">sun_earth_distance</span><span class="o">=</span><span class="n">sun_earth_distance</span><span class="p">,</span>
-<a id="__codelineno-0-581" name="__codelineno-0-581"></a>            <span class="n">cos_sza</span><span class="o">=</span><span class="n">cos_sza</span><span class="p">,</span>
-<a id="__codelineno-0-582" name="__codelineno-0-582"></a>        <span class="p">)</span>
-<a id="__codelineno-0-583" name="__codelineno-0-583"></a>        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">requested</span>
-<a id="__codelineno-0-584" name="__codelineno-0-584"></a>    <span class="p">}</span>
-<a id="__codelineno-0-585" name="__codelineno-0-585"></a>    <span class="k">return</span> <span class="n">results</span><span class="p">[</span><span class="n">requested</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="k">if</span> <span class="n">single</span> <span class="k">else</span> <span class="n">results</span>
+<span class="normal"><a href="#__codelineno-0-585">585</a></span>
+<span class="normal"><a href="#__codelineno-0-586">586</a></span>
+<span class="normal"><a href="#__codelineno-0-587">587</a></span>
+<span class="normal"><a href="#__codelineno-0-588">588</a></span>
+<span class="normal"><a href="#__codelineno-0-589">589</a></span>
+<span class="normal"><a href="#__codelineno-0-590">590</a></span>
+<span class="normal"><a href="#__codelineno-0-591">591</a></span>
+<span class="normal"><a href="#__codelineno-0-592">592</a></span>
+<span class="normal"><a href="#__codelineno-0-593">593</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-521" name="__codelineno-0-521"></a><span class="k">def</span><span class="w"> </span><span class="nf">read_fci_l1c</span><span class="p">(</span>
+<a id="__codelineno-0-522" name="__codelineno-0-522"></a>    <span class="n">paths</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-523" name="__codelineno-0-523"></a>    <span class="n">channel</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-524" name="__codelineno-0-524"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-525" name="__codelineno-0-525"></a>    <span class="n">channels</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-526" name="__codelineno-0-526"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-527" name="__codelineno-0-527"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+<a id="__codelineno-0-528" name="__codelineno-0-528"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-529" name="__codelineno-0-529"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-530" name="__codelineno-0-530"></a><span class="w">    </span><span class="sd">"""Read one or several channels across a set of real FCI L1C FDHSI chunks.</span>
+<a id="__codelineno-0-531" name="__codelineno-0-531"></a>
+<a id="__codelineno-0-532" name="__codelineno-0-532"></a><span class="sd">    Decodes each chunk once for the whole requested channel set</span>
+<a id="__codelineno-0-533" name="__codelineno-0-533"></a><span class="sd">    (`read_fci_l1c_chunks` opens the chunk's structure a single time), drops chunks</span>
+<a id="__codelineno-0-534" name="__codelineno-0-534"></a><span class="sd">    without a channel's radiance (e.g. `CHK-TRAIL`), then for each channel orders</span>
+<a id="__codelineno-0-535" name="__codelineno-0-535"></a><span class="sd">    the chunks north -&gt; south by their geotransform Y origin, checks they are</span>
+<a id="__codelineno-0-536" name="__codelineno-0-536"></a><span class="sd">    vertically contiguous (and share a grid), stitches the radiance, and calibrates</span>
+<a id="__codelineno-0-537" name="__codelineno-0-537"></a><span class="sd">    it with the **per-granule** coefficients (reflectance for a solar channel,</span>
+<a id="__codelineno-0-538" name="__codelineno-0-538"></a><span class="sd">    brightness temperature for a thermal one). Each result is a geolocated pyramids</span>
+<a id="__codelineno-0-539" name="__codelineno-0-539"></a><span class="sd">    `Dataset` on the granule's geostationary grid (metre geotransform reconstructed</span>
+<a id="__codelineno-0-540" name="__codelineno-0-540"></a><span class="sd">    from the angular grid and the CRS satellite height).</span>
+<a id="__codelineno-0-541" name="__codelineno-0-541"></a>
+<a id="__codelineno-0-542" name="__codelineno-0-542"></a><span class="sd">    Pass exactly one of `channel` (returns a `Dataset`) or `channels` (returns a</span>
+<a id="__codelineno-0-543" name="__codelineno-0-543"></a><span class="sd">    `dict[str, Dataset]`); `read_fci_l1c(paths, "ir_105")` is unchanged.</span>
+<a id="__codelineno-0-544" name="__codelineno-0-544"></a>
+<a id="__codelineno-0-545" name="__codelineno-0-545"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-546" name="__codelineno-0-546"></a><span class="sd">        paths: Iterable of FCI L1C FDHSI chunk file paths (any order; trailer /</span>
+<a id="__codelineno-0-547" name="__codelineno-0-547"></a><span class="sd">            non-imagery chunks are skipped).</span>
+<a id="__codelineno-0-548" name="__codelineno-0-548"></a><span class="sd">        channel: A single channel identifier (e.g. `"ir_105"`, `"vis_06"`) for a</span>
+<a id="__codelineno-0-549" name="__codelineno-0-549"></a><span class="sd">            `Dataset` result; mutually exclusive with `channels`.</span>
+<a id="__codelineno-0-550" name="__codelineno-0-550"></a><span class="sd">        channels: A sequence of channel identifiers for a `dict[str, Dataset]`</span>
+<a id="__codelineno-0-551" name="__codelineno-0-551"></a><span class="sd">            result (each chunk opened once for the whole set); mutually exclusive</span>
+<a id="__codelineno-0-552" name="__codelineno-0-552"></a><span class="sd">            with `channel`.</span>
+<a id="__codelineno-0-553" name="__codelineno-0-553"></a><span class="sd">        calibrate: When `True` (default), calibrate to reflectance / brightness</span>
+<a id="__codelineno-0-554" name="__codelineno-0-554"></a><span class="sd">            temperature; when `False`, return the stitched raw radiance.</span>
+<a id="__codelineno-0-555" name="__codelineno-0-555"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.</span>
+<a id="__codelineno-0-556" name="__codelineno-0-556"></a><span class="sd">            The default `1.0` leaves reflectance up to ~3.4% off (`d` ranges</span>
+<a id="__codelineno-0-557" name="__codelineno-0-557"></a><span class="sd">            ~0.983-1.017 AU over the year); pass the granule's `d` for absolute</span>
+<a id="__codelineno-0-558" name="__codelineno-0-558"></a><span class="sd">            accuracy.</span>
+<a id="__codelineno-0-559" name="__codelineno-0-559"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle</span>
+<a id="__codelineno-0-560" name="__codelineno-0-560"></a><span class="sd">            correction, or `None`.</span>
+<a id="__codelineno-0-561" name="__codelineno-0-561"></a>
+<a id="__codelineno-0-562" name="__codelineno-0-562"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-563" name="__codelineno-0-563"></a><span class="sd">        A pyramids `Dataset` (for `channel`) or a `dict[str, Dataset]` keyed by</span>
+<a id="__codelineno-0-564" name="__codelineno-0-564"></a><span class="sd">        channel (for `channels`) of the calibrated (or raw) channel(s) on the</span>
+<a id="__codelineno-0-565" name="__codelineno-0-565"></a><span class="sd">        stitched geostationary grid, with NaN nodata and the geostationary CRS.</span>
+<a id="__codelineno-0-566" name="__codelineno-0-566"></a>
+<a id="__codelineno-0-567" name="__codelineno-0-567"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-568" name="__codelineno-0-568"></a><span class="sd">        ReaderError: When neither / both of `channel` / `channels` are given, when</span>
+<a id="__codelineno-0-569" name="__codelineno-0-569"></a><span class="sd">            no chunk carries a requested channel, or the chunks are inconsistent</span>
+<a id="__codelineno-0-570" name="__codelineno-0-570"></a><span class="sd">            (mixed CRS / cell size / column count, or not vertically contiguous —</span>
+<a id="__codelineno-0-571" name="__codelineno-0-571"></a><span class="sd">            see `_validate_chunks`).</span>
+<a id="__codelineno-0-572" name="__codelineno-0-572"></a><span class="sd">        CalibrationError: When a channel lacks the constants its kind needs.</span>
+<a id="__codelineno-0-573" name="__codelineno-0-573"></a><span class="sd">        UnknownSensorError: When a channel is not in the registry.</span>
+<a id="__codelineno-0-574" name="__codelineno-0-574"></a><span class="sd">    """</span>
+<a id="__codelineno-0-575" name="__codelineno-0-575"></a>    <span class="n">requested</span><span class="p">,</span> <span class="n">single</span> <span class="o">=</span> <span class="n">resolve_channels</span><span class="p">(</span><span class="n">channel</span><span class="p">,</span> <span class="n">channels</span><span class="p">,</span> <span class="s2">"read_fci_l1c"</span><span class="p">)</span>
+<a id="__codelineno-0-576" name="__codelineno-0-576"></a>
+<a id="__codelineno-0-577" name="__codelineno-0-577"></a>    <span class="n">per_channel</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">requested</span><span class="p">}</span>
+<a id="__codelineno-0-578" name="__codelineno-0-578"></a>    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+<a id="__codelineno-0-579" name="__codelineno-0-579"></a>        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">read_fci_l1c_chunks</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">requested</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-580" name="__codelineno-0-580"></a>            <span class="k">if</span> <span class="n">record</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-581" name="__codelineno-0-581"></a>                <span class="n">per_channel</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+<a id="__codelineno-0-582" name="__codelineno-0-582"></a>
+<a id="__codelineno-0-583" name="__codelineno-0-583"></a>    <span class="n">results</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-584" name="__codelineno-0-584"></a>        <span class="n">name</span><span class="p">:</span> <span class="n">_assemble_channel</span><span class="p">(</span>
+<a id="__codelineno-0-585" name="__codelineno-0-585"></a>            <span class="n">per_channel</span><span class="p">[</span><span class="n">name</span><span class="p">],</span>
+<a id="__codelineno-0-586" name="__codelineno-0-586"></a>            <span class="n">name</span><span class="p">,</span>
+<a id="__codelineno-0-587" name="__codelineno-0-587"></a>            <span class="n">calibrate</span><span class="o">=</span><span class="n">calibrate</span><span class="p">,</span>
+<a id="__codelineno-0-588" name="__codelineno-0-588"></a>            <span class="n">sun_earth_distance</span><span class="o">=</span><span class="n">sun_earth_distance</span><span class="p">,</span>
+<a id="__codelineno-0-589" name="__codelineno-0-589"></a>            <span class="n">cos_sza</span><span class="o">=</span><span class="n">cos_sza</span><span class="p">,</span>
+<a id="__codelineno-0-590" name="__codelineno-0-590"></a>        <span class="p">)</span>
+<a id="__codelineno-0-591" name="__codelineno-0-591"></a>        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">requested</span>
+<a id="__codelineno-0-592" name="__codelineno-0-592"></a>    <span class="p">}</span>
+<a id="__codelineno-0-593" name="__codelineno-0-593"></a>    <span class="k">return</span> <span class="n">results</span><span class="p">[</span><span class="n">requested</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="k">if</span> <span class="n">single</span> <span class="k">else</span> <span class="n">results</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
