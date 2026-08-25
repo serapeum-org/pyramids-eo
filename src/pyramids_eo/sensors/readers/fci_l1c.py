@@ -352,21 +352,28 @@ def available_channels(chunks: Any) -> list[str]:
     for path in paths:
         dataset, root = _open_root(path)
         try:
-            data = root.OpenGroup("data")
-        except RuntimeError:
-            data = None
-        if data is not None:
+            try:
+                data = root.OpenGroup("data")
+            except RuntimeError:
+                data = None
+            if data is None:  # no /data group (e.g. a trailer / malformed chunk)
+                continue
             for name in data.GetGroupNames():
+                # Handle both GDAL modes: OpenGroup raises (exceptions on) or
+                # returns None (exceptions off) when a group is absent.
                 try:
-                    measured = data.OpenGroup(name).OpenGroup("measured")
+                    channel_group = data.OpenGroup(name)
+                    measured = channel_group.OpenGroup("measured") if channel_group else None
                 except RuntimeError:
-                    continue
+                    measured = None
                 if (
                     measured is not None
                     and "effective_radiance" in measured.GetMDArrayNames()
                 ):
                     found.add(name)
-        del root, dataset
+        finally:
+            # Always release the multidim handle, even on an unexpected error.
+            del root, dataset
     return sorted(found)
 
 
@@ -480,11 +487,12 @@ def _assemble_channel(
     # Order north -> south by the geotransform Y origin — the geostationary grid,
     # NOT the row index, is the geolocation source. (FCI's start_position_row runs
     # the opposite way to the geospatial Y, so ordering by it would flip the scene;
-    # start/end_position_row are kept on the record as metadata only.)
-    records.sort(key=lambda chunk: chunk["geotransform"][3], reverse=True)
-    _validate_chunks(records)
+    # start/end_position_row are kept on the record as metadata only.) Sort into a
+    # new list rather than mutating the caller's.
+    ordered = sorted(records, key=lambda chunk: chunk["geotransform"][3], reverse=True)
+    _validate_chunks(ordered)
 
-    radiance = np.concatenate([chunk["radiance"] for chunk in records], axis=0)
+    radiance = np.concatenate([chunk["radiance"] for chunk in ordered], axis=0)
     data = (
         calibrate_channel(
             radiance,
@@ -492,7 +500,7 @@ def _assemble_channel(
             "fci",
             sun_earth_distance,
             cos_sza,
-            coeffs=records[0]["coeffs"],
+            coeffs=ordered[0]["coeffs"],
         )
         if calibrate
         else radiance
@@ -500,7 +508,7 @@ def _assemble_channel(
 
     from pyramids.dataset import Dataset
 
-    top = records[0]
+    top = ordered[0]
     height = _satellite_height(top["crs"])
     # The granule's geotransform is in geostationary radians; scale it by the
     # satellite height to get the metre grid the geostationary CRS expects.

@@ -43,6 +43,11 @@ def resolve_channels(
         raise ReaderError(f"{reader}: pass exactly one of `channel` or `channels`")
     if channels is None:
         return [channel], True  # type: ignore[list-item]
+    if isinstance(channels, (str, bytes)):
+        raise ReaderError(
+            f"{reader}: `channels` must be a sequence of channel names, not a single "
+            f"string; use `channel=` for one channel"
+        )
     requested = list(channels)
     if not requested:
         raise ReaderError(f"{reader}: `channels` is empty")

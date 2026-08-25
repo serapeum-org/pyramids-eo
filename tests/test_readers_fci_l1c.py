@@ -546,6 +546,22 @@ class TestReadFciL1c:
         with pytest.raises(ReaderError, match="exactly one"):
             read_fci_l1c(["a.nc"], "ir_105", channels=["ir_105"])
 
+    def test_channels_carry_their_own_data(self, monkeypatch):
+        """Each dict entry carries its own channel's radiance (no cross-channel mix-up)."""
+        records = {
+            "ir_105": self._chunk(np.full((2, 3), 10.0), 0.0),
+            "vis_06": self._chunk(np.full((2, 3), 20.0), 0.0),
+        }
+        monkeypatch.setattr(
+            fci_l1c,
+            "read_fci_l1c_chunks",
+            lambda p, channels: {ch: records[ch] for ch in channels},
+        )
+        monkeypatch.setattr(fci_l1c, "_satellite_height", lambda wkt: 1.0e5)
+        out = read_fci_l1c(["a.nc"], channels=["ir_105", "vis_06"], calibrate=False)
+        assert np.allclose(out["ir_105"].read_array(), 10.0), "ir_105 keeps its own data"
+        assert np.allclose(out["vis_06"].read_array(), 20.0), "vis_06 keeps its own data"
+
 
 class TestResolveChannels:
     """`resolve_channels` normalises the channel / channels arguments."""
@@ -575,6 +591,11 @@ class TestResolveChannels:
         """An empty `channels` sequence is an error."""
         with pytest.raises(ReaderError, match="empty"):
             resolve_channels(None, [], "read_fci")
+
+    def test_bare_string_channels_raises(self):
+        """A bare string for `channels` is rejected, not split char-by-char."""
+        with pytest.raises(ReaderError, match="sequence of channel names"):
+            resolve_channels(None, "ir_105", "read_fci")
 
 
 class TestReadFciL1cChunks:
@@ -667,6 +688,23 @@ class TestAvailableChannels:
 
         monkeypatch.setattr(fci_l1c, "_open_root", lambda p: (object(), _EmptyRoot()))
         assert available_channels("trailer.nc") == [], "no data group -> no channels"
+
+    def test_none_channel_group_is_skipped(self, monkeypatch):
+        """With GDAL exceptions off a None channel group is skipped, not an error."""
+
+        class _NoneData:
+            def GetGroupNames(self):
+                return ["ir_105"]
+
+            def OpenGroup(self, name):
+                return None  # exceptions-disabled: a missing subgroup returns None
+
+        class _Root:
+            def OpenGroup(self, name):
+                return _NoneData()
+
+        monkeypatch.setattr(fci_l1c, "_open_root", lambda p: (object(), _Root()))
+        assert available_channels("f.nc") == [], "a None group must not raise"
 
 
 @pytest.mark.live
