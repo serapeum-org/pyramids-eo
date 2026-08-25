@@ -559,8 +559,12 @@ class TestReadFciL1c:
         )
         monkeypatch.setattr(fci_l1c, "_satellite_height", lambda wkt: 1.0e5)
         out = read_fci_l1c(["a.nc"], channels=["ir_105", "vis_06"], calibrate=False)
-        assert np.allclose(out["ir_105"].read_array(), 10.0), "ir_105 keeps its own data"
-        assert np.allclose(out["vis_06"].read_array(), 20.0), "vis_06 keeps its own data"
+        assert np.allclose(out["ir_105"].read_array(), 10.0), (
+            "ir_105 keeps its own data"
+        )
+        assert np.allclose(out["vis_06"].read_array(), 20.0), (
+            "vis_06 keeps its own data"
+        )
 
 
 class TestResolveChannels:
