@@ -59,6 +59,39 @@ class TestReadFci:
         expected = radiance_to_reflectance(radiance, ch.solar_irradiance)
         assert np.allclose(out.read_array(), expected), "reflectance mismatch"
 
+    def test_channels_returns_dict(self):
+        """`channels=[...]` returns a dict with one calibrated Dataset per channel."""
+        radiance = np.full((2, 2), 80.0)
+        out = read_fci([_chunk(radiance)], channels=["ir_105", "vis_06"])
+        assert isinstance(out, dict), f"expected a dict, got {type(out)}"
+        assert set(out) == {"ir_105", "vis_06"}, "one entry per requested channel"
+        ch = _sensors.get_sensor("fci").get_channel("ir_105")
+        assert np.allclose(
+            out["ir_105"].read_array(),
+            radiance_to_brightness_temperature(
+                radiance, ch.central_wavenumber_cm1, ch.alpha, ch.beta
+            ),
+        ), "ir_105 entry should be brightness temperature"
+
+    def test_channels_dict_equals_single(self):
+        """A dict entry equals the single-channel result for that channel."""
+        radiance = np.full((2, 2), 80.0)
+        single = read_fci([_chunk(radiance)], "ir_105")
+        multi = read_fci([_chunk(radiance)], channels=["ir_105"])
+        assert np.allclose(multi["ir_105"].read_array(), single.read_array()), (
+            "channels=[...] must match calling per channel"
+        )
+
+    def test_neither_channel_nor_channels_raises(self):
+        """Passing neither `channel` nor `channels` is rejected."""
+        with pytest.raises(ReaderError, match="exactly one"):
+            read_fci([_chunk(np.ones((2, 2)))])
+
+    def test_both_channel_and_channels_raises(self):
+        """Passing both `channel` and `channels` is rejected."""
+        with pytest.raises(ReaderError, match="exactly one"):
+            read_fci([_chunk(np.ones((2, 2)))], "ir_105", channels=["ir_105"])
+
     def test_calibrate_false_returns_raw(self):
         """With calibrate=False the stitched raw radiance is returned."""
         radiance = np.full((2, 2), 42.0)

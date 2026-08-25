@@ -10,6 +10,7 @@ import pytest
 
 from pyramids_eo.errors import ReaderError
 from pyramids_eo.sensors.readers import fci_l1c
+from pyramids_eo.sensors.readers._common import resolve_channels
 from pyramids_eo.sensors.readers.fci_l1c import (
     _granule_coeffs,
     _measured_group,
@@ -17,8 +18,10 @@ from pyramids_eo.sensors.readers.fci_l1c import (
     _scalar,
     _unpack_radiance,
     _valid_bounds,
+    available_channels,
     read_fci_l1c,
     read_fci_l1c_chunk,
+    read_fci_l1c_chunks,
 )
 from pyramids_eo.sensors.registry import radiance_to_brightness_temperature
 
@@ -395,7 +398,14 @@ class TestReadFciL1c:
         }
 
     def _patch(self, monkeypatch, mapping):
-        monkeypatch.setattr(fci_l1c, "read_fci_l1c_chunk", lambda p, c: mapping[p])
+        # read_fci_l1c decodes each chunk once for the whole channel set via
+        # read_fci_l1c_chunks -> {channel: record}; the fake returns the mapped
+        # record (or None) for each requested channel.
+        monkeypatch.setattr(
+            fci_l1c,
+            "read_fci_l1c_chunks",
+            lambda p, channels: {ch: mapping[p] for ch in channels},
+        )
         monkeypatch.setattr(fci_l1c, "_satellite_height", lambda wkt: 1.0e5)
 
     def test_orders_by_geotransform_not_row_index(self, monkeypatch):
@@ -507,6 +517,157 @@ class TestReadFciL1c:
         with pytest.raises(ReaderError, match="north-up"):
             read_fci_l1c(["a.nc"], "ir_105")
 
+    def test_channels_returns_dict(self, monkeypatch):
+        """`channels=[...]` returns a dict with one Dataset per requested channel."""
+        chunk = self._chunk(np.full((2, 3), 80.0), 0.0)
+        self._patch(monkeypatch, {"a.nc": chunk})
+        out = read_fci_l1c(["a.nc"], channels=["ir_105", "vis_06"])
+        assert isinstance(out, dict), f"expected a dict, got {type(out)}"
+        assert set(out) == {"ir_105", "vis_06"}, "one entry per requested channel"
+        assert out["ir_105"].read_array().shape == (2, 3), "each entry is a Dataset"
+
+    def test_channels_dict_equals_single(self, monkeypatch):
+        """A dict entry equals the single-channel result for that channel."""
+        chunk = self._chunk(np.full((2, 3), 80.0), 0.0)
+        self._patch(monkeypatch, {"a.nc": chunk})
+        single = read_fci_l1c(["a.nc"], "ir_105")
+        multi = read_fci_l1c(["a.nc"], channels=["ir_105"])
+        assert np.allclose(multi["ir_105"].read_array(), single.read_array()), (
+            "channels=[...] must match calling per channel"
+        )
+
+    def test_neither_channel_nor_channels_raises(self):
+        """Passing neither `channel` nor `channels` is rejected."""
+        with pytest.raises(ReaderError, match="exactly one"):
+            read_fci_l1c(["a.nc"])
+
+    def test_both_channel_and_channels_raises(self):
+        """Passing both `channel` and `channels` is rejected."""
+        with pytest.raises(ReaderError, match="exactly one"):
+            read_fci_l1c(["a.nc"], "ir_105", channels=["ir_105"])
+
+
+class TestResolveChannels:
+    """`resolve_channels` normalises the channel / channels arguments."""
+
+    def test_single_channel(self):
+        """A lone `channel` returns a one-item list flagged single."""
+        assert resolve_channels("ir_105", None, "read_fci") == (["ir_105"], True)
+
+    def test_channels_sequence(self):
+        """A `channels` sequence returns the list flagged not-single."""
+        assert resolve_channels(None, ["ir_105", "vis_06"], "read_fci") == (
+            ["ir_105", "vis_06"],
+            False,
+        )
+
+    def test_neither_raises(self):
+        """Neither argument is an error."""
+        with pytest.raises(ReaderError, match="exactly one"):
+            resolve_channels(None, None, "read_fci")
+
+    def test_both_raises(self):
+        """Both arguments together are an error."""
+        with pytest.raises(ReaderError, match="exactly one"):
+            resolve_channels("ir_105", ["ir_105"], "read_fci")
+
+    def test_empty_channels_raises(self):
+        """An empty `channels` sequence is an error."""
+        with pytest.raises(ReaderError, match="empty"):
+            resolve_channels(None, [], "read_fci")
+
+
+class TestReadFciL1cChunks:
+    """`read_fci_l1c_chunks` decodes several channels from one chunk open."""
+
+    def test_opens_root_once_for_the_set(self, monkeypatch):
+        """The chunk's multidim root is opened once for the whole channel set."""
+        opens = []
+
+        class _Root:
+            def OpenGroupFromFullname(self, path):
+                if "ir_105" in path:
+                    return _FakeGroup({"effective_radiance": 1})
+                raise RuntimeError("no group")  # vis_06 absent
+
+        def _fake_open_root(path):
+            opens.append(path)
+            return object(), _Root()
+
+        monkeypatch.setattr(fci_l1c, "_open_root", _fake_open_root)
+        monkeypatch.setattr(fci_l1c, "_scalar", lambda g, n: 140.0)
+        monkeypatch.setattr(fci_l1c, "_granule_coeffs", lambda g: _THERMAL)
+        monkeypatch.setattr(
+            fci_l1c, "_unpack_radiance", lambda p, c: (np.ones((2, 2)), (0.1,) * 6, "W")
+        )
+        records = read_fci_l1c_chunks("f.nc", ["ir_105", "vis_06"])
+        assert opens == ["f.nc"], "the root is opened exactly once, not per channel"
+        assert records["ir_105"]["coeffs"] == _THERMAL, "present channel decoded"
+        assert records["vis_06"] is None, "an absent channel maps to None"
+
+    def test_group_without_radiance_is_none(self, monkeypatch):
+        """A channel group lacking effective_radiance maps to None."""
+
+        class _Root:
+            def OpenGroupFromFullname(self, path):
+                return _FakeGroup({}, names=["x"])
+
+        monkeypatch.setattr(fci_l1c, "_open_root", lambda p: (object(), _Root()))
+        assert read_fci_l1c_chunks("f.nc", ["ir_105"]) == {"ir_105": None}
+
+
+class TestAvailableChannels:
+    """`available_channels` lists the channels carrying radiance."""
+
+    class _Measured:
+        def __init__(self, has_radiance):
+            self._names = ["effective_radiance"] if has_radiance else ["x"]
+
+        def GetMDArrayNames(self):
+            return self._names
+
+    class _Channel:
+        def __init__(self, name):
+            self._name = name
+
+        def OpenGroup(self, sub):
+            if self._name == "meta":
+                raise RuntimeError("no measured group")
+            return TestAvailableChannels._Measured(self._name == "ir_105")
+
+    class _Data:
+        def GetGroupNames(self):
+            return ["vis_06", "ir_105", "meta"]
+
+        def OpenGroup(self, name):
+            return TestAvailableChannels._Channel(name)
+
+    class _Root:
+        def OpenGroup(self, name):
+            if name != "data":
+                raise RuntimeError("no data group")
+            return TestAvailableChannels._Data()
+
+    def test_lists_channels_with_radiance(self, monkeypatch):
+        """Only channels whose measured group carries effective_radiance are listed."""
+        monkeypatch.setattr(fci_l1c, "_open_root", lambda p: (object(), self._Root()))
+        assert available_channels("f.nc") == ["ir_105"], "sorted, radiance-only"
+
+    def test_accepts_iterable_and_unions(self, monkeypatch):
+        """A chunk iterable is accepted and the channel sets are unioned."""
+        monkeypatch.setattr(fci_l1c, "_open_root", lambda p: (object(), self._Root()))
+        assert available_channels(["a.nc", "b.nc"]) == ["ir_105"], "union across chunks"
+
+    def test_chunk_without_data_group_is_skipped(self, monkeypatch):
+        """A chunk whose root has no `data` group contributes no channels."""
+
+        class _EmptyRoot:
+            def OpenGroup(self, name):
+                raise RuntimeError("no data group")
+
+        monkeypatch.setattr(fci_l1c, "_open_root", lambda p: (object(), _EmptyRoot()))
+        assert available_channels("trailer.nc") == [], "no data group -> no channels"
+
 
 @pytest.mark.live
 def test_read_fci_l1c_real_granule():
@@ -532,3 +693,28 @@ def test_read_fci_l1c_real_granule():
     )
     assert scene.geotransform[5] < 0, "the stitched grid must be north-up (gt[5] < 0)"
     assert np.isnan(scene.no_data_value[0]), "nodata should be NaN"
+
+
+@pytest.mark.live
+def test_read_fci_l1c_real_granule_multichannel():
+    """Multi-channel decode of real FCI L1C chunks matches the per-channel result.
+
+    Skips unless real FDHSI chunks are provided via `FCI_FIXTURES_DIR`.
+    """
+    fixtures = Path(os.environ.get("FCI_FIXTURES_DIR", "tests/data/fci_l1c"))
+    paths = sorted(fixtures.glob("*.nc"))
+    if len(paths) < 2:
+        pytest.skip("real FCI L1C fixtures not available (set FCI_FIXTURES_DIR)")
+
+    channels = ["vis_06", "ir_105"]
+    available = available_channels(paths)
+    assert set(channels) <= set(available), f"requested channels not in {available}"
+
+    bands = read_fci_l1c(paths, channels=channels)
+    assert set(bands) == set(channels), "one entry per requested channel"
+    for name in channels:
+        single = np.asarray(read_fci_l1c(paths, name).read_array(), dtype=float)
+        got = np.asarray(bands[name].read_array(), dtype=float)
+        assert np.allclose(got, single, equal_nan=True), (
+            f"{name}: channels=[...] must match the per-channel decode"
+        )

@@ -21,12 +21,13 @@ Warning:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
 
 from pyramids_eo.errors import ReaderError
-from pyramids_eo.sensors.readers._common import calibrate_channel
+from pyramids_eo.sensors.readers._common import calibrate_channel, resolve_channels
 
 
 def _default_open_chunk(path: Any, channel: str) -> Any:
@@ -117,8 +118,9 @@ def open_fci_l1c_chunk(
 
 def read_fci(
     chunks: Any,
-    channel: str,
+    channel: str | None = None,
     *,
+    channels: Sequence[str] | None = None,
     sensor: str = "fci",
     calibrate: bool = True,
     sun_earth_distance: float = 1.0,
@@ -126,20 +128,29 @@ def read_fci(
     coeffs: dict[str, Any] | None = None,
     open_chunk: Any = None,
 ) -> Any:
-    """Read one FCI channel across its chunk set into a calibrated `Dataset`.
+    """Read one or several FCI channels across a chunk set into `Dataset`s.
 
-    Orders the chunks north -> south by their top-left latitude (so the caller
-    may pass them in any order), stitches the channel's radiance row-wise,
-    calibrates it to reflectance (solar) or brightness temperature (thermal),
-    and returns a geolocated pyramids `Dataset` carrying the northernmost chunk's
-    CRS + geotransform. The chunks must share a CRS, cell size and column count
-    and be vertically contiguous (validated).
+    For each requested channel, orders the chunks north -> south by their top-left
+    latitude (so the caller may pass them in any order), stitches the radiance
+    row-wise, calibrates it to reflectance (solar) or brightness temperature
+    (thermal), and returns a geolocated pyramids `Dataset` carrying the
+    northernmost chunk's CRS + geotransform. The chunks must share a CRS, cell
+    size and column count and be vertically contiguous (validated per channel,
+    since channels differ in resolution).
+
+    Pass exactly one of `channel` (returns a `Dataset`) or `channels` (returns a
+    `dict[str, Dataset]`); `read_fci(chunks, "ir_105")` is unchanged.
 
     Args:
         chunks: An ordered iterable of chunks, each either a pyramids `Dataset`
             already holding the channel radiance, or a value accepted by
             `open_chunk` (by default a NetCDF path).
-        channel: Channel identifier (e.g. `"ir_105"`, `"vis_06"`).
+        channel: A single channel identifier (e.g. `"ir_105"`, `"vis_06"`) for a
+            `Dataset` result; mutually exclusive with `channels`.
+        channels: A sequence of channel identifiers for a `dict[str, Dataset]`
+            result; mutually exclusive with `channel`. (Each channel is opened via
+            `open_chunk`, whose contract is per-channel; the grid is validated and
+            ordered per channel because channels differ in resolution.)
         sensor: Registry sensor name (default `"fci"`).
         calibrate: When `True` (default), calibrate to a physical quantity; when
             `False`, return the stitched raw radiance.
@@ -153,48 +164,52 @@ def read_fci(
             warning about the FCI layout).
 
     Returns:
-        A pyramids `Dataset` of the calibrated (or raw) channel on the stitched
-        grid.
+        A pyramids `Dataset` (for `channel`) or a `dict[str, Dataset]` keyed by
+        channel (for `channels`) of the calibrated (or raw) channel(s) on the
+        stitched grid.
 
     Raises:
-        ReaderError: When `chunks` is empty.
+        ReaderError: When neither / both of `channel` / `channels` are given, or
+            when `chunks` is empty.
         CalibrationError: When a channel lacks the constants its kind needs.
         UnknownSensorError: When the sensor / channel is not in the registry.
     """
+    requested, single = resolve_channels(channel, channels, "read_fci")
     chunk_list = list(chunks)
     if not chunk_list:
         raise ReaderError("read_fci: no chunks given")
-
     opener = open_chunk or _default_open_chunk
-    datasets = [
-        chunk if hasattr(chunk, "read_array") else opener(chunk, channel)
-        for chunk in chunk_list
-    ]
-    _validate_chunk_grid(datasets)
-
-    # Order the chunks north -> south by their top-left latitude/y so the stitch
-    # and geolocation are correct regardless of the order chunks were passed in
-    # (FCI files are commonly numbered south -> north).
-    ordered = sorted(datasets, key=lambda ds: ds.geotransform[3], reverse=True)
-    radiance = np.concatenate(
-        [np.asarray(ds.read_array(), dtype=float) for ds in ordered], axis=0
-    )
-    data = (
-        calibrate_channel(
-            radiance, channel, sensor, sun_earth_distance, cos_sza, coeffs=coeffs
-        )
-        if calibrate
-        else radiance
-    )
 
     from pyramids.dataset import Dataset
 
-    north = ordered[0]
-    # Calibration can produce NaN (terminator reflectance / non-positive
-    # radiance), so declare NaN as nodata rather than the default -9999.
-    return Dataset.create_from_array(
-        data, geo=north.geotransform, epsg=north.epsg, no_data_value=np.nan
-    )
+    results = {}
+    for name in requested:
+        datasets = [
+            chunk if hasattr(chunk, "read_array") else opener(chunk, name)
+            for chunk in chunk_list
+        ]
+        _validate_chunk_grid(datasets)
+        # Order the chunks north -> south by their top-left latitude/y so the
+        # stitch and geolocation are correct regardless of the order the chunks
+        # were passed in (FCI files are commonly numbered south -> north).
+        ordered = sorted(datasets, key=lambda ds: ds.geotransform[3], reverse=True)
+        radiance = np.concatenate(
+            [np.asarray(ds.read_array(), dtype=float) for ds in ordered], axis=0
+        )
+        data = (
+            calibrate_channel(
+                radiance, name, sensor, sun_earth_distance, cos_sza, coeffs=coeffs
+            )
+            if calibrate
+            else radiance
+        )
+        north = ordered[0]
+        # Calibration can produce NaN (terminator reflectance / non-positive
+        # radiance), so declare NaN as nodata rather than the default -9999.
+        results[name] = Dataset.create_from_array(
+            data, geo=north.geotransform, epsg=north.epsg, no_data_value=np.nan
+        )
+    return results[requested[0]] if single else results
 
 
 def _validate_chunk_grid(datasets: list) -> None:

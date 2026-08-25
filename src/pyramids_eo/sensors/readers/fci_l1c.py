@@ -1,8 +1,11 @@
 """Real MTG-FCI L1C FDHSI granule reader.
 
-`read_fci_l1c` decodes and stitches one channel across the real FCI L1C FDHSI
-chunk files of a repeat cycle. Unlike the generic `read_fci` (which stitches
-already-opened radiance `Dataset`s), this reads the actual granule layout:
+`read_fci_l1c` decodes and stitches one channel — or several in a single pass
+(`channels=[...]` returns a `dict`, opening each chunk once for the whole set) —
+across the real FCI L1C FDHSI chunk files of a repeat cycle, and
+`available_channels` lists which channels a chunk carries. Unlike the generic
+`read_fci` (which stitches already-opened radiance `Dataset`s), this reads the
+actual granule layout:
 
 * the packed `uint16` radiance from the nested group
   `data/<channel>/measured/effective_radiance`, unpacked to physical radiance
@@ -31,16 +34,47 @@ groups and scalar variables — no extra dependency.
 
 from __future__ import annotations
 
+import os
 import re
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
 
 from pyramids_eo.errors import ReaderError
-from pyramids_eo.sensors.readers._common import calibrate_channel
+from pyramids_eo.sensors.readers._common import calibrate_channel, resolve_channels
 
 #: Group holding a channel's measured radiance and per-granule coefficients.
 _MEASURED_GROUP = "/data/{channel}/measured"
+
+
+def _open_root(path: Any) -> tuple[Any, Any]:
+    """Open a chunk as a multidimensional dataset and return `(dataset, root_group)`.
+
+    The owning `Dataset` is returned alongside its root `Group` so the caller can
+    keep it alive while reading (a GDAL child `Group` does not keep its parent
+    dataset alive), then release both.
+
+    Args:
+        path: Path to an FCI L1C FDHSI chunk NetCDF file.
+
+    Returns:
+        A `(dataset, root_group)` pair.
+
+    Raises:
+        ReaderError: When the file cannot be opened.
+    """
+    from osgeo import gdal
+
+    try:
+        dataset = gdal.OpenEx(str(path), gdal.OF_MULTIDIM_RASTER)
+    except RuntimeError as exc:  # GDAL exceptions enabled: unopenable/corrupt file
+        raise ReaderError(f"read_fci_l1c: cannot open {path} ({exc!r})") from exc
+    if dataset is None:  # GDAL exceptions disabled
+        raise ReaderError(f"read_fci_l1c: cannot open {path}")
+    return dataset, dataset.GetRootGroup()
+
+
 #: Upper-bound threshold separating a real band solar irradiance (tens-hundreds)
 #: from the fill sentinel a thermal band carries for it (the netCDF float fill is
 #: ~9.97e36, well above this).
@@ -62,18 +96,9 @@ def _measured_group(path: Any, channel: str) -> tuple[Any, Any]:
         A `(dataset, group)` pair, or `(None, None)` when the file has no such
         group (e.g. the `CHK-TRAIL` trailer).
     """
-    from osgeo import gdal
-
+    dataset, root = _open_root(path)
     try:
-        dataset = gdal.OpenEx(str(path), gdal.OF_MULTIDIM_RASTER)
-    except RuntimeError as exc:  # GDAL exceptions enabled: unopenable/corrupt file
-        raise ReaderError(f"read_fci_l1c: cannot open {path} ({exc!r})") from exc
-    if dataset is None:  # GDAL exceptions disabled
-        raise ReaderError(f"read_fci_l1c: cannot open {path}")
-    try:
-        group = dataset.GetRootGroup().OpenGroupFromFullname(
-            _MEASURED_GROUP.format(channel=channel)
-        )
+        group = root.OpenGroupFromFullname(_MEASURED_GROUP.format(channel=channel))
     except RuntimeError:
         # No such group -> this file does not carry the channel (e.g. CHK-TRAIL).
         return None, None
@@ -249,6 +274,102 @@ def read_fci_l1c_chunk(path: Any, channel: str) -> dict[str, Any] | None:
     }
 
 
+def read_fci_l1c_chunks(
+    path: Any, channels: Sequence[str]
+) -> dict[str, dict[str, Any] | None]:
+    """Decode several channels from one chunk, opening its structure once.
+
+    Opens the chunk's multidimensional dataset a **single** time to read every
+    requested channel's group, per-granule coefficients and row positions (rather
+    than re-opening it once per channel), then reads each present channel's
+    radiance raster. A channel the file does not carry (e.g. on the `CHK-TRAIL`
+    trailer) maps to `None`.
+
+    Args:
+        path: Path to a single FCI L1C FDHSI chunk NetCDF file.
+        channels: The channel identifiers to decode.
+
+    Returns:
+        A `{channel: record | None}` mapping, each record shaped like
+        `read_fci_l1c_chunk`'s.
+    """
+    dataset, root = _open_root(path)
+    structure: dict[str, dict[str, Any] | None] = {}
+    for channel in channels:
+        try:
+            group = root.OpenGroupFromFullname(_MEASURED_GROUP.format(channel=channel))
+        except RuntimeError:
+            group = None
+        if group is None or "effective_radiance" not in group.GetMDArrayNames():
+            structure[channel] = None
+            continue
+        structure[channel] = {
+            "start_row": _scalar(group, "start_position_row"),
+            "end_row": _scalar(group, "end_position_row"),
+            "coeffs": _granule_coeffs(group),
+        }
+    # Release the multidim handle before the per-channel radiance opens, so the
+    # coefficient reads all happen while the owning dataset is alive and only one
+    # handle is held at a time.
+    del root, dataset
+
+    records: dict[str, dict[str, Any] | None] = {}
+    for channel, meta in structure.items():
+        if meta is None:
+            records[channel] = None
+            continue
+        # GDAL's netCDF driver reads the per-channel radiance grid (it applies the
+        # channel's own scale/offset and geolocation, incl. dual-calibration
+        # subtleties), so the radiance raster is read per channel.
+        radiance, geotransform, crs = _unpack_radiance(path, channel)
+        records[channel] = {
+            "radiance": radiance,
+            "start_row": meta["start_row"],
+            "end_row": meta["end_row"],
+            "coeffs": meta["coeffs"],
+            "geotransform": geotransform,
+            "crs": crs,
+        }
+    return records
+
+
+def available_channels(chunks: Any) -> list[str]:
+    """List the VIS/IR channels present across FCI L1C FDHSI chunk file(s).
+
+    Opens each chunk's multidimensional dataset and reports the `data/<channel>`
+    groups that carry an `effective_radiance` array, so a caller can discover the
+    channel names instead of hard-coding them. The union across chunks is returned
+    (a trailer chunk contributes none), sorted.
+
+    Args:
+        chunks: A single chunk path, or an iterable of chunk paths.
+
+    Returns:
+        The sorted channel identifiers available in the chunk(s).
+    """
+    paths = [chunks] if isinstance(chunks, (str, bytes, os.PathLike)) else list(chunks)
+    found: set[str] = set()
+    for path in paths:
+        dataset, root = _open_root(path)
+        try:
+            data = root.OpenGroup("data")
+        except RuntimeError:
+            data = None
+        if data is not None:
+            for name in data.GetGroupNames():
+                try:
+                    measured = data.OpenGroup(name).OpenGroup("measured")
+                except RuntimeError:
+                    continue
+                if (
+                    measured is not None
+                    and "effective_radiance" in measured.GetMDArrayNames()
+                ):
+                    found.add(name)
+        del root, dataset
+    return sorted(found)
+
+
 def _satellite_height(crs_wkt: str) -> float:
     """Extract the geostationary satellite height (metres) from a CRS WKT.
 
@@ -328,29 +449,99 @@ def _validate_chunks(chunks: list) -> None:
             )
 
 
-def read_fci_l1c(
-    paths: Any,
+def _assemble_channel(
+    records: list,
     channel: str,
     *,
+    calibrate: bool,
+    sun_earth_distance: float,
+    cos_sza: Any,
+) -> Any:
+    """Order, validate, stitch and calibrate one channel's chunk records.
+
+    Args:
+        records: The channel's decoded chunk records (from `read_fci_l1c_chunks`),
+            in any order; must be non-empty.
+        channel: Channel identifier (for calibration + errors).
+        calibrate: When `True`, calibrate to reflectance / brightness temperature;
+            when `False`, return the stitched raw radiance.
+        sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.
+        cos_sza: Cosine of the solar zenith angle, or `None`.
+
+    Returns:
+        A geolocated pyramids `Dataset` on the stitched geostationary grid.
+
+    Raises:
+        ReaderError: When `records` is empty, or the chunks are inconsistent.
+    """
+    if not records:
+        raise ReaderError(f"read_fci_l1c: no chunk carries channel {channel!r}")
+
+    # Order north -> south by the geotransform Y origin — the geostationary grid,
+    # NOT the row index, is the geolocation source. (FCI's start_position_row runs
+    # the opposite way to the geospatial Y, so ordering by it would flip the scene;
+    # start/end_position_row are kept on the record as metadata only.)
+    records.sort(key=lambda chunk: chunk["geotransform"][3], reverse=True)
+    _validate_chunks(records)
+
+    radiance = np.concatenate([chunk["radiance"] for chunk in records], axis=0)
+    data = (
+        calibrate_channel(
+            radiance,
+            channel,
+            "fci",
+            sun_earth_distance,
+            cos_sza,
+            coeffs=records[0]["coeffs"],
+        )
+        if calibrate
+        else radiance
+    )
+
+    from pyramids.dataset import Dataset
+
+    top = records[0]
+    height = _satellite_height(top["crs"])
+    # The granule's geotransform is in geostationary radians; scale it by the
+    # satellite height to get the metre grid the geostationary CRS expects.
+    geo = tuple(term * height for term in top["geotransform"])
+    dataset = Dataset.create_from_array(data, geo=geo, epsg=None, no_data_value=np.nan)
+    dataset.crs = top["crs"]
+    return dataset
+
+
+def read_fci_l1c(
+    paths: Any,
+    channel: str | None = None,
+    *,
+    channels: Sequence[str] | None = None,
     calibrate: bool = True,
     sun_earth_distance: float = 1.0,
     cos_sza: Any = None,
 ) -> Any:
-    """Read one channel across a set of real FCI L1C FDHSI chunk files.
+    """Read one or several channels across a set of real FCI L1C FDHSI chunks.
 
-    Decodes each chunk (`read_fci_l1c_chunk`), drops those without the channel's
-    radiance (e.g. `CHK-TRAIL`), orders the rest north -> south by their
-    geotransform Y origin, checks they are vertically contiguous (and share a
-    grid), stitches the radiance, and calibrates it with
-    the **per-granule** coefficients (reflectance for a solar channel, brightness
-    temperature for a thermal one). The result is a geolocated pyramids `Dataset`
-    on the granule's geostationary grid (metre geotransform reconstructed from the
-    angular grid and the CRS satellite height).
+    Decodes each chunk once for the whole requested channel set
+    (`read_fci_l1c_chunks` opens the chunk's structure a single time), drops chunks
+    without a channel's radiance (e.g. `CHK-TRAIL`), then for each channel orders
+    the chunks north -> south by their geotransform Y origin, checks they are
+    vertically contiguous (and share a grid), stitches the radiance, and calibrates
+    it with the **per-granule** coefficients (reflectance for a solar channel,
+    brightness temperature for a thermal one). Each result is a geolocated pyramids
+    `Dataset` on the granule's geostationary grid (metre geotransform reconstructed
+    from the angular grid and the CRS satellite height).
+
+    Pass exactly one of `channel` (returns a `Dataset`) or `channels` (returns a
+    `dict[str, Dataset]`); `read_fci_l1c(paths, "ir_105")` is unchanged.
 
     Args:
         paths: Iterable of FCI L1C FDHSI chunk file paths (any order; trailer /
             non-imagery chunks are skipped).
-        channel: Channel identifier (e.g. `"ir_105"`, `"vis_06"`).
+        channel: A single channel identifier (e.g. `"ir_105"`, `"vis_06"`) for a
+            `Dataset` result; mutually exclusive with `channels`.
+        channels: A sequence of channel identifiers for a `dict[str, Dataset]`
+            result (each chunk opened once for the whole set); mutually exclusive
+            with `channel`.
         calibrate: When `True` (default), calibrate to reflectance / brightness
             temperature; when `False`, return the stitched raw radiance.
         sun_earth_distance: Sun-earth distance (AU) for solar-channel reflectance.
@@ -361,52 +552,34 @@ def read_fci_l1c(
             correction, or `None`.
 
     Returns:
-        A pyramids `Dataset` of the calibrated (or raw) channel on the stitched
-        geostationary grid, with NaN nodata and the granule's geostationary CRS.
+        A pyramids `Dataset` (for `channel`) or a `dict[str, Dataset]` keyed by
+        channel (for `channels`) of the calibrated (or raw) channel(s) on the
+        stitched geostationary grid, with NaN nodata and the geostationary CRS.
 
     Raises:
-        ReaderError: When no chunk carries the channel, or the chunks are
-            inconsistent (mixed CRS / cell size / column count, or not vertically
-            contiguous on the geostationary grid — see `_validate_chunks`).
+        ReaderError: When neither / both of `channel` / `channels` are given, when
+            no chunk carries a requested channel, or the chunks are inconsistent
+            (mixed CRS / cell size / column count, or not vertically contiguous —
+            see `_validate_chunks`).
         CalibrationError: When a channel lacks the constants its kind needs.
-        UnknownSensorError: When the channel is not in the registry.
+        UnknownSensorError: When a channel is not in the registry.
     """
-    chunks = [
-        chunk
-        for chunk in (read_fci_l1c_chunk(path, channel) for path in paths)
-        if chunk is not None
-    ]
-    if not chunks:
-        raise ReaderError(f"read_fci_l1c: no chunk carries channel {channel!r}")
+    requested, single = resolve_channels(channel, channels, "read_fci_l1c")
 
-    # Order north -> south by the geotransform Y origin — the geostationary grid,
-    # NOT the row index, is the geolocation source. (FCI's start_position_row runs
-    # the opposite way to the geospatial Y, so ordering by it would flip the scene;
-    # start/end_position_row are kept on the record as metadata only.)
-    chunks.sort(key=lambda chunk: chunk["geotransform"][3], reverse=True)
-    _validate_chunks(chunks)
+    per_channel: dict[str, list] = {name: [] for name in requested}
+    for path in paths:
+        for name, record in read_fci_l1c_chunks(path, requested).items():
+            if record is not None:
+                per_channel[name].append(record)
 
-    radiance = np.concatenate([chunk["radiance"] for chunk in chunks], axis=0)
-    data = (
-        calibrate_channel(
-            radiance,
-            channel,
-            "fci",
-            sun_earth_distance,
-            cos_sza,
-            coeffs=chunks[0]["coeffs"],
+    results = {
+        name: _assemble_channel(
+            per_channel[name],
+            name,
+            calibrate=calibrate,
+            sun_earth_distance=sun_earth_distance,
+            cos_sza=cos_sza,
         )
-        if calibrate
-        else radiance
-    )
-
-    from pyramids.dataset import Dataset
-
-    top = chunks[0]
-    height = _satellite_height(top["crs"])
-    # The granule's geotransform is in geostationary radians; scale it by the
-    # satellite height to get the metre grid the geostationary CRS expects.
-    geo = tuple(term * height for term in top["geotransform"])
-    dataset = Dataset.create_from_array(data, geo=geo, epsg=None, no_data_value=np.nan)
-    dataset.crs = top["crs"]
-    return dataset
+        for name in requested
+    }
+    return results[requested[0]] if single else results

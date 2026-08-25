@@ -14,6 +14,7 @@ they produce (composites import nothing from here — the dependency runs one wa
 from __future__ import annotations
 
 from pyramids_eo.sensors.readers import (
+    available_channels,
     harmonise,
     open_fci_l1c_chunk,
     parse_seviri_native,
@@ -32,6 +33,7 @@ from pyramids_eo.sensors.registry import (
 __all__ = [
     "Channel",
     "Sensor",
+    "available_channels",
     "get_sensor",
     "harmonise",
     "open_fci_l1c_chunk",

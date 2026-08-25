@@ -5,8 +5,12 @@ Instrument readers that decode L1 formats into calibrated, geolocated pyramids
 the packed radiance from the nested `data/<channel>/measured` groups, reads the
 per-granule calibration coefficients, and stitches the chunks by their
 geostationary geotransform Y origin (validated on real MTI1/Meteosat-12
-granules — see issue #40). `open_fci_l1c_chunk` is the lower-level radiance
-opener for use with the generic `read_fci`.
+granules — see issue #40). Read several channels in one call with
+`channels=[...]`, which returns a `dict[str, Dataset]` and opens each chunk once
+for the whole set (e.g. the red/blue/near-IR bands of a true-colour composite);
+`available_channels(chunks)` lists which channels the chunk set carries.
+`open_fci_l1c_chunk` is the lower-level radiance opener for use with the generic
+`read_fci` (which also accepts `channels=[...]`).
 
 For MSG-SEVIRI Level-1.5 native (`.nat`) granules use `read_seviri`: it decodes
 a VIS/IR channel's 10-bit packed counts, applies the granule's per-channel
