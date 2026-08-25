@@ -280,6 +280,30 @@ class TestDayNightBlendKeepAlpha:
         )
         assert out[-1][0, 0] == 0.0, "undefined-geometry pixel should be uncovered"
 
+    def test_day_only_coverage_from_day_input(self):
+        """In day_only mode the coverage band comes from the day input alone."""
+        out = day_night_blend(
+            np.array([[np.nan, 1.0]]),
+            np.array([[0.0, 0.0]]),
+            np.array([[0.0, 0.0]]),
+            mode="day_only",
+            keep_alpha=True,
+        )
+        assert out[-1][0, 0] == 0.0, "NaN day pixel should be uncovered"
+        assert out[-1][0, 1] == 1.0, "finite day pixel should be covered"
+
+    def test_night_only_coverage_from_night_input(self):
+        """In night_only mode the coverage band comes from the night input alone."""
+        out = day_night_blend(
+            np.array([[0.0, 0.0]]),
+            np.array([[np.nan, 5.0]]),
+            np.array([[180.0, 180.0]]),
+            mode="night_only",
+            keep_alpha=True,
+        )
+        assert out[-1][0, 0] == 0.0, "NaN night pixel should be uncovered"
+        assert out[-1][0, 1] == 1.0, "finite night pixel should be covered"
+
 
 class TestAsArray:
     """`_as_array` normalises arrays and Datasets to float ndarrays."""

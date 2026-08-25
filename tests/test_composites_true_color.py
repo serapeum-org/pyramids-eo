@@ -170,6 +170,17 @@ class TestTrueColorGreenModes:
                 np.ones((1, 1)), np.ones((1, 1)), np.ones((1, 1)), strength=0.0
             )
 
+    def test_ndvi_hybrid_linear_strength_skips_sharpening(self):
+        """strength=1.0 uses the raw NDVI (no non-linear sharpening)."""
+        out = _ndvi_hybrid_green(
+            np.full((1, 1), 0.5),
+            np.full((1, 1), 0.2),
+            np.full((1, 1), 0.8),
+            strength=1.0,
+        )
+        # NDVI=0.6 -> fraction=0.6*(0.05-0.15)+0.15=0.09 -> 0.91*0.5 + 0.09*0.8
+        assert out.item() == pytest.approx(0.527), f"linear-strength blend wrong: {out}"
+
 
 class TestTrueColorRayleigh:
     """The `rayleigh` hook corrects each solar band before green synthesis."""
@@ -191,3 +202,17 @@ class TestTrueColorRayleigh:
         base = true_color(r, r, r)
         same = true_color(r, r, r, rayleigh=None)
         assert np.array_equal(base, same), "rayleigh=None changed the output"
+
+    def test_rayleigh_corrects_native_green(self):
+        """The hook also corrects a native green band before it is used."""
+        out = true_color(
+            np.full((1, 1), 0.5),
+            np.full((1, 1), 0.5),
+            np.full((1, 1), 0.5),
+            green=np.full((1, 1), 0.6),
+            green_mode="native",
+            rayleigh=lambda a: a - 0.1,
+        )
+        assert out[1].item() == pytest.approx(0.5), (
+            "native green not rayleigh-corrected"
+        )

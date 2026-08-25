@@ -142,9 +142,7 @@ def _histogram_equalise(values: np.ndarray, bins: int = 256) -> np.ndarray:
         return out
     hist, edges = np.histogram(sample, bins=bins)
     cdf = np.cumsum(hist).astype(float)
-    if cdf[-1] == 0:
-        return out
-    cdf /= cdf[-1]
+    cdf /= cdf[-1]  # cdf[-1] == sample.size > 0 here (guarded above)
     out[finite] = np.interp(sample, edges[:-1], cdf)
     return out
 

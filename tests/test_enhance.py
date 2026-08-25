@@ -153,6 +153,16 @@ class TestDtypeAndNaN:
         out = stretch(np.array([[0.5, np.nan]]), kind="cira", dtype="uint8")
         assert out[0, 1] == 0, f"NaN should fill to 0, got {out[0, 1]}"
 
+    def test_all_nan_crude_stays_nan(self):
+        """An all-NaN input has empty stats and stays NaN (float output)."""
+        out = stretch(np.full((2, 2), np.nan), kind="crude", dtype="float64")
+        assert np.isnan(out).all(), f"all-NaN crude should stay NaN, got {out}"
+
+    def test_all_nan_histogram_stays_nan(self):
+        """Histogram equalisation of an all-NaN input returns all-NaN."""
+        out = stretch(np.full((2, 2), np.nan), kind="histogram", dtype="float64")
+        assert np.isnan(out).all(), f"all-NaN histogram should stay NaN, got {out}"
+
 
 class TestReturnType:
     """Datasets round-trip to Datasets; arrays to arrays."""

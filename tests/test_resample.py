@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from pyramids.dataset import Dataset
-from pyramids_eo.resample import to_area
+from pyramids_eo.resample import _scalar_nodata, to_area
 
 
 def _gradient(bands: int = 1, rows: int = 8, cols: int = 8) -> Dataset:
@@ -60,6 +60,19 @@ class TestToAreaBandsAndTypes:
         out = to_area(_gradient(), 4326, (0.0, 0.0, 8.0, 8.0), 8, 8)
         assert np.asarray(out.read_array()).dtype == np.float64, "dtype changed"
 
+    def test_source_without_nodata_warps(self):
+        """A source with no nodata warps without passing srcNodata/dstNodata."""
+        ds = Dataset.create_from_array(
+            np.ones((8, 8)),
+            top_left_corner=(0.0, 8.0),
+            cell_size=1.0,
+            epsg=4326,
+            no_data_value=None,
+        )
+        out = to_area(ds, 4326, (0.0, 0.0, 8.0, 8.0), 8, 8)
+        assert isinstance(out, Dataset), f"expected Dataset, got {type(out)}"
+        assert _shape(out)[-2:] == (8, 8), f"grid not pinned: {_shape(out)}"
+
     def test_nodata_region_survives(self):
         """A NaN nodata cell is not interpolated across (nearest keeps NaN)."""
         arr = np.tile(np.linspace(0.0, 1.0, 8), (8, 1))
@@ -108,3 +121,28 @@ class TestToAreaValidation:
         """Zero / negative width or height is rejected."""
         with pytest.raises(ValueError, match="positive"):
             to_area(_gradient(), 4326, (0.0, 0.0, 8.0, 8.0), 0, 8)
+
+    def test_wrong_length_extent_rejected(self):
+        """An extent that is not a 4-tuple is rejected."""
+        with pytest.raises(ValueError, match="extent"):
+            to_area(_gradient(), 4326, (0.0, 0.0, 8.0), 8, 8)
+
+
+class TestScalarNodata:
+    """`_scalar_nodata` reduces a scalar or per-band nodata to one value."""
+
+    def test_scalar_passes_through(self):
+        """A scalar nodata is returned unchanged."""
+        assert _scalar_nodata(-9999) == -9999, "scalar nodata should pass through"
+
+    def test_list_returns_first_band(self):
+        """A per-band list returns the first band's nodata."""
+        assert _scalar_nodata([5.0, 6.0, 7.0]) == 5.0, "should take the first band"
+
+    def test_empty_list_returns_none(self):
+        """An empty per-band list yields None (nothing to carry)."""
+        assert _scalar_nodata([]) is None, "empty list should give None"
+
+    def test_none_returns_none(self):
+        """A missing nodata (None) yields None."""
+        assert _scalar_nodata(None) is None, "None should give None"
