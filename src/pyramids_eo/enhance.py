@@ -181,7 +181,9 @@ def stretch(
         preserve_alpha: When `True` and `image` is `(band, H, W)` with 2+ bands,
             the trailing band is treated as a coverage / alpha band — passed
             through untouched (only cast to `dtype`) rather than curved. Use it
-            when stretching an RGBA frame from `keep_alpha`.
+            when stretching an alpha-carrying frame from `keep_alpha` (RGBA / LA).
+            Do not set it for a plain RGB image: its last band (blue) would be
+            passed through uncurved.
         dtype: Output dtype. Integer dtypes scale `[0, 1]` onto `[0, max]` and
             fill NaN with 0; float dtypes keep `[0, 1]` and preserve NaN.
 
