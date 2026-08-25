@@ -237,6 +237,50 @@ class TestDayNightBlendDataset:
         assert np.allclose(out.read_array(), 9.0), "all-night blend should equal night"
 
 
+class TestDayNightBlendKeepAlpha:
+    """`keep_alpha=True` appends a validity-based coverage band."""
+
+    def test_adds_alpha_band_to_rgb(self):
+        """A 3-band blend gains a 4th (alpha) band."""
+        out = day_night_blend(
+            np.ones((3, 2, 2)), np.zeros((3, 2, 2)), np.zeros((2, 2)), keep_alpha=True
+        )
+        assert out.shape == (4, 2, 2), f"expected (4, 2, 2), got {out.shape}"
+
+    def test_default_keeps_three_bands(self):
+        """Without keep_alpha the output is unchanged (3-band)."""
+        out = day_night_blend(np.ones((3, 2, 2)), np.zeros((3, 2, 2)), np.zeros((2, 2)))
+        assert out.shape == (3, 2, 2), f"expected (3, 2, 2), got {out.shape}"
+
+    def test_alpha_zero_only_when_all_inputs_nan(self):
+        """Alpha is 0 where both inputs are NaN, 1 where either is finite."""
+        day = np.array([[np.nan, 1.0]])
+        night = np.array([[np.nan, 0.0]])
+        out = day_night_blend(day, night, np.zeros((1, 2)), keep_alpha=True)
+        assert out[-1][0, 0] == 0.0, "both-NaN pixel should be uncovered"
+        assert out[-1][0, 1] == 1.0, "finite pixel should be covered"
+
+    def test_dark_but_valid_pixel_is_covered(self):
+        """A dark night pixel (day NaN, night finite) stays covered."""
+        out = day_night_blend(
+            np.array([[np.nan]]),
+            np.array([[0.02]]),
+            np.array([[180.0]]),
+            keep_alpha=True,
+        )
+        assert out[-1][0, 0] == 1.0, "dark-but-valid pixel should be covered"
+
+    def test_undefined_geometry_is_uncovered(self):
+        """A NaN-SZA pixel (undefined geometry) is marked uncovered."""
+        out = day_night_blend(
+            np.array([[1.0]]),
+            np.array([[0.0]]),
+            np.array([[np.nan]]),
+            keep_alpha=True,
+        )
+        assert out[-1][0, 0] == 0.0, "undefined-geometry pixel should be uncovered"
+
+
 class TestAsArray:
     """`_as_array` normalises arrays and Datasets to float ndarrays."""
 

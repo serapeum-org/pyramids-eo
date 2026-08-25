@@ -7,6 +7,7 @@ import pytest
 from pyramids.dataset import Dataset
 
 from pyramids_eo.composites import true_color
+from pyramids_eo.composites.true_color import _ndvi_hybrid_green
 
 
 class TestTrueColor:
@@ -92,3 +93,101 @@ class TestTrueColor:
         """Plain arrays return an ndarray."""
         out = true_color(np.ones((2, 2)), np.ones((2, 2)), np.ones((2, 2)))
         assert isinstance(out, np.ndarray), f"expected ndarray, got {type(out)}"
+
+    def test_default_mode_is_synthetic(self):
+        """The default green_mode reproduces the CIMSS synthetic green."""
+        r, b, n = 0.2, 0.6, 0.9
+        out = true_color(np.full((1, 1), r), np.full((1, 1), b), np.full((1, 1), n))
+        expected = 0.45 * r + 0.10 * n + 0.45 * b
+        assert out[1].item() == pytest.approx(expected), "default should be synthetic"
+
+
+class TestTrueColorGreenModes:
+    """`green_mode` selects native / NDVI-hybrid green from a real band."""
+
+    def test_native_green_passes_through(self):
+        """green_mode='native' uses the supplied green band as the G channel."""
+        out = true_color(
+            np.full((1, 1), 0.2),
+            np.full((1, 1), 0.6),
+            np.full((1, 1), 0.9),
+            green=np.full((1, 1), 0.44),
+            green_mode="native",
+        )
+        assert out[1].item() == pytest.approx(0.44), f"native green changed: {out[1]}"
+
+    def test_ndvi_hybrid_matches_helper(self):
+        """green_mode='ndvi_hybrid' band equals the NDVI-blend helper."""
+        r, b, n, g = 0.2, 0.6, 0.8, 0.5
+        out = true_color(
+            np.full((1, 1), r),
+            np.full((1, 1), b),
+            np.full((1, 1), n),
+            green=np.full((1, 1), g),
+            green_mode="ndvi_hybrid",
+        )
+        expected = _ndvi_hybrid_green(
+            np.full((1, 1), g), np.full((1, 1), r), np.full((1, 1), n)
+        )
+        assert out[1].item() == pytest.approx(float(expected.item())), "hybrid mismatch"
+
+    def test_ndvi_hybrid_between_green_and_nir(self):
+        """The blended green lies between the native green and the NIR."""
+        g, n = 0.5, 0.8
+        out = _ndvi_hybrid_green(
+            np.full((1, 1), g), np.full((1, 1), 0.2), np.full((1, 1), n)
+        )
+        assert g <= out.item() <= n, f"blend {out.item()} not between {g} and {n}"
+
+    def test_native_without_green_raises(self):
+        """green_mode='native' requires a green band."""
+        with pytest.raises(ValueError, match="native"):
+            true_color(
+                np.ones((1, 1)), np.ones((1, 1)), np.ones((1, 1)), green_mode="native"
+            )
+
+    def test_ndvi_hybrid_without_green_raises(self):
+        """green_mode='ndvi_hybrid' requires a green band."""
+        with pytest.raises(ValueError, match="ndvi_hybrid"):
+            true_color(
+                np.ones((1, 1)),
+                np.ones((1, 1)),
+                np.ones((1, 1)),
+                green_mode="ndvi_hybrid",
+            )
+
+    def test_unknown_green_mode_raises(self):
+        """An unknown green_mode is rejected."""
+        with pytest.raises(ValueError, match="green_mode"):
+            true_color(
+                np.ones((1, 1)), np.ones((1, 1)), np.ones((1, 1)), green_mode="nope"
+            )
+
+    def test_ndvi_hybrid_strength_must_be_positive(self):
+        """A non-positive NDVI strength is rejected."""
+        with pytest.raises(ValueError, match="strength"):
+            _ndvi_hybrid_green(
+                np.ones((1, 1)), np.ones((1, 1)), np.ones((1, 1)), strength=0.0
+            )
+
+
+class TestTrueColorRayleigh:
+    """The `rayleigh` hook corrects each solar band before green synthesis."""
+
+    def test_rayleigh_applied_to_bands(self):
+        """A supplied callable is applied to red/blue before stacking."""
+        out = true_color(
+            np.full((1, 1), 0.5),
+            np.full((1, 1), 0.5),
+            np.full((1, 1), 0.5),
+            rayleigh=lambda a: a - 0.1,
+        )
+        assert out[0].item() == pytest.approx(0.4), "rayleigh not applied to red"
+        assert out[2].item() == pytest.approx(0.4), "rayleigh not applied to blue"
+
+    def test_default_none_is_byte_identical(self):
+        """rayleigh=None leaves the composite exactly as the plain call."""
+        r = np.full((2, 2), 0.3)
+        base = true_color(r, r, r)
+        same = true_color(r, r, r, rayleigh=None)
+        assert np.array_equal(base, same), "rayleigh=None changed the output"

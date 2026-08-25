@@ -53,3 +53,23 @@ def _wrap_like(out: np.ndarray, *candidates: Any) -> Any:
     return Dataset.create_from_array(
         out, geo=template.geotransform, epsg=template.epsg, no_data_value=np.nan
     )
+
+
+def _coverage(value: Any) -> np.ndarray:
+    """Per-pixel validity mask — `True` where every band of `value` is finite.
+
+    Coverage is derived from data validity (finite values), never from pixel
+    brightness, so a dark-but-valid pixel (e.g. night ocean) stays covered while
+    an off-disk / terminator pixel (NaN from calibration) is not.
+
+    Args:
+        value: An array-like or pyramids `Dataset`. A `(band, H, W)` image
+            reduces over its bands; an `(H, W)` image is taken as-is.
+
+    Returns:
+        A boolean `(H, W)` mask, `True` where the pixel is finite in all bands.
+    """
+    arr = _as_array(value)
+    if arr.ndim >= 3:
+        return np.all(np.isfinite(arr), axis=tuple(range(arr.ndim - 2)))
+    return np.isfinite(arr)

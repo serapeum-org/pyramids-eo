@@ -107,3 +107,72 @@ class TestTrueColorWithNightIr:
         out = true_color_with_night_ir(day, clouds, bg, np.full((2, 2), 40.0))
         assert isinstance(out, Dataset), f"expected a Dataset, got {type(out)}"
         assert out.epsg == 4326, f"CRS not preserved, got {out.epsg}"
+
+
+class TestTrueColorWithNightIrKeepAlpha:
+    """`keep_alpha=True` adds a whole-disk coverage band from the FCI inputs."""
+
+    def test_adds_alpha_band(self):
+        """The 3-band composite gains a 4th coverage band."""
+        day = np.ones((3, 2, 2))
+        clouds = night_ir(np.ones((2, 2)), np.ones((2, 2)), np.ones((2, 2)))
+        bg = np.zeros((3, 2, 2))
+        out = true_color_with_night_ir(
+            day, clouds, bg, np.zeros((2, 2)), keep_alpha=True
+        )
+        assert out.shape == (4, 2, 2), f"expected (4, 2, 2), got {out.shape}"
+
+    def test_default_stays_three_band(self):
+        """Without keep_alpha the result is the plain 3-band composite."""
+        day = np.ones((3, 2, 2))
+        clouds = night_ir(np.ones((2, 2)), np.ones((2, 2)), np.ones((2, 2)))
+        out = true_color_with_night_ir(
+            day, clouds, np.zeros((3, 2, 2)), np.zeros((2, 2))
+        )
+        assert out.shape == (3, 2, 2), f"expected (3, 2, 2), got {out.shape}"
+
+    def test_offdisk_uncovered_despite_background(self):
+        """Off-disk (both FCI inputs NaN) is uncovered even though bg fills RGB."""
+        # Pixel 0: on the day disk. Pixel 1: off-disk (day + clouds both NaN),
+        # but the global background is finite there.
+        day = np.stack([np.array([[1.0, np.nan]])] * 3)
+        clouds = night_ir(
+            np.array([[0.3, np.nan]]),
+            np.array([[0.3, np.nan]]),
+            np.array([[0.3, np.nan]]),
+        )
+        bg = np.ones((3, 1, 2))
+        out = true_color_with_night_ir(
+            day, clouds, bg, np.zeros((1, 2)), keep_alpha=True
+        )
+        assert out[3][0, 0] == 1.0, "on-disk pixel should be covered"
+        assert out[3][0, 1] == 0.0, "off-disk pixel should be uncovered"
+
+    def test_night_side_covered_by_clouds(self):
+        """On the night side (day true-colour NaN) the clouds carry coverage."""
+        day = np.stack([np.full((1, 1), np.nan)] * 3)  # night side: no day reflectance
+        clouds = night_ir(
+            np.full((1, 1), 250.0), np.full((1, 1), 250.0), np.full((1, 1), 250.0)
+        )
+        bg = np.ones((3, 1, 1))
+        out = true_color_with_night_ir(
+            day, clouds, bg, np.full((1, 1), 180.0), keep_alpha=True
+        )
+        assert out[3][0, 0] == 1.0, "night-side disk pixel should be covered"
+
+    def test_keep_alpha_dataset_returns_dataset(self):
+        """keep_alpha with Dataset inputs still returns a georeferenced Dataset."""
+
+        def ds(arr):
+            return Dataset.create_from_array(
+                arr, top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+            )
+
+        day = ds(np.ones((3, 2, 2)))
+        clouds = ds(night_ir(np.ones((2, 2)), np.ones((2, 2)), np.ones((2, 2))))
+        bg = ds(np.zeros((3, 2, 2)))
+        out = true_color_with_night_ir(
+            day, clouds, bg, np.zeros((2, 2)), keep_alpha=True
+        )
+        assert isinstance(out, Dataset), f"expected a Dataset, got {type(out)}"
+        assert out.epsg == 4326, f"CRS not preserved, got {out.epsg}"
