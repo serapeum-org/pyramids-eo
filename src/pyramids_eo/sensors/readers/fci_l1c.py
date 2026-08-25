@@ -1,11 +1,11 @@
 """Real MTG-FCI L1C FDHSI granule reader.
 
 `read_fci_l1c` decodes and stitches one channel — or several in a single pass
-(`channels=[...]` returns a `dict`, opening each chunk once for the whole set) —
-across the real FCI L1C FDHSI chunk files of a repeat cycle, and
-`available_channels` lists which channels a chunk carries. Unlike the generic
-`read_fci` (which stitches already-opened radiance `Dataset`s), this reads the
-actual granule layout:
+(`channels=[...]` returns a `dict`, reading each chunk's structure and
+coefficients once for the whole set) — across the real FCI L1C FDHSI chunk files
+of a repeat cycle, and `available_channels` lists which channels a chunk carries.
+Unlike the generic `read_fci` (which stitches already-opened radiance
+`Dataset`s), this reads the actual granule layout:
 
 * the packed `uint16` radiance from the nested group
   `data/<channel>/measured/effective_radiance`, unpacked to physical radiance
@@ -342,7 +342,9 @@ def available_channels(chunks: Any) -> list[str]:
     (a trailer chunk contributes none), sorted.
 
     Args:
-        chunks: A single chunk path, or an iterable of chunk paths.
+        chunks: A single chunk path, or an iterable of chunk paths. (For
+            convenience this discovery helper also accepts a lone path, whereas
+            `read_fci_l1c` / `read_fci` take an iterable of chunk paths.)
 
     Returns:
         The sorted channel identifiers available in the chunk(s).
@@ -363,7 +365,9 @@ def available_channels(chunks: Any) -> list[str]:
                 # returns None (exceptions off) when a group is absent.
                 try:
                     channel_group = data.OpenGroup(name)
-                    measured = channel_group.OpenGroup("measured") if channel_group else None
+                    measured = (
+                        channel_group.OpenGroup("measured") if channel_group else None
+                    )
                 except RuntimeError:
                     measured = None
                 if (
