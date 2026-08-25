@@ -85,7 +85,9 @@ def true_color_with_night_ir(
             the `day` true-colour image (valid on the day side of the disk) and
             the `night_ir_rgba` clouds (valid on the night side) — so it marks the
             whole sensor disk, including dark-but-valid night pixels, and is `0`
-            off-disk. Default `False` returns the 3-band image unchanged.
+            off-disk. Where the band is `0` the RGB is set to a finite `0` so a
+            premultiplied composite stays NaN-free. Default `False` returns the
+            3-band image unchanged.
 
     Returns:
         The composed day/night image — a pyramids `Dataset` when the inputs carry
@@ -127,11 +129,14 @@ def true_color_with_night_ir(
     # Coverage from the satellite-derived inputs *before* the global background
     # is merged in: the day true-colour image covers the day side of the disk,
     # the night-IR clouds (RGB, ignoring their own alpha) cover the night side.
-    # Their union is the sensor disk; off-disk both are NaN, so alpha is 0 even
-    # though the blended RGB there is the (finite) background.
-    coverage = _coverage(day) | _coverage(_as_array(night_ir_rgba)[:3])
-    alpha = coverage.astype(float)
+    # Their union is the sensor disk. Intersect it with the finite blended pixels
+    # so alpha is never 1 over a NaN, and zero the RGB wherever it is not finite
+    # so a downstream premultiplied (RGB * alpha) composite cannot leak NaN.
+    disk = _coverage(day) | _coverage(_as_array(night_ir_rgba)[:3])
     blended_arr = _as_array(blended)
     rgb = blended_arr if blended_arr.ndim >= 3 else blended_arr[np.newaxis, ...]
-    rgba = np.concatenate([rgb, alpha[np.newaxis, ...]], axis=0)
+    finite_rgb = _coverage(rgb)
+    coverage = disk & finite_rgb
+    rgb = np.where(finite_rgb[np.newaxis, ...], rgb, 0.0)
+    rgba = np.concatenate([rgb, coverage.astype(float)[np.newaxis, ...]], axis=0)
     return _wrap_like(rgba, day, night_ir_rgba, background)
