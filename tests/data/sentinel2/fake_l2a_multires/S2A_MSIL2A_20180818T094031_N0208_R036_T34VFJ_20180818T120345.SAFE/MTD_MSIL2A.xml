@@ -100,7 +100,7 @@
           <SOLAR_IRRADIANCE bandId="12" unit="W/m²/µm">85.25</SOLAR_IRRADIANCE>
         </Solar_Irradiance_List>
       </Reflectance_Conversion>
-            
+
             <Scene_Classification_List>
                 <Scene_Classification_ID>
                     <SCENE_CLASSIFICATION_TEXT>SC_NODATA</SCENE_CLASSIFICATION_TEXT>
