@@ -423,6 +423,94 @@ def _window(
     return Dataset(out)
 
 
+def _read_mixed_resolution(
+    asset_id: str,
+    *,
+    bands: list[str],
+    bbox: BBox,
+    crs: str,
+    scale: float | None,
+    shape: tuple[int, int] | None,
+    resample: str,
+    credentials: EarthEngineCredentials,
+    block_size: int | None,
+) -> Dataset:
+    """Read bands that span EEDAI subdataset (resolution) groups onto one grid.
+
+    When an asset's requested bands differ in resolution / georeferencing — Sentinel-2's
+    10 m, 20 m and 60 m groups, say — a single EEDAI open with all of them silently
+    returns only one, because the driver exposes the groups as separate subdatasets and
+    cannot serve them together. This reads each band on its own and warps every one to
+    the *same* target grid (``bbox`` + ``crs`` + ``scale`` / ``shape``), so they align
+    exactly, then stacks them in the requested order into one multi-band ``Dataset``.
+
+    A shared target grid is required: with the bands at different native resolutions
+    there is no single "native" grid to fall back to, so ``scale`` or ``shape`` must be
+    given.
+
+    Args:
+        asset_id: The EE image asset id.
+        bands: The requested band names, spanning >1 resolution group.
+        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``.
+        crs: Target CRS.
+        scale: Output pixel size in ``crs`` units, or ``None``.
+        shape: Output ``(rows, cols)``, or ``None``.
+        resample: Resampling algorithm for the per-band warp.
+        credentials: Resolved credentials.
+        block_size: EEDAI block size, or ``None`` for the default.
+
+    Returns:
+        One multi-band ``Dataset`` on the shared target grid, bands in request order.
+
+    Raises:
+        ReaderError: No ``scale`` / ``shape`` defines the shared grid, or a band read
+            produced a grid that does not match the others.
+    """
+    if scale is None and shape is None:
+        raise ReaderError(
+            f"The requested bands {bands} span multiple Earth Engine resolution groups "
+            "(subdatasets); pass 'scale' or 'shape' to resample them onto one grid, or "
+            "request a single-resolution band set."
+        )
+    layers: list[np.ndarray] = []
+    reference: Dataset | None = None
+    for band in bands:
+        with credentials.activate():
+            single = _open_eedai(
+                asset_id, bands=[band], credentials=credentials, block_size=block_size
+            )
+            try:
+                windowed = _window(
+                    single,
+                    bbox=bbox,
+                    crs=crs,
+                    scale=scale,
+                    shape=shape,
+                    resample=resample,
+                )
+            finally:
+                single = None  # release the per-band EEDAI source
+        array = np.asarray(windowed.read_array())
+        layers.append(array if array.ndim == 2 else array[0])
+        if reference is None:
+            reference = windowed
+        elif (
+            windowed.shape[-2:] != reference.shape[-2:]
+        ):  # pragma: no cover - defensive
+            raise ReaderError(
+                f"Band {band!r} windowed to {windowed.shape[-2:]}, which does not match "
+                f"the shared grid {reference.shape[-2:]}."
+            )
+    assert reference is not None  # bands is non-empty, so the loop ran at least once
+    stacked = np.stack(layers, axis=0)
+    return Dataset.create_from_array(
+        stacked,
+        geo=reference.geotransform,
+        epsg=reference.crs,
+        no_data_value=reference.no_data_value[0],
+    )
+
+
 def _iso(value: str) -> str:
     """Normalise a date/datetime string to an ISO datetime for the lower bound.
 
@@ -1031,6 +1119,16 @@ def _single_image_read(
         dataset = _open_eedai(
             asset_id, bands=bands, credentials=credentials, block_size=block_size
         )
+        # A whole-asset read has no target grid, so bands from different resolution
+        # groups cannot be aligned — the driver would silently hand back one group.
+        # Fail loudly instead of returning a subset (#58).
+        if bands is not None and dataset.band_count < len(bands):
+            raise ReaderError(
+                f"The requested bands {bands} span multiple Earth Engine resolution "
+                "groups (subdatasets), so a whole-asset read cannot return them "
+                "together. Pass a 'bbox' with a 'scale' or 'shape' to resample them "
+                "onto one grid, or request a single-resolution band set."
+            )
         # The whole-asset Dataset is read lazily, so pixel reads happen after this
         # returns — outside any `activate()` block. Install the credential config
         # process-wide so those deferred EEDAI reads still authenticate. This is the
@@ -1047,7 +1145,20 @@ def _single_image_read(
             asset_id, bands=bands, credentials=credentials, block_size=block_size
         )
         try:
-            if tile_size is not None:
+            # A single EEDAI open cannot serve bands from different subdataset
+            # (resolution) groups: it silently returns just one. Detect the drop by
+            # band count and route to the per-band resample path instead of returning
+            # a silent subset (#58).
+            mixed_resolution = bands is not None and src.band_count < len(bands)
+            if mixed_resolution and tile_size is not None:
+                raise ReaderError(
+                    "The requested bands span multiple Earth Engine resolution groups "
+                    "(subdatasets), which the 'tile_size' streamer does not support; "
+                    "request a single-resolution band set to tile."
+                )
+            if mixed_resolution:
+                windowed_single = None  # built after the source is released, below
+            elif tile_size is not None:
                 # Stream a large window to disk one tile at a time (bounded memory),
                 # reusing the single open EEDAI handle for every tile. from_earthengine
                 # guarantees a path accompanies tile_size.
@@ -1064,11 +1175,27 @@ def _single_image_read(
                     path=path,  # required by from_earthengine when tile_size is set
                 )
                 return _retain_credentials(merged, credentials)
-            windowed_single = _window(
-                src, bbox=bbox, crs=crs, scale=scale, shape=shape, resample=resample
-            )
+            else:
+                windowed_single = _window(
+                    src, bbox=bbox, crs=crs, scale=scale, shape=shape, resample=resample
+                )
         finally:
             src = None  # release the EEDAI source whether the window succeeds or not
+    if mixed_resolution:
+        assert bands is not None  # mixed_resolution is only set for a band request
+        # Read each band on its own and warp them all to the same target grid, then
+        # stack — the bands align because they share bbox + crs + scale/shape.
+        windowed_single = _read_mixed_resolution(
+            asset_id,
+            bands=bands,  # non-empty (mixed_resolution requires it)
+            bbox=bbox,
+            crs=crs,
+            scale=scale,
+            shape=shape,
+            resample=resample,
+            credentials=credentials,
+            block_size=block_size,
+        )
     # ``windowed_single`` is a fully-materialised in-memory Dataset (the warp read
     # every pixel eagerly), so it needs no credential env for any deferred read.
     windowed_dataset = _apply_geometry(windowed_single, geometry)
@@ -1411,7 +1538,15 @@ def from_earthengine(
         asset_id: EE image asset id (single mode) or ``ImageCollection`` id
             (composite mode), e.g. ``"USGS/SRTMGL1_003"`` /
             ``"COPERNICUS/S2_SR_HARMONIZED"``.
-        bands: Band names to request; ``None`` reads every band.
+        bands: Band names to request; ``None`` reads every band. When the requested
+            bands span multiple resolution groups (EEDAI exposes them as separate
+            subdatasets — e.g. Sentinel-2's 10 m / 20 m / 60 m bands), a single open
+            can only return one group. Rather than silently drop the rest, the reader
+            resamples every requested band onto one grid **when a target grid is given**
+            (a ``bbox`` with ``scale`` or ``shape``), stacking them in request order; if
+            no target grid resolves the ambiguity (a whole-asset read, or a windowed
+            read without ``scale``/``shape``) it raises rather than return a subset. A
+            single-resolution band set is read in one pass, unchanged.
         bbox: AOI ``(min_x, min_y, max_x, max_y)`` **expressed in** ``crs`` — its
             coordinates are read in ``crs``'s units, not always lon/lat. With the
             default ``crs="EPSG:4326"`` that is degrees; with a projected ``crs``

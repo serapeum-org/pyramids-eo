@@ -174,6 +174,82 @@ class TestFromEarthengine:
         ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5))
         assert ds.no_data_value[0] != 999
 
+    def test_mixed_resolution_bands_resampled_and_stacked(self, monkeypatch) -> None:
+        """Bands spanning resolution groups are resampled onto one grid (#58).
+
+        Test scenario:
+            The combined open returns a single band (the driver's silent-drop), so the
+            reader re-opens each band alone, warps all to the requested ``shape`` and
+            stacks them in request order — three bands out, not one.
+        """
+        fills = {"B4": 10, "B11": 20, "B1": 60}
+        opened: list = []
+
+        def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
+            opened.append(tuple(bands) if bands else None)
+            # A multi-band (cross-group) request silently yields ONE band.
+            first = bands[0] if bands else "B4"
+            return Dataset(_synthetic_srtm(fill=fills[first]))
+
+        monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
+        ds = from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            bbox=_BBOX,
+            shape=(10, 10),
+            bands=["B4", "B11", "B1"],
+        )
+        assert ds.shape == (3, 10, 10), f"Expected 3 bands stacked, got {ds.shape}"
+        arr = np.asarray(ds.read_array())
+        assert [int(arr[i].flat[0]) for i in range(3)] == [10, 20, 60], (
+            f"Bands stacked out of order / wrong values: {arr[:, 0, 0]}"
+        )
+        assert opened[0] == ("B4", "B11", "B1"), "combined open should be tried first"
+        assert {("B4",), ("B11",), ("B1",)}.issubset(set(opened)), (
+            f"each band should be opened alone: {opened}"
+        )
+
+    def test_mixed_resolution_without_grid_fails_loudly(self, monkeypatch) -> None:
+        """A cross-group request with no target grid raises, not drops bands (#58).
+
+        Test scenario:
+            A windowed cross-group read without ``scale``/``shape`` cannot align the
+            groups → ``ReaderError`` naming the subdataset ambiguity.
+        """
+
+        def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
+            return Dataset(_synthetic_srtm())  # always one band → cross-group
+
+        monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
+        with pytest.raises(ReaderError, match="resolution groups|subdataset"):
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED", bbox=_BBOX, bands=["B4", "B11", "B1"]
+            )
+
+    def test_mixed_resolution_whole_asset_fails_loudly(self, monkeypatch) -> None:
+        """A cross-group whole-asset read raises rather than return a subset (#58).
+
+        Test scenario:
+            No ``bbox`` means no grid to align onto → ``ReaderError``.
+        """
+
+        def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
+            return Dataset(_synthetic_srtm())  # one band < 3 requested
+
+        monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
+        with pytest.raises(ReaderError, match="resolution groups|subdataset"):
+            from_earthengine("COPERNICUS/S2_SR_HARMONIZED", bands=["B4", "B11", "B1"])
+
+    def test_single_band_request_not_treated_as_mixed(self, patched_eedai) -> None:
+        """A single-band request reads normally — never the mixed path (#58).
+
+        Test scenario:
+            One band in, one band out, no spurious per-band stacking.
+        """
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), bands=["B4"]
+        )
+        assert ds.shape == (1, 5, 5), f"Expected a single band, got {ds.shape}"
+
     def test_projected_crs_bbox_interpreted_in_projected_units(
         self, patched_eedai
     ) -> None:
@@ -1788,6 +1864,27 @@ class TestMaterialize:
 
 class TestLivePixelCorrectness:
     """Live safety net: EEDAI reads must return correct, deterministic pixels."""
+
+    @pytest.mark.live
+    def test_mixed_resolution_bands_read_live(self) -> None:
+        """Live cross-group S2 read returns all bands resampled, not one (#58).
+
+        Test scenario:
+            The exact scene from #57's measurement, asked for B4 (10 m), B11 (20 m)
+            and B1 (60 m) at a shared shape, returns three aligned bands — where a
+            plain open would have silently returned one — with distinct spectra.
+        """
+        scene = "COPERNICUS/S2_SR_HARMONIZED/20240702T102601_20240702T103203_T32TLR"
+        bbox = (7.00, 45.50, 7.03, 45.53)
+        ds = from_earthengine(
+            scene, bbox=bbox, shape=(24, 24), bands=["B4", "B11", "B1"]
+        )
+        assert ds.shape == (3, 24, 24), f"Expected 3 aligned bands, got {ds.shape}"
+        arr = np.asarray(ds.read_array()).astype(float)
+        means = [float(np.mean(arr[i])) for i in range(3)]
+        assert len({round(m) for m in means}) > 1, (
+            f"Bands look identical — likely one band broadcast, not three: {means}"
+        )
 
     @pytest.mark.live
     def test_projected_crs_reads_same_ground_as_4326(self) -> None:
