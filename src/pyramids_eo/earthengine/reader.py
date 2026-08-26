@@ -674,10 +674,24 @@ def _apply_nodata(dataset: Dataset, nodata: float | int | None) -> Dataset:
         nodata: The fill value to mark as no-data, or ``None`` to leave it untagged.
 
     Returns:
-        The same ``dataset`` (tagged in place when ``nodata`` is given).
+        The tagged dataset. An in-memory result is tagged in place; a file-backed
+        result (``path`` write / tiled mosaic) has the tag streamed into its file and a
+        fresh file-backed dataset reading it is returned.
     """
     if nodata is None:
         return dataset
+    backing = dataset.raster.GetDescription()
+    if backing and os.path.isfile(backing):
+        # File-backed result: stream the tag into a sibling file and swap it in, so the
+        # on-disk file carries the fill and the returned dataset stays file-backed — and
+        # a tiled read keeps its bounded memory. An in-place tag would instead CreateCopy
+        # the whole raster into RAM (MEM driver) and leave the on-disk file untagged.
+        tagged_tmp = f"{backing}.nodata.tif"
+        tagged = dataset.change_no_data_value(nodata, path=tagged_tmp)
+        tagged.close()
+        dataset.close()
+        os.replace(tagged_tmp, backing)
+        return Dataset.read_file(backing)
     return dataset.change_no_data_value(nodata, inplace=True)
 
 

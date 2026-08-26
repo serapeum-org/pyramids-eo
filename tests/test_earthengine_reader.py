@@ -174,6 +174,57 @@ class TestFromEarthengine:
         ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5))
         assert ds.no_data_value[0] != 999
 
+    def test_nodata_with_path_writes_the_tag_to_disk(
+        self, patched_eedai, tmp_path
+    ) -> None:
+        """``nodata`` is written into the on-disk file, returned file-backed (#63).
+
+        Test scenario:
+            A ``path`` read with ``nodata=999`` writes the fill into the GeoTIFF (so a
+            reopen sees it) and returns a file-backed dataset — not an in-memory copy
+            that leaves the file untagged.
+        """
+        from osgeo import gdal
+
+        out = tmp_path / "tagged.tif"
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), path=str(out), nodata=999
+        )
+        assert ds.raster.GetDriver().ShortName == "GTiff", (
+            "a path read must return a file-backed dataset, not an in-memory copy"
+        )
+        disk = gdal.Open(str(out))
+        on_disk = disk.GetRasterBand(1).GetNoDataValue()
+        assert on_disk == 999, f"on-disk nodata should be 999, got {on_disk}"
+
+    def test_nodata_with_tile_size_stays_file_backed(
+        self, patched_eedai, tmp_path
+    ) -> None:
+        """``nodata`` with ``tile_size`` keeps the mosaic file-backed and tagged (#63).
+
+        Test scenario:
+            A tiled ``nodata`` read tags the on-disk mosaic and returns it file-backed —
+            it must not materialise the whole mosaic into memory (which would defeat the
+            oversize-tiling memory bound) nor leave the file untagged.
+        """
+        from osgeo import gdal
+
+        out = tmp_path / "tagged_tiled.tif"
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003",
+            bbox=_BBOX,
+            shape=(20, 20),
+            tile_size=7,
+            path=str(out),
+            nodata=999,
+        )
+        assert ds.raster.GetDriver().ShortName == "GTiff", (
+            "a tiled read must stay file-backed (memory-bounded), not become MEM"
+        )
+        disk = gdal.Open(str(out))
+        on_disk = disk.GetRasterBand(1).GetNoDataValue()
+        assert on_disk == 999, f"on-disk mosaic nodata should be 999, got {on_disk}"
+
     def test_mixed_resolution_bands_resampled_and_stacked(self, monkeypatch) -> None:
         """Bands spanning resolution groups are resampled onto one grid (#58).
 
