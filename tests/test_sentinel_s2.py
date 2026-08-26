@@ -32,6 +32,12 @@ _L1C_509 = (
     / "S2B_MSIL1C_20230823T095559_N0509_R122_T34UCF_20230823T120234.SAFE"
     / "MTD_MSIL1C.xml"
 )
+_L2A_MULTI = (
+    _DATA
+    / "fake_l2a_multires"
+    / "S2A_MSIL2A_20180818T094031_N0208_R036_T34VFJ_20180818T120345.SAFE"
+    / "MTD_MSIL2A.xml"
+)
 
 
 @pytest.fixture(scope="session")
@@ -224,6 +230,22 @@ def test_scl_mask_standalone_finds_embedded_scl():
     full = product.subdataset_for(60).open()
     masked = scl_mask(full, [SclClass.WATER])
     assert masked.band_count == full.band_count
+
+
+def test_scl_mask_regrids_coarser_scl_onto_finer_data_grid():
+    """Masking a 10 m read regrids the 20 m SCL band onto the 10 m grid.
+
+    Exercises the cross-resolution SCL branch: the data and SCL come from
+    different subdatasets, so SCL is nearest-resampled onto the data grid and
+    the masked output stays on that finer grid.
+    """
+    product = open_product(_L2A_MULTI)
+    assert product.resolutions == [10, 20, 60]
+    masked = from_sentinel2(
+        _L2A_MULTI, bands=["B04"], resolution=10, mask_scl=[SclClass.CLOUD_HIGH_PROBA]
+    )
+    assert masked.cell_size == 10.0
+    assert masked.shape[1:] == (10980, 10980)
 
 
 def test_scl_mask_unknown_class_name_raises():
