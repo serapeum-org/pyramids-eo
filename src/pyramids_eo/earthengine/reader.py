@@ -1026,12 +1026,14 @@ def _composite_read(
     path: str | Path | None = None,
     block_size: int | None = None,
     property_filter: str | None = None,
+    tile_size: int | None = None,
 ) -> Dataset:
     """Reduce an ``ImageCollection`` over a date range into one composite ``Dataset``.
 
     The ``ImageCollection`` branch of :func:`from_earthengine`; see it for the
     argument semantics. When ``path`` is given the composite is written there and a
-    file-backed ``Dataset`` reading it is returned.
+    file-backed ``Dataset`` reading it is returned. When ``tile_size`` is given the
+    reduction streams to disk tile by tile (:func:`_tiled_composite_read`).
 
     Raises:
         ValueError: ``reducer`` is missing or the ``start``/``end``/``bbox`` trio is
@@ -1046,6 +1048,28 @@ def _composite_read(
     if start is None or end is None or bbox is None:
         raise ValueError(
             "The composite mode requires 'start', 'end', and a 'bbox' or 'geometry'."
+        )
+    if tile_size is not None:
+        # from_earthengine's validation guarantees a path accompanies tile_size.
+        if path is None:  # pragma: no cover - guaranteed by from_earthengine
+            raise ReaderError("A tiled composite requires a 'path'.")
+        return _tiled_composite_read(
+            asset_id,
+            bands=bands,
+            bbox=bbox,
+            crs=crs,
+            scale=scale,
+            shape=shape,
+            resample=resample,
+            start=start,
+            end=end,
+            reducer=reducer,
+            geometry=geometry,
+            credentials=credentials,
+            path=path,  # required by from_earthengine when tile_size is set
+            block_size=block_size,
+            property_filter=property_filter,
+            tile_size=tile_size,
         )
     scenes = _discover_scenes(
         asset_id,
@@ -1078,6 +1102,228 @@ def _composite_read(
         composite.to_file(str(path))
         composite = Dataset.read_file(str(path))
     return _retain_credentials(composite, credentials)
+
+
+def _read_scene_tile(
+    scenes: list[_Scene],
+    *,
+    fill_source: Dataset,
+    sub_bbox: BBox,
+    tile_shape: tuple[int, int],
+    crs: str,
+    cell_x: float,
+    cell_y: float,
+    halo: tuple[int, int, int, int],
+    bands: list[str] | None,
+    credentials: EarthEngineCredentials,
+    resample: str,
+    block_size: int | None,
+) -> list[Dataset]:
+    """Warp every scene to one tile grid, filling scenes whose footprint misses it.
+
+    The tiled composite reduces the *global* scene set on each tile; a scene whose
+    footprint does not reach this tile contributes an all-fill tile — exactly what the
+    un-tiled warp lays down where a scene does not cover — so the per-tile reduction is
+    identical to the un-tiled reduction over that ground. Each covering scene is read
+    with the per-edge ``halo`` (:func:`_read_tile_with_halo`): the scenes reproject to
+    ``crs``, so a warped output pixel next to a seam needs source neighbours from the
+    adjacent tile to sample identically to the un-tiled read.
+
+    Args:
+        scenes: The globally-discovered scenes, in order.
+        fill_source: An opened scene (for band count / dtype / fill) used to build the
+            all-fill tile for a non-intersecting scene.
+        sub_bbox: The tile's bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
+        tile_shape: The tile's ``(rows, cols)``.
+        crs: Target CRS.
+        cell_x: Output pixel width in ``crs`` units.
+        cell_y: Output pixel height in ``crs`` units.
+        halo: Per-edge ``(left, right, top, bottom)`` margins in output pixels.
+        bands: Band names to request, or ``None`` for all.
+        credentials: Resolved credentials.
+        resample: Resampling algorithm for the warp.
+        block_size: EEDAI block size, or ``None`` for the default.
+
+    Returns:
+        One windowed ``Dataset`` per scene, all on the tile grid.
+    """
+    windowed: list[Dataset] = []
+    for scene in scenes:
+        src = _open_eedai(
+            scene.connection,
+            bands=bands,
+            credentials=credentials,
+            block_size=block_size,
+        )
+        try:
+            tile = _read_tile_with_halo(
+                src,
+                sub_bbox=sub_bbox,
+                tile_shape=tile_shape,
+                crs=crs,
+                cell_x=cell_x,
+                cell_y=cell_y,
+                resample=resample,
+                halo=halo,
+            )
+        except ReaderError as exc:
+            if "does not intersect" not in str(exc):
+                raise
+            tile = _nodata_tile(
+                fill_source, sub_bbox, tile_shape, crs, fill_source.no_data_value[0]
+            )
+        finally:
+            src = None
+        windowed.append(tile)
+    return windowed
+
+
+def _tiled_composite_read(
+    asset_id: str,
+    *,
+    bands: list[str] | None,
+    bbox: BBox,
+    crs: str,
+    scale: float | None,
+    shape: tuple[int, int] | None,
+    resample: str,
+    start: str,
+    end: str,
+    reducer: str,
+    geometry: object | None,
+    credentials: EarthEngineCredentials,
+    path: str | Path,
+    block_size: int | None,
+    property_filter: str | None,
+    tile_size: int,
+) -> Dataset:
+    """Stream an oversize ``ImageCollection`` composite to disk, tile by tile.
+
+    The output grid over ``bbox`` is split into ``tile_size`` blocks. The scenes are
+    discovered **once** over the whole window, and **each tile reduces that same scene
+    stack over its own sub-window** (:func:`_read_scene_tile`) — the reduction happens
+    wholly within a tile, so a seam is a mosaic boundary, never a reduction boundary,
+    and the mosaic is identical to the un-tiled composite for every reducer. Tiles are
+    written to temporary rasters and mosaicked with :func:`_mosaic_tiles`; a polygon
+    ``geometry`` is applied as a cutline to the finished mosaic (its envelope having
+    bounded the tiling), as in the single-image tiled path.
+
+    Args:
+        asset_id: EE ``ImageCollection`` id.
+        bands: Band names to request, or ``None`` for all.
+        bbox: Output bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
+        crs: Target CRS.
+        scale: Output pixel size in ``crs`` units, or ``None`` when ``shape`` is set.
+        shape: Output ``(rows, cols)``, or ``None`` when ``scale`` is set.
+        resample: Resampling algorithm for each scene's warp.
+        start: Inclusive ISO start of the acquisition window.
+        end: Inclusive ISO end of the acquisition window.
+        reducer: Client-side reducer applied to each tile's scene stack.
+        geometry: Optional polygon cutline applied to the finished mosaic.
+        credentials: Resolved credentials.
+        path: Destination raster path for the mosaic.
+        block_size: EEDAI block size, or ``None`` for the default.
+        property_filter: Optional scene property filter, applied at discovery.
+        tile_size: Maximum tile size in pixels per side.
+
+    Returns:
+        A file-backed pyramids ``Dataset`` reading the mosaic at ``path``.
+
+    Raises:
+        ReaderError: The date range + AOI matched no scenes anywhere in the window.
+    """
+    # Confirm the window has scenes and grab a nodata/band-count reference from the
+    # first scene's metadata (no pixel fetch), used to fill tiles no scene covers.
+    scenes = _discover_scenes(
+        asset_id,
+        start=start,
+        end=end,
+        bbox_4326=_bbox_to_4326(bbox, crs),
+        credentials=credentials,
+        property_filter=property_filter,
+    )
+    if not scenes:
+        raise ReaderError(
+            f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over {bbox}."
+        )
+    rows, cols, cell_x, cell_y = _tile_grid(bbox, scale, shape)
+    min_x, _, _, max_y = bbox
+    # Scenes reproject to ``crs``, so even a ``nearest`` warp needs a small halo at a
+    # seam to sample the same source pixel the un-tiled warp does; floor it at 2.
+    halo_size = max(2, _resample_halo(resample))
+    tmp_dir = tempfile.mkdtemp(prefix="ee_composite_tiles_")
+    tile_paths: list[str] = []
+    tile_nodata: float | None = None
+    try:
+        with credentials.activate():
+            probe = _open_eedai(
+                scenes[0].connection,
+                bands=bands,
+                credentials=credentials,
+                block_size=block_size,
+            )
+            try:
+                for row0, row1 in _tile_edges(rows, tile_size):
+                    for col0, col1 in _tile_edges(cols, tile_size):
+                        sub_bbox = (
+                            min_x + col0 * cell_x,
+                            max_y - row1 * cell_y,
+                            min_x + col1 * cell_x,
+                            max_y - row0 * cell_y,
+                        )
+                        tile_shape = (row1 - row0, col1 - col0)
+                        # Grow the halo only into a neighbouring tile; the outer window
+                        # edges keep a zero halo so the mosaic border matches un-tiled.
+                        tile_halo = (
+                            halo_size if col0 > 0 else 0,
+                            halo_size if col1 < cols else 0,
+                            halo_size if row0 > 0 else 0,
+                            halo_size if row1 < rows else 0,
+                        )
+                        # Reduce the SAME globally-discovered scenes over this tile:
+                        # warp each to the tile grid, substituting an all-fill tile for
+                        # a scene whose footprint misses it (exactly what the un-tiled
+                        # warp puts there). Reducing the global set — not a per-tile
+                        # re-discovery — keeps the tiled composite identical to the
+                        # un-tiled one for every reducer, while the reduction still
+                        # happens wholly within a tile (a seam is a mosaic boundary).
+                        windowed = _read_scene_tile(
+                            scenes,
+                            fill_source=probe,
+                            sub_bbox=sub_bbox,
+                            tile_shape=tile_shape,
+                            crs=crs,
+                            cell_x=cell_x,
+                            cell_y=cell_y,
+                            halo=tile_halo,
+                            bands=bands,
+                            credentials=credentials,
+                            resample=resample,
+                            block_size=block_size,
+                        )
+                        tile = _composite(windowed, reducer, credentials, None)
+                        if tile_nodata is None:
+                            tile_nodata = tile.no_data_value[0]
+                        tile_path = os.path.join(tmp_dir, f"tile_{row0}_{col0}.tif")
+                        tile.to_file(tile_path)
+                        tile.close()
+                        tile_paths.append(tile_path)
+            finally:
+                probe = None  # release the reference scene handle
+        _mosaic_tiles(tile_paths, str(path), tile_nodata)
+    finally:
+        gc.collect()
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+    merged = Dataset.read_file(str(path))
+    if geometry is not None:
+        clipped = _apply_geometry(merged, geometry)
+        tmp_clipped = f"{path}.cut.tif"
+        clipped.to_file(tmp_clipped)
+        clipped.close()
+        merged.close()
+        os.replace(tmp_clipped, str(path))
+        merged = Dataset.read_file(str(path))
+    return _retain_credentials(merged, credentials)
 
 
 def _single_image_read(
@@ -1174,6 +1420,19 @@ def _single_image_read(
                     tile_size=tile_size,
                     path=path,  # required by from_earthengine when tile_size is set
                 )
+                # A polygon AOI tiles its envelope, then the cutline is applied to the
+                # assembled mosaic — so the tiled result matches the un-tiled cutline
+                # read, pixels outside the polygon masked (#64). Materialise the cutline
+                # to a sibling file and swap it in: the mosaic handle still holds
+                # ``path`` open, so it cannot be overwritten in place.
+                if geometry is not None:
+                    clipped = _apply_geometry(merged, geometry)
+                    tmp_clipped = f"{path}.cut.tif"
+                    clipped.to_file(tmp_clipped)
+                    clipped.close()
+                    merged.close()
+                    os.replace(tmp_clipped, str(path))
+                    merged = Dataset.read_file(str(path))
                 return _retain_credentials(merged, credentials)
             else:
                 windowed_single = _window(
@@ -1327,6 +1586,110 @@ def _mosaic_tiles(tile_paths: list[str], path: str, nodata: float | None) -> Non
         )
 
 
+def _resample_halo(resample: str) -> int:
+    """Halo margin (output pixels per tile edge) a resampling kernel needs.
+
+    An interpolating warp reads source pixels around each output pixel, so a tiled read
+    must grow every tile by the kernel's radius, warp, then trim the margin — otherwise
+    output pixels next to a seam lack the neighbours the un-tiled read had, and the
+    mosaic differs there. ``nearest`` (and ``mode``) map each output pixel from one
+    source pixel and need no halo, keeping their zero-overhead path.
+
+    Args:
+        resample: The resampling algorithm name.
+
+    Returns:
+        The per-edge halo in output pixels (``0`` for the point samplers).
+    """
+    return {
+        "nearest": 0,
+        "mode": 0,
+        "bilinear": 1,
+        "average": 1,
+        "cubic": 2,
+        "cubicspline": 2,
+        "lanczos": 3,
+    }.get(resample, 2)
+
+
+def _read_tile_with_halo(
+    source: Dataset,
+    *,
+    sub_bbox: BBox,
+    tile_shape: tuple[int, int],
+    crs: str,
+    cell_x: float,
+    cell_y: float,
+    resample: str,
+    halo: tuple[int, int, int, int],
+) -> Dataset:
+    """Warp one tile, growing it by ``halo`` output pixels per edge, then trim.
+
+    ``halo`` is ``(left, right, top, bottom)`` — the per-edge margin in output pixels.
+    An interpolating tile is grown by its halo on each side, warped, and the margin
+    sliced off, so every core pixel keeps the neighbours the un-tiled read gives it.
+    The halo is grown **only on edges shared with another tile**: the outer window
+    boundary keeps a zero halo, so the mosaic's outer pixels are computed exactly as the
+    un-tiled read's are (which also stop at the window, not beyond it). An all-zero halo
+    — ``nearest`` / ``mode`` — is a plain :func:`_window` of the tile, no overhead.
+
+    Args:
+        source: The opened EEDAI source ``Dataset``.
+        sub_bbox: The tile's output bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
+        tile_shape: The tile's ``(rows, cols)``.
+        crs: Target CRS.
+        cell_x: Output pixel width in ``crs`` units.
+        cell_y: Output pixel height in ``crs`` units.
+        resample: Resampling algorithm for the warp.
+        halo: Per-edge ``(left, right, top, bottom)`` margins in output pixels.
+
+    Returns:
+        A pyramids ``Dataset`` holding just the tile's cells on its exact grid.
+    """
+    left, right, top, bottom = halo
+    if not any(halo):
+        return _window(
+            source,
+            bbox=sub_bbox,
+            crs=crs,
+            scale=None,
+            shape=tile_shape,
+            resample=resample,
+        )
+    min_x, min_y, max_x, max_y = sub_bbox
+    grown_bbox = (
+        min_x - left * cell_x,
+        min_y - bottom * cell_y,
+        max_x + right * cell_x,
+        max_y + top * cell_y,
+    )
+    grown_shape = (tile_shape[0] + top + bottom, tile_shape[1] + left + right)
+    grown = _window(
+        source,
+        bbox=grown_bbox,
+        crs=crs,
+        scale=None,
+        shape=grown_shape,
+        resample=resample,
+    )
+    array = np.asarray(grown.read_array())
+    if array.ndim == 2:
+        array = array[None, :, :]
+    core = array[:, top : top + tile_shape[0], left : left + tile_shape[1]]
+    gt = grown.geotransform
+    core_geo = (
+        gt[0] + left * gt[1],
+        gt[1],
+        gt[2],
+        gt[3] + top * gt[5],
+        gt[4],
+        gt[5],
+    )
+    return Dataset.create_from_array(
+        core, geo=core_geo, epsg=grown.crs, no_data_value=grown.no_data_value[0]
+    )
+
+
 def _tiled_windowed_read(
     source: Dataset,
     *,
@@ -1344,10 +1707,11 @@ def _tiled_windowed_read(
     pixels per side. Each block is read through the normal windowed path (its own
     block-aligned EEDAI materialise + warp), written to a temporary raster and
     released, then the tiles are mosaicked with pyramids ``merge_rasters`` into
-    ``path``. Because every tile is warped (nearest) to its exact grid-aligned
-    sub-window, the mosaic reproduces the equivalent un-tiled ``nearest`` read
-    exactly. ``resample`` other than ``"nearest"`` is rejected upstream, since an
-    interpolating kernel would sample across a tile seam.
+    ``path``. Each tile is warped to its exact grid-aligned sub-window; for ``nearest``
+    (each output pixel from one source pixel) that reproduces the un-tiled read exactly
+    with no overhead, and for an interpolating ``resample`` each tile is grown by a
+    kernel-sized halo, warped, and trimmed (:func:`_read_tile_with_halo`) so seam
+    pixels keep the neighbours the un-tiled read had.
 
     Memory/cost notes: the per-tile step (not the whole output) is what is bounded,
     but each tile's :func:`_materialize` still reads the tile's **native-resolution**
@@ -1372,6 +1736,9 @@ def _tiled_windowed_read(
     """
     min_x, _, _, max_y = bbox  # only the top-left anchors the tile grid
     rows, cols, cell_x, cell_y = _tile_grid(bbox, scale, shape)
+    # An interpolating resampler needs neighbours across each seam; read every tile
+    # with a kernel-sized halo and trim it, so the mosaic matches the un-tiled read.
+    halo = _resample_halo(resample)
 
     # All tiles inherit the source's per-band nodata, so read it once here.
     nodata = source.no_data_value[0]
@@ -1388,14 +1755,24 @@ def _tiled_windowed_read(
                     max_y - row0 * cell_y,
                 )
                 tile_shape = (row1 - row0, col1 - col0)
+                # Grow the halo only into a neighbouring tile; the outer window edges
+                # keep a zero halo so the mosaic border matches the un-tiled read.
+                tile_halo = (
+                    halo if col0 > 0 else 0,  # left
+                    halo if col1 < cols else 0,  # right
+                    halo if row0 > 0 else 0,  # top
+                    halo if row1 < rows else 0,  # bottom
+                )
                 try:
-                    tile = _window(
+                    tile = _read_tile_with_halo(
                         source,
-                        bbox=sub_bbox,
+                        sub_bbox=sub_bbox,
+                        tile_shape=tile_shape,
                         crs=crs,
-                        scale=None,
-                        shape=tile_shape,
+                        cell_x=cell_x,
+                        cell_y=cell_y,
                         resample=resample,
+                        halo=tile_halo,
                     )
                     any_covered = True
                 except ReaderError as exc:
@@ -1477,29 +1854,19 @@ def _validate_read_request(
         )
     if tile_size is None:
         return
-    if reducer is not None or start is not None or end is not None:
-        raise ValueError(
-            "'tile_size' is for the single-image raw read, not an "
-            "ImageCollection composite."
-        )
     if tile_size <= 0:
         raise ValueError("'tile_size' must be a positive number of pixels.")
-    if geometry is not None:
-        raise ValueError("'tile_size' cannot be combined with a polygon 'geometry'.")
+    # tile_size still needs a defined output grid and somewhere to stream — these are
+    # the combinations that genuinely cannot tile. A polygon 'geometry' (cutline
+    # applied to the mosaic, #64), an interpolating 'resample' (halo margin, #65) and
+    # the ImageCollection composite (each tile reduces its own stack, #59) are now all
+    # supported alongside tile_size.
     if scale is None and shape is None:
         raise ValueError(
             "'tile_size' needs 'scale' or 'shape' to define the output grid."
         )
     if path is None:
         raise ValueError("'tile_size' needs 'path' to stream the mosaic to disk.")
-    if resample != "nearest":
-        # Tiles are warped independently, so an interpolating kernel samples missing
-        # neighbours across a tile seam and the mosaic no longer matches the un-tiled
-        # read. Only nearest (each output pixel from one source pixel) is seam-exact.
-        raise ValueError(
-            "'tile_size' supports only resample='nearest'; an interpolating "
-            "resampler would differ from the un-tiled read at tile seams."
-        )
 
 
 def from_earthengine(
@@ -1591,12 +1958,16 @@ def from_earthengine(
             size, each read and written to disk in turn, then mosaicked into
             ``path`` — bounding the peak of the per-tile warp/write step rather than
             materialising the whole output at once. The mosaic reproduces the
-            equivalent un-tiled ``nearest`` read exactly. Single-``Image`` raw reads
-            only: requires a ``bbox``, a ``path``, ``scale`` or ``shape``, and the
-            default ``resample="nearest"`` (interpolating resamplers differ from the
-            un-tiled read at tile seams); cannot be combined with a ``geometry``
-            cutline or the composite mode. Peak memory is still governed by each
-            tile's **native-resolution** window (see the Performance note), so choose
+            equivalent un-tiled read: ``nearest`` exactly and with no overhead, and an
+            interpolating ``resample`` via a kernel-sized halo read and trimmed per
+            tile so seam pixels match (#65). It works with a ``geometry`` cutline —
+            the envelope is tiled and the cutline applied to the finished mosaic
+            (#64) — and with the composite mode (``start``/``end`` + ``reducer``),
+            where each tile reduces its own scene stack so a seam is a mosaic boundary,
+            not a reduction boundary (#59). Requires a ``bbox`` or ``geometry``, a
+            ``path``, and ``scale`` or ``shape`` (the combinations that genuinely
+            cannot tile). Peak memory is still governed by each tile's
+            **native-resolution** window (see the Performance note), so choose
             ``tile_size`` relative to the asset's native resolution.
         path: Output raster path. When given, the result is written there and a
             file-backed ``Dataset`` reading it is returned instead of an in-memory
@@ -1767,6 +2138,7 @@ def from_earthengine(
             path=path,
             block_size=block_size,
             property_filter=property_filter,
+            tile_size=tile_size,
         )
     else:
         result = _single_image_read(

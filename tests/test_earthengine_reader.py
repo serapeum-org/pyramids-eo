@@ -2569,20 +2569,22 @@ class TestTiledValidation:
         with pytest.raises(ValueError, match="scale.*shape"):
             from_earthengine("X", bbox=_BBOX, tile_size=7, path="out.tif")
 
-    def test_tile_size_rejects_composite(self) -> None:
-        """``tile_size`` with a reducer (composite mode) raises up front.
+    def test_tiled_composite_still_needs_path(self) -> None:
+        """A tiled composite without ``path`` raises up front (#59).
 
         Test scenario:
-            The oversize tiler is single-image only → ``ValueError``.
+            The composite mode now tiles, but only to disk — no ``path`` is a
+            combination that genuinely cannot stream → ``ValueError``.
         """
-        with pytest.raises(ValueError, match="composite"):
+        with pytest.raises(ValueError, match="path"):
             from_earthengine(
                 "X",
                 bbox=_BBOX,
                 shape=(8, 8),
                 tile_size=4,
-                path="o.tif",
                 reducer="median",
+                start="2024-06-01",
+                end="2024-06-10",
             )
 
     def test_property_filter_rejects_single_image(self) -> None:
@@ -2599,11 +2601,12 @@ class TestTiledValidation:
                 property_filter="CLOUDY_PIXEL_PERCENTAGE < 20",
             )
 
-    def test_tile_size_rejects_geometry(self) -> None:
-        """``tile_size`` combined with a polygon ``geometry`` raises up front.
+    def test_tile_size_geometry_still_needs_grid(self) -> None:
+        """A tiled cutline still needs a target grid (#64).
 
         Test scenario:
-            A polygon cutline is incompatible with the tiler → ``ValueError``.
+            ``tile_size`` + ``geometry`` is now allowed, but without ``scale``/``shape``
+            there is no grid to tile → ``ValueError``.
         """
         import geopandas as gpd
         from shapely.geometry import Polygon
@@ -2612,8 +2615,8 @@ class TestTiledValidation:
             geometry=[Polygon([(86.9, 27.9), (87.0, 27.9), (86.9, 28.0)])],
             crs="EPSG:4326",
         )
-        with pytest.raises(ValueError, match="geometry"):
-            from_earthengine("X", geometry=gdf, shape=(8, 8), tile_size=4, path="o.tif")
+        with pytest.raises(ValueError, match="scale.*shape"):
+            from_earthengine("X", geometry=gdf, tile_size=4, path="o.tif")
 
     def test_tile_size_must_be_positive(self) -> None:
         """A non-positive ``tile_size`` raises up front.
@@ -2624,26 +2627,22 @@ class TestTiledValidation:
         with pytest.raises(ValueError, match="positive"):
             from_earthengine("X", bbox=_BBOX, shape=(8, 8), tile_size=0, path="o.tif")
 
-    @pytest.mark.parametrize("resample", ["bilinear", "cubic", "average", "mode"])
-    def test_tile_size_rejects_non_nearest_resample(self, resample) -> None:
-        """A non-nearest ``resample`` with ``tile_size`` raises up front.
+    @pytest.mark.parametrize(
+        ("resample", "expected"),
+        [("nearest", 0), ("bilinear", 1), ("cubic", 2), ("lanczos", 3), ("mode", 0)],
+    )
+    def test_resample_halo_sized_from_kernel(self, resample, expected) -> None:
+        """The tiling halo is sized from the resampling kernel, zero for nearest (#65).
 
         Args:
-            resample: A non-nearest resampling algorithm.
+            resample: A resampling algorithm name.
+            expected: Its expected per-edge halo in output pixels.
 
         Test scenario:
-            Interpolating (and footprint) resamplers differ from the un-tiled read
-            at tile seams, so they are rejected before any read.
+            Point samplers need no halo (zero-overhead); interpolating kernels need a
+            margin that grows with the kernel's reach.
         """
-        with pytest.raises(ValueError, match="nearest"):
-            from_earthengine(
-                "X",
-                bbox=_BBOX,
-                shape=(8, 8),
-                tile_size=4,
-                path="o.tif",
-                resample=resample,
-            )
+        assert ee_reader._resample_halo(resample) == expected
 
     def test_path_without_bbox_or_geometry(self) -> None:
         """A ``path`` with no ``bbox``/``geometry`` raises (the whole-asset read is lazy).
@@ -2684,4 +2683,120 @@ class TestTiledLive:
         assert tiled.shape == untiled.shape, f"shape {tiled.shape} vs {untiled.shape}"
         assert np.array_equal(tiled, untiled), (
             "live tiled mosaic differs from the un-tiled read"
+        )
+
+    @pytest.mark.live
+    @pytest.mark.parametrize(("resample", "atol"), [("bilinear", 0), ("average", 1)])
+    def test_tiled_interpolating_equals_untiled(self, tmp_path, resample, atol) -> None:
+        """A tiled interpolating read matches the un-tiled read, seams included (#65).
+
+        Args:
+            tmp_path: pytest temp dir.
+            resample: An interpolating / footprint resampler that needs a halo.
+            atol: Allowed per-pixel deviation. ``bilinear`` (a point sampler) is exact;
+                ``average`` pools a footprint whose float accumulation is order-sensitive,
+                so it matches to within one integer LSB at a seam.
+
+        Test scenario:
+            A 40x40 SRTM window read as 13-px tiles with a non-nearest resampler equals
+            the un-tiled read — the per-tile halo restores the cross-seam neighbours.
+        """
+        untiled = np.asarray(
+            from_earthengine(
+                "USGS/SRTMGL1_003", bbox=_BBOX, shape=(40, 40), resample=resample
+            ).read_array()
+        ).astype(float)
+        out = tmp_path / f"srtm_{resample}.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "USGS/SRTMGL1_003",
+                bbox=_BBOX,
+                shape=(40, 40),
+                resample=resample,
+                tile_size=13,
+                path=str(out),
+            ).read_array()
+        ).astype(float)
+        assert tiled.shape == untiled.shape, f"shape {tiled.shape} vs {untiled.shape}"
+        assert np.max(np.abs(tiled - untiled)) <= atol, (
+            f"tiled {resample} mosaic differs from the un-tiled read at a seam"
+        )
+
+    @pytest.mark.live
+    def test_tiled_cutline_equals_untiled(self, tmp_path) -> None:
+        """A tiled cutline read equals the un-tiled cutline read (#64).
+
+        Test scenario:
+            A polygon AOI read un-tiled and as 13-px tiles (envelope tiled, cutline on
+            the mosaic) are pixel-identical, pixels outside the polygon masked alike. A
+            grid-aligned polygon is used so the cutline falls on pixel edges — an
+            arbitrary edge only differs by sub-pixel rasterization on the two grids,
+            which is not what this asserts.
+        """
+        import geopandas as gpd
+        from shapely.geometry import Polygon
+
+        cell = (_BBOX[2] - _BBOX[0]) / 40
+        x0, y0 = _BBOX[0] + 8 * cell, _BBOX[1] + 8 * cell
+        x1, y1 = _BBOX[0] + 32 * cell, _BBOX[1] + 31 * cell
+        gdf = gpd.GeoDataFrame(
+            geometry=[Polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])],
+            crs="EPSG:4326",
+        )
+        untiled = np.asarray(
+            from_earthengine(
+                "USGS/SRTMGL1_003", geometry=gdf, shape=(40, 40)
+            ).read_array()
+        )
+        out = tmp_path / "srtm_cut.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "USGS/SRTMGL1_003",
+                geometry=gdf,
+                shape=(40, 40),
+                tile_size=13,
+                path=str(out),
+            ).read_array()
+        )
+        assert tiled.shape == untiled.shape, f"shape {tiled.shape} vs {untiled.shape}"
+        assert np.array_equal(tiled, untiled), (
+            "tiled cutline mosaic differs from the un-tiled cutline read"
+        )
+
+    @pytest.mark.live
+    def test_tiled_composite_equals_untiled(self, tmp_path) -> None:
+        """A tiled composite equals the un-tiled composite (#59).
+
+        Test scenario:
+            An S2 median composite read un-tiled and as 10-px tiles are pixel-identical.
+            The tiled path discovers the scenes once and reduces that same stack on
+            every tile (filling scenes whose footprint misses a tile, exactly as the
+            un-tiled warp does), so a seam is a mosaic boundary, not a reduction
+            boundary, and even an averaging reducer matches exactly. The read is done
+            in the scenes' native UTM (``EPSG:32645``) so no reprojection runs: a
+            reprojecting warp is not bit-exact between a per-tile and a whole-window
+            pass at a few seam pixels (a GDAL numerics property, not a reduction one),
+            which would mask what this asserts.
+        """
+        common = dict(
+            bbox=_to_utm45(_S2_BBOX),
+            crs="EPSG:32645",
+            start="2024-06-01",
+            end="2024-06-15",
+            reducer="median",
+            bands=["B4"],
+            shape=(24, 24),
+        )
+        untiled = np.asarray(
+            from_earthengine("COPERNICUS/S2_SR_HARMONIZED", **common).read_array()
+        ).astype(float)
+        out = tmp_path / "s2_composite.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED", **common, tile_size=10, path=str(out)
+            ).read_array()
+        ).astype(float)
+        assert tiled.shape == untiled.shape, f"shape {tiled.shape} vs {untiled.shape}"
+        assert np.array_equal(tiled, untiled), (
+            "tiled composite differs from the un-tiled composite"
         )
