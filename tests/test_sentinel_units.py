@@ -595,6 +595,22 @@ class TestReaderEdges:
         with pytest.raises(ProductError, match="SCL"):
             from_sentinel2(_L1C, bands=["B04"], mask_scl=[SclClass.WATER])
 
+    def test_empty_bands_list_raises(self):
+        """An explicit ``bands=[]`` is rejected, not silently read as 'all'."""
+        from pyramids_eo.sentinel import from_sentinel2
+
+        with pytest.raises(ProductError, match="empty"):
+            from_sentinel2(_L2A, bands=[])
+
+    def test_collection_rejects_path_out_kwarg(self, tmp_path):
+        """`collection_from_sentinel2` rejects a ``path_out`` kwarg with a clear error."""
+        from pyramids_eo.sentinel import collection_from_sentinel2
+
+        with pytest.raises(ProductError, match="path_out"):
+            collection_from_sentinel2(
+                [_L2A], root_dir=tmp_path / "s", path_out=tmp_path / "x.tif"
+            )
+
 
 class TestReaderHelpers:
     """Direct unit tests for `s2.reader` pure helpers (fake products/datasets)."""

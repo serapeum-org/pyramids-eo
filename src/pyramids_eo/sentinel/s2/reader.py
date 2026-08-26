@@ -164,6 +164,11 @@ def collection_from_sentinel2(
     products = list(paths)
     if not products:
         raise ProductError("collection_from_sentinel2: no product paths given")
+    if "path_out" in kwargs:
+        raise ProductError(
+            "collection_from_sentinel2 manages per-scene output itself; pass "
+            "root_dir=, not path_out= (it is set per scene)."
+        )
 
     root = Path(root_dir)
     root.mkdir(parents=True, exist_ok=True)
@@ -206,7 +211,11 @@ def _resolve_bands(
     epsg: int | None,
 ) -> list[str]:
     """Return the requested band names, defaulting to all spectral bands."""
-    if bands:
+    if bands is not None:
+        if not bands:
+            raise ProductError(
+                "bands=[] is empty; omit bands= (or pass None) to read all spectral bands"
+            )
         return list(bands)
     if resolution is not None:
         sd = product.subdataset_for(resolution, epsg)
