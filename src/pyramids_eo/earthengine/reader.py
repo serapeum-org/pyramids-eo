@@ -570,6 +570,29 @@ def _apply_geometry(dataset: Dataset, geometry: object | None) -> Dataset:
     return dataset.crop(mask=geometry)
 
 
+def _apply_nodata(dataset: Dataset, nodata: float | int | None) -> Dataset:
+    """Tag ``dataset``'s bands with a fill value, or return it unchanged.
+
+    The EEDAI driver reports no no-data value (``GetNoDataValue()`` is ``None`` and
+    the mask claims every pixel valid), so a real fill sentinel — e.g. GSW
+    ``occurrence``'s ``-128`` — has to be supplied from the Earth Engine catalog by
+    the caller. This marks that value as no-data on every band *without touching the
+    pixels* (the sentinel stays in place, it is merely recognised), so downstream
+    masking treats fill as fill. ``None`` leaves the dataset untagged — an unknown
+    fill is left explicit rather than guessed.
+
+    Args:
+        dataset: The dataset to tag.
+        nodata: The fill value to mark as no-data, or ``None`` to leave it untagged.
+
+    Returns:
+        The same ``dataset`` (tagged in place when ``nodata`` is given).
+    """
+    if nodata is None:
+        return dataset
+    return dataset.change_no_data_value(nodata, inplace=True)
+
+
 def _retain_credentials(obj: object, credentials: EarthEngineCredentials) -> object:
     """Pin ``credentials`` onto a returned object so its resources outlive it.
 
@@ -1370,6 +1393,7 @@ def from_earthengine(
     path: str | Path | None = None,
     block_size: int | None = None,
     property_filter: str | None = None,
+    nodata: float | int | None = None,
 ) -> Dataset:
     """Read an Earth Engine ``Image`` (or reduced ``ImageCollection``) into a ``Dataset``.
 
@@ -1441,6 +1465,14 @@ def from_earthengine(
             ``ImageCollection`` composite mode to constrain which scenes are reduced.
             Filtered client-side over the discovered scene page (it trims pixel
             fetches, not the catalog query), so it is not server-side filtering.
+        nodata: Fill value to tag on the returned dataset's bands. EEDAI exposes no
+            no-data value, so a real sentinel (e.g. GSW ``occurrence``'s ``-128``) has
+            to be supplied from the Earth Engine catalog; it is marked as no-data
+            without altering pixels, so downstream masking treats fill as fill.
+            ``None`` (default) leaves the dataset untagged — an unknown fill stays
+            explicit rather than guessed. Scale/offset and band descriptions are
+            carried through by the read where the source provides them; the EEDAI
+            driver currently provides none.
 
     Returns:
         A pyramids :class:`~pyramids.dataset.Dataset` — the windowed image or the
@@ -1573,7 +1605,7 @@ def from_earthengine(
             bbox = _geometry_bounds(geometry)
 
     if reducer is not None or start is not None or end is not None:
-        return _composite_read(
+        result = _composite_read(
             asset_id,
             bands=bands,
             bbox=bbox,
@@ -1590,20 +1622,22 @@ def from_earthengine(
             block_size=block_size,
             property_filter=property_filter,
         )
-    return _single_image_read(
-        asset_id,
-        bands=bands,
-        bbox=bbox,
-        crs=crs,
-        scale=scale,
-        shape=shape,
-        resample=resample,
-        geometry=geometry,
-        credentials=creds,
-        tile_size=tile_size,
-        path=path,
-        block_size=block_size,
-    )
+    else:
+        result = _single_image_read(
+            asset_id,
+            bands=bands,
+            bbox=bbox,
+            crs=crs,
+            scale=scale,
+            shape=shape,
+            resample=resample,
+            geometry=geometry,
+            credentials=creds,
+            tile_size=tile_size,
+            path=path,
+            block_size=block_size,
+        )
+    return _apply_nodata(result, nodata)
 
 
 def collection_from_earthengine(
@@ -1621,6 +1655,7 @@ def collection_from_earthengine(
     credentials: CredentialsLike = None,
     block_size: int | None = None,
     property_filter: str | None = None,
+    nodata: float | int | None = None,
 ) -> DatasetCollection:
     """Read an Earth Engine ``ImageCollection`` into a ``DatasetCollection``.
 
@@ -1658,6 +1693,8 @@ def collection_from_earthengine(
             property fields (e.g. ``"CLOUDY_PIXEL_PERCENTAGE < 20"``) constraining
             which scenes are read. Filtered client-side over the discovered scene
             page (trims pixel fetches, not the catalog query), not server-side.
+        nodata: Fill value to tag on every scene's bands (EEDAI exposes none). See
+            :func:`from_earthengine`; ``None`` leaves the scenes untagged.
 
     Returns:
         A pyramids :class:`~pyramids.dataset.DatasetCollection`, one timestep per
@@ -1722,7 +1759,9 @@ def collection_from_earthengine(
     # ``windowed`` scenes are already fully-materialised pyramids Datasets (the warp
     # read every pixel eagerly), so they need no re-wrapping or credential env.
     datasets = [
-        _retain_credentials(_apply_geometry(scene, geometry), creds)
+        _retain_credentials(
+            _apply_nodata(_apply_geometry(scene, geometry), nodata), creds
+        )
         for scene in windowed
     ]
     collection = DatasetCollection(

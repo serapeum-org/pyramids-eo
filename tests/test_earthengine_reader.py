@@ -126,6 +126,34 @@ class TestFromEarthengine:
         ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5))
         assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
 
+    def test_nodata_tags_returned_dataset_without_altering_pixels(
+        self, patched_eedai
+    ) -> None:
+        """A ``nodata`` value is tagged on the result, pixels untouched (#63).
+
+        Test scenario:
+            The synthetic source is a constant ``42``; ``nodata=999`` (a value not in
+            the data) is marked as no-data on the returned dataset while every pixel
+            stays ``42`` — the sentinel is recognised, not written.
+        """
+        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), nodata=999)
+        assert ds.no_data_value[0] == 999, (
+            f"Expected nodata 999, got {ds.no_data_value}"
+        )
+        assert np.all(np.asarray(ds.read_array()) == 42), (
+            "nodata tagging altered pixels"
+        )
+
+    def test_nodata_default_leaves_source_value(self, patched_eedai) -> None:
+        """Omitting ``nodata`` does not force a fill tag (#63).
+
+        Test scenario:
+            Without ``nodata`` the reader does not stamp 999; the result keeps whatever
+            the read produced (never the caller's sentinel).
+        """
+        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5))
+        assert ds.no_data_value[0] != 999
+
     def test_honours_scale(self, patched_eedai) -> None:
         """An explicit ``scale`` sets the output pixel size in CRS units.
 
@@ -285,8 +313,12 @@ class TestCollectionFromEarthengineLive:
             bbox=_S2_BBOX,
         )
         assert cost.scene_count > 0, "Expected at least one scene in the window"
-        assert cost.max_band_count == 24, f"Expected 24 bands, got {cost.max_band_count}"
-        assert cost.max_width >= 10000, f"Expected a ~10980 px scene, got {cost.max_width}"
+        assert cost.max_band_count == 24, (
+            f"Expected 24 bands, got {cost.max_band_count}"
+        )
+        assert cost.max_width >= 10000, (
+            f"Expected a ~10980 px scene, got {cost.max_width}"
+        )
         assert cost.min_pixel_size == 10.0, (
             f"Expected a 10 m finest band, got {cost.min_pixel_size}"
         )
@@ -1689,6 +1721,38 @@ class TestMaterialize:
 
 class TestLivePixelCorrectness:
     """Live safety net: EEDAI reads must return correct, deterministic pixels."""
+
+    @pytest.mark.live
+    def test_nodata_tag_marks_gsw_fill(self) -> None:
+        """A catalog-sourced fill is tagged on a live GSW read (#63).
+
+        Test scenario:
+            ``JRC/GSW1_4/GlobalSurfaceWater`` ``occurrence`` (Int8) uses ``-128`` for
+            "never observed" but the driver reports no no-data; passing ``nodata=-128``
+            tags it so downstream masking sees fill as fill, pixels unchanged.
+        """
+        untagged = from_earthengine(
+            "JRC/GSW1_4/GlobalSurfaceWater",
+            bbox=_BBOX,
+            shape=(32, 32),
+            bands=["occurrence"],
+        )
+        tagged = from_earthengine(
+            "JRC/GSW1_4/GlobalSurfaceWater",
+            bbox=_BBOX,
+            shape=(32, 32),
+            bands=["occurrence"],
+            nodata=-128,
+        )
+        assert untagged.no_data_value[0] is None, (
+            f"EEDAI unexpectedly reported a fill: {untagged.no_data_value}"
+        )
+        assert tagged.no_data_value[0] == -128, (
+            f"Expected -128 tagged, got {tagged.no_data_value}"
+        )
+        assert np.array_equal(
+            np.asarray(untagged.read_array()), np.asarray(tagged.read_array())
+        ), "tagging nodata changed the pixels"
 
     @pytest.mark.live
     def test_block_size_pixels_unchanged(self) -> None:
