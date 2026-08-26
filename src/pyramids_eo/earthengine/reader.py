@@ -1725,7 +1725,10 @@ def _tiled_windowed_read(
     (each output pixel from one source pixel) that reproduces the un-tiled read exactly
     with no overhead, and for an interpolating ``resample`` each tile is grown by a
     kernel-sized halo, warped, and trimmed (:func:`_read_tile_with_halo`) so seam
-    pixels keep the neighbours the un-tiled read had.
+    pixels keep the neighbours the un-tiled read had. The exact-reproduction guarantee
+    holds when the warp does not reproject (``crs`` == source CRS); a reprojecting
+    interpolating tiled read may differ from the un-tiled read by a few LSBs at a
+    handful of seam pixels (a GDAL warp-numerics property), not an alignment error.
 
     Memory/cost notes: the per-tile step (not the whole output) is what is bounded,
     but each tile's :func:`_materialize` still reads the tile's **native-resolution**
@@ -1971,14 +1974,19 @@ def from_earthengine(
             set, the output grid is split into grid-aligned tiles of at most this
             size, each read and written to disk in turn, then mosaicked into
             ``path`` — bounding the peak of the per-tile warp/write step rather than
-            materialising the whole output at once. The mosaic reproduces the
-            equivalent un-tiled read: ``nearest`` exactly and with no overhead, and an
-            interpolating ``resample`` via a kernel-sized halo read and trimmed per
-            tile so seam pixels match (#65). It works with a ``geometry`` cutline —
-            the envelope is tiled and the cutline applied to the finished mosaic
-            (#64) — and with the composite mode (``start``/``end`` + ``reducer``),
-            where each tile reduces its own scene stack so a seam is a mosaic boundary,
-            not a reduction boundary (#59). Requires a ``bbox`` or ``geometry``, a
+            materialising the whole output at once. When no reprojection is involved
+            (``crs`` equals the source/scene CRS) the mosaic reproduces the equivalent
+            un-tiled read: ``nearest`` exactly and with no overhead, and an
+            interpolating ``resample`` via a kernel-sized halo read and trimmed per tile
+            so seam pixels match (#65). Under a **reprojecting** ``crs`` a tiled read
+            (interpolating single-image or composite) can differ from the un-tiled read
+            by a few LSBs at a handful of seam pixels — GDAL's warp is not bit-exact
+            between a per-tile and a whole-window pass — so it is a close but not
+            bit-exact reproduction there. It works with a ``geometry`` cutline — the
+            envelope is tiled and the cutline applied to the finished mosaic (#64) — and
+            with the composite mode (``start``/``end`` + ``reducer``), where each tile
+            reduces its own scene stack so a seam is a mosaic boundary, not a reduction
+            boundary (#59). Requires a ``bbox`` or ``geometry``, a
             ``path``, and ``scale`` or ``shape`` (the combinations that genuinely
             cannot tile). Peak memory is still governed by each tile's
             **native-resolution** window (see the Performance note), so choose
