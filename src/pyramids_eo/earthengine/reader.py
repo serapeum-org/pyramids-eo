@@ -345,6 +345,10 @@ def _read_native_blocks(
     """
     width, height = x1 - x0, y1 - y0
     band_count = src.RasterCount
+    # EEDAI's BLOCK_SIZE is a single square value, so the x block size drives the stride
+    # on BOTH axes here. This assumes square blocks — which EEDAI always has; a
+    # (hypothetical) non-square block would make the y walk cross block boundaries, the
+    # very corruption this block-aligned read exists to avoid.
     block = src.GetRasterBand(1).GetBlockSize()[0]
     data: np.ndarray | None = None
     for band_index in range(band_count):
