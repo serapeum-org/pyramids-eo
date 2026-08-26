@@ -122,5 +122,7 @@ def _stamp_baseline(dataset: Any, product: S2Product) -> None:
         meta["PROCESSING_BASELINE"] = product.baseline
         meta["PYRAMIDS_EO_REFLECTANCE"] = "scaled"
         dataset.meta_data = meta
-    except Exception:  # noqa: BLE001 - metadata stamping is non-essential
+    except (RuntimeError, ValueError, TypeError):
+        # baseline stamping is non-essential; a rejecting setter must not fail
+        # the reflectance conversion, but a programming error still surfaces.
         pass

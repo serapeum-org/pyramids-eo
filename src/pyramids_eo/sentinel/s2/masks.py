@@ -199,7 +199,7 @@ def _carry_band_state(source: Any, dest: Any) -> None:
     """
     try:
         dest.band_names = list(source.band_names)
-    except Exception:  # noqa: BLE001 - display metadata only
-        pass
+    except (RuntimeError, ValueError, TypeError):
+        pass  # band names are display-only
     dest.scale = list(source.scale)
     dest.offset = list(source.offset)

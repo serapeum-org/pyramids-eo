@@ -381,7 +381,9 @@ def _set_nodata(dataset: Any, product: S2Product) -> None:
         nodata = 0.0
     try:
         dataset.no_data_value = [nodata] * dataset.band_count
-    except Exception:  # noqa: BLE001 - nodata is advisory; don't fail the read
+    except (RuntimeError, ValueError, TypeError):
+        # nodata is advisory; a rejecting setter must not fail the read, but a
+        # programming error (wrong attr / key) still surfaces.
         pass
 
 
