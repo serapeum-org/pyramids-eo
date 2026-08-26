@@ -791,6 +791,93 @@ class TestFromEarthengineComposite:
         assert out.exists(), "composite mode must honour 'path' and write the file"
         assert (ds.read_array() == 20).all(), "file-backed composite has wrong values"
 
+    def test_tiled_composite_writes_and_reduces(self, three_scenes, tmp_path) -> None:
+        """A tiled composite streams to disk and reduces each tile's scene stack (#59).
+
+        Args:
+            three_scenes: Fixture patching discovery/open (fills 10, 20, 30).
+            tmp_path: pytest temp directory.
+
+        Test scenario:
+            An 8x8 median composite read as 4-px tiles writes the mosaic and every
+            pixel is the median (20) — the tiled path reduces the same three scenes on
+            each tile and mosaics them.
+        """
+        out = tmp_path / "tiled_composite.tif"
+        ds = from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            bbox=_BBOX,
+            start="2024-06-01",
+            end="2024-06-30",
+            reducer="median",
+            shape=(8, 8),
+            tile_size=4,
+            path=str(out),
+        )
+        assert out.exists(), "tiled composite must write the mosaic to 'path'"
+        assert ds.shape == (1, 8, 8), f"expected an 8x8 mosaic, got {ds.shape}"
+        assert (np.asarray(ds.read_array()) == 20).all(), (
+            "tiled composite median differs from the untiled median (20)"
+        )
+
+    def test_tiled_composite_applies_cutline(self, three_scenes, tmp_path) -> None:
+        """A tiled composite with a polygon clips the finished mosaic (#59 + #64).
+
+        Args:
+            three_scenes: Fixture patching discovery/open (fills 10, 20, 30).
+            tmp_path: pytest temp directory.
+
+        Test scenario:
+            A half-bbox triangle (its envelope is the full window) is tiled and the
+            cutline masks the corner outside it — composite (20) inside, masked outside.
+        """
+        import geopandas as gpd
+        from shapely.geometry import Polygon
+
+        gdf = gpd.GeoDataFrame(
+            geometry=[Polygon([(86.9, 27.9), (87.0, 27.9), (86.9, 28.0)])],
+            crs="EPSG:4326",
+        )
+        out = tmp_path / "tiled_composite_cut.tif"
+        ds = from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            bbox=_BBOX,
+            geometry=gdf,
+            start="2024-06-01",
+            end="2024-06-30",
+            reducer="median",
+            shape=(8, 8),
+            tile_size=4,
+            path=str(out),
+        )
+        arr = np.asarray(ds.read_array())
+        assert (arr == 20).any(), (
+            "composite value (20) should survive inside the polygon"
+        )
+        assert int((arr == ds.no_data_value[0]).sum()) > 0, (
+            "pixels outside the triangle should be masked to the composite nodata"
+        )
+
+    def test_tiled_composite_no_scenes_raises(self, monkeypatch, tmp_path) -> None:
+        """A tiled composite over an empty window raises ``ReaderError`` (#59).
+
+        Test scenario:
+            Discovery returns no scenes, so the tiled composite fails loudly like the
+            un-tiled one rather than writing an empty mosaic.
+        """
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: [])
+        with pytest.raises(ReaderError, match="No Earth Engine scenes"):
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                bbox=_BBOX,
+                start="2024-06-01",
+                end="2024-06-30",
+                reducer="median",
+                shape=(8, 8),
+                tile_size=4,
+                path=str(tmp_path / "empty.tif"),
+            )
+
     def test_start_end_without_reducer_raises(self) -> None:
         """A date range without a reducer is rejected with guidance.
 
@@ -1101,6 +1188,87 @@ class TestDiscoverScenes:
                 end="2024-06-30",
                 credentials=EarthEngineCredentials.application_default(),
             )
+
+    def test_estimate_cost_accepts_geometry_envelope(self, monkeypatch) -> None:
+        """``estimate_earthengine_cost`` bounds discovery by a geometry's envelope (#61).
+
+        Test scenario:
+            With no ``bbox`` but a polygon ``geometry``, the estimate uses the polygon's
+            envelope and returns the aggregated cost of the discovered scenes.
+        """
+        import geopandas as gpd
+        from shapely.geometry import box
+
+        gdf = gpd.GeoDataFrame(geometry=[box(86.9, 27.9, 87.0, 28.0)], crs="EPSG:4326")
+        scenes = [
+            ee_reader._Scene(
+                "EEDAI:a", "2024-06-01T00:00:00", 24, 10980, 10980, 10.0, "", 100
+            )
+        ]
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: scenes)
+        cost = ee_reader.estimate_earthengine_cost(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            geometry=gdf,
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        assert cost.scene_count == 1, f"expected 1 scene, got {cost.scene_count}"
+        assert cost.max_band_count == 24, (
+            f"expected 24 bands, got {cost.max_band_count}"
+        )
+
+    def test_estimate_cost_min_pixel_size_zero_when_unreported(
+        self, monkeypatch
+    ) -> None:
+        """``min_pixel_size`` is ``0.0`` when no scene reports a pixel size (#61).
+
+        Test scenario:
+            Scenes whose ``pixel_size`` is ``0`` (catalog reported none) aggregate to a
+            ``0.0`` finest pixel size rather than raising on an empty min().
+        """
+        scenes = [
+            ee_reader._Scene("EEDAI:a", "2024-06-01T00:00:00", 1, 10, 10, 0.0, "", 0)
+        ]
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: scenes)
+        cost = ee_reader.estimate_earthengine_cost(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox=_BBOX,
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        assert cost.min_pixel_size == 0.0, (
+            f"expected 0.0 finest pixel size, got {cost.min_pixel_size}"
+        )
+
+    @pytest.mark.parametrize("raw", ["", "not-a-number", "12.3.4"])
+    def test_field_int_tolerates_bad_values(self, raw) -> None:
+        """``_field_int`` yields ``0`` for blank/unparseable catalog fields (#61).
+
+        Args:
+            raw: A blank or non-numeric field value.
+
+        Test scenario:
+            The tolerant coercion never raises; a bad field reads as ``0``.
+        """
+        assert ee_reader._field_int(_FakeFeature({"k": raw}), "k") == 0, (
+            f"expected 0 for {raw!r}"
+        )
+
+    @pytest.mark.parametrize("raw", ["", "not-a-number", "1,2"])
+    def test_field_float_tolerates_bad_values(self, raw) -> None:
+        """``_field_float`` yields ``0.0`` for blank/unparseable catalog fields (#61).
+
+        Args:
+            raw: A blank or non-numeric field value.
+
+        Test scenario:
+            The tolerant coercion never raises; a bad field reads as ``0.0``.
+        """
+        assert ee_reader._field_float(_FakeFeature({"k": raw}), "k") == 0.0, (
+            f"expected 0.0 for {raw!r}"
+        )
 
 
 class TestHelpers:
@@ -2237,6 +2405,70 @@ class TestTiledRead:
         )
         assert np.array_equal(tiled, untiled), (
             "tiled mosaic differs from the un-tiled read"
+        )
+
+    def test_tiled_bilinear_equals_untiled(self, patched_gradient, tmp_path) -> None:
+        """A tiled interpolating read matches the un-tiled read via the halo (#65).
+
+        Test scenario:
+            A 20x20 bilinear window over the gradient, tiled at 7, equals the un-tiled
+            bilinear read pixel-for-pixel — each tile's kernel-sized halo restores the
+            neighbours it would otherwise miss at a seam.
+        """
+        untiled = np.asarray(
+            from_earthengine(
+                "X", bbox=_BBOX, shape=(20, 20), resample="bilinear"
+            ).read_array()
+        )
+        out = tmp_path / "bilinear_mosaic.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X",
+                bbox=_BBOX,
+                shape=(20, 20),
+                resample="bilinear",
+                tile_size=7,
+                path=str(out),
+            ).read_array()
+        )
+        assert np.array_equal(tiled, untiled), (
+            "tiled bilinear mosaic differs from the un-tiled read at a seam"
+        )
+
+    def test_tiled_cutline_equals_untiled(self, patched_gradient, tmp_path) -> None:
+        """A tiled cutline read equals the un-tiled cutline read (#64).
+
+        Test scenario:
+            A grid-aligned polygon over the window, read un-tiled and tiled at 7, are
+            pixel-identical — the envelope is tiled and the cutline applied to the
+            assembled mosaic.
+        """
+        import geopandas as gpd
+        from shapely.geometry import box
+
+        cell = (_BBOX[2] - _BBOX[0]) / 20
+        gdf = gpd.GeoDataFrame(
+            geometry=[
+                box(
+                    _BBOX[0] + 4 * cell,
+                    _BBOX[1] + 4 * cell,
+                    _BBOX[0] + 16 * cell,
+                    _BBOX[1] + 15 * cell,
+                )
+            ],
+            crs="EPSG:4326",
+        )
+        untiled = np.asarray(
+            from_earthengine("X", geometry=gdf, shape=(20, 20)).read_array()
+        )
+        out = tmp_path / "cutline_mosaic.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X", geometry=gdf, shape=(20, 20), tile_size=7, path=str(out)
+            ).read_array()
+        )
+        assert np.array_equal(tiled, untiled), (
+            "tiled cutline mosaic differs from the un-tiled cutline read"
         )
 
     def test_single_tile_when_tile_covers_grid(
