@@ -155,12 +155,14 @@ def scl_mask(
     masked = data.astype("float64", copy=True)
     masked[:, mask] = nodata
 
+    # Pass no_data_value at creation so pyramids does not apply (and warn about)
+    # its default -9999 sentinel, which is out of range for the uint16 dtype.
     out = Dataset.create_from_array(
         arr=masked.astype(data.dtype, copy=False),
         geo=dataset.raster.GetGeoTransform(),
         epsg=dataset.epsg,
+        no_data_value=nodata,
     )
-    out.no_data_value = [nodata] * out.band_count
     _carry_band_state(dataset, out)
     return out
 
