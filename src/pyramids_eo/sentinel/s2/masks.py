@@ -115,10 +115,13 @@ def scl_mask(
     codes = _resolve_classes(classes)
     scl_array = _scl_array(dataset, scl)
 
-    data = np.atleast_3d(dataset.read_array())
-    if data.ndim == 3 and data.shape[0] not in (dataset.band_count,):
-        # read_array returns (rows, cols) for a single band; normalise to (1, r, c).
-        data = data.reshape(dataset.band_count, *scl_array.shape)
+    # read_array returns (rows, cols) for one band and (bands, rows, cols) for
+    # many; normalise a single band to (1, rows, cols) so the mask indexing and
+    # the shape check below are uniform. (np.atleast_3d would wrongly append the
+    # band axis, giving (rows, cols, 1).)
+    data = np.asarray(dataset.read_array())
+    if data.ndim == 2:
+        data = data[np.newaxis, ...]
     if scl_array.shape != data.shape[-2:]:
         raise ProductError(
             f"SCL grid {scl_array.shape} does not match data grid {data.shape[-2:]}"

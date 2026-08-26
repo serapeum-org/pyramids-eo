@@ -131,7 +131,10 @@ def open_connection(connection: str) -> Dataset:
     if "/vsi" in connection:
         from osgeo import gdal
 
-        handle = gdal.Open(connection)
+        try:
+            handle = gdal.Open(connection)
+        except RuntimeError as exc:  # UseExceptions turns a bad open into a raise
+            raise ProductError(f"GDAL could not open {connection!r}: {exc}") from exc
         if handle is None:
             raise ProductError(f"GDAL could not open {connection!r}")
         return Dataset(handle)

@@ -63,7 +63,8 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
         resolution: Native resolution in metres (10 / 20 / 60). ``None`` picks
             the finest resolution whose subdataset carries all requested bands.
         epsg: UTM EPSG code, required only for a multi-zone product.
-        bbox: Optional crop window ``(minx, miny, maxx, maxy)`` in the output CRS.
+        bbox: Optional crop window ``(minx, miny, maxx, maxy)`` in the product's
+            native CRS (cropping happens before any ``crs`` reprojection).
         crs: Optional target CRS (EPSG int or WKT/……) to reproject to.
         reflectance: When ``True`` (default), tag the spectral bands so
             ``read_array(scaled=True)`` yields reflectance (DN / quantification
@@ -106,7 +107,7 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
     if mask_scl:
         dataset = _apply_scl_mask(dataset, product, target_res, epsg, mask_scl)
     if bbox is not None:
-        dataset = dataset.crop(list(bbox))
+        dataset = dataset.crop(bbox=list(bbox))
     if crs is not None:
         dataset = dataset.to_crs(crs)
     if path_out is not None:
