@@ -29,13 +29,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pyramids_eo.sentinel.s2.product import S2Product, _normalise_band
-
-
-def _is_spectral(band_name: str) -> bool:
-    """True for a spectral ``B*`` band (``B01`` … ``B12`` / ``B8A``)."""
-    text = band_name.strip().upper()
-    return text.startswith("B") and any(c.isdigit() for c in text)
+from pyramids_eo.sentinel.s2.product import S2Product, is_spectral_band
 
 
 def _band_offset(band_meta: dict[str, str]) -> float:
@@ -99,7 +93,7 @@ def tag_reflectance(
     for i, name in enumerate(band_names):
         # Prefer the driver's BANDNAME tag; fall back to the display name.
         tag = (band_meta[i].get("BANDNAME") if i < len(band_meta) else None) or name
-        if _is_spectral(_normalise_band(tag)):
+        if is_spectral_band(tag):
             band_offset = (
                 offsets[i]
                 if offsets is not None
