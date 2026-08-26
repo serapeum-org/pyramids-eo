@@ -304,6 +304,25 @@ class TestS2ProductInternals:
         with pytest.raises(ProductError, match="no 10m subdataset"):
             product.subdataset_for(10)
 
+    def test_subdataset_for_multi_zone_ambiguity(self):
+        """Two UTM zones at one resolution is ambiguous without ``epsg``.
+
+        Test scenario:
+            Injecting a second-zone 60 m subdataset makes ``subdataset_for(60)``
+            ambiguous (raises), while passing ``epsg=`` disambiguates it — the
+            multi-zone contract a single-zone fixture cannot exercise end-to-end.
+        """
+        from pyramids_eo.sentinel.s2.product import S2Subdataset
+
+        product = open_product(_L2A)  # one zone: EPSG:32632
+        other_zone = S2Subdataset(_FakeSD("fake:60m:EPSG_32631"), 60, 32631, ["B1"])
+        product._image_subdatasets.append(other_zone)
+
+        assert sorted(product.epsg_codes) == [32631, 32632]
+        with pytest.raises(ProductError, match="ambiguous"):
+            product.subdataset_for(60)
+        assert product.subdataset_for(60, epsg=32632).epsg == 32632
+
     def test_level_enum_values(self):
         """The `S2Level` enum carries the three processing levels."""
         assert {level.value for level in S2Level} == {"L1B", "L1C", "L2A"}
