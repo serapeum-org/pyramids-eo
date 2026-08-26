@@ -2311,6 +2311,36 @@ class ReadCost(NamedTuple):
             catalog reports none).
         scenes: The per-scene records (connection, acquisition time, and cost fields),
             in acquisition order.
+
+    Examples:
+        - Read the aggregate figures and derive the transfer size in megabytes:
+            ```python
+            >>> from pyramids_eo import ReadCost
+            >>> cost = ReadCost(
+            ...     scene_count=2,
+            ...     total_size_bytes=300_000_000,
+            ...     max_width=10980,
+            ...     max_height=10980,
+            ...     max_band_count=24,
+            ...     min_pixel_size=10.0,
+            ...     scenes=[],
+            ... )
+            >>> cost.scene_count
+            2
+            >>> round(cost.total_size_bytes / 1e6)
+            300
+            >>> cost.max_width, cost.min_pixel_size
+            (10980, 10.0)
+
+            ```
+        - A pixel budget for the widest scene, all bands:
+            ```python
+            >>> from pyramids_eo import ReadCost
+            >>> cost = ReadCost(1, 0, 5490, 5490, 13, 20.0, [])
+            >>> cost.max_width * cost.max_height * cost.max_band_count
+            391821300
+
+            ```
     """
 
     scene_count: int
@@ -2362,6 +2392,39 @@ def estimate_earthengine_cost(
         ValueError: Neither ``bbox`` nor ``geometry`` is given.
         ReaderError: The catalog could not be opened, or the date range + AOI matched
             no scenes.
+
+    Examples:
+        - Size a Sentinel-2 window before fetching any pixels (needs live credentials):
+            ```python
+            >>> from pyramids_eo import estimate_earthengine_cost
+            >>> cost = estimate_earthengine_cost(  # doctest: +SKIP
+            ...     "COPERNICUS/S2_SR_HARMONIZED",
+            ...     start="2024-06-01",
+            ...     end="2024-06-30",
+            ...     bbox=(86.90, 27.90, 86.94, 27.94),
+            ... )
+            >>> cost.scene_count, cost.max_band_count  # doctest: +SKIP
+            (6, 24)
+
+            ```
+        - Narrow the estimate to low-cloud scenes with a property filter:
+            ```python
+            >>> from pyramids_eo import estimate_earthengine_cost
+            >>> clear = estimate_earthengine_cost(  # doctest: +SKIP
+            ...     "COPERNICUS/S2_SR_HARMONIZED",
+            ...     start="2024-06-01",
+            ...     end="2024-06-30",
+            ...     bbox=(86.90, 27.90, 86.94, 27.94),
+            ...     property_filter="CLOUDY_PIXEL_PERCENTAGE < 20",
+            ... )
+            >>> clear.scene_count <= 6  # doctest: +SKIP
+            True
+
+            ```
+
+    See Also:
+        collection_from_earthengine: Actually read the selected scenes into a
+            ``DatasetCollection``.
     """
     if geometry is not None:
         geometry = _geometry_in_crs(geometry, crs)
