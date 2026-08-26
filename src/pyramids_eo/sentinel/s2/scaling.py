@@ -77,6 +77,12 @@ def tag_reflectance(
     Returns:
         The same ``dataset``, tagged.
 
+    Note:
+        The tags do not touch the ``no_data_value``, which stays in the DN
+        domain. A scaled read therefore returns ``DN * scale + offset`` for the
+        no-data pixels too — compare against the raw no-data value, not a scaled
+        one (see :func:`~pyramids_eo.sentinel.from_sentinel2`).
+
     Raises:
         ProductError: The product's quantification value is zero / unusable.
     """

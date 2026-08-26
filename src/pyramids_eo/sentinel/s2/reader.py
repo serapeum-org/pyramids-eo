@@ -77,6 +77,16 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
     Returns:
         A pyramids ``Dataset`` of the requested bands.
 
+    Note:
+        No-data is declared in the **DN domain** (the GDAL convention). Because
+        reflectance is applied as lazy ``scale`` / ``offset`` tags,
+        ``read_array(scaled=True)`` returns ``DN * scale + offset`` for *every*
+        pixel — so a DN no-data (and any SCL-masked pixel) reads back as the
+        *scaled* sentinel, not the declared ``no_data_value``. On a
+        baseline-≥04.00 product (offset ≈ −1000) a DN-0 no-data reads as
+        ≈ −0.1, not 0. Test for no-data against the raw value (or an unscaled
+        read), not against a scaled reflectance.
+
     Raises:
         ProductError: The product is missing a requested band / resolution, or
             a multi-zone product is read without ``epsg``.
