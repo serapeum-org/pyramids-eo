@@ -662,6 +662,35 @@ def _apply_geometry(dataset: Dataset, geometry: object | None) -> Dataset:
     return dataset.crop(mask=geometry)
 
 
+def _clip_mosaic_to_geometry(
+    merged: Dataset, geometry: object | None, path: str | Path
+) -> Dataset:
+    """Clip a file-backed mosaic to a polygon cutline, swapping the file in place.
+
+    The tiled paths mosaic to ``path`` first, then (for a polygon AOI) apply the cutline
+    to the finished mosaic. The mosaic handle still holds ``path`` open, so the clipped
+    result is written to a sibling file and swapped in with ``os.replace`` — it cannot be
+    overwritten in place. ``geometry`` of ``None`` returns ``merged`` unchanged.
+
+    Args:
+        merged: The file-backed mosaic ``Dataset`` reading ``path``.
+        geometry: The polygon cutline, or ``None`` for no clip.
+        path: The mosaic's on-disk path.
+
+    Returns:
+        A file-backed ``Dataset`` reading the clipped mosaic (or ``merged`` unchanged).
+    """
+    if geometry is None:
+        return merged
+    clipped = _apply_geometry(merged, geometry)
+    tmp_clipped = f"{path}.cut.tif"
+    clipped.to_file(tmp_clipped)
+    clipped.close()
+    merged.close()
+    os.replace(tmp_clipped, str(path))
+    return Dataset.read_file(str(path))
+
+
 def _apply_nodata(
     dataset: Dataset,
     nodata: float | int | None,
@@ -1361,14 +1390,7 @@ def _tiled_composite_read(
         gc.collect()
         shutil.rmtree(tmp_dir, ignore_errors=True)
     merged = Dataset.read_file(str(path))
-    if geometry is not None:
-        clipped = _apply_geometry(merged, geometry)
-        tmp_clipped = f"{path}.cut.tif"
-        clipped.to_file(tmp_clipped)
-        clipped.close()
-        merged.close()
-        os.replace(tmp_clipped, str(path))
-        merged = Dataset.read_file(str(path))
+    merged = _clip_mosaic_to_geometry(merged, geometry, path)
     return _retain_credentials(merged, credentials)
 
 
@@ -1468,17 +1490,8 @@ def _single_image_read(
                 )
                 # A polygon AOI tiles its envelope, then the cutline is applied to the
                 # assembled mosaic — so the tiled result matches the un-tiled cutline
-                # read, pixels outside the polygon masked (#64). Materialise the cutline
-                # to a sibling file and swap it in: the mosaic handle still holds
-                # ``path`` open, so it cannot be overwritten in place.
-                if geometry is not None:
-                    clipped = _apply_geometry(merged, geometry)
-                    tmp_clipped = f"{path}.cut.tif"
-                    clipped.to_file(tmp_clipped)
-                    clipped.close()
-                    merged.close()
-                    os.replace(tmp_clipped, str(path))
-                    merged = Dataset.read_file(str(path))
+                # read, pixels outside the polygon masked (#64).
+                merged = _clip_mosaic_to_geometry(merged, geometry, path)
                 return _retain_credentials(merged, credentials)
             else:
                 windowed_single = _window(
