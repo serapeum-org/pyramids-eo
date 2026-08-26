@@ -1,0 +1,141 @@
+"""DN → reflectance as lazy scale/offset tags, not an eager float array.
+
+Sentinel-2 stores reflectance as scaled integers: ``reflectance = (DN + offset)
+/ quantification``, where ``quantification`` is the product's
+``L2A_BOA`` / ``L1C_TOA`` quantification value and ``offset`` is the per-band
+radiometric offset that processing baselines ``>= 04.00`` introduced
+(``BOA_ADD_OFFSET`` / ``RADIO_ADD_OFFSET``; ``0`` before that).
+
+The GDAL ``SENTINEL2`` driver surfaces the offset in **per-band** metadata
+(``Dataset.band_meta_data[i]``), which is where :func:`_band_offset` reads it —
+verified end-to-end against a real baseline-05.09 product (offset ``-1000``
+flows into ``read_array(scaled=True)``; see ``test_baseline_509_*``), not just
+the offset parser.
+
+Rather than materialise a float array, :func:`tag_reflectance` records the
+conversion on the dataset's GDAL scale/offset so it is applied lazily by
+``Dataset.read_array(scaled=True)``. The tags ride through ``to_crs`` and
+``to_file``, but pyramids-gis 0.56 ``crop`` **resets** them — so the reader
+applies :func:`tag_reflectance` as the *last* step, after any crop / reproject.
+In GDAL's ``real = DN * scale + offset`` terms:
+
+    scale  = 1 / quantification
+    offset = band_offset / quantification
+
+Only spectral ``B*`` bands are tagged; classification / auxiliary bands
+(``SCL`` / ``CLD`` / ``AOT`` / …) keep ``scale=1, offset=0`` — they are not
+reflectance.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from pyramids_eo.sentinel.s2.product import S2Product, is_spectral_band
+
+
+def _band_offset(band_meta: dict[str, str]) -> float:
+    """Radiometric offset for one band from its metadata, ``0.0`` if absent.
+
+    Reads ``BOA_ADD_OFFSET`` (L2A) or ``RADIO_ADD_OFFSET`` (L1C); both are the
+    baseline-≥04.00 shift and are absent on older products.
+    """
+    for key in ("BOA_ADD_OFFSET", "RADIO_ADD_OFFSET"):
+        raw = band_meta.get(key)
+        if raw is not None:
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                return 0.0
+    return 0.0
+
+
+def tag_reflectance(
+    dataset: Any,
+    product: S2Product,
+    *,
+    offsets: list[float] | None = None,
+    spectral: list[bool] | None = None,
+) -> Any:
+    """Tag ``dataset``'s spectral bands so a scaled read yields reflectance.
+
+    Sets per-band GDAL scale/offset on ``dataset`` in place and returns it.
+    Spectral bands get ``scale = 1/quantification`` and
+    ``offset = band_offset/quantification``; every other band is left at
+    ``scale=1, offset=0``. The reflectance is then obtained lazily with
+    ``dataset.read_array(scaled=True)``.
+
+    Args:
+        dataset: A pyramids ``Dataset`` of Sentinel-2 bands (must be writable —
+            e.g. the result of ``Dataset.bands.select`` or a MEM copy).
+        product: The :class:`S2Product` supplying the quantification value.
+        offsets: Optional per-band radiometric offsets, in band order. Passed by
+            the reader (captured from the original read) so tagging does not
+            depend on the driver's ``BOA_ADD_OFFSET`` metadata, which a crop /
+            stack rebuild drops. ``None`` reads the offsets from each band's
+            metadata.
+        spectral: Optional per-band ``True``/``False`` (spectral vs auxiliary),
+            in band order. Passed by the reader (computed from the requested
+            band names) so tagging survives a ``crop`` — which strips the band
+            metadata ``tag_reflectance`` would otherwise classify from. ``None``
+            classifies each band from its ``BANDNAME`` / display name.
+
+    Returns:
+        The same ``dataset``, tagged.
+
+    Note:
+        The tags do not touch the ``no_data_value``, which stays in the DN
+        domain. A scaled read therefore returns ``DN * scale + offset`` for the
+        no-data pixels too — compare against the raw no-data value, not a scaled
+        one (see :func:`~pyramids_eo.sentinel.from_sentinel2`).
+
+    Raises:
+        ProductError: The product's quantification value is zero / unusable.
+    """
+    quant = product.quantification
+    if not quant:
+        from pyramids_eo.errors import ProductError
+
+        raise ProductError("product has no usable quantification value")
+
+    band_names = dataset.band_names
+    band_meta = dataset.band_meta_data
+    scales: list[float] = []
+    tagged_offsets: list[float] = []
+    for i, name in enumerate(band_names):
+        meta_i = band_meta[i] if i < len(band_meta) else {}
+        # Prefer the explicit spectral flag (survives crop's metadata reset);
+        # else classify from the driver's BANDNAME, falling back to the name.
+        if spectral is not None:
+            is_spec = spectral[i]
+        else:
+            is_spec = is_spectral_band(meta_i.get("BANDNAME") or name)
+        if is_spec:
+            band_offset = offsets[i] if offsets is not None else _band_offset(meta_i)
+            scales.append(1.0 / quant)
+            tagged_offsets.append(band_offset / quant)
+        else:
+            scales.append(1.0)
+            tagged_offsets.append(0.0)
+
+    dataset.scale = scales
+    dataset.offset = tagged_offsets
+    _stamp_baseline(dataset, product)
+    return dataset
+
+
+def _stamp_baseline(dataset: Any, product: S2Product) -> None:
+    """Record the processing baseline + scaling marker on the output metadata.
+
+    Best-effort: a read-only dataset that refuses the metadata write is left
+    untagged rather than failing the reflectance conversion.
+    """
+    try:
+        meta = dict(dataset.meta_data or {})
+        meta["PROCESSING_BASELINE"] = product.baseline
+        meta["PYRAMIDS_EO_REFLECTANCE"] = "scaled"
+        dataset.meta_data = meta
+    except (RuntimeError, ValueError, TypeError):
+        # baseline stamping is non-essential; a rejecting setter must not fail
+        # the reflectance conversion, but a programming error still surfaces.
+        pass
