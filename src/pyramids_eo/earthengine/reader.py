@@ -1412,16 +1412,27 @@ def from_earthengine(
             (composite mode), e.g. ``"USGS/SRTMGL1_003"`` /
             ``"COPERNICUS/S2_SR_HARMONIZED"``.
         bands: Band names to request; ``None`` reads every band.
-        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required to
-            materialise a window (single mode) and for the composite mode, unless
-            a ``geometry`` is given (its envelope is used as the ``bbox``).
+        bbox: AOI ``(min_x, min_y, max_x, max_y)`` **expressed in** ``crs`` — its
+            coordinates are read in ``crs``'s units, not always lon/lat. With the
+            default ``crs="EPSG:4326"`` that is degrees; with a projected ``crs``
+            (e.g. ``"EPSG:32645"``) it is that projection's metres. The reader
+            reprojects the box to EPSG:4326 internally to discover/bound the source
+            and warps the pixels back to ``crs``, so the same ground area is read
+            either way — passing lon/lat numbers under a projected ``crs`` (or metres
+            under 4326) silently reads the wrong ground area. Required to materialise
+            a window (single mode) and for the composite mode, unless a ``geometry``
+            is given (its envelope is used as the ``bbox``).
         geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids
             ``FeatureCollection``). A geometry carrying its own CRS is reprojected
-            to ``crs``; one without is assumed to already be in ``crs``. Its
-            envelope drives the read window and the result is then clipped to the
-            polygon cutline. Takes the place of ``bbox`` when ``bbox`` is omitted.
-        crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to
-            ``"EPSG:4326"``.
+            to ``crs``; one without is assumed to already be in ``crs`` (so an
+            unlabelled geometry must use ``crs``'s coordinate space, exactly as
+            ``bbox`` does). Its envelope drives the read window and the result is then
+            clipped to the polygon cutline. Takes the place of ``bbox`` when ``bbox``
+            is omitted.
+        crs: Target CRS, **and the CRS both ``bbox`` and an unlabelled ``geometry``
+            are interpreted in**. Defaults to ``"EPSG:4326"``. A projected ``crs`` is
+            fully supported: the AOI is taken in that projection's units and the
+            output raster is delivered in ``crs``.
         scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.
         shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.
         resample: Resampling algorithm used when the native window is warped to the

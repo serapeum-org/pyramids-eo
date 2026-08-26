@@ -29,6 +29,26 @@ _BBOX = (86.9, 27.9, 87.0, 28.0)
 _S2_BBOX = (86.90, 27.90, 86.94, 27.94)
 
 
+def _to_utm45(bbox_4326):
+    """Transform a ``(min_lon, min_lat, max_lon, max_lat)`` box to EPSG:32645 metres.
+
+    Used by the projected-CRS tests to express an AOI in a projected space (UTM 45N)
+    the way a consumer with a projected ``crs`` would.
+    """
+    from osgeo import osr
+
+    def _srs(epsg):
+        s = osr.SpatialReference()
+        s.ImportFromEPSG(epsg)
+        s.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)  # x=lon, y=lat
+        return s
+
+    tx = osr.CoordinateTransformation(_srs(4326), _srs(32645))
+    minx, miny, _ = tx.TransformPoint(bbox_4326[0], bbox_4326[1])
+    maxx, maxy, _ = tx.TransformPoint(bbox_4326[2], bbox_4326[3])
+    return (minx, miny, maxx, maxy)
+
+
 def _synthetic_srtm(fill: int = 42):
     """Build a 200x200 EPSG:4326 Int16 raster over lon [86, 88], lat [27, 29].
 
@@ -153,6 +173,53 @@ class TestFromEarthengine:
         """
         ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5))
         assert ds.no_data_value[0] != 999
+
+    def test_projected_crs_bbox_interpreted_in_projected_units(
+        self, patched_eedai
+    ) -> None:
+        """A ``bbox`` under a projected ``crs`` reads that ground, in projected units (#66).
+
+        Test scenario:
+            A 4326 sub-window is transformed to EPSG:32645 (UTM 45N) metres and passed
+            as ``bbox`` with ``crs="EPSG:32645"``; the output is delivered in
+            EPSG:32645 with bounds matching the projected box (within a pixel), proving
+            the coordinates were read as metres, not mistaken for lon/lat.
+        """
+        minx, miny, maxx, maxy = _to_utm45((86.92, 27.92, 86.98, 27.98))
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003",
+            crs="EPSG:32645",
+            bbox=(minx, miny, maxx, maxy),
+            shape=(10, 10),
+        )
+        assert ds.epsg == 32645, f"Expected EPSG:32645 output, got {ds.epsg}"
+        out = ds.total_bounds
+        assert out[0] == pytest.approx(minx, abs=1000), f"minx off: {out}"
+        assert out[2] == pytest.approx(maxx, abs=1000), f"maxx off: {out}"
+        assert out[1] == pytest.approx(miny, abs=1000), f"miny off: {out}"
+
+    def test_projected_crs_geometry_interpreted_in_projected_units(
+        self, patched_eedai
+    ) -> None:
+        """A ``geometry`` under a projected ``crs`` reads that ground (#66).
+
+        Test scenario:
+            A polygon built in EPSG:32645 over the same sub-window drives a projected
+            read; the output is in EPSG:32645 and its bounds fall within the polygon's
+            projected envelope, so a labelled geometry is honoured in its own CRS.
+        """
+        import geopandas as gpd
+        from shapely.geometry import box
+
+        minx, miny, maxx, maxy = _to_utm45((86.92, 27.92, 86.98, 27.98))
+        gdf = gpd.GeoDataFrame(geometry=[box(minx, miny, maxx, maxy)], crs="EPSG:32645")
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", crs="EPSG:32645", geometry=gdf, shape=(10, 10)
+        )
+        assert ds.epsg == 32645, f"Expected EPSG:32645 output, got {ds.epsg}"
+        out = ds.total_bounds
+        assert out[0] == pytest.approx(minx, abs=2000), f"minx off: {out}"
+        assert out[2] == pytest.approx(maxx, abs=2000), f"maxx off: {out}"
 
     def test_honours_scale(self, patched_eedai) -> None:
         """An explicit ``scale`` sets the output pixel size in CRS units.
@@ -1721,6 +1788,28 @@ class TestMaterialize:
 
 class TestLivePixelCorrectness:
     """Live safety net: EEDAI reads must return correct, deterministic pixels."""
+
+    @pytest.mark.live
+    def test_projected_crs_reads_same_ground_as_4326(self) -> None:
+        """A projected-CRS read covers the same ground as the 4326 read (#66).
+
+        Test scenario:
+            The same AOI read once as a 4326 lon/lat box and once as the equivalent
+            EPSG:32645 metre box returns matching SRTM elevation statistics — the
+            projected read lands on the same mountains, not a displaced/empty area.
+        """
+        ll = (86.92, 27.92, 86.98, 27.98)
+        latlon = from_earthengine("USGS/SRTMGL1_003", bbox=ll, shape=(24, 24))
+        utm = from_earthengine(
+            "USGS/SRTMGL1_003", crs="EPSG:32645", bbox=_to_utm45(ll), shape=(24, 24)
+        )
+        assert utm.epsg == 32645, f"Expected EPSG:32645, got {utm.epsg}"
+        mean_ll = float(np.mean(np.asarray(latlon.read_array())))
+        mean_utm = float(np.mean(np.asarray(utm.read_array())))
+        assert mean_ll > 1000, f"Expected mountainous ground, got mean {mean_ll}"
+        assert abs(mean_ll - mean_utm) < 0.1 * mean_ll, (
+            f"Projected read landed on different ground: {mean_ll} vs {mean_utm}"
+        )
 
     @pytest.mark.live
     def test_nodata_tag_marks_gsw_fill(self) -> None:
