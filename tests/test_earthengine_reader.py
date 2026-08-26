@@ -1445,28 +1445,36 @@ class TestReducerDtype:
             "max changed dtype"
         )
 
-    def test_lazy_wrap_installs_credential_config(self, monkeypatch, tmp_path) -> None:
-        """The lazy whole-asset wrap installs the credential GDAL config (M2).
+    def test_lazy_wrap_binds_credential_per_dataset_no_global_leak(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """The lazy whole-asset wrap binds the credential per-``Dataset``, not globally (#68).
 
         Test scenario:
-            A no-bbox read with a service-account key sets
-            GOOGLE_APPLICATION_CREDENTIALS process-wide for the deferred reads.
+            A no-bbox read with a service-account key leaves the process-global
+            GOOGLE_APPLICATION_CREDENTIALS untouched (no leak) and returns a
+            ``Dataset`` carrying the credential as its own ``gdal_env`` — the binding
+            pyramids re-applies around each deferred read.
         """
         from osgeo import gdal
 
         key = tmp_path / "k.json"
         key.write_text("{}", encoding="utf-8")
-        monkeypatch.setattr(
-            ee_reader,
-            "_open_eedai",
-            lambda a, *, bands, credentials, **_kw: Dataset(_synthetic_srtm()),
-        )
+
+        def _fake_open(a, *, bands, credentials, **_kw):  # noqa: ARG001
+            # Mirror the real _open_eedai: attach the credential as the Dataset's env.
+            return Dataset(_synthetic_srtm(), gdal_env=credentials.gdal_env())
+
+        monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
         before = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
         try:
-            from_earthengine("USGS/SRTMGL1_003", credentials=str(key))
-            assert gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) == str(
-                key
-            ), "Lazy wrap should install the credential config for deferred reads"
+            ds = from_earthengine("USGS/SRTMGL1_003", credentials=str(key))
+            assert (
+                gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) == before
+            ), "No-bbox wrap must not leak the credential into process-global config"
+            assert ds.gdal_env.get("GOOGLE_APPLICATION_CREDENTIALS") == str(key), (
+                "Returned Dataset should carry the credential as its own gdal_env"
+            )
         finally:
             gdal.SetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", before)
 
@@ -2652,6 +2660,56 @@ class TestTiledValidation:
         """
         with pytest.raises(ValueError, match="path"):
             from_earthengine("X", path="o.tif")
+
+
+class TestLiveServiceAccountAuth:
+    """Live: a service-account credential is bound per-``Dataset``, never globally (#68)."""
+
+    @pytest.mark.live
+    def test_no_bbox_read_authenticates_via_gdal_env_without_global_leak(self) -> None:
+        """A lazy whole-asset service-account read authenticates per-dataset, no leak (#68).
+
+        Test scenario:
+            With the ambient credential stripped from both the process environment and
+            GDAL config, a no-bbox read opened with a service-account key still reads
+            pixels (the deferred read authenticates from the ``Dataset``'s own
+            ``gdal_env``), and the process-global ``GOOGLE_APPLICATION_CREDENTIALS`` is
+            left unset — proving nothing leaked into global config.
+        """
+        import os
+
+        from osgeo import gdal
+
+        # The live environment provides a service-account key via ADC; use it explicitly.
+        key = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        if not key:  # pragma: no cover - live env is expected to provide the key
+            pytest.fail(
+                "live auth test needs a service-account key in "
+                "GOOGLE_APPLICATION_CREDENTIALS"
+            )
+        creds = EarthEngineCredentials.from_service_account(key)
+        # Isolate: strip the ambient credential so ONLY the Dataset's gdal_env can auth.
+        saved_env = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+        saved_cfg = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
+        gdal.SetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
+        try:
+            ds = from_earthengine(
+                "USGS/SRTMGL1_003", credentials=creds
+            )  # no bbox → lazy
+            assert (
+                gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) is None
+            ), "no-bbox service-account read leaked the credential into global config"
+            block = np.asarray(ds.read_array(window=[1000, 1000, 4, 4]))
+            assert block is not None and block.size == 16, (
+                "deferred read did not authenticate from the Dataset's gdal_env"
+            )
+            assert (
+                gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) is None
+            ), "the deferred read leaked the credential into global config"
+        finally:
+            if saved_env is not None:
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = saved_env
+            gdal.SetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", saved_cfg)
 
 
 class TestTiledLive:

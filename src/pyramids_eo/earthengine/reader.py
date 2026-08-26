@@ -1375,12 +1375,12 @@ def _single_image_read(
                 "together. Pass a 'bbox' with a 'scale' or 'shape' to resample them "
                 "onto one grid, or request a single-resolution band set."
             )
-        # The whole-asset Dataset is read lazily, so pixel reads happen after this
-        # returns — outside any `activate()` block. Install the credential config
-        # process-wide so those deferred EEDAI reads still authenticate. This is the
-        # one path that mutates global GDAL config (see the note in the docstring).
-        for config_key, config_value in credentials.gdal_env().items():
-            gdal.SetConfigOption(config_key, config_value)
+        # The whole-asset Dataset is read lazily, so its pixel reads happen after this
+        # returns — outside any `activate()` block. `_open_eedai` already attaches the
+        # credential as the Dataset's own ``gdal_env``, which pyramids re-applies (and
+        # restores) around every deferred read, so those reads authenticate per-dataset
+        # without leaving anything in the process-global GDAL config. That per-open
+        # binding is what lets two credentials coexist in one process (#68).
         return _retain_credentials(dataset, credentials)
 
     # Keep the credential config in effect across the open AND the windowing read
@@ -1996,16 +1996,17 @@ def from_earthengine(
         reduced composite (file-backed when ``path`` is given).
 
     Note:
-        The windowed and composite paths scope the credential config to the read
-        and restore it afterward. The **no-bbox lazy wrap** is the exception: its
-        pixels are read after this returns, so a service-account credential is
-        installed into the **process-global** GDAL config with no restore. That
-        means a later no-bbox call with a *different* service account overwrites it
-        (an earlier still-open lazy ``Dataset`` would then read with the newer
-        credential), and the option leaks into unrelated GDAL work. Prefer passing a
-        ``bbox``/``geometry`` when using a service-account key; ADC mode is
-        unaffected. See also the thread-safety note on
-        :meth:`EarthEngineCredentials.activate`.
+        A service-account credential is bound **per read**, never left in the
+        process-global GDAL config. The windowed and composite paths scope it to the
+        eager read and restore it afterward; the no-bbox lazy wrap carries it as the
+        returned ``Dataset``'s own ``gdal_env``, which pyramids re-applies and restores
+        around every deferred pixel read. So two different service accounts can be read
+        in one process — each ``Dataset`` keeps its own credential — and nothing leaks
+        into unrelated GDAL work. (GDAL's EEDAI ``VSI_PATH_FOR_AUTH`` open option is not
+        used: in the bundled GDAL it does not resolve a path-specific service-account
+        key, falling back to metadata-server auth; the per-``Dataset`` ``gdal_env`` is
+        the mechanism that actually binds credentials per-open here.) See also the
+        thread-safety note on :meth:`EarthEngineCredentials.activate`.
 
     Note:
         **Performance.** The EEDAI driver's overviews are unreliable, so the reader
