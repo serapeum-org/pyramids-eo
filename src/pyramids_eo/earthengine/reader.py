@@ -1621,6 +1621,12 @@ def _resample_halo(resample: str) -> int:
     mosaic differs there. ``nearest`` (and ``mode``) map each output pixel from one
     source pixel and need no halo, keeping their zero-overhead path.
 
+    The halo is a small count of **output** pixels. This assumes the reader's design of
+    output no finer than native resolution (downsampling), where one output pixel spans
+    many source pixels so the halo comfortably covers the kernel's source-pixel reach.
+    For an upsampling tiled read (a ``scale`` finer than native) the fixed output-pixel
+    halo could under-cover an interpolating kernel at a seam — an untested, latent edge.
+
     Args:
         resample: The resampling algorithm name.
 
