@@ -1922,19 +1922,30 @@ class TestMaterialize:
             "Constant fill should be preserved"
         )
 
-    def test_stitches_tiles_across_block_boundary(self) -> None:
-        """A window spanning several 256-px blocks is stitched exactly.
+    def test_stitches_tiles_across_block_boundary(self, tmp_path) -> None:
+        """A window spanning several source blocks is stitched exactly (#60 guard).
 
         Test scenario:
-            Over a 600x600 gradient source (so no block is constant and the window
-            crosses the 256/512 boundaries), the materialised array equals the
-            source's exact sub-window — the regression guard for the block-stitch
-            math that the corruption fix relies on.
+            A 600x600 gradient GeoTIFF with **128-px tiles** (so ``GetBlockSize`` is
+            128 — a ``MEM`` source instead reports a full-width ``(width, 1)`` block,
+            which would collapse the window into a single read) is windowed over a
+            ~400 px region, forcing the block-aligned read to stitch a multi-block
+            grid; the result equals the source's exact sub-window. Guards the
+            block-placement math the EEDAI corruption workaround relies on,
+            independent of the source width and of any ``block_size`` change.
         """
         from osgeo import gdal, osr
 
         size = 600
-        src = gdal.GetDriverByName("MEM").Create("", size, size, 1, gdal.GDT_Int32)
+        path = tmp_path / "tiled.tif"
+        src = gdal.GetDriverByName("GTiff").Create(
+            str(path),
+            size,
+            size,
+            1,
+            gdal.GDT_Int32,
+            options=["TILED=YES", "BLOCKXSIZE=128", "BLOCKYSIZE=128"],
+        )
         src.SetGeoTransform((86.0, 0.001, 0.0, 29.0, 0.0, -0.001))
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(4326)
@@ -1942,23 +1953,28 @@ class TestMaterialize:
         src.GetRasterBand(1).WriteArray(
             np.arange(size * size, dtype="int32").reshape(size, size)
         )
-        # bbox covering native pixels ~[100, 500) on each axis -> a ~400 px window
-        # that straddles the 256 and 512 block boundaries.
+        src.FlushCache()
+        src = None
+        reopened = gdal.Open(str(path))
+        block = reopened.GetRasterBand(1).GetBlockSize()[0]
+        assert block == 128, f"expected a 128-px tiled source, got block {block}"
+        # bbox covering native pixels ~[100, 500) on each axis -> a ~400 px window that
+        # straddles several 128-px block boundaries.
         bbox = (
             86.0 + 100 * 0.001,
             29.0 - 500 * 0.001,
             86.0 + 500 * 0.001,
             29.0 - 100 * 0.001,
         )
-        mem = ee_reader._materialize(Dataset(src), bbox, "EPSG:4326")
-        assert mem.columns > 256, (
-            "window must span >1 block on x to exercise the stitch"
+        mem = ee_reader._materialize(Dataset(reopened), bbox, "EPSG:4326")
+        assert mem.columns > block and mem.rows > block, (
+            f"window ({mem.columns}x{mem.rows}) must exceed the {block}-px block so the "
+            "read stitches multiple blocks"
         )
-        assert mem.rows > 256, "window must span >1 block on y to exercise the stitch"
-        inverse = gdal.InvGeoTransform(src.GetGeoTransform())
+        inverse = gdal.InvGeoTransform(reopened.GetGeoTransform())
         mem_gt = mem.geotransform
         origin_col, origin_row = gdal.ApplyGeoTransform(inverse, mem_gt[0], mem_gt[3])
-        reference = src.GetRasterBand(1).ReadAsArray(
+        reference = reopened.GetRasterBand(1).ReadAsArray(
             round(origin_col), round(origin_row), mem.columns, mem.rows
         )
         assert np.array_equal(np.asarray(mem.read_array()), reference), (
