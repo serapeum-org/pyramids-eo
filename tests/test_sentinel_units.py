@@ -502,25 +502,44 @@ class TestSclMask:
 
         assert _masks._nodata_of(_Fake()) == expected
 
-    def test_carry_band_state_swallows_failure(self):
-        """`_carry_band_state` never raises when the destination rejects a write."""
+    def test_carry_band_state_swallows_band_names_but_not_tags(self):
+        """Band-name copy failures are swallowed; scale/offset failures propagate.
 
-        class _NoWrite:
+        Test scenario:
+            The scale/offset tags are the reflectance calibration, so a failure
+            to carry them must surface (not silently drop reflectance), while a
+            display-only band-names failure is ignored.
+        """
+
+        class _Source:
             band_names = ["a"]
+            scale = [1.0]
+            offset = [0.0]
+
+        class _RejectsNames:
             scale = [1.0]
             offset = [0.0]
 
             def __setattr__(self, name, value):
-                raise RuntimeError("read only")
+                if name == "band_names":
+                    raise RuntimeError("no band names")
+                object.__setattr__(self, name, value)
 
-        # Building _NoWrite() would itself raise on assignment, so use a source
-        # with good reads and a dest that rejects writes.
-        class _GoodSource:
+        # band_names rejected -> swallowed, scale/offset copied fine.
+        dest = _RejectsNames()
+        _masks._carry_band_state(_Source(), dest)
+        assert dest.scale == [1.0]
+
+        class _RejectsTags:
             band_names = ["a"]
-            scale = [1.0]
-            offset = [0.0]
 
-        _masks._carry_band_state(_GoodSource(), _NoWrite())
+            def __setattr__(self, name, value):
+                if name in ("scale", "offset"):
+                    raise RuntimeError("read only")
+                object.__setattr__(self, name, value)
+
+        with pytest.raises(RuntimeError, match="read only"):
+            _masks._carry_band_state(_Source(), _RejectsTags())
 
 
 # -- reader edge cases -----------------------------------------------------

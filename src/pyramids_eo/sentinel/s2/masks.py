@@ -190,13 +190,16 @@ def _nodata_of(dataset: Any) -> float:
 
 
 def _carry_band_state(source: Any, dest: Any) -> None:
-    """Copy band names and scale/offset from ``source`` to ``dest`` (best effort)."""
+    """Copy band names and scale/offset from ``source`` to ``dest``.
+
+    Band names are display-only, so a failure to copy them is swallowed. The
+    scale/offset tags are the reflectance calibration, so their copy is **not**
+    swallowed — losing them would silently return raw DN from a scaled read
+    (a caller who masks an already-reflectance-tagged dataset relies on this).
+    """
     try:
         dest.band_names = list(source.band_names)
     except Exception:  # noqa: BLE001 - display metadata only
         pass
-    try:
-        dest.scale = list(source.scale)
-        dest.offset = list(source.offset)
-    except Exception:  # noqa: BLE001 - tags are re-appliable by the caller
-        pass
+    dest.scale = list(source.scale)
+    dest.offset = list(source.offset)

@@ -102,10 +102,13 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
     dataset, target_res, offsets = _read(product, wanted, resolution, epsg, resample)
     _set_nodata(dataset, product)
 
-    if reflectance:
-        dataset = _scaling.tag_reflectance(dataset, product, offsets=offsets)
+    # Mask on raw DN first, then tag reflectance LAST so the scale/offset tags
+    # ride on the final dataset (they survive crop / to_crs, pyramids-gis #1031)
+    # and are never dropped by the mask's rebuild.
     if mask_scl:
         dataset = _apply_scl_mask(dataset, product, target_res, epsg, mask_scl)
+    if reflectance:
+        dataset = _scaling.tag_reflectance(dataset, product, offsets=offsets)
     if bbox is not None:
         dataset = dataset.crop(bbox=list(bbox))
     if crs is not None:
