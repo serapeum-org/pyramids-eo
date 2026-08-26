@@ -762,7 +762,9 @@ def _discover_scenes(
         property_filter: Optional OGR attribute-filter fragment on the collection's
             own property fields (e.g. ``"CLOUDY_PIXEL_PERCENTAGE < 20"``), ANDed with
             the time/space selection. Evaluated client-side over the fetched page (see
-            Note), so it trims pixel fetches, not the catalog query.
+            Note), so it trims pixel fetches, not the catalog query. Interpolated
+            verbatim into the OGR filter and not escaped/validated (unlike the dates,
+            which ``_require_iso`` validates) — must not be built from untrusted input.
 
     Returns:
         Scenes intersecting the AOI within the window, sorted by acquisition time,
@@ -2009,7 +2011,9 @@ def from_earthengine(
             property fields (e.g. ``"CLOUDY_PIXEL_PERCENTAGE < 20"``), used only in the
             ``ImageCollection`` composite mode to constrain which scenes are reduced.
             Filtered client-side over the discovered scene page (it trims pixel
-            fetches, not the catalog query), so it is not server-side filtering.
+            fetches, not the catalog query), so it is not server-side filtering. It is
+            interpolated verbatim into the OGR attribute filter and is **not** escaped
+            or validated, so build it in code — never from untrusted / user input.
         nodata: Fill value to tag on the returned dataset's bands. EEDAI exposes no
             no-data value, so a real sentinel (e.g. GSW ``occurrence``'s ``-128``) has
             to be supplied from the Earth Engine catalog. For the single-image EEDAI
@@ -2241,7 +2245,9 @@ def collection_from_earthengine(
         property_filter: OGR attribute-filter fragment on the collection's own
             property fields (e.g. ``"CLOUDY_PIXEL_PERCENTAGE < 20"``) constraining
             which scenes are read. Filtered client-side over the discovered scene
-            page (trims pixel fetches, not the catalog query), not server-side.
+            page (trims pixel fetches, not the catalog query), not server-side. It is
+            interpolated verbatim and not escaped/validated — build it in code, never
+            from untrusted input.
         nodata: Fill value to tag on every scene's bands (EEDAI exposes none). See
             :func:`from_earthengine`; ``None`` leaves the scenes untagged.
 
@@ -2413,7 +2419,8 @@ def estimate_earthengine_cost(
             :func:`collection_from_earthengine`).
         property_filter: Optional scene property filter (e.g. cloud cover), applied
             client-side over the discovered page — the same selection a matching read
-            would see.
+            would see. Interpolated verbatim into the OGR filter and not
+            escaped/validated, so build it in code, never from untrusted input.
 
     Returns:
         A :class:`ReadCost` for the selected scenes.
