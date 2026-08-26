@@ -307,15 +307,18 @@ class TestOpenEedai:
         assert result.raster is opened, "Dataset should wrap the driver's open result"
         conn, options = fake.calls[0]
         assert conn == "EEDAI:USGS/SRTMGL1_003", f"Unexpected connection string: {conn}"
-        assert options == ["BLOCK_SIZE=256", "BANDS=B4,B3"], (
-            f"Unexpected open options: {options}"
-        )
+        assert options == [
+            "BLOCK_SIZE=256",
+            "PIXEL_ENCODING=GEO_TIFF",
+            "BANDS=B4,B3",
+        ], f"Unexpected open options: {options}"
 
     def test_no_bands_option_when_bands_none(self, monkeypatch) -> None:
         """No ``BANDS`` option is emitted when ``bands`` is ``None``.
 
         Test scenario:
-            ``bands=None`` opens with only the pinned ``BLOCK_SIZE`` option.
+            ``bands=None`` opens with only the pinned ``BLOCK_SIZE`` and lossless
+            ``PIXEL_ENCODING`` options.
         """
         fake = _FakeGdal(_synthetic_srtm())
         monkeypatch.setattr(ee_reader, "gdal", fake)
@@ -325,7 +328,28 @@ class TestOpenEedai:
             credentials=EarthEngineCredentials.application_default(),
         )
         _conn, options = fake.calls[0]
-        assert options == ["BLOCK_SIZE=256"], f"Unexpected open options: {options}"
+        assert options == ["BLOCK_SIZE=256", "PIXEL_ENCODING=GEO_TIFF"], (
+            f"Unexpected open options: {options}"
+        )
+
+    def test_pins_lossless_pixel_encoding(self, monkeypatch) -> None:
+        """Every EEDAI open pins a lossless ``PIXEL_ENCODING`` (regression for #69).
+
+        Test scenario:
+            The driver's ``AUTO`` default can pick a lossy codec for multi-band Byte
+            reads; ``_open_eedai`` must pin ``GEO_TIFF`` so pixels are never lossy.
+        """
+        fake = _FakeGdal(_synthetic_srtm())
+        monkeypatch.setattr(ee_reader, "gdal", fake)
+        ee_reader._open_eedai(
+            "USGS/SRTMGL1_003",
+            bands=["TCI_R", "TCI_G", "TCI_B"],
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        _conn, options = fake.calls[0]
+        assert "PIXEL_ENCODING=GEO_TIFF" in options, (
+            f"lossless PIXEL_ENCODING must be pinned; got {options}"
+        )
 
     def test_raises_reader_error_on_open_failure(self, monkeypatch) -> None:
         """A ``None`` driver result raises ``ReaderError`` with the GDAL message.
@@ -1479,6 +1503,47 @@ class TestMaterialize:
 
 class TestLivePixelCorrectness:
     """Live safety net: EEDAI reads must return correct, deterministic pixels."""
+
+    @pytest.mark.live
+    def test_pinned_encoding_lossless_at_large_transfer(self) -> None:
+        """The pinned lossless encoding keeps a large multi-band Byte read bit-exact.
+
+        Test scenario:
+            At a large (1024 px) transfer — the size the block-sizing work will use —
+            the driver's ``AUTO`` default silently loses data on a multi-band Byte
+            read, while the reader's pinned ``_EEDAI_PIXEL_ENCODING`` is byte-identical
+            to a lossless ``NPY`` read. Guards #69 (and the future larger-block path).
+        """
+        from osgeo import gdal
+
+        scene = (
+            "EEDAI:projects/earthengine-public/assets/COPERNICUS/S2_SR_HARMONIZED/"
+            "20240702T102601_20240702T103203_T32TLR"
+        )
+        creds = EarthEngineCredentials.application_default()
+
+        def read(encoding: str) -> np.ndarray:
+            with creds.activate():
+                ds = gdal.OpenEx(
+                    scene,
+                    gdal.OF_RASTER,
+                    open_options=[
+                        "BLOCK_SIZE=1024",
+                        "BANDS=TCI_R,TCI_G,TCI_B",
+                        f"PIXEL_ENCODING={encoding}",
+                    ],
+                )
+                return np.asarray(ds.ReadAsArray(2048, 2048, 1024, 1024))
+
+        reference = read("NPY")
+        pinned = read(ee_reader._EEDAI_PIXEL_ENCODING)
+        lossy = read("AUTO")
+        assert np.array_equal(pinned, reference), (
+            "the pinned encoding must be byte-identical to a lossless NPY read"
+        )
+        assert not np.array_equal(lossy, reference), (
+            "AUTO is expected to be lossy at this transfer size (proves the pin matters)"
+        )
 
     @pytest.mark.live
     def test_srtm_values_correct_and_deterministic(self) -> None:

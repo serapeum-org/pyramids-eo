@@ -143,7 +143,20 @@ def _open_eedai(
     )
     # Pin the block size the block-aligned read in `_materialize` relies on, so a
     # future driver default cannot silently reintroduce cross-block reads.
-    open_options: list[str] = [f"BLOCK_SIZE={_EEDAI_BLOCK}"]
+    #
+    # Pin a lossless transport encoding. The driver's ``AUTO`` default selects a
+    # codec from the band count/dtype and, for a multi-band Byte transfer *above a
+    # size threshold*, picks a lossy image codec (PNG/JPEG) that silently returns
+    # pixels that are not the asset's. The 256-px block read here stays below that
+    # threshold, so reads are lossless today — but pinning ``GEO_TIFF`` makes the
+    # guarantee explicit and independent of the block size, which the block-sizing
+    # work will raise (a larger transfer would re-cross the threshold under ``AUTO``).
+    # ``GEO_TIFF`` is byte-identical to ``NPY`` on Byte and Int16 assets and smaller
+    # on the wire than raw ``NPY``.
+    open_options: list[str] = [
+        f"BLOCK_SIZE={_EEDAI_BLOCK}",
+        f"PIXEL_ENCODING={_EEDAI_PIXEL_ENCODING}",
+    ]
     if bands:
         open_options.append("BANDS=" + ",".join(bands))
     with credentials.activate():
@@ -166,6 +179,11 @@ def _open_eedai(
 #: are corrupt, so a multi-block read or an overview-backed downsample returns
 #: garbage. We therefore materialise the native window one block at a time.
 _EEDAI_BLOCK = 256
+
+#: Lossless EEDAI transport encoding pinned on every open. The driver's ``AUTO``
+#: default silently picks a lossy image codec for multi-band Byte reads; ``GEO_TIFF``
+#: is lossless for every dtype (verified byte-identical to ``NPY``).
+_EEDAI_PIXEL_ENCODING = "GEO_TIFF"
 
 
 def _materialize(ee: Dataset, bbox: BBox, crs: str) -> Dataset:
