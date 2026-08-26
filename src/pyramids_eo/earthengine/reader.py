@@ -662,7 +662,11 @@ def _apply_geometry(dataset: Dataset, geometry: object | None) -> Dataset:
     return dataset.crop(mask=geometry)
 
 
-def _apply_nodata(dataset: Dataset, nodata: float | int | None) -> Dataset:
+def _apply_nodata(
+    dataset: Dataset,
+    nodata: float | int | None,
+    credentials: EarthEngineCredentials | None = None,
+) -> Dataset:
     """Tag ``dataset``'s bands with a fill value, or return it unchanged.
 
     The EEDAI driver reports no no-data value (``GetNoDataValue()`` is ``None`` and
@@ -682,6 +686,9 @@ def _apply_nodata(dataset: Dataset, nodata: float | int | None) -> Dataset:
     Args:
         dataset: The dataset to tag.
         nodata: The fill value to mark as no-data, or ``None`` to leave it untagged.
+        credentials: Credentials to re-pin onto a re-read file-backed result (so the
+            swap preserves the ``_retain_credentials`` pin every other return path
+            carries), or ``None`` to skip re-pinning.
 
     Returns:
         The tagged dataset. An in-memory result is tagged in place; a file-backed
@@ -701,7 +708,12 @@ def _apply_nodata(dataset: Dataset, nodata: float | int | None) -> Dataset:
         tagged.close()
         dataset.close()
         os.replace(tagged_tmp, backing)
-        return Dataset.read_file(backing)
+        reread = Dataset.read_file(backing)
+        # Re-pin credentials the fresh read would otherwise drop, so a path+nodata read
+        # matches every other return path (which carry the _retain_credentials pin).
+        if credentials is not None:
+            _retain_credentials(reread, credentials)
+        return reread
     return dataset.change_no_data_value(nodata, inplace=True)
 
 
@@ -2208,7 +2220,7 @@ def from_earthengine(
             path=path,
             block_size=block_size,
         )
-    return _apply_nodata(result, nodata)
+    return _apply_nodata(result, nodata, credentials=creds)
 
 
 def collection_from_earthengine(

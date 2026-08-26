@@ -225,6 +225,24 @@ class TestFromEarthengine:
         on_disk = disk.GetRasterBand(1).GetNoDataValue()
         assert on_disk == 999, f"on-disk mosaic nodata should be 999, got {on_disk}"
 
+    def test_nodata_with_path_keeps_credential_pin(
+        self, patched_eedai, tmp_path
+    ) -> None:
+        """A ``path`` + ``nodata`` read keeps the credential pin (#63).
+
+        Test scenario:
+            The file-backed swap re-reads the tagged file; it must re-pin
+            ``_ee_credentials`` so a ``path`` + ``nodata`` read matches every other
+            return path (which carry the pin), not silently drop it.
+        """
+        out = tmp_path / "pinned.tif"
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), path=str(out), nodata=999
+        )
+        assert hasattr(ds, "_ee_credentials"), (
+            "file-backed nodata swap dropped the _ee_credentials pin"
+        )
+
     def test_mixed_resolution_bands_resampled_and_stacked(self, monkeypatch) -> None:
         """Bands spanning resolution groups are resampled onto one grid (#58).
 
