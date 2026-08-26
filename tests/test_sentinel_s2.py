@@ -26,6 +26,12 @@ _DATA = Path(__file__).parent / "data" / "sentinel2"
 _L2A = _DATA / "fake_l2a" / "S2A_USER_PRD_MSIL2A.SAFE" / "S2A_USER_MTD_SAFL2A.xml"
 _L2A_SAFE = _DATA / "fake_l2a" / "S2A_USER_PRD_MSIL2A.SAFE"
 _L1C = _DATA / "fake_l1c" / "S2A_OPER_PRD_MSIL1C.SAFE" / "S2A_OPER_MTD_SAFL1C.xml"
+_L1C_509 = (
+    _DATA
+    / "fake_l1c_baseline_5_09"
+    / "S2B_MSIL1C_20230823T095559_N0509_R122_T34UCF_20230823T120234.SAFE"
+    / "MTD_MSIL1C.xml"
+)
 
 
 @pytest.fixture(scope="session")
@@ -158,6 +164,36 @@ def test_reflectance_false_leaves_identity_scale():
     ds = from_sentinel2(_L2A, bands=["B04"], reflectance=False)
     assert ds.scale == pytest.approx([1.0])
     assert ds.offset == pytest.approx([0.0])
+
+
+def test_baseline_509_carries_radiometric_offset():
+    """A baseline-≥04.00 product exposes the per-band radiometric offset.
+
+    Guards against the GDAL driver surfacing the offset somewhere other than
+    per-band ``RADIO_ADD_OFFSET`` / ``BOA_ADD_OFFSET`` metadata (which the
+    scaling code reads).
+    """
+    product = open_product(_L1C_509)
+    assert product.baseline == "05.09"
+    sub = product.subdataset_for(min(product.resolutions)).open()
+    assert sub.band_meta_data[0]["RADIO_ADD_OFFSET"] == "-1000"
+
+
+def test_baseline_509_offset_flows_to_scaled_read():
+    """The radiometric offset flows end-to-end into the scaled reflectance read.
+
+    For baseline 05.09 (offset −1000, quantification 10000), reflectance is
+    ``(DN − 1000) / 10000`` — proving the whole DN → reflectance pipeline, not
+    just the offset parser.
+    """
+    product = open_product(_L1C_509)
+    ds = from_sentinel2(product, bands=["B02"])
+    assert ds.offset[0] == pytest.approx(-1000.0 / product.quantification)
+    raw = ds.read_array()
+    scaled = ds.read_array(scaled=True)
+    assert np.allclose(
+        scaled, (raw.astype("float64") - 1000.0) / product.quantification
+    )
 
 
 def test_reproject_to_wgs84():

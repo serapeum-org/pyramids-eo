@@ -6,6 +6,12 @@ Sentinel-2 stores reflectance as scaled integers: ``reflectance = (DN + offset)
 radiometric offset that processing baselines ``>= 04.00`` introduced
 (``BOA_ADD_OFFSET`` / ``RADIO_ADD_OFFSET``; ``0`` before that).
 
+The GDAL ``SENTINEL2`` driver surfaces the offset in **per-band** metadata
+(``Dataset.band_meta_data[i]``), which is where :func:`_band_offset` reads it —
+verified end-to-end against a real baseline-05.09 product (offset ``-1000``
+flows into ``read_array(scaled=True)``; see ``test_baseline_509_*``), not just
+the offset parser.
+
 Rather than materialise a float array, :func:`tag_reflectance` records the
 conversion on the dataset's GDAL scale/offset so it is applied lazily by
 ``Dataset.read_array(scaled=True)`` and rides through ``crop`` / ``to_crs``
