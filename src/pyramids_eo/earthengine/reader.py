@@ -115,6 +115,7 @@ def _open_eedai(
     *,
     bands: list[str] | None,
     credentials: EarthEngineCredentials,
+    block_size: int | None = None,
 ) -> Dataset:
     """Open an Earth Engine ``Image`` (or scene) through the GDAL EEDAI driver.
 
@@ -128,6 +129,10 @@ def _open_eedai(
             full ``EEDAI:`` connection string (e.g. a scene's ``gdal_dataset``).
         bands: Optional band names to request (EEDAI ``BANDS`` open option).
         credentials: Resolved credentials whose config authorises the read.
+        block_size: EEDAI block size (pixels per side) for the transfer; ``None`` uses
+            the conservative default. A larger block reads a window in fewer round
+            trips; the block-aligned read derives its stride from the opened block, so
+            the two stay in sync automatically.
 
     Returns:
         The opened whole-asset pyramids ``Dataset`` (window/reproject happens later),
@@ -136,6 +141,8 @@ def _open_eedai(
     Raises:
         ReaderError: The driver could not open the asset.
     """
+    if block_size is not None and block_size <= 0:
+        raise ValueError("'block_size' must be a positive number of pixels.")
     connection = (
         asset_or_connection
         if asset_or_connection.startswith(_EEDAI_PREFIX)
@@ -154,7 +161,7 @@ def _open_eedai(
     # ``GEO_TIFF`` is byte-identical to ``NPY`` on Byte and Int16 assets and smaller
     # on the wire than raw ``NPY``.
     open_options: list[str] = [
-        f"BLOCK_SIZE={_EEDAI_BLOCK}",
+        f"BLOCK_SIZE={block_size or _EEDAI_BLOCK}",
         f"PIXEL_ENCODING={_EEDAI_PIXEL_ENCODING}",
     ]
     if bands:
@@ -302,8 +309,10 @@ def _read_native_blocks(
     """Read a native pixel window one block-aligned tile at a time and stitch it.
 
     Each ``RasterIO`` is kept inside a single EEDAI block (a read that crosses a
-    256-px block boundary corrupts the result), so the window is walked block by
-    block and assembled into one ``(bands, rows, cols)`` array.
+    block boundary corrupts the result), so the window is walked block by block and
+    assembled into one ``(bands, rows, cols)`` array. The stride is read from the
+    source's own block size, so it always matches however the asset was opened
+    (:func:`_open_eedai`'s ``block_size``) — no separate constant to keep in sync.
 
     Args:
         src: The opened EEDAI source dataset.
@@ -320,7 +329,7 @@ def _read_native_blocks(
     """
     width, height = x1 - x0, y1 - y0
     band_count = src.RasterCount
-    block = _EEDAI_BLOCK
+    block = src.GetRasterBand(1).GetBlockSize()[0]
     data: np.ndarray | None = None
     for band_index in range(band_count):
         source_band = src.GetRasterBand(band_index + 1)
@@ -623,6 +632,7 @@ def _read_scenes_aligned(
     bands: list[str] | None,
     credentials: EarthEngineCredentials,
     resample: str = "nearest",
+    block_size: int | None = None,
 ) -> list[Dataset]:
     """Read every scene windowed to one common grid.
 
@@ -646,7 +656,12 @@ def _read_scenes_aligned(
     windowed: list[Dataset] = []
     target_shape = shape
     for scene in scenes:
-        src = _open_eedai(scene.connection, bands=bands, credentials=credentials)
+        src = _open_eedai(
+            scene.connection,
+            bands=bands,
+            credentials=credentials,
+            block_size=block_size,
+        )
         # Release the EEDAI source handle whether the window succeeds or raises;
         # the windowed result is a self-contained in-memory copy that no longer
         # needs it.
@@ -824,6 +839,7 @@ def _composite_read(
     geometry: object | None,
     credentials: EarthEngineCredentials,
     path: str | Path | None = None,
+    block_size: int | None = None,
 ) -> Dataset:
     """Reduce an ``ImageCollection`` over a date range into one composite ``Dataset``.
 
@@ -868,6 +884,7 @@ def _composite_read(
             bands=bands,
             credentials=credentials,
             resample=resample,
+            block_size=block_size,
         )
     composite = _composite(windowed, reducer, credentials, geometry)
     if path is not None:
@@ -889,6 +906,7 @@ def _single_image_read(
     credentials: EarthEngineCredentials,
     tile_size: int | None = None,
     path: str | Path | None = None,
+    block_size: int | None = None,
 ) -> Dataset:
     """Read a single EE ``Image`` asset into a ``Dataset``.
 
@@ -911,7 +929,9 @@ def _single_image_read(
                 "'crs', 'scale', 'shape', or 'resample' is set (assets are "
                 "global/huge)."
             )
-        dataset = _open_eedai(asset_id, bands=bands, credentials=credentials)
+        dataset = _open_eedai(
+            asset_id, bands=bands, credentials=credentials, block_size=block_size
+        )
         # The whole-asset Dataset is read lazily, so pixel reads happen after this
         # returns — outside any `activate()` block. Install the credential config
         # process-wide so those deferred EEDAI reads still authenticate. This is the
@@ -924,7 +944,9 @@ def _single_image_read(
     # (the EEDAI pixel fetch is the block-aligned RasterIO inside `_window`), then
     # restore it — no process-global leak for the windowed path.
     with credentials.activate():
-        src = _open_eedai(asset_id, bands=bands, credentials=credentials)
+        src = _open_eedai(
+            asset_id, bands=bands, credentials=credentials, block_size=block_size
+        )
         try:
             if tile_size is not None:
                 # Stream a large window to disk one tile at a time (bounded memory),
@@ -1257,6 +1279,7 @@ def from_earthengine(
     credentials: CredentialsLike = None,
     tile_size: int | None = None,
     path: str | Path | None = None,
+    block_size: int | None = None,
 ) -> Dataset:
     """Read an Earth Engine ``Image`` (or reduced ``ImageCollection``) into a ``Dataset``.
 
@@ -1320,6 +1343,9 @@ def from_earthengine(
             one; required when ``tile_size`` is set, and honoured for the single-image
             and composite paths alike. Needs a ``bbox`` or ``geometry`` (the
             whole-asset read is lazy).
+        block_size: EEDAI transfer block size (pixels per side); ``None`` uses the
+            conservative default (256). A larger block reads a window in fewer round
+            trips; pixels are unchanged (verified byte-identical across sizes).
 
     Returns:
         A pyramids :class:`~pyramids.dataset.Dataset` — the windowed image or the
@@ -1465,6 +1491,7 @@ def from_earthengine(
             geometry=geometry,
             credentials=creds,
             path=path,
+            block_size=block_size,
         )
     return _single_image_read(
         asset_id,
@@ -1478,6 +1505,7 @@ def from_earthengine(
         credentials=creds,
         tile_size=tile_size,
         path=path,
+        block_size=block_size,
     )
 
 
@@ -1494,6 +1522,7 @@ def collection_from_earthengine(
     shape: tuple[int, int] | None = None,
     resample: str = "nearest",
     credentials: CredentialsLike = None,
+    block_size: int | None = None,
 ) -> DatasetCollection:
     """Read an Earth Engine ``ImageCollection`` into a ``DatasetCollection``.
 
@@ -1582,6 +1611,7 @@ def collection_from_earthengine(
             bands=bands,
             credentials=creds,
             resample=resample,
+            block_size=block_size,
         )
     env = creds.gdal_env()
     # ``windowed`` scenes are already fully-materialised pyramids Datasets (the warp

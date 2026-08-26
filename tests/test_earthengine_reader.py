@@ -60,7 +60,7 @@ def patched_eedai(monkeypatch):
         never touches the network.
     """
 
-    def _fake_open(asset_id, *, bands, credentials):  # noqa: ARG001
+    def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
         return Dataset(_synthetic_srtm())
 
     monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
@@ -191,7 +191,7 @@ class TestFromEarthengine:
         """
         captured = {}
 
-        def _fake_open(asset_id, *, bands, credentials):  # noqa: ARG001
+        def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
             captured["credentials"] = credentials
             return Dataset(_synthetic_srtm())
 
@@ -332,6 +332,37 @@ class TestOpenEedai:
             f"Unexpected open options: {options}"
         )
 
+    def test_block_size_threads_to_open_option(self, monkeypatch) -> None:
+        """A caller ``block_size`` sets the EEDAI ``BLOCK_SIZE`` open option (#60).
+
+        Test scenario:
+            ``block_size=1024`` opens with ``BLOCK_SIZE=1024`` instead of the default.
+        """
+        fake = _FakeGdal(_synthetic_srtm())
+        monkeypatch.setattr(ee_reader, "gdal", fake)
+        ee_reader._open_eedai(
+            "USGS/SRTMGL1_003",
+            bands=None,
+            credentials=EarthEngineCredentials.application_default(),
+            block_size=1024,
+        )
+        _conn, options = fake.calls[0]
+        assert "BLOCK_SIZE=1024" in options, f"block_size not threaded: {options}"
+
+    def test_block_size_rejects_non_positive(self) -> None:
+        """A non-positive ``block_size`` raises ``ValueError`` (#60).
+
+        Test scenario:
+            ``block_size=0`` is rejected before any open.
+        """
+        with pytest.raises(ValueError, match="block_size"):
+            ee_reader._open_eedai(
+                "USGS/SRTMGL1_003",
+                bands=None,
+                credentials=EarthEngineCredentials.application_default(),
+                block_size=0,
+            )
+
     def test_pins_lossless_pixel_encoding(self, monkeypatch) -> None:
         """Every EEDAI open pins a lossless ``PIXEL_ENCODING`` (regression for #69).
 
@@ -463,7 +494,7 @@ def three_scenes(monkeypatch):
     def _fake_discover(asset_id, *, start, end, bbox_4326, credentials):  # noqa: ARG001
         return scenes
 
-    def _fake_open(connection, *, bands, credentials):  # noqa: ARG001
+    def _fake_open(connection, *, bands, credentials, **_kwargs):  # noqa: ARG001
         return Dataset(_synthetic_srtm(fill=fills[connection]))
 
     monkeypatch.setattr(ee_reader, "_discover_scenes", _fake_discover)
@@ -1038,7 +1069,7 @@ class TestCredentialLifetime:
         monkeypatch.setattr(
             ee_reader,
             "_open_eedai",
-            lambda a, *, bands, credentials: Dataset(_synthetic_srtm()),
+            lambda a, *, bands, credentials, **_kw: Dataset(_synthetic_srtm()),
         )
         ds = from_earthengine(
             "USGS/SRTMGL1_003", bbox=_BBOX, credentials={"type": "service_account"}
@@ -1101,7 +1132,7 @@ class TestReducerDtype:
         monkeypatch.setattr(
             ee_reader,
             "_open_eedai",
-            lambda a, *, bands, credentials: Dataset(_synthetic_srtm()),
+            lambda a, *, bands, credentials, **_kw: Dataset(_synthetic_srtm()),
         )
         before = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
         try:
@@ -1240,7 +1271,7 @@ class TestCredentialScope:
         monkeypatch.setattr(
             ee_reader,
             "_open_eedai",
-            lambda a, *, bands, credentials: Dataset(_synthetic_srtm()),
+            lambda a, *, bands, credentials, **_kw: Dataset(_synthetic_srtm()),
         )
         monkeypatch.setattr(ee_reader, "_window", _spy)
         before = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
@@ -1491,6 +1522,9 @@ class TestMaterialize:
                     def GetNoDataValue(self):  # noqa: N802
                         return real_band.GetNoDataValue()
 
+                    def GetBlockSize(self):  # noqa: N802
+                        return real_band.GetBlockSize()
+
                     def ReadAsArray(self, *args, **kwargs):  # noqa: N802, ARG002
                         return None
 
@@ -1503,6 +1537,23 @@ class TestMaterialize:
 
 class TestLivePixelCorrectness:
     """Live safety net: EEDAI reads must return correct, deterministic pixels."""
+
+    @pytest.mark.live
+    def test_block_size_pixels_unchanged(self) -> None:
+        """A larger ``block_size`` returns identical pixels (#60).
+
+        Test scenario:
+            An SRTM window read with ``block_size=512`` is byte-identical to the
+            default 256-block read — the block size is a transport knob, not a
+            correctness one.
+        """
+        default = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(60, 60))
+        larger = from_earthengine(
+            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(60, 60), block_size=512
+        )
+        assert np.array_equal(
+            np.asarray(default.read_array()), np.asarray(larger.read_array())
+        ), "block_size changed the pixels"
 
     @pytest.mark.live
     def test_pinned_encoding_lossless_at_large_transfer(self) -> None:
@@ -1726,7 +1777,7 @@ def patched_gradient(monkeypatch):
     monkeypatch.setattr(
         ee_reader,
         "_open_eedai",
-        lambda a, *, bands, credentials: Dataset(_gradient_source()),
+        lambda a, *, bands, credentials, **_kw: Dataset(_gradient_source()),
     )
 
 
@@ -1870,7 +1921,9 @@ class TestTiledRead:
             src.GetRasterBand(band + 1).WriteArray(base + band * 1_000_000)
             src.GetRasterBand(band + 1).SetNoDataValue(-32768)
         monkeypatch.setattr(
-            ee_reader, "_open_eedai", lambda a, *, bands, credentials: Dataset(src)
+            ee_reader,
+            "_open_eedai",
+            lambda a, *, bands, credentials, **_kw: Dataset(src),
         )
 
         untiled = np.asarray(
@@ -2007,7 +2060,9 @@ class TestTiledRead:
         src.GetRasterBand(1).WriteArray(array)
         src.GetRasterBand(1).SetNoDataValue(-32768)
         monkeypatch.setattr(
-            ee_reader, "_open_eedai", lambda a, *, bands, credentials: Dataset(src)
+            ee_reader,
+            "_open_eedai",
+            lambda a, *, bands, credentials, **_kw: Dataset(src),
         )
         aoi = (86.7, 27.7, 87.3, 28.3)
         untiled = np.asarray(
@@ -2071,7 +2126,9 @@ class TestTiledRead:
         monkeypatch.setattr(
             ee_reader,
             "_open_eedai",
-            lambda a, *, bands, credentials: Dataset(_gradient_source(nodata=None)),
+            lambda a, *, bands, credentials, **_kw: Dataset(
+                _gradient_source(nodata=None)
+            ),
         )
         untiled_ds = from_earthengine("X", bbox=_BBOX, shape=(16, 16))
         out = tmp_path / "no_nodata.tif"
