@@ -13,7 +13,11 @@ import pytest
 from pyramids.dataset import Dataset, DatasetCollection
 
 import pyramids_eo.earthengine.reader as ee_reader
-from pyramids_eo import collection_from_earthengine, from_earthengine
+from pyramids_eo import (
+    collection_from_earthengine,
+    estimate_earthengine_cost,
+    from_earthengine,
+)
 from pyramids_eo.earthengine import EarthEngineCredentials
 from pyramids_eo.earthengine.reader import _Scene
 from pyramids_eo.errors import ReaderError
@@ -266,6 +270,49 @@ class TestCollectionFromEarthengineLive:
             f"Unexpected scene shape: {dc.datasets[0].shape}"
         )
 
+    @pytest.mark.live
+    def test_live_cost_estimate_from_catalog(self) -> None:
+        """``estimate_earthengine_cost`` reports real scene dimensions (#61).
+
+        Test scenario:
+            A Sentinel-2 window's cost estimate is sourced from the EEDA catalog —
+            24 bands, ~10980 px wide — without fetching any pixels.
+        """
+        cost = estimate_earthengine_cost(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox=_S2_BBOX,
+        )
+        assert cost.scene_count > 0, "Expected at least one scene in the window"
+        assert cost.max_band_count == 24, f"Expected 24 bands, got {cost.max_band_count}"
+        assert cost.max_width >= 10000, f"Expected a ~10980 px scene, got {cost.max_width}"
+        assert cost.min_pixel_size == 10.0, (
+            f"Expected a 10 m finest band, got {cost.min_pixel_size}"
+        )
+
+    @pytest.mark.live
+    def test_live_property_filter_narrows_selection(self) -> None:
+        """A cloud-cover ``property_filter`` selects a subset of scenes (#62).
+
+        Test scenario:
+            Filtering ``CLOUDY_PIXEL_PERCENTAGE < 20`` never selects more scenes than
+            the unfiltered window over the same date range + AOI.
+        """
+        window = dict(
+            asset_id="COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox=_S2_BBOX,
+        )
+        all_scenes = estimate_earthengine_cost(**window).scene_count
+        clear = estimate_earthengine_cost(
+            **window, property_filter="CLOUDY_PIXEL_PERCENTAGE < 20"
+        ).scene_count
+        assert clear <= all_scenes, (
+            f"Filtered ({clear}) should not exceed unfiltered ({all_scenes})"
+        )
+
 
 @pytest.fixture
 def key_tmp(tmp_path):
@@ -491,7 +538,7 @@ def three_scenes(monkeypatch):
     ]
     fills = {"EEDAI:scene/a": 10, "EEDAI:scene/b": 20, "EEDAI:scene/c": 30}
 
-    def _fake_discover(asset_id, *, start, end, bbox_4326, credentials):  # noqa: ARG001
+    def _fake_discover(asset_id, *, start, end, bbox_4326, credentials, **_kwargs):  # noqa: ARG001
         return scenes
 
     def _fake_open(connection, *, bands, credentials, **_kwargs):  # noqa: ARG001
@@ -773,6 +820,111 @@ class TestDiscoverScenes:
                 end="2024-06-30",
                 bbox_4326=(0.0, 0.0, 1.0, 1.0),
                 credentials=creds,
+            )
+
+    def test_property_filter_ands_into_attribute_filter(self, monkeypatch) -> None:
+        """A ``property_filter`` is ANDed onto the time selection (#62).
+
+        Test scenario:
+            A cloud-cover filter appears as a parenthesised ``AND`` clause alongside
+            the ``startTime`` bounds.
+        """
+        layer = _FakeLayer(
+            [
+                _FakeFeature(
+                    {"gdal_dataset": "EEDAI:a", "startTime": "2024-06-01T00:00:00"}
+                )
+            ]
+        )
+        monkeypatch.setattr(ee_reader, "gdal", _FakeEeda(layer))
+        ee_reader._discover_scenes(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox_4326=(0.0, 0.0, 1.0, 1.0),
+            credentials=EarthEngineCredentials.application_default(),
+            property_filter="CLOUDY_PIXEL_PERCENTAGE < 20",
+        )
+        assert "startTime >=" in layer.attribute_filter
+        assert "AND (CLOUDY_PIXEL_PERCENTAGE < 20)" in layer.attribute_filter, (
+            f"property_filter not ANDed on: {layer.attribute_filter}"
+        )
+
+    def test_scene_carries_cost_metadata(self, monkeypatch) -> None:
+        """Scene records carry the EEDA cost fields (#61).
+
+        Test scenario:
+            ``band_count`` / ``band_max_width`` / ``sizeBytes`` fields on the feature
+            surface on the returned ``_Scene``; a blank field coerces to zero.
+        """
+        layer = _FakeLayer(
+            [
+                _FakeFeature(
+                    {
+                        "gdal_dataset": "EEDAI:a",
+                        "startTime": "2024-06-01T00:00:00",
+                        "band_count": "24",
+                        "band_max_width": "10980",
+                        "band_max_height": "10980",
+                        "band_min_pixel_size": "10",
+                        "band_crs": "EPSG:32645",
+                        "sizeBytes": "123456",
+                    }
+                )
+            ]
+        )
+        monkeypatch.setattr(ee_reader, "gdal", _FakeEeda(layer))
+        (scene,) = ee_reader._discover_scenes(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox_4326=(0.0, 0.0, 1.0, 1.0),
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        assert scene.band_count == 24
+        assert scene.width == 10980
+        assert scene.pixel_size == 10.0
+        assert scene.crs == "EPSG:32645"
+        assert scene.size_bytes == 123456
+
+    def test_estimate_cost_aggregates_scene_metadata(self, monkeypatch) -> None:
+        """``estimate_earthengine_cost`` aggregates the scene records (#61).
+
+        Test scenario:
+            Two scenes of differing size aggregate into scene count, total bytes and
+            the per-field maxima — with no pixel fetch (only ``_discover_scenes`` runs).
+        """
+        scenes = [
+            ee_reader._Scene(
+                "EEDAI:a", "2024-06-01T00:00:00", 24, 10980, 10980, 10.0, "", 100
+            ),
+            ee_reader._Scene(
+                "EEDAI:b", "2024-06-02T00:00:00", 13, 5490, 5490, 20.0, "", 50
+            ),
+        ]
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: scenes)
+        cost = ee_reader.estimate_earthengine_cost(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox=(0.0, 0.0, 1.0, 1.0),
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        assert cost.scene_count == 2
+        assert cost.total_size_bytes == 150
+        assert cost.max_width == 10980
+        assert cost.max_band_count == 24
+        assert cost.min_pixel_size == 10.0
+        assert [s.connection for s in cost.scenes] == ["EEDAI:a", "EEDAI:b"]
+
+    def test_estimate_cost_requires_aoi(self) -> None:
+        """``estimate_earthengine_cost`` needs a ``bbox`` or ``geometry`` (#61)."""
+        with pytest.raises(ValueError, match="bbox.*geometry|geometry"):
+            ee_reader.estimate_earthengine_cost(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                start="2024-06-01",
+                end="2024-06-30",
+                credentials=EarthEngineCredentials.application_default(),
             )
 
 
@@ -2181,6 +2333,20 @@ class TestTiledValidation:
                 tile_size=4,
                 path="o.tif",
                 reducer="median",
+            )
+
+    def test_property_filter_rejects_single_image(self) -> None:
+        """``property_filter`` without composite mode raises up front (#62).
+
+        Test scenario:
+            A single-image read has no scene set to filter → ``ValueError``.
+        """
+        with pytest.raises(ValueError, match="property_filter"):
+            from_earthengine(
+                "X",
+                bbox=_BBOX,
+                shape=(8, 8),
+                property_filter="CLOUDY_PIXEL_PERCENTAGE < 20",
             )
 
     def test_tile_size_rejects_geometry(self) -> None:

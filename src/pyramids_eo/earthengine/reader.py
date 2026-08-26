@@ -104,10 +104,26 @@ class _Scene(NamedTuple):
         connection: The scene's ``EEDAI:`` connection string (from the EEDA
             catalog's ``gdal_dataset`` field), ready to open with the raster driver.
         time: The scene's acquisition ``startTime`` as reported by the catalog.
+        band_count: Number of bands the scene exposes (EEDA ``band_count``).
+        width: Widest band's pixel width (EEDA ``band_max_width``).
+        height: Tallest band's pixel height (EEDA ``band_max_height``).
+        pixel_size: Finest band's ground pixel size (EEDA ``band_min_pixel_size``).
+        crs: The scene's native band CRS (EEDA ``band_crs``).
+        size_bytes: The scene's reported storage size (EEDA ``sizeBytes``).
+
+    The metadata fields default to zero / empty so a caller that only needs the
+    ``connection`` and ``time`` (the read path) can build a ``_Scene`` without the
+    catalog cost figures; :func:`_discover_scenes` always populates them.
     """
 
     connection: str
     time: str
+    band_count: int = 0
+    width: int = 0
+    height: int = 0
+    pixel_size: float = 0.0
+    crs: str = ""
+    size_bytes: int = 0
 
 
 def _open_eedai(
@@ -568,6 +584,31 @@ def _retain_credentials(obj: object, credentials: EarthEngineCredentials) -> obj
     return obj
 
 
+def _field_int(feature: object, key: str) -> int:
+    """Read an EEDA feature field as an ``int``, tolerating absence/blanks.
+
+    The catalog's numeric cost fields serialise as strings; a missing or empty
+    field (or an unparseable one) yields ``0`` so a scene record is always complete.
+    """
+    raw = feature.GetFieldAsString(key)  # type: ignore[attr-defined]
+    try:
+        return int(float(raw)) if raw else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def _field_float(feature: object, key: str) -> float:
+    """Read an EEDA feature field as a ``float``, tolerating absence/blanks.
+
+    A missing/empty/unparseable field yields ``0.0`` (see :func:`_field_int`).
+    """
+    raw = feature.GetFieldAsString(key)  # type: ignore[attr-defined]
+    try:
+        return float(raw) if raw else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _discover_scenes(
     asset_id: str,
     *,
@@ -575,6 +616,7 @@ def _discover_scenes(
     end: str,
     bbox_4326: BBox,
     credentials: EarthEngineCredentials,
+    property_filter: str | None = None,
 ) -> list[_Scene]:
     """Discover ``ImageCollection`` scenes over a date range + AOI via EEDA.
 
@@ -586,19 +628,24 @@ def _discover_scenes(
         end: Inclusive ISO end of the acquisition window.
         bbox_4326: AOI envelope in EPSG:4326 lon/lat.
         credentials: Resolved credentials whose config authorises the query.
+        property_filter: Optional OGR attribute-filter fragment on the collection's
+            own property fields (e.g. ``"CLOUDY_PIXEL_PERCENTAGE < 20"``), ANDed with
+            the time/space selection. Evaluated client-side over the fetched page (see
+            Note), so it trims pixel fetches, not the catalog query.
 
     Returns:
-        Scenes intersecting the AOI within the window, sorted by acquisition time.
+        Scenes intersecting the AOI within the window, sorted by acquisition time,
+        each carrying its EEDA cost metadata (band count, dimensions, size).
 
     Note:
         Both bounds filter on ``startTime`` (acquisition start), which preserves the
         window's inclusive-end intent for the point-in-time scenes these collections
         hold. Only ``startTime >=`` is pushed to the EEDA server; the ``startTime``
-        upper bound is evaluated client-side over the returned page. Moving the upper
-        bound to a server-side ``endTime <=`` would push both ends down, but it selects
-        a *different* set at the boundary for scenes whose acquisition spans the end
-        instant (start before, end after), so it is a deliberate semantic change and is
-        not adopted here (see #67).
+        upper bound and any ``property_filter`` are evaluated client-side over the
+        returned page. Moving the upper bound to a server-side ``endTime <=`` would
+        push both ends down, but it selects a *different* set at the boundary for
+        scenes whose acquisition spans the end instant (start before, end after), so
+        it is a deliberate semantic change and is not adopted here (see #67).
 
     Raises:
         ReaderError: The EEDA collection could not be opened, or ``start`` / ``end``
@@ -620,15 +667,32 @@ def _discover_scenes(
     layer = catalog.GetLayer(0)
     # Select by acquisition time (``startTime``): lower bound at the start date's
     # midnight, upper bound as a next-day-exclusive midnight for a bare end date so
-    # every scene acquired on the end date is kept regardless of serialisation.
-    layer.SetAttributeFilter(f"startTime >= '{_iso(start)}' AND {_end_clause(end)}")
+    # every scene acquired on the end date is kept regardless of serialisation. A
+    # caller ``property_filter`` (e.g. cloud cover) is ANDed on; OGR evaluates it
+    # client-side over the page since the EEDA server pushes down only the time bound.
+    time_filter = f"startTime >= '{_iso(start)}' AND {_end_clause(end)}"
+    attribute_filter = (
+        f"{time_filter} AND ({property_filter})" if property_filter else time_filter
+    )
+    layer.SetAttributeFilter(attribute_filter)
     min_x, min_y, max_x, max_y = bbox_4326
     layer.SetSpatialFilterRect(min_x, min_y, max_x, max_y)
     scenes: list[_Scene] = []
     for feature in layer:
         connection = feature.GetFieldAsString("gdal_dataset")
         if connection:
-            scenes.append(_Scene(connection, feature.GetFieldAsString("startTime")))
+            scenes.append(
+                _Scene(
+                    connection=connection,
+                    time=feature.GetFieldAsString("startTime"),
+                    band_count=_field_int(feature, "band_count"),
+                    width=_field_int(feature, "band_max_width"),
+                    height=_field_int(feature, "band_max_height"),
+                    pixel_size=_field_float(feature, "band_min_pixel_size"),
+                    crs=feature.GetFieldAsString("band_crs"),
+                    size_bytes=_field_int(feature, "sizeBytes"),
+                )
+            )
     return sorted(scenes, key=lambda s: (s.time, s.connection))
 
 
@@ -850,6 +914,7 @@ def _composite_read(
     credentials: EarthEngineCredentials,
     path: str | Path | None = None,
     block_size: int | None = None,
+    property_filter: str | None = None,
 ) -> Dataset:
     """Reduce an ``ImageCollection`` over a date range into one composite ``Dataset``.
 
@@ -877,6 +942,7 @@ def _composite_read(
         end=end,
         bbox_4326=_bbox_to_4326(bbox, crs),
         credentials=credentials,
+        property_filter=property_filter,
     )
     if not scenes:
         raise ReaderError(
@@ -1220,6 +1286,7 @@ def _validate_read_request(
     reducer: str | None,
     start: str | None,
     end: str | None,
+    property_filter: str | None = None,
 ) -> None:
     """Validate a :func:`from_earthengine` option combination before any network call.
 
@@ -1234,6 +1301,8 @@ def _validate_read_request(
         reducer: Composite reducer, or ``None``.
         start: Composite start date, or ``None``.
         end: Composite end date, or ``None``.
+        property_filter: Scene property filter, or ``None`` — only meaningful for the
+            ``ImageCollection`` (composite) mode that discovers scenes.
 
     Raises:
         ValueError: An incompatible or incomplete option combination (or an unknown
@@ -1242,6 +1311,16 @@ def _validate_read_request(
     if scale is not None and shape is not None:
         raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
     _resample_alg(resample)  # rejects an unknown resample name up front
+    if (
+        property_filter is not None
+        and reducer is None
+        and start is None
+        and end is None
+    ):
+        raise ValueError(
+            "'property_filter' selects among ImageCollection scenes; it needs the "
+            "composite mode ('start'/'end' and 'reducer'), not the single-image read."
+        )
     if path is not None and bbox is None and geometry is None:
         raise ValueError(
             "'path' needs a 'bbox' or 'geometry'; the whole-asset read is lazy."
@@ -1290,6 +1369,7 @@ def from_earthengine(
     tile_size: int | None = None,
     path: str | Path | None = None,
     block_size: int | None = None,
+    property_filter: str | None = None,
 ) -> Dataset:
     """Read an Earth Engine ``Image`` (or reduced ``ImageCollection``) into a ``Dataset``.
 
@@ -1356,6 +1436,11 @@ def from_earthengine(
         block_size: EEDAI transfer block size (pixels per side); ``None`` uses the
             conservative default (256). A larger block reads a window in fewer round
             trips; pixels are unchanged (verified byte-identical across sizes).
+        property_filter: OGR attribute-filter fragment on the collection's own
+            property fields (e.g. ``"CLOUDY_PIXEL_PERCENTAGE < 20"``), used only in the
+            ``ImageCollection`` composite mode to constrain which scenes are reduced.
+            Filtered client-side over the discovered scene page (it trims pixel
+            fetches, not the catalog query), so it is not server-side filtering.
 
     Returns:
         A pyramids :class:`~pyramids.dataset.Dataset` — the windowed image or the
@@ -1478,6 +1563,7 @@ def from_earthengine(
         reducer=reducer,
         start=start,
         end=end,
+        property_filter=property_filter,
     )
 
     creds = EarthEngineCredentials.coerce(credentials)
@@ -1502,6 +1588,7 @@ def from_earthengine(
             credentials=creds,
             path=path,
             block_size=block_size,
+            property_filter=property_filter,
         )
     return _single_image_read(
         asset_id,
@@ -1533,6 +1620,7 @@ def collection_from_earthengine(
     resample: str = "nearest",
     credentials: CredentialsLike = None,
     block_size: int | None = None,
+    property_filter: str | None = None,
 ) -> DatasetCollection:
     """Read an Earth Engine ``ImageCollection`` into a ``DatasetCollection``.
 
@@ -1564,6 +1652,12 @@ def collection_from_earthengine(
         credentials: An
             :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a
             path to a service-account JSON key, or ``None`` for ADC.
+        block_size: EEDAI transfer block size (pixels per side); ``None`` uses the
+            conservative default. See :func:`from_earthengine`.
+        property_filter: OGR attribute-filter fragment on the collection's own
+            property fields (e.g. ``"CLOUDY_PIXEL_PERCENTAGE < 20"``) constraining
+            which scenes are read. Filtered client-side over the discovered scene
+            page (trims pixel fetches, not the catalog query), not server-side.
 
     Returns:
         A pyramids :class:`~pyramids.dataset.DatasetCollection`, one timestep per
@@ -1605,6 +1699,7 @@ def collection_from_earthengine(
         end=end,
         bbox_4326=_bbox_to_4326(bbox, crs),
         credentials=creds,
+        property_filter=property_filter,
     )
     if not scenes:
         raise ReaderError(
@@ -1638,3 +1733,105 @@ def collection_from_earthengine(
         gdal_env=env,
     )
     return _retain_credentials(collection, creds)
+
+
+class ReadCost(NamedTuple):
+    """A pre-read cost estimate for an ``ImageCollection`` window, from EEDA metadata.
+
+    Every figure is read from the EEDA catalog's own per-scene fields — no pixels are
+    fetched — so a caller can size a read (and its EE egress) before paying for it.
+
+    Attributes:
+        scene_count: Number of scenes the date range + AOI (and any ``property_filter``)
+            select.
+        total_size_bytes: Sum of the scenes' reported storage sizes (``sizeBytes``); a
+            scene the catalog does not size contributes ``0``.
+        max_width: Widest scene band width across the selection, in pixels.
+        max_height: Tallest scene band height across the selection, in pixels.
+        max_band_count: Largest per-scene band count across the selection.
+        min_pixel_size: Finest ground pixel size across the selection (``0.0`` when the
+            catalog reports none).
+        scenes: The per-scene records (connection, acquisition time, and cost fields),
+            in acquisition order.
+    """
+
+    scene_count: int
+    total_size_bytes: int
+    max_width: int
+    max_height: int
+    max_band_count: int
+    min_pixel_size: float
+    scenes: list[_Scene]
+
+
+def estimate_earthengine_cost(
+    asset_id: str,
+    *,
+    start: str,
+    end: str,
+    bbox: BBox | None = None,
+    geometry: object | None = None,
+    crs: str = _DEFAULT_CRS,
+    credentials: CredentialsLike = None,
+    property_filter: str | None = None,
+) -> ReadCost:
+    """Estimate what an ``ImageCollection`` read would cost, without fetching pixels.
+
+    Runs only the EEDA scene discovery (the catalog query) and aggregates the cost
+    fields the catalog reports per scene — band count, pixel dimensions, pixel size and
+    storage size — into a :class:`ReadCost`. This answers "how big is this read" as a
+    fact about the actual scenes rather than a guess from asset-level metadata.
+
+    Args:
+        asset_id: EE ``ImageCollection`` id (e.g. ``"COPERNICUS/S2_SR_HARMONIZED"``).
+        start: Inclusive ISO start of the acquisition window.
+        end: Inclusive ISO end of the acquisition window.
+        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required unless a
+            ``geometry`` is given.
+        geometry: Optional polygon AOI whose envelope bounds scene discovery (its CRS
+            is honoured as in :func:`collection_from_earthengine`).
+        crs: The CRS ``bbox`` is expressed in. Defaults to ``"EPSG:4326"``.
+        credentials: Credentials authorising the catalog query (see
+            :func:`collection_from_earthengine`).
+        property_filter: Optional scene property filter (e.g. cloud cover), applied
+            client-side over the discovered page — the same selection a matching read
+            would see.
+
+    Returns:
+        A :class:`ReadCost` for the selected scenes.
+
+    Raises:
+        ValueError: Neither ``bbox`` nor ``geometry`` is given.
+        ReaderError: The catalog could not be opened, or the date range + AOI matched
+            no scenes.
+    """
+    if geometry is not None:
+        geometry = _geometry_in_crs(geometry, crs)
+    if bbox is None:
+        if geometry is None:
+            raise ValueError("Pass a 'bbox' or a 'geometry'.")
+        bbox = _geometry_bounds(geometry)
+
+    creds = EarthEngineCredentials.coerce(credentials)
+    scenes = _discover_scenes(
+        asset_id,
+        start=start,
+        end=end,
+        bbox_4326=_bbox_to_4326(bbox, crs),
+        credentials=creds,
+        property_filter=property_filter,
+    )
+    if not scenes:
+        raise ReaderError(
+            f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over {bbox}."
+        )
+    pixel_sizes = [s.pixel_size for s in scenes if s.pixel_size > 0]
+    return ReadCost(
+        scene_count=len(scenes),
+        total_size_bytes=sum(s.size_bytes for s in scenes),
+        max_width=max(s.width for s in scenes),
+        max_height=max(s.height for s in scenes),
+        max_band_count=max(s.band_count for s in scenes),
+        min_pixel_size=min(pixel_sizes) if pixel_sizes else 0.0,
+        scenes=list(scenes),
+    )

@@ -19,12 +19,16 @@ from __future__ import annotations
 
 from pyramids_eo.earthengine.credentials import EarthEngineCredentials
 from pyramids_eo.earthengine.reader import (
+    ReadCost,
     collection_from_earthengine,
+    estimate_earthengine_cost,
     from_earthengine,
 )
 
 __all__ = [
     "EarthEngineCredentials",
+    "ReadCost",
     "collection_from_earthengine",
+    "estimate_earthengine_cost",
     "from_earthengine",
 ]

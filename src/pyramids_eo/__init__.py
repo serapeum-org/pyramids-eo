@@ -16,7 +16,9 @@ from importlib.metadata import version as _get_version
 
 from pyramids_eo.earthengine import (
     EarthEngineCredentials,
+    ReadCost,
     collection_from_earthengine,
+    estimate_earthengine_cost,
     from_earthengine,
 )
 
@@ -27,7 +29,9 @@ except PackageNotFoundError:  # pragma: no cover
 
 __all__ = [
     "EarthEngineCredentials",
+    "ReadCost",
     "__version__",
     "collection_from_earthengine",
+    "estimate_earthengine_cost",
     "from_earthengine",
 ]
