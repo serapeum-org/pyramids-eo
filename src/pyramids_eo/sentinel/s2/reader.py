@@ -7,7 +7,7 @@ converts DN → reflectance (as lazy scale/offset tags), masks cloud/shadow via
 the Scene-Classification band, and crops / reprojects — returning a plain
 pyramids ``Dataset`` with no Sentinel objects leaking out.
 
-Built entirely on pyramids-gis 0.55+ APIs: ``Dataset.subdatasets`` /
+Built entirely on pyramids-gis 0.56+ APIs: ``Dataset.subdatasets`` /
 ``open_subdataset`` for the catalog, ``Dataset.bands.select`` for band subsetting
 (1-based, or by name), ``Dataset.read_array(scaled=True)`` for the lazy
 reflectance read the scale/offset tags drive, and ``crop`` / ``to_crs`` for the
@@ -65,7 +65,7 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
         epsg: UTM EPSG code, required only for a multi-zone product.
         bbox: Optional crop window ``(minx, miny, maxx, maxy)`` in the product's
             native CRS (cropping happens before any ``crs`` reprojection).
-        crs: Optional target CRS (EPSG int or WKT/……) to reproject to.
+        crs: Optional target CRS (an EPSG integer or a WKT string) to reproject to.
         reflectance: When ``True`` (default), tag the spectral bands so
             ``read_array(scaled=True)`` yields reflectance
             ``(DN + offset) / quantification`` (the baseline-≥04.00 offset is 0

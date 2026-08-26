@@ -14,8 +14,10 @@ the offset parser.
 
 Rather than materialise a float array, :func:`tag_reflectance` records the
 conversion on the dataset's GDAL scale/offset so it is applied lazily by
-``Dataset.read_array(scaled=True)`` and rides through ``crop`` / ``to_crs``
-(pyramids-gis #1031). In GDAL's ``real = DN * scale + offset`` terms:
+``Dataset.read_array(scaled=True)``. The tags ride through ``to_crs`` and
+``to_file``, but pyramids-gis 0.56 ``crop`` **resets** them — so the reader
+applies :func:`tag_reflectance` as the *last* step, after any crop / reproject.
+In GDAL's ``real = DN * scale + offset`` terms:
 
     scale  = 1 / quantification
     offset = band_offset / quantification
