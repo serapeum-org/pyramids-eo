@@ -203,8 +203,11 @@ def test_baseline_509_offset_flows_to_scaled_read():
 
 
 def test_reproject_to_wgs84():
-    ds = from_sentinel2(_L2A, bands=["B04"], crs=4326)
+    product = open_product(_L2A)
+    ds = from_sentinel2(product, bands=["B04"], crs=4326)
     assert ds.epsg == 4326
+    # Reflectance calibration must survive the reprojection.
+    assert ds.scale[0] == pytest.approx(1.0 / product.quantification)
 
 
 def test_requesting_absent_band_raises():

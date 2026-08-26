@@ -574,11 +574,18 @@ class TestSclMask:
 class TestReaderEdges:
     """Tests for `s2.reader` branches not hit by the happy path."""
 
-    def test_bbox_crops_output(self):
-        """A ``bbox`` crops the returned dataset to a smaller extent."""
+    def test_bbox_crops_output_and_keeps_reflectance(self):
+        """A ``bbox`` crops the output AND the reflectance tags survive the crop.
+
+        Test scenario:
+            pyramids ``crop`` resets per-band scale/offset, so the reader must
+            re-tag after cropping — a cropped read must still scale to
+            reflectance (``1/quantification``), not raw DN.
+        """
         from pyramids_eo.sentinel import from_sentinel2
 
-        full = from_sentinel2(_L2A, bands=["B04"])
+        product = open_product(_L2A)
+        full = from_sentinel2(product, bands=["B04"])
         bb = full.bbox
         window = (
             bb[0],
@@ -588,6 +595,23 @@ class TestReaderEdges:
         )
         cropped = from_sentinel2(_L2A, bands=["B04"], bbox=window)
         assert cropped.shape[2] < full.shape[2]
+        assert cropped.scale[0] == pytest.approx(1.0 / product.quantification)
+
+    def test_bbox_and_reproject_keep_reflectance(self):
+        """Reflectance survives a combined crop + reprojection."""
+        from pyramids_eo.sentinel import from_sentinel2
+
+        product = open_product(_L2A)
+        bb = from_sentinel2(product, bands=["B04"]).bbox
+        window = (
+            bb[0],
+            bb[1],
+            bb[0] + (bb[2] - bb[0]) / 2,
+            bb[1] + (bb[3] - bb[1]) / 2,
+        )
+        out = from_sentinel2(_L2A, bands=["B04"], bbox=window, crs=4326)
+        assert out.epsg == 4326
+        assert out.scale[0] == pytest.approx(1.0 / product.quantification)
 
     def test_mask_scl_on_product_without_scl_raises(self):
         """Requesting an SCL mask on L1C (no SCL band) raises ``ProductError``."""
