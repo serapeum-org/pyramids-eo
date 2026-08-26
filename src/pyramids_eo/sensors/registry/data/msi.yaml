@@ -1,0 +1,29 @@
+# Sentinel-2 MSI channel table (S2A nominal).
+#
+# NOMINAL constants — central wavelengths, native resolutions, and band-effective
+# solar irradiances (E0, W m-2 um-1) from the published S2A MSI spectral response.
+# All MSI bands are reflective (kind: solar); there are no thermal bands.
+#
+# The Sentinel-2 reader converts DN -> reflectance with the product's
+# QUANTIFICATION_VALUE (plus the baseline radiometric offset), NOT via these
+# irradiances, and it reads per-band WAVELENGTH / SOLAR_IRRADIANCE straight from
+# the GDAL SENTINEL2 driver metadata. This table exists for parity with the
+# fci / seviri registries and as a nominal fallback; a reader should PREFER the
+# granule's own metadata. Values differ slightly between S2A and S2B and between
+# published sources — verify against the official ESA S2 radiometric tables
+# before relying on them for quantitative products.
+name: msi
+channels:
+  B01: {wavelength_um: 0.443, resolution_m: 60, kind: solar, solar_irradiance: 1874.3}
+  B02: {wavelength_um: 0.490, resolution_m: 10, kind: solar, solar_irradiance: 1959.75}
+  B03: {wavelength_um: 0.560, resolution_m: 10, kind: solar, solar_irradiance: 1824.93}
+  B04: {wavelength_um: 0.665, resolution_m: 10, kind: solar, solar_irradiance: 1512.79}
+  B05: {wavelength_um: 0.705, resolution_m: 20, kind: solar, solar_irradiance: 1425.78}
+  B06: {wavelength_um: 0.740, resolution_m: 20, kind: solar, solar_irradiance: 1291.13}
+  B07: {wavelength_um: 0.783, resolution_m: 20, kind: solar, solar_irradiance: 1175.57}
+  B08: {wavelength_um: 0.842, resolution_m: 10, kind: solar, solar_irradiance: 1041.28}
+  B8A: {wavelength_um: 0.865, resolution_m: 20, kind: solar, solar_irradiance: 953.93}
+  B09: {wavelength_um: 0.945, resolution_m: 60, kind: solar, solar_irradiance: 817.58}
+  B10: {wavelength_um: 1.375, resolution_m: 60, kind: solar, solar_irradiance: 365.41}
+  B11: {wavelength_um: 1.610, resolution_m: 20, kind: solar, solar_irradiance: 247.08}
+  B12: {wavelength_um: 2.190, resolution_m: 20, kind: solar, solar_irradiance: 87.75}
