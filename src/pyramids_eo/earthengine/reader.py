@@ -860,6 +860,8 @@ def _read_scenes_aligned(
         bands: Band names to request, or ``None`` for all.
         credentials: Resolved credentials.
         resample: Resampling algorithm for the warp.
+        block_size: EEDAI block size (pixels per side) for each scene's open, or
+            ``None`` for the conservative default.
 
     Returns:
         One windowed pyramids ``Dataset`` per scene, all on the same grid.
@@ -1233,6 +1235,12 @@ def _tiled_composite_read(
     written to temporary rasters and mosaicked with :func:`_mosaic_tiles`; a polygon
     ``geometry`` is applied as a cutline to the finished mosaic (its envelope having
     bounded the tiling), as in the single-image tiled path.
+
+    Performance: every scene is re-opened for **every** tile (``_read_scene_tile`` opens
+    each scene's EEDAI handle per tile), i.e. ``O(n_tiles × n_scenes)`` opens — each a
+    network round-trip / egress in live use. This is the price of the bounded per-tile
+    memory; a large scene stack over many tiles multiplies the open cost, so size
+    ``tile_size`` with the scene count in mind.
 
     Args:
         asset_id: EE ``ImageCollection`` id.
