@@ -474,8 +474,7 @@
       <azimuthPixelSpacing>1.000655e+01</azimuthPixelSpacing>
       <azimuthTimeInterval>1.496479475961005e-03</azimuthTimeInterval>
       <azimuthFrequency>4.864863102995529e+02</azimuthFrequency>
-      <!--<numberOfSamples>25993</numberOfSamples>
-      <numberOfLines>16706</numberOfLines>-->
+      <!-- original granule was 25993 samples by 16706 lines; downsized to 256 by 167 for this test fixture -->
       <numberOfSamples>256</numberOfSamples>
       <numberOfLines>167</numberOfLines>
       <zeroDopMinusAcqTime>2.746961180000000e+02</zeroDopMinusAcqTime>

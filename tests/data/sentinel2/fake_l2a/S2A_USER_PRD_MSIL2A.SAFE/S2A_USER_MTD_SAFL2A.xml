@@ -34,7 +34,7 @@
 <BAND_NAME>B5</BAND_NAME>
 <BAND_NAME>B6</BAND_NAME>
 <BAND_NAME>B7</BAND_NAME>
-<!--<BAND_NAME>B8</BAND_NAME>-->
+<!-- B8 is 10 m only and is intentionally absent from this 60 m L2A fixture -->
 <BAND_NAME>B9</BAND_NAME>
 <BAND_NAME>B10</BAND_NAME>
 <BAND_NAME>B11</BAND_NAME>
