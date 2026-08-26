@@ -26,7 +26,30 @@ _DEFAULT_NODATA = 0.0
 
 
 class SclClass(IntEnum):
-    """Sentinel-2 L2A Scene-Classification codes (GDAL category names)."""
+    """Sentinel-2 L2A Scene-Classification codes (GDAL category names).
+
+    Each member's value is the integer pixel code the SCL band stores, so a
+    member can be used directly as a class selector or compared with a raw code.
+
+    Examples:
+        - A member carries the SCL pixel code and its name:
+            ```python
+            >>> from pyramids_eo.sentinel.s2.masks import SclClass
+            >>> SclClass.CLOUD_HIGH_PROBA.value
+            9
+            >>> SclClass.WATER.name
+            'WATER'
+
+            ```
+        - Build a cloud/shadow mask selection and read back the codes:
+            ```python
+            >>> from pyramids_eo.sentinel.s2.masks import SclClass
+            >>> clouds = [SclClass.CLOUD_MEDIUM_PROBA, SclClass.CLOUD_HIGH_PROBA]
+            >>> [int(c) for c in clouds]
+            [8, 9]
+
+            ```
+    """
 
     NODATA = 0
     SATURATED_DEFECTIVE = 1

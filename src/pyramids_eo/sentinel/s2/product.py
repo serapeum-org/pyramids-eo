@@ -269,6 +269,30 @@ def is_spectral_band(name: str) -> bool:
 
     A spectral band is ``B`` followed by a digit (so ``B8A`` counts, ``BAND``
     does not).
+
+    Args:
+        name: A band name, e.g. ``"B04"`` or ``"SCL"``.
+
+    Returns:
+        ``True`` when ``name`` is a spectral band, else ``False``.
+
+    Examples:
+        - Numbered bands and the ``B8A`` red-edge band are spectral:
+            ```python
+            >>> from pyramids_eo.sentinel.s2.product import is_spectral_band
+            >>> is_spectral_band("B04")
+            True
+            >>> is_spectral_band("B8A")
+            True
+
+            ```
+        - Auxiliary layers are not spectral:
+            ```python
+            >>> from pyramids_eo.sentinel.s2.product import is_spectral_band
+            >>> [is_spectral_band(b) for b in ("SCL", "AOT", "WVP")]
+            [False, False, False]
+
+            ```
     """
     text = name.strip().upper()
     return text.startswith("B") and len(text) > 1 and text[1].isdigit()

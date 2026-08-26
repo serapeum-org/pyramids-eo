@@ -104,6 +104,27 @@ def parse_s2(connection: str) -> S2Connection:
     Raises:
         ProductError: The string is not a ``SENTINEL2_*`` connection string,
             or its tail cannot be read.
+
+    Examples:
+        - Parse a full L2A connection string and read its fields:
+            ```python
+            >>> from pyramids_eo.sentinel._connection import parse_s2
+            >>> conn = parse_s2("SENTINEL2_L2A:/data/MTD.xml:60m:EPSG_32632")
+            >>> conn.level
+            'L2A'
+            >>> conn.resolution
+            '60m'
+            >>> conn.epsg
+            32632
+
+            ```
+        - A string with no trailing ``EPSG_`` token leaves ``epsg`` unset:
+            ```python
+            >>> from pyramids_eo.sentinel._connection import parse_s2
+            >>> parse_s2("SENTINEL2_L1B:/data/MTD.xml:10m").epsg is None
+            True
+
+            ```
     """
     if not connection.startswith(_S2_PREFIX):
         raise ProductError(f"not a SENTINEL2 connection string: {connection!r}")
@@ -136,6 +157,31 @@ def parse_s1(connection: str) -> S1Connection:
     Raises:
         ProductError: The string is not a ``SENTINEL1_CALIB:*`` string or is
             malformed.
+
+    Examples:
+        - Parse a calibrated intensity subdataset and read swath / polarisation:
+            ```python
+            >>> from pyramids_eo.sentinel._connection import parse_s1
+            >>> conn = parse_s1(
+            ...     "SENTINEL1_CALIB:SIGMA0:/data/manifest.safe:IW_VV:INTENSITY"
+            ... )
+            >>> conn.swath
+            'IW'
+            >>> conn.polarisation
+            'VV'
+            >>> conn.calibration
+            'SIGMA0'
+
+            ```
+        - A bare swath token (no ``_POL``) leaves the polarisation unset:
+            ```python
+            >>> from pyramids_eo.sentinel._connection import parse_s1
+            >>> parse_s1(
+            ...     "SENTINEL1_CALIB:UNCALIB:/data/manifest.safe:IW:AMPLITUDE"
+            ... ).polarisation is None
+            True
+
+            ```
     """
     if not connection.startswith(_S1_PREFIX):
         raise ProductError(f"not a SENTINEL1_CALIB connection string: {connection!r}")
