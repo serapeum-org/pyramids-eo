@@ -590,6 +590,16 @@ def _discover_scenes(
     Returns:
         Scenes intersecting the AOI within the window, sorted by acquisition time.
 
+    Note:
+        Both bounds filter on ``startTime`` (acquisition start), which preserves the
+        window's inclusive-end intent for the point-in-time scenes these collections
+        hold. Only ``startTime >=`` is pushed to the EEDA server; the ``startTime``
+        upper bound is evaluated client-side over the returned page. Moving the upper
+        bound to a server-side ``endTime <=`` would push both ends down, but it selects
+        a *different* set at the boundary for scenes whose acquisition spans the end
+        instant (start before, end after), so it is a deliberate semantic change and is
+        not adopted here (see #67).
+
     Raises:
         ReaderError: The EEDA collection could not be opened, or ``start`` / ``end``
             is not a valid ISO date/datetime.
