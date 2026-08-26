@@ -567,8 +567,9 @@ class TestSclMask:
                     raise RuntimeError("read only")
                 object.__setattr__(self, name, value)
 
+        source, dest = _Source(), _RejectsTags()
         with pytest.raises(RuntimeError, match="read only"):
-            _masks._carry_band_state(_Source(), _RejectsTags())
+            _masks._carry_band_state(source, dest)
 
 
 # -- reader edge cases -----------------------------------------------------
@@ -650,8 +651,9 @@ class TestReaderHelpers:
         class _MultiZone:
             epsg_codes = [32631, 32632]
 
+        product = _MultiZone()
         with pytest.raises(ProductError, match="spans UTM zones"):
-            _reader._resolve_epsg(_MultiZone(), None)
+            _reader._resolve_epsg(product, None)
 
     def test_resolve_epsg_explicit_wins(self):
         """An explicit ``epsg`` is returned regardless of the product's zones."""
