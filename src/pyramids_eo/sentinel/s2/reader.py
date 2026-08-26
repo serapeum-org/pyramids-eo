@@ -67,8 +67,9 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
             native CRS (cropping happens before any ``crs`` reprojection).
         crs: Optional target CRS (EPSG int or WKT/……) to reproject to.
         reflectance: When ``True`` (default), tag the spectral bands so
-            ``read_array(scaled=True)`` yields reflectance (DN / quantification
-            + baseline offset). The returned array stays DN until read scaled.
+            ``read_array(scaled=True)`` yields reflectance
+            ``(DN + offset) / quantification`` (the baseline-≥04.00 offset is 0
+            on older products). The returned array stays DN until read scaled.
         mask_scl: L2A only — classes to mask out (see
             :class:`~pyramids_eo.sentinel.s2.masks.SclClass`); masked pixels
             become no-data.

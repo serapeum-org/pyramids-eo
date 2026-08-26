@@ -201,11 +201,12 @@ class TestOpenProduct:
         with pytest.raises(UnsupportedProductError, match="not a Sentinel"):
             open_product(out)
 
-    @pytest.mark.skipif(
-        not _S1_SAFE.exists(), reason="Sentinel-1 SAFE fixture not present"
-    )
     def test_sentinel1_safe_is_unsupported_phase(self):
-        """A Sentinel-1 SAFE product raises the Phase-2 not-yet-modelled error."""
+        """A Sentinel-1 SAFE product raises the Phase-2 not-yet-modelled error.
+
+        The S1 fixture is committed to the repo, so this always runs (no skip
+        guard) — a missing fixture should fail loudly, not silently skip.
+        """
         with pytest.raises(UnsupportedProductError, match="Sentinel-1"):
             open_product(_S1_SAFE)
 
