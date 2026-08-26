@@ -716,3 +716,113 @@ class TestReaderHelpers:
         )
         _reader._set_nodata(ds, product)
         assert ds.no_data_value[0] == float(product.metadata["SPECIAL_VALUE_NODATA"])
+
+
+class TestCoverageGaps:
+    """Targeted tests for the remaining reachable defensive branches."""
+
+    def test_find_scl_band_by_name_when_no_bandname_meta(self):
+        """`_find_scl_band` falls back to the display name when BANDNAME is absent."""
+
+        class _DS:
+            band_meta_data = [{}, {}]
+            band_names = ["red", "SCL, Scene Classification"]
+
+        assert _masks._find_scl_band(_DS()) == 1
+
+    def test_find_scl_band_absent_returns_none(self):
+        """`_find_scl_band` returns None when no band is SCL."""
+
+        class _DS:
+            band_meta_data = [{"BANDNAME": "B4"}]
+            band_names = ["B4"]
+
+        assert _masks._find_scl_band(_DS()) is None
+
+    def test_default_bands_at_pinned_resolution(self):
+        """``resolution=`` with no ``bands`` reads all spectral bands there."""
+        from pyramids_eo.sentinel import from_sentinel2
+
+        ds = from_sentinel2(_L1C, resolution=20)
+        assert ds.band_count > 0
+        assert ds.cell_size == 20.0
+
+    def test_band_absent_at_pinned_resolution_raises(self):
+        """A band absent from the pinned resolution's subdataset raises."""
+        from pyramids_eo.sentinel import from_sentinel2
+
+        with pytest.raises(ProductError, match="not at 10m"):
+            from_sentinel2(_L1C, bands=["B11"], resolution=10)  # B11 is 20 m
+
+    def test_single_resolution_for_bad_epsg_returns_none(self):
+        """`_single_resolution_for` returns None when no resolution matches the epsg."""
+        from pyramids_eo.sentinel.s2 import reader as _reader
+
+        product = open_product(_L2A)
+        assert _reader._single_resolution_for(product, ["B1"], epsg=99999) is None
+
+    def test_set_nodata_malformed_special_value_defaults_zero(self):
+        """A non-numeric ``SPECIAL_VALUE_NODATA`` falls back to 0.0."""
+        from pyramids.dataset import Dataset
+
+        from pyramids_eo.sentinel.s2 import reader as _reader
+
+        product = open_product(_L2A)
+        product.metadata["SPECIAL_VALUE_NODATA"] = "not-a-number"
+        ds = Dataset.create_from_array(
+            arr=np.ones((1, 4, 4), dtype="uint16"), geo=(0, 1, 0, 4, 0, -1), epsg=4326
+        )
+        _reader._set_nodata(ds, product)
+        assert ds.no_data_value[0] == 0.0
+
+    def test_collection_from_product_objects_uses_product_path(self, tmp_path):
+        """A collection built from ``S2Product`` objects names scenes by path."""
+        from pyramids_eo.sentinel import collection_from_sentinel2
+
+        product = open_product(_L2A)
+        collection_from_sentinel2(
+            [product, product], root_dir=tmp_path / "s", bands=["B04"]
+        )
+        written = sorted((tmp_path / "s").glob("*.tif"))
+        assert len(written) == 2
+
+    def test_open_connection_none_handle_raises(self, monkeypatch):
+        """A ``/vsi`` connection that GDAL opens to ``None`` raises ProductError."""
+        from osgeo import gdal
+
+        monkeypatch.setattr(gdal, "Open", lambda *a, **k: None)
+        with pytest.raises(ProductError, match="GDAL could not open"):
+            open_connection("SENTINEL2_L2A:/vsizip/x.zip/MTD.xml:60m")
+
+    def test_no_image_subdatasets_raises(self, monkeypatch):
+        """A product whose parse yields no image subdatasets raises ProductError."""
+        from pyramids_eo.sentinel.s2 import product as s2product
+
+        monkeypatch.setattr(
+            s2product.S2Product, "_parse_subdatasets", lambda self: None
+        )
+        with pytest.raises(ProductError, match="no Sentinel-2 image subdatasets"):
+            open_product(_L2A)
+
+    def test_unresolved_resolution_tokens_go_to_preview(self, monkeypatch):
+        """A subdataset whose resolution token resolves to ``None`` is a preview.
+
+        With every token unresolved, no image subdataset survives and the
+        empty-image guard raises — covering the preview-append continue.
+        """
+        from pyramids_eo.sentinel.s2 import product as s2product
+
+        monkeypatch.setattr(s2product, "_resolution_metres", lambda token: None)
+        with pytest.raises(ProductError, match="no Sentinel-2 image subdatasets"):
+            open_product(_L2A)
+
+    def test_unknown_level_raises(self, monkeypatch):
+        """An unrecognised level token surfaces as a ProductError."""
+        from pyramids_eo.sentinel.s2 import product as s2product
+
+        def _boom(_token):
+            raise ValueError("unknown level")
+
+        monkeypatch.setattr(s2product, "S2Level", _boom)
+        with pytest.raises(ProductError, match="unknown Sentinel-2 level"):
+            open_product(_L2A)
