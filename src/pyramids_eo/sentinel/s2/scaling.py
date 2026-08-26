@@ -49,7 +49,11 @@ def _band_offset(band_meta: dict[str, str]) -> float:
 
 
 def tag_reflectance(
-    dataset: Any, product: S2Product, *, offsets: list[float] | None = None
+    dataset: Any,
+    product: S2Product,
+    *,
+    offsets: list[float] | None = None,
+    spectral: list[bool] | None = None,
 ) -> Any:
     """Tag ``dataset``'s spectral bands so a scaled read yields reflectance.
 
@@ -64,9 +68,15 @@ def tag_reflectance(
             e.g. the result of ``Dataset.bands.select`` or a MEM copy).
         product: The :class:`S2Product` supplying the quantification value.
         offsets: Optional per-band radiometric offsets, in band order. Passed by
-            the cross-resolution read path, which stacks bands into a fresh
-            dataset that no longer carries the driver's ``BOA_ADD_OFFSET``
-            metadata. ``None`` reads the offsets from each band's metadata.
+            the reader (captured from the original read) so tagging does not
+            depend on the driver's ``BOA_ADD_OFFSET`` metadata, which a crop /
+            stack rebuild drops. ``None`` reads the offsets from each band's
+            metadata.
+        spectral: Optional per-band ``True``/``False`` (spectral vs auxiliary),
+            in band order. Passed by the reader (computed from the requested
+            band names) so tagging survives a ``crop`` — which strips the band
+            metadata ``tag_reflectance`` would otherwise classify from. ``None``
+            classifies each band from its ``BANDNAME`` / display name.
 
     Returns:
         The same ``dataset``, tagged.
@@ -91,9 +101,14 @@ def tag_reflectance(
     scales: list[float] = []
     tagged_offsets: list[float] = []
     for i, name in enumerate(band_names):
-        # Prefer the driver's BANDNAME tag; fall back to the display name.
-        tag = (band_meta[i].get("BANDNAME") if i < len(band_meta) else None) or name
-        if is_spectral_band(tag):
+        # Prefer the explicit spectral flag (survives crop's metadata reset);
+        # else classify from the driver's BANDNAME, falling back to the name.
+        if spectral is not None:
+            is_spec = spectral[i]
+        else:
+            tag = (band_meta[i].get("BANDNAME") if i < len(band_meta) else None) or name
+            is_spec = is_spectral_band(tag)
+        if is_spec:
             band_offset = (
                 offsets[i]
                 if offsets is not None

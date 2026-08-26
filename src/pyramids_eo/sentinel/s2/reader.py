@@ -113,17 +113,25 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
     dataset, target_res, offsets = _read(product, wanted, resolution, epsg, resample)
     _set_nodata(dataset, product)
 
-    # Mask on raw DN first, then tag reflectance LAST so the scale/offset tags
-    # ride on the final dataset (they survive crop / to_crs, pyramids-gis #1031)
-    # and are never dropped by the mask's rebuild.
+    # Do every DN-domain transform first (mask, crop, reproject), then tag
+    # reflectance LAST. The mask's rebuild and pyramids-gis `crop` both reset
+    # per-band scale/offset (only `to_crs` / `to_file` preserve them), so tags
+    # applied earlier would be silently dropped — tagging last guarantees the
+    # returned dataset carries the calibration. `offsets` is captured from the
+    # original read and passed through, so tagging after a crop stays correct.
     if mask_scl:
         dataset = _apply_scl_mask(dataset, product, target_res, epsg, mask_scl)
-    if reflectance:
-        dataset = _scaling.tag_reflectance(dataset, product, offsets=offsets)
     if bbox is not None:
         dataset = dataset.crop(bbox=list(bbox))
     if crs is not None:
         dataset = dataset.to_crs(crs)
+    if reflectance:
+        dataset = _scaling.tag_reflectance(
+            dataset,
+            product,
+            offsets=offsets,
+            spectral=[is_spectral_band(b) for b in wanted],
+        )
     if path_out is not None:
         dataset.to_file(str(path_out))
     return dataset
