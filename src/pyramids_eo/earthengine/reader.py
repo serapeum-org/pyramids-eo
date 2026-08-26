@@ -664,10 +664,16 @@ def _apply_nodata(dataset: Dataset, nodata: float | int | None) -> Dataset:
     The EEDAI driver reports no no-data value (``GetNoDataValue()`` is ``None`` and
     the mask claims every pixel valid), so a real fill sentinel — e.g. GSW
     ``occurrence``'s ``-128`` — has to be supplied from the Earth Engine catalog by
-    the caller. This marks that value as no-data on every band *without touching the
-    pixels* (the sentinel stays in place, it is merely recognised), so downstream
-    masking treats fill as fill. ``None`` leaves the dataset untagged — an unknown
-    fill is left explicit rather than guessed.
+    the caller. This marks that value as no-data on every band and, for the intended
+    case — an **untagged integer** EEDAI source — recognises the sentinel without
+    altering any pixel, so downstream masking treats fill as fill. ``None`` leaves the
+    dataset untagged — an unknown fill is left explicit rather than guessed.
+
+    Two edge cases the caller should know (``nodata`` is meant for the single-image
+    EEDAI read, where neither applies): on a **float** source any ``NaN`` cells are
+    remapped to the new sentinel (pixels change), and on a dataset that **already
+    carries a different nodata** only the metadata is re-tagged — the existing fill
+    pixels are not remapped, so they are left unrecognised.
 
     Args:
         dataset: The dataset to tag.
@@ -2006,12 +2012,14 @@ def from_earthengine(
             fetches, not the catalog query), so it is not server-side filtering.
         nodata: Fill value to tag on the returned dataset's bands. EEDAI exposes no
             no-data value, so a real sentinel (e.g. GSW ``occurrence``'s ``-128``) has
-            to be supplied from the Earth Engine catalog; it is marked as no-data
-            without altering pixels, so downstream masking treats fill as fill.
-            ``None`` (default) leaves the dataset untagged — an unknown fill stays
-            explicit rather than guessed. Scale/offset and band descriptions are
-            carried through by the read where the source provides them; the EEDAI
-            driver currently provides none.
+            to be supplied from the Earth Engine catalog. For the single-image EEDAI
+            read this targets — an untagged integer source — the value is recognised
+            without altering any pixel, so downstream masking treats fill as fill (it
+            is not intended for the composite/collection paths, where a source that
+            already carries a nodata would only be re-tagged in metadata). ``None``
+            (default) leaves the dataset untagged — an unknown fill stays explicit
+            rather than guessed. Scale/offset and band descriptions are carried through
+            by the read where the source provides them; the EEDAI driver provides none.
 
     Returns:
         A pyramids :class:`~pyramids.dataset.Dataset` — the windowed image or the
