@@ -646,12 +646,10 @@ class TestOpenEedai:
         Test scenario:
             ``block_size=0`` is rejected before any open.
         """
+        creds = EarthEngineCredentials.application_default()
         with pytest.raises(ValueError, match="block_size"):
             ee_reader._open_eedai(
-                "USGS/SRTMGL1_003",
-                bands=None,
-                credentials=EarthEngineCredentials.application_default(),
-                block_size=0,
+                "USGS/SRTMGL1_003", bands=None, credentials=creds, block_size=0
             )
 
     def test_pins_lossless_pixel_encoding(self, monkeypatch) -> None:
@@ -1250,12 +1248,13 @@ class TestDiscoverScenes:
 
     def test_estimate_cost_requires_aoi(self) -> None:
         """``estimate_earthengine_cost`` needs a ``bbox`` or ``geometry`` (#61)."""
+        creds = EarthEngineCredentials.application_default()
         with pytest.raises(ValueError, match="bbox.*geometry|geometry"):
             ee_reader.estimate_earthengine_cost(
                 "COPERNICUS/S2_SR_HARMONIZED",
                 start="2024-06-01",
                 end="2024-06-30",
-                credentials=EarthEngineCredentials.application_default(),
+                credentials=creds,
             )
 
     def test_estimate_cost_accepts_geometry_envelope(self, monkeypatch) -> None:
@@ -1985,9 +1984,11 @@ class TestMaterialize:
             29.0 - 100 * 0.001,
         )
         mem = ee_reader._materialize(Dataset(reopened), bbox, "EPSG:4326")
-        assert mem.columns > block and mem.rows > block, (
-            f"window ({mem.columns}x{mem.rows}) must exceed the {block}-px block so the "
-            "read stitches multiple blocks"
+        assert mem.columns > block, (
+            f"window width {mem.columns} must exceed the {block}-px block to stitch"
+        )
+        assert mem.rows > block, (
+            f"window height {mem.rows} must exceed the {block}-px block to stitch"
         )
         inverse = gdal.InvGeoTransform(reopened.GetGeoTransform())
         mem_gt = mem.geotransform
@@ -2983,7 +2984,9 @@ class TestLiveServiceAccountAuth:
     """Live: a service-account credential is bound per-``Dataset``, never globally (#68)."""
 
     @pytest.mark.live
-    def test_no_bbox_read_authenticates_via_gdal_env_without_global_leak(self) -> None:
+    def test_no_bbox_read_authenticates_via_gdal_env_without_global_leak(
+        self, monkeypatch
+    ) -> None:
         """A lazy whole-asset service-account read authenticates per-dataset, no leak (#68).
 
         Test scenario:
@@ -3006,7 +3009,9 @@ class TestLiveServiceAccountAuth:
             )
         creds = EarthEngineCredentials.from_service_account(key)
         # Isolate: strip the ambient credential so ONLY the Dataset's gdal_env can auth.
-        saved_env = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+        # monkeypatch restores the env var on teardown; GDAL config (not an env var) is
+        # save/restored manually since monkeypatch cannot manage it.
+        monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
         saved_cfg = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
         gdal.SetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
         try:
@@ -3017,15 +3022,14 @@ class TestLiveServiceAccountAuth:
                 gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) is None
             ), "no-bbox service-account read leaked the credential into global config"
             block = np.asarray(ds.read_array(window=[1000, 1000, 4, 4]))
-            assert block is not None and block.size == 16, (
+            assert block is not None, "deferred read returned no data"
+            assert block.size == 16, (
                 "deferred read did not authenticate from the Dataset's gdal_env"
             )
             assert (
                 gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) is None
             ), "the deferred read leaked the credential into global config"
         finally:
-            if saved_env is not None:
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = saved_env
             gdal.SetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", saved_cfg)
 
 
