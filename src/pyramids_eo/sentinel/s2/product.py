@@ -149,8 +149,12 @@ class S2Product(SentinelProduct):
 
     @property
     def product_type(self) -> str:
-        """Product type token (e.g. ``"S2MSI2A"``), or the level as a fallback."""
-        return self.metadata.get("PRODUCT_TYPE", f"S2MSI{self.level.value}")
+        """Product type token (e.g. ``"S2MSI2A"``), or a fallback from the level.
+
+        The fallback drops the ``L`` from the level (``L2A`` -> ``S2MSI2A``) to
+        match ESA's canonical token, rather than emitting ``S2MSIL2A``.
+        """
+        return self.metadata.get("PRODUCT_TYPE", f"S2MSI{self.level.value[1:]}")
 
     @property
     def resolutions(self) -> list[int]:

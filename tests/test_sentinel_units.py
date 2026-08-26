@@ -327,6 +327,12 @@ class TestS2ProductInternals:
         """The `S2Level` enum carries the three processing levels."""
         assert {level.value for level in S2Level} == {"L1B", "L1C", "L2A"}
 
+    def test_product_type_fallback_is_canonical(self):
+        """Without ``PRODUCT_TYPE`` metadata the fallback is ``S2MSI2A``, not ``S2MSIL2A``."""
+        product = open_product(_L2A)
+        product.metadata.pop("PRODUCT_TYPE", None)
+        assert product.product_type == "S2MSI2A"
+
 
 # -- scaling ---------------------------------------------------------------
 
