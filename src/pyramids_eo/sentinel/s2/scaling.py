@@ -103,19 +103,15 @@ def tag_reflectance(
     scales: list[float] = []
     tagged_offsets: list[float] = []
     for i, name in enumerate(band_names):
+        meta_i = band_meta[i] if i < len(band_meta) else {}
         # Prefer the explicit spectral flag (survives crop's metadata reset);
         # else classify from the driver's BANDNAME, falling back to the name.
         if spectral is not None:
             is_spec = spectral[i]
         else:
-            tag = (band_meta[i].get("BANDNAME") if i < len(band_meta) else None) or name
-            is_spec = is_spectral_band(tag)
+            is_spec = is_spectral_band(meta_i.get("BANDNAME") or name)
         if is_spec:
-            band_offset = (
-                offsets[i]
-                if offsets is not None
-                else _band_offset(band_meta[i] if i < len(band_meta) else {})
-            )
+            band_offset = offsets[i] if offsets is not None else _band_offset(meta_i)
             scales.append(1.0 / quant)
             tagged_offsets.append(band_offset / quant)
         else:

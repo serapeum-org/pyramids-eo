@@ -229,8 +229,9 @@ class TestOpenProduct:
 
     def test_bad_path_raises_product_error(self, tmp_path):
         """An unreadable path is wrapped as ``ProductError``."""
+        missing = tmp_path / "does_not_exist.xml"
         with pytest.raises(ProductError, match="cannot open product"):
-            open_product(tmp_path / "does_not_exist.xml")
+            open_product(missing)
 
     def test_find_metadata_in_dir_returns_xml(self):
         """The `.SAFE` directory resolves to its product MTD file."""
@@ -272,7 +273,8 @@ class TestS2ProductInternals:
         """`S2Product` repr names the driver and subdataset count."""
         product = open_product(_L2A)
         text = repr(product)
-        assert "S2Product" in text and "SENTINEL2" in text
+        assert "S2Product" in text
+        assert "SENTINEL2" in text
 
     @pytest.mark.parametrize(
         "token, expected",
@@ -482,8 +484,9 @@ class TestSclMask:
             geo=(0, 1, 0, 4, 0, -1),
             epsg=4326,
         )
+        wrong_grid = np.zeros((3, 3), dtype="uint8")
         with pytest.raises(ProductError, match="does not match"):
-            scl_mask(ds, [SclClass.WATER], scl=np.zeros((3, 3), dtype="uint8"))
+            scl_mask(ds, [SclClass.WATER], scl=wrong_grid)
 
     def test_no_scl_available_raises(self):
         """Masking a dataset with no SCL band and no ``scl=`` raises."""
@@ -631,10 +634,10 @@ class TestReaderEdges:
         """`collection_from_sentinel2` rejects a ``path_out`` kwarg with a clear error."""
         from pyramids_eo.sentinel import collection_from_sentinel2
 
+        root = tmp_path / "s"
+        out = tmp_path / "x.tif"
         with pytest.raises(ProductError, match="path_out"):
-            collection_from_sentinel2(
-                [_L2A], root_dir=tmp_path / "s", path_out=tmp_path / "x.tif"
-            )
+            collection_from_sentinel2([_L2A], root_dir=root, path_out=out)
 
 
 class TestReaderHelpers:
