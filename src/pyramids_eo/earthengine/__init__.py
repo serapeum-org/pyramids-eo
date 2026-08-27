@@ -20,6 +20,7 @@ from __future__ import annotations
 from pyramids_eo.earthengine.credentials import EarthEngineCredentials
 from pyramids_eo.earthengine.reader import (
     ReadCost,
+    Window,
     collection_from_earthengine,
     estimate_earthengine_cost,
     from_earthengine,
@@ -28,6 +29,7 @@ from pyramids_eo.earthengine.reader import (
 __all__ = [
     "EarthEngineCredentials",
     "ReadCost",
+    "Window",
     "collection_from_earthengine",
     "estimate_earthengine_cost",
     "from_earthengine",

@@ -127,30 +127,54 @@ class _Scene(NamedTuple):
     size_bytes: int = 0
 
 
-class _Window(NamedTuple):
-    """The requested output window: which ground, in which CRS, on which grid.
+class Window(NamedTuple):
+    """The output window of an Earth Engine read: which ground, in which CRS, on which grid.
 
-    Groups the five values that always travel together through the read pipeline — the
-    AOI, its CRS, the output resolution/size, and the resampler — so the reader passes
-    one window rather than threading them (and mis-ordering them) through every warp,
-    scene read and tile.
+    Groups the five values that describe *where and at what resolution* to read — the
+    AOI, its CRS, the output pixel size or shape, and the resampler — into one object
+    that :func:`from_earthengine` and :func:`collection_from_earthengine` take as their
+    ``window`` argument.
 
     Attributes:
         bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``, or ``None`` for a
-            whole-asset (lazy) read that has no window yet.
-        crs: The CRS ``bbox`` is expressed in and the output is delivered in.
-        scale: Output pixel size in ``crs`` units, or ``None``.
-        shape: Output ``(rows, cols)``, or ``None``.
-        resample: Resampling algorithm for the warp.
+            whole-asset (lazy) read with no window.
+        crs: The CRS ``bbox`` is expressed in and the output is delivered in; defaults
+            to ``"EPSG:4326"``.
+        scale: Output pixel size in ``crs`` units, or ``None``. Mutually exclusive with
+            ``shape``.
+        shape: Output ``(rows, cols)``, or ``None``. Mutually exclusive with ``scale``.
+        resample: Resampling algorithm for the warp; defaults to ``"nearest"``.
+
+    Examples:
+        - A windowed read at an explicit pixel size:
+            ```python
+            >>> from pyramids_eo import Window
+            >>> w = Window(bbox=(86.9, 27.9, 87.0, 28.0), scale=0.01)
+            >>> w.bbox
+            (86.9, 27.9, 87.0, 28.0)
+            >>> w.crs, w.resample
+            ('EPSG:4326', 'nearest')
+
+            ```
+        - A projected read at an exact output shape:
+            ```python
+            >>> from pyramids_eo import Window
+            >>> w = Window(bbox=(3.0e5, 5.1e6, 3.1e5, 5.2e6), crs="EPSG:32645", shape=(256, 256))
+            >>> w.shape
+            (256, 256)
+            >>> w.scale is None
+            True
+
+            ```
     """
 
-    bbox: BBox | None
-    crs: str
-    scale: float | None
-    shape: tuple[int, int] | None
+    bbox: BBox | None = None
+    crs: str = _DEFAULT_CRS
+    scale: float | None = None
+    shape: tuple[int, int] | None = None
     resample: str = "nearest"
 
-    def for_tile(self, sub_bbox: BBox, tile_shape: tuple[int, int]) -> _Window:
+    def for_tile(self, sub_bbox: BBox, tile_shape: tuple[int, int]) -> Window:
         """Derive a tile's window: the tile's sub-bounds at its exact pixel shape.
 
         The tile is sized by ``shape`` (its exact ``(rows, cols)``), so ``scale`` is
@@ -161,7 +185,7 @@ class _Window(NamedTuple):
             tile_shape: The tile's ``(rows, cols)``.
 
         Returns:
-            A ``_Window`` for the tile, sharing this window's CRS and resampler.
+            A ``Window`` for the tile, sharing this window's CRS and resampler.
         """
         return self._replace(bbox=sub_bbox, shape=tile_shape, scale=None)
 
@@ -410,7 +434,7 @@ def _read_native_blocks(
     return data
 
 
-def _window(source: Dataset, window: _Window) -> Dataset:
+def _window(source: Dataset, window: Window) -> Dataset:
     """Read ``source`` over ``window`` at the requested CRS / resolution / shape.
 
     The EEDAI window is first materialised block-aligned into a clean native-res
@@ -462,7 +486,7 @@ def _read_mixed_resolution(
     asset_id: str,
     *,
     bands: list[str],
-    window: _Window,
+    window: Window,
     credentials: EarthEngineCredentials,
     block_size: int | None,
 ) -> Dataset:
@@ -893,7 +917,7 @@ def _discover_scenes(
 def _read_scenes_aligned(
     scenes: list[_Scene],
     *,
-    window: _Window,
+    window: Window,
     bands: list[str] | None,
     credentials: EarthEngineCredentials,
     block_size: int | None = None,
@@ -1081,7 +1105,7 @@ def _composite_read(
     asset_id: str,
     *,
     bands: list[str] | None,
-    window: _Window,
+    window: Window,
     start: str | None,
     end: str | None,
     reducer: str | None,
@@ -1165,7 +1189,7 @@ def _read_scene_tile(
     scenes: list[_Scene],
     *,
     fill_source: Dataset,
-    tile: _Window,
+    tile: Window,
     cell_x: float,
     cell_y: float,
     halo: tuple[int, int, int, int],
@@ -1187,7 +1211,7 @@ def _read_scene_tile(
         scenes: The globally-discovered scenes, in order.
         fill_source: An opened scene (for band count / dtype / fill) used to build the
             all-fill tile for a non-intersecting scene.
-        tile: The tile's ``_Window`` (its ``bbox`` / ``shape`` are the tile's sub-bounds
+        tile: The tile's ``Window`` (its ``bbox`` / ``shape`` are the tile's sub-bounds
             and ``(rows, cols)``).
         cell_x: Output pixel width in ``crs`` units.
         cell_y: Output pixel height in ``crs`` units.
@@ -1229,9 +1253,9 @@ def _read_scene_tile(
 
 
 def _iter_tiles(
-    window: _Window, tile_size: int, halo_size: int
-) -> Iterator[tuple[_Window, tuple[int, int, int, int], float, float]]:
-    """Yield each tile of ``window``'s grid: its ``_Window``, per-edge halo, cell sizes.
+    window: Window, tile_size: int, halo_size: int
+) -> Iterator[tuple[Window, tuple[int, int, int, int], float, float]]:
+    """Yield each tile of ``window``'s grid: its ``Window``, per-edge halo, cell sizes.
 
     Splits the output grid into ``tile_size`` blocks and, for each, produces the tile's
     window (sub-bounds at the tile's exact shape) and a per-edge
@@ -1273,7 +1297,7 @@ def _tiled_composite_read(
     asset_id: str,
     *,
     bands: list[str] | None,
-    window: _Window,
+    window: Window,
     start: str,
     end: str,
     reducer: str,
@@ -1391,7 +1415,7 @@ def _tiled_composite_read(
 def _read_whole_asset(
     asset_id: str,
     *,
-    window: _Window,
+    window: Window,
     bands: list[str] | None,
     credentials: EarthEngineCredentials,
     block_size: int | None,
@@ -1446,7 +1470,7 @@ def _single_image_read(
     asset_id: str,
     *,
     bands: list[str] | None,
-    window: _Window,
+    window: Window,
     geometry: object | None,
     credentials: EarthEngineCredentials,
     tile_size: int | None = None,
@@ -1686,7 +1710,7 @@ def _resample_halo(resample: str) -> int:
 
 def _read_tile_with_halo(
     source: Dataset,
-    tile: _Window,
+    tile: Window,
     *,
     cell_x: float,
     cell_y: float,
@@ -1704,7 +1728,7 @@ def _read_tile_with_halo(
 
     Args:
         source: The opened EEDAI source ``Dataset``.
-        tile: The tile's ``_Window`` (its ``bbox`` and ``shape`` are the tile's exact
+        tile: The tile's ``Window`` (its ``bbox`` and ``shape`` are the tile's exact
             sub-bounds and ``(rows, cols)``).
         cell_x: Output pixel width in ``crs`` units.
         cell_y: Output pixel height in ``crs`` units.
@@ -1748,7 +1772,7 @@ def _read_tile_with_halo(
 def _tiled_windowed_read(
     source: Dataset,
     *,
-    window: _Window,
+    window: Window,
     tile_size: int,
     path: str | Path,
 ) -> Dataset:
@@ -1899,15 +1923,11 @@ def _validate_read_request(
 
 
 def from_earthengine(
-    asset_id: str,  # NOSONAR(S107) - a flat keyword reader API (windowing/composite/output options) is intentional; consolidating would break the released scale=/shape= surface
+    asset_id: str,
     *,
+    window: Window = Window(),
     bands: list[str] | None = None,
-    bbox: BBox | None = None,
     geometry: object | None = None,
-    crs: str = _DEFAULT_CRS,
-    scale: float | None = None,
-    shape: tuple[int, int] | None = None,
-    resample: str = "nearest",
     start: str | None = None,
     end: str | None = None,
     reducer: str | None = None,
@@ -1939,40 +1959,29 @@ def from_earthengine(
             subdatasets — e.g. Sentinel-2's 10 m / 20 m / 60 m bands), a single open
             can only return one group. Rather than silently drop the rest, the reader
             resamples every requested band onto one grid **when a target grid is given**
-            (a ``bbox`` with ``scale`` or ``shape``), stacking them in request order; if
-            no target grid resolves the ambiguity (a whole-asset read, or a windowed
-            read without ``scale``/``shape``) it raises rather than return a subset. A
+            (the window's ``bbox`` with ``scale`` or ``shape``), stacking them in request
+            order; if no target grid resolves the ambiguity (a whole-asset read, or a
+            windowed read without ``scale``/``shape``) it raises rather than return a
+            subset. A
             single-resolution band set is read in one pass, unchanged.
-        bbox: AOI ``(min_x, min_y, max_x, max_y)`` **expressed in** ``crs`` — its
-            coordinates are read in ``crs``'s units, not always lon/lat. With the
-            default ``crs="EPSG:4326"`` that is degrees; with a projected ``crs``
-            (e.g. ``"EPSG:32645"``) it is that projection's metres. The reader
-            reprojects the box to EPSG:4326 internally to discover/bound the source
-            and warps the pixels back to ``crs``, so the same ground area is read
-            either way — passing lon/lat numbers under a projected ``crs`` (or metres
-            under 4326) silently reads the wrong ground area. Required to materialise
-            a window (single mode) and for the composite mode, unless a ``geometry``
-            is given (its envelope is used as the ``bbox``).
+        window: The output window — a :class:`Window` grouping the AOI ``bbox`` with the
+            ``crs`` / ``scale`` / ``shape`` / ``resample`` grid spec. ``Window()`` (the
+            default) reads the whole asset lazily. The AOI's coordinates are read in the
+            window's ``crs`` — degrees under the default ``"EPSG:4326"``, the
+            projection's metres under a projected ``crs`` (e.g. ``"EPSG:32645"``); the
+            box is reprojected to EPSG:4326 to bound the source and the pixels warped
+            back to ``crs``, so the same ground is read either way (passing lon/lat under
+            a projected ``crs``, or metres under 4326, silently reads the wrong ground).
+            ``scale`` and ``shape`` are mutually exclusive; ``resample`` is one of
+            ``"nearest"`` (default), ``"bilinear"``, ``"cubic"``, ``"average"``,
+            ``"mode"`` (a *resampling* algorithm, distinct from the ``"mode"`` composite
+            ``reducer``). A ``bbox`` is required to window (single mode) and for the
+            composite mode, unless a ``geometry`` supplies it.
         geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids
-            ``FeatureCollection``). A geometry carrying its own CRS is reprojected
-            to ``crs``; one without is assumed to already be in ``crs`` (so an
-            unlabelled geometry must use ``crs``'s coordinate space, exactly as
-            ``bbox`` does). Its envelope drives the read window and the result is then
-            clipped to the polygon cutline. Takes the place of ``bbox`` when ``bbox``
-            is omitted.
-        crs: Target CRS, **and the CRS both ``bbox`` and an unlabelled ``geometry``
-            are interpreted in**. Defaults to ``"EPSG:4326"``. A projected ``crs`` is
-            fully supported: the AOI is taken in that projection's units and the
-            output raster is delivered in ``crs``.
-        scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.
-        shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.
-        resample: Resampling algorithm used when the native window is warped to the
-            output grid — one of ``"nearest"`` (default), ``"bilinear"``,
-            ``"cubic"``, ``"average"``, ``"mode"``. The default is nearest-neighbour;
-            for continuous imagery that is downsampled, ``"average"`` or
-            ``"bilinear"`` give a more representative result. (``"mode"`` here is a
-            *resampling* algorithm — distinct from the ``"mode"`` composite
-            ``reducer``.)
+            ``FeatureCollection``). A geometry carrying its own CRS is reprojected to the
+            window's ``crs``; one without is assumed to already be in it. Its envelope
+            drives the read window and the result is clipped to the polygon cutline.
+            Takes the place of the window's ``bbox`` when that is omitted.
         start: Inclusive ISO start of the acquisition window (composite mode).
         end: Inclusive ISO end of the acquisition window (composite mode).
         reducer: Client-side reducer for the composite mode — one of ``"median"``,
@@ -2071,20 +2080,20 @@ def from_earthengine(
         - Read a small SRTM window (requires Earth Engine credentials, so skipped
           offline):
             ```python
-            >>> from pyramids_eo import from_earthengine
+            >>> from pyramids_eo import from_earthengine, Window
             >>> ds = from_earthengine(  # doctest: +SKIP
             ...     "USGS/SRTMGL1_003",
-            ...     bbox=(86.9, 27.9, 87.0, 28.0),
+            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0)),
             ... )
 
             ```
         - A median composite over an ``ImageCollection`` date range (skipped
           offline):
             ```python
-            >>> from pyramids_eo import from_earthengine
+            >>> from pyramids_eo import from_earthengine, Window
             >>> composite = from_earthengine(  # doctest: +SKIP
             ...     "COPERNICUS/S2_SR_HARMONIZED",
-            ...     bbox=(86.9, 27.9, 87.0, 28.0),
+            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0)),
             ...     start="2024-06-01",
             ...     end="2024-06-30",
             ...     reducer="median",
@@ -2101,11 +2110,10 @@ def from_earthengine(
             ```
         - Stream an oversize window to disk in 1024-px tiles (skipped offline):
             ```python
-            >>> from pyramids_eo import from_earthengine
+            >>> from pyramids_eo import from_earthengine, Window
             >>> ds = from_earthengine(  # doctest: +SKIP
             ...     "USGS/SRTMGL1_003",
-            ...     bbox=(86.0, 27.0, 88.0, 29.0),
-            ...     scale=0.0003,
+            ...     window=Window(bbox=(86.0, 27.0, 88.0, 29.0), scale=0.0003),
             ...     tile_size=1024,
             ...     path="srtm_big.tif",
             ... )
@@ -2113,11 +2121,10 @@ def from_earthengine(
             ```
         - ``tile_size`` without a ``path`` is rejected before any read:
             ```python
-            >>> from pyramids_eo import from_earthengine
+            >>> from pyramids_eo import from_earthengine, Window
             >>> from_earthengine(
             ...     "USGS/SRTMGL1_003",
-            ...     bbox=(86.9, 27.9, 87.0, 28.0),
-            ...     shape=(4096, 4096),
+            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0), shape=(4096, 4096)),
             ...     tile_size=1024,
             ... )
             Traceback (most recent call last):
@@ -2127,12 +2134,10 @@ def from_earthengine(
             ```
         - Passing both ``scale`` and ``shape`` is rejected before any read:
             ```python
-            >>> from pyramids_eo import from_earthengine
+            >>> from pyramids_eo import from_earthengine, Window
             >>> from_earthengine(
             ...     "USGS/SRTMGL1_003",
-            ...     bbox=(86.9, 27.9, 87.0, 28.0),
-            ...     scale=0.01,
-            ...     shape=(5, 5),
+            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0), scale=0.01, shape=(5, 5)),
             ... )
             Traceback (most recent call last):
                 ...
@@ -2141,11 +2146,11 @@ def from_earthengine(
             ```
     """
     _validate_read_request(
-        scale=scale,
-        shape=shape,
-        resample=resample,
+        scale=window.scale,
+        shape=window.shape,
+        resample=window.resample,
         path=path,
-        bbox=bbox,
+        bbox=window.bbox,
         geometry=geometry,
         tile_size=tile_size,
         reducer=reducer,
@@ -2156,11 +2161,10 @@ def from_earthengine(
 
     creds = EarthEngineCredentials.coerce(credentials)
     if geometry is not None:
-        geometry = _geometry_in_crs(geometry, crs)
-        if bbox is None:
-            bbox = _geometry_bounds(geometry)
+        geometry = _geometry_in_crs(geometry, window.crs)
+        if window.bbox is None:
+            window = window._replace(bbox=_geometry_bounds(geometry))
 
-    window = _Window(bbox=bbox, crs=crs, scale=scale, shape=shape, resample=resample)
     if reducer is not None or start is not None or end is not None:
         result = _composite_read(
             asset_id,
@@ -2195,13 +2199,9 @@ def collection_from_earthengine(
     *,
     start: str,
     end: str,
-    bbox: BBox | None = None,
+    window: Window = Window(),
     geometry: object | None = None,
     bands: list[str] | None = None,
-    crs: str = _DEFAULT_CRS,
-    scale: float | None = None,
-    shape: tuple[int, int] | None = None,
-    resample: str = "nearest",
     credentials: CredentialsLike = None,
     block_size: int | None = None,
     property_filter: str | None = None,
@@ -2217,23 +2217,18 @@ def collection_from_earthengine(
         asset_id: EE ``ImageCollection`` id (e.g. ``"COPERNICUS/S2_SR_HARMONIZED"``).
         start: Inclusive ISO start of the acquisition window.
         end: Inclusive ISO end of the acquisition window.
-        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required (to bound
-            scene discovery) unless a ``geometry`` is given.
+        window: The output window — a :class:`Window` grouping the AOI ``bbox`` with the
+            ``crs`` / ``scale`` / ``shape`` / ``resample`` grid spec shared by every
+            scene. A ``bbox`` is required (to bound scene discovery) unless a
+            ``geometry`` is given. When both ``scale`` and ``shape`` are omitted the
+            first scene's native windowed grid is used for every scene. See
+            :func:`from_earthengine` for the CRS/units contract.
         geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids
-            ``FeatureCollection``). A geometry carrying its own CRS is reprojected
-            to ``crs``; one without is assumed to already be in ``crs``. Its
-            envelope bounds scene discovery and each scene is clipped to the
-            polygon cutline. Takes the place of ``bbox`` when ``bbox`` is omitted.
+            ``FeatureCollection``). A geometry carrying its own CRS is reprojected to
+            the window's ``crs``; one without is assumed to already be in it. Its
+            envelope bounds scene discovery and each scene is clipped to the polygon
+            cutline. Takes the place of the window's ``bbox`` when that is omitted.
         bands: Band names to request; ``None`` reads every band.
-        crs: Target CRS (and the CRS ``bbox`` is expressed in). Defaults to
-            ``"EPSG:4326"``.
-        scale: Output pixel size in ``crs`` units. Mutually exclusive with ``shape``.
-            When both are omitted the first scene's native windowed grid is used
-            for every scene.
-        shape: Output ``(rows, cols)``. Mutually exclusive with ``scale``.
-        resample: Resampling algorithm for the per-scene warp — one of
-            ``"nearest"`` (default), ``"bilinear"``, ``"cubic"``, ``"average"``,
-            ``"mode"``. See :func:`from_earthengine`.
         credentials: An
             :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a
             path to a service-account JSON key, or ``None`` for ADC.
@@ -2261,46 +2256,46 @@ def collection_from_earthengine(
     Examples:
         - Read a Sentinel-2 collection over a date range (skipped offline):
             ```python
-            >>> from pyramids_eo import collection_from_earthengine
+            >>> from pyramids_eo import collection_from_earthengine, Window
             >>> collection = collection_from_earthengine(  # doctest: +SKIP
             ...     "COPERNICUS/S2_SR_HARMONIZED",
             ...     start="2024-06-01",
             ...     end="2024-06-10",
-            ...     bbox=(86.9, 27.9, 87.0, 28.0),
+            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0)),
             ... )
 
             ```
     """
-    if scale is not None and shape is not None:
+    if window.scale is not None and window.shape is not None:
         raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
-    _resample_alg(resample)  # validate up front, before any network call
+    _resample_alg(window.resample)  # validate up front, before any network call
     if geometry is not None:
-        geometry = _geometry_in_crs(geometry, crs)
-    if bbox is None:
+        geometry = _geometry_in_crs(geometry, window.crs)
+    if window.bbox is None:
         if geometry is None:
             raise ValueError("Pass a 'bbox' or a 'geometry'.")
-        bbox = _geometry_bounds(geometry)
+        window = window._replace(bbox=_geometry_bounds(geometry))
+    assert window.bbox is not None  # resolved above from bbox or the geometry envelope
 
     creds = EarthEngineCredentials.coerce(credentials)
     scenes = _discover_scenes(
         asset_id,
         start=start,
         end=end,
-        bbox_4326=_bbox_to_4326(bbox, crs),
+        bbox_4326=_bbox_to_4326(window.bbox, window.crs),
         credentials=creds,
         property_filter=property_filter,
     )
     if not scenes:
         raise ReaderError(
-            f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over {bbox}."
+            f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over "
+            f"{window.bbox}."
         )
     # Keep the credential config in effect across the scene reads, then restore it.
     with creds.activate():
         windowed = _read_scenes_aligned(
             scenes,
-            window=_Window(
-                bbox=bbox, crs=crs, scale=scale, shape=shape, resample=resample
-            ),
+            window=window,
             bands=bands,
             credentials=creds,
             block_size=block_size,

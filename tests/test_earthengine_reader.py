@@ -14,6 +14,7 @@ from pyramids.dataset import Dataset, DatasetCollection
 
 import pyramids_eo.earthengine.reader as ee_reader
 from pyramids_eo import (
+    Window,
     collection_from_earthengine,
     estimate_earthengine_cost,
     from_earthengine,
@@ -130,7 +131,7 @@ class TestFromEarthengine:
             A 0.1-degree bbox over a 0.01-degree source yields a ~10x10 EPSG:4326
             ``Dataset`` with no Earth Engine objects leaking out.
         """
-        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX)
+        ds = from_earthengine("USGS/SRTMGL1_003", window=Window(bbox=_BBOX))
         assert isinstance(ds, Dataset), f"Expected a pyramids Dataset, got {type(ds)}"
         assert ds.epsg == 4326, f"Expected EPSG:4326, got {ds.epsg}"
         _bands, rows, cols = ds.shape
@@ -143,7 +144,9 @@ class TestFromEarthengine:
         Test scenario:
             ``shape=(5, 5)`` yields a single-band 5x5 dataset.
         """
-        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5))
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(5, 5))
+        )
         assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
 
     def test_nodata_tags_returned_dataset_without_altering_pixels(
@@ -156,7 +159,9 @@ class TestFromEarthengine:
             the data) is marked as no-data on the returned dataset while every pixel
             stays ``42`` — the sentinel is recognised, not written.
         """
-        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), nodata=999)
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(5, 5)), nodata=999
+        )
         assert ds.no_data_value[0] == 999, (
             f"Expected nodata 999, got {ds.no_data_value}"
         )
@@ -171,7 +176,9 @@ class TestFromEarthengine:
             Without ``nodata`` the reader does not stamp 999; the result keeps whatever
             the read produced (never the caller's sentinel).
         """
-        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5))
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(5, 5))
+        )
         assert ds.no_data_value[0] != 999
 
     def test_nodata_with_path_writes_the_tag_to_disk(
@@ -188,7 +195,10 @@ class TestFromEarthengine:
 
         out = tmp_path / "tagged.tif"
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), path=str(out), nodata=999
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(5, 5)),
+            path=str(out),
+            nodata=999,
         )
         assert ds.raster.GetDriver().ShortName == "GTiff", (
             "a path read must return a file-backed dataset, not an in-memory copy"
@@ -212,8 +222,7 @@ class TestFromEarthengine:
         out = tmp_path / "tagged_tiled.tif"
         ds = from_earthengine(
             "USGS/SRTMGL1_003",
-            bbox=_BBOX,
-            shape=(20, 20),
+            window=Window(bbox=_BBOX, shape=(20, 20)),
             tile_size=7,
             path=str(out),
             nodata=999,
@@ -237,7 +246,10 @@ class TestFromEarthengine:
         """
         out = tmp_path / "pinned.tif"
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), path=str(out), nodata=999
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(5, 5)),
+            path=str(out),
+            nodata=999,
         )
         assert hasattr(ds, "_ee_credentials"), (
             "file-backed nodata swap dropped the _ee_credentials pin"
@@ -263,8 +275,7 @@ class TestFromEarthengine:
         monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
         ds = from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
-            bbox=_BBOX,
-            shape=(10, 10),
+            window=Window(bbox=_BBOX, shape=(10, 10)),
             bands=["B4", "B11", "B1"],
         )
         assert ds.shape == (3, 10, 10), f"Expected 3 bands stacked, got {ds.shape}"
@@ -291,7 +302,9 @@ class TestFromEarthengine:
         monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
         with pytest.raises(ReaderError, match="resolution groups|subdataset"):
             from_earthengine(
-                "COPERNICUS/S2_SR_HARMONIZED", bbox=_BBOX, bands=["B4", "B11", "B1"]
+                "COPERNICUS/S2_SR_HARMONIZED",
+                window=Window(bbox=_BBOX),
+                bands=["B4", "B11", "B1"],
             )
 
     def test_mixed_resolution_whole_asset_fails_loudly(self, monkeypatch) -> None:
@@ -315,7 +328,7 @@ class TestFromEarthengine:
             One band in, one band out, no spurious per-band stacking.
         """
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), bands=["B4"]
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(5, 5)), bands=["B4"]
         )
         assert ds.shape == (1, 5, 5), f"Expected a single band, got {ds.shape}"
 
@@ -333,9 +346,9 @@ class TestFromEarthengine:
         minx, miny, maxx, maxy = _to_utm45((86.92, 27.92, 86.98, 27.98))
         ds = from_earthengine(
             "USGS/SRTMGL1_003",
-            crs="EPSG:32645",
-            bbox=(minx, miny, maxx, maxy),
-            shape=(10, 10),
+            window=Window(
+                bbox=(minx, miny, maxx, maxy), crs="EPSG:32645", shape=(10, 10)
+            ),
         )
         assert ds.epsg == 32645, f"Expected EPSG:32645 output, got {ds.epsg}"
         out = ds.total_bounds
@@ -359,7 +372,9 @@ class TestFromEarthengine:
         minx, miny, maxx, maxy = _to_utm45((86.92, 27.92, 86.98, 27.98))
         gdf = gpd.GeoDataFrame(geometry=[box(minx, miny, maxx, maxy)], crs="EPSG:32645")
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", crs="EPSG:32645", geometry=gdf, shape=(10, 10)
+            "USGS/SRTMGL1_003",
+            window=Window(crs="EPSG:32645", shape=(10, 10)),
+            geometry=gdf,
         )
         assert ds.epsg == 32645, f"Expected EPSG:32645 output, got {ds.epsg}"
         out = ds.total_bounds
@@ -372,7 +387,7 @@ class TestFromEarthengine:
         Test scenario:
             ``scale=0.02`` over a 0.1-degree bbox yields ~5x5 pixels.
         """
-        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, scale=0.02)
+        ds = from_earthengine("USGS/SRTMGL1_003", window=Window(bbox=_BBOX, scale=0.02))
         _bands, rows, cols = ds.shape
         assert rows == pytest.approx(5, abs=1), (
             f"Expected ~5 rows at scale 0.02, got {rows}"
@@ -388,7 +403,9 @@ class TestFromEarthengine:
             The guard rejects the ambiguous combination before any read.
         """
         with pytest.raises(ValueError, match="scale.*shape") as exc_info:
-            from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, scale=0.01, shape=(5, 5))
+            from_earthengine(
+                "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, scale=0.01, shape=(5, 5))
+            )
         assert "scale" in str(exc_info.value), f"Unexpected message: {exc_info.value}"
 
     @pytest.mark.parametrize(
@@ -411,7 +428,7 @@ class TestFromEarthengine:
             EE assets are global and cannot be materialised whole.
         """
         with pytest.raises(ReaderError, match="bbox") as exc_info:
-            from_earthengine("USGS/SRTMGL1_003", **kwargs)
+            from_earthengine("USGS/SRTMGL1_003", window=Window(**kwargs))
         assert "bbox" in str(exc_info.value), (
             f"Message should mention bbox: {exc_info.value}"
         )
@@ -440,7 +457,9 @@ class TestFromEarthengine:
             return Dataset(_synthetic_srtm())
 
         monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
-        from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, credentials=str(key_tmp))
+        from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX), credentials=str(key_tmp)
+        )
         assert isinstance(captured["credentials"], EarthEngineCredentials), (
             "credentials should be coerced to EarthEngineCredentials"
         )
@@ -455,7 +474,7 @@ class TestFromEarthengine:
         Test scenario:
             The real EEDAI driver returns a non-empty EPSG:4326 window for SRTM.
         """
-        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX)
+        ds = from_earthengine("USGS/SRTMGL1_003", window=Window(bbox=_BBOX))
         assert isinstance(ds, Dataset), f"Expected a Dataset, got {type(ds)}"
         assert ds.epsg == 4326, f"Expected EPSG:4326, got {ds.epsg}"
         _bands, rows, cols = ds.shape
@@ -472,12 +491,11 @@ class TestFromEarthengine:
         """
         ds = from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
-            bbox=_BBOX,
+            window=Window(bbox=_BBOX, shape=(16, 16)),
             start="2024-06-01",
             end="2024-06-10",
             reducer="median",
             bands=["B4"],
-            shape=(16, 16),
         )
         assert isinstance(ds, Dataset), f"Expected a Dataset, got {type(ds)}"
         assert ds.shape == (1, 16, 16), f"Expected (1, 16, 16), got {ds.shape}"
@@ -496,11 +514,10 @@ class TestCollectionFromEarthengineLive:
         """
         dc = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(16, 16)),
             start="2024-06-01",
             end="2024-06-10",
-            bbox=_BBOX,
             bands=["B4"],
-            shape=(16, 16),
         )
         assert isinstance(dc, DatasetCollection), (
             f"Expected a DatasetCollection, got {type(dc)}"
@@ -700,7 +717,7 @@ class TestWindow:
         """
         source = Dataset(_synthetic_srtm())
         monkeypatch.setattr(ee_reader.gdal, "Warp", lambda dest, src, **kw: None)
-        window = ee_reader._Window(bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None)
+        window = ee_reader.Window(bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None)
         with pytest.raises(ReaderError, match="windowing"):
             ee_reader._window(source, window)
 
@@ -821,11 +838,10 @@ class TestFromEarthengineComposite:
         """
         ds = from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
-            bbox=_BBOX,
+            window=Window(bbox=_BBOX, shape=(4, 4)),
             start="2024-06-01",
             end="2024-06-30",
             reducer=reducer,
-            shape=(4, 4),
         )
         assert ds.shape == (1, 4, 4), f"Expected (1, 4, 4), got {ds.shape}"
         values = ds.read_array()
@@ -847,11 +863,10 @@ class TestFromEarthengineComposite:
         out = tmp_path / "composite.tif"
         ds = from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
-            bbox=_BBOX,
+            window=Window(bbox=_BBOX, shape=(4, 4)),
             start="2024-06-01",
             end="2024-06-30",
             reducer="median",
-            shape=(4, 4),
             path=str(out),
         )
         assert out.exists(), "composite mode must honour 'path' and write the file"
@@ -872,11 +887,10 @@ class TestFromEarthengineComposite:
         out = tmp_path / "tiled_composite.tif"
         ds = from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
-            bbox=_BBOX,
+            window=Window(bbox=_BBOX, shape=(8, 8)),
             start="2024-06-01",
             end="2024-06-30",
             reducer="median",
-            shape=(8, 8),
             tile_size=4,
             path=str(out),
         )
@@ -907,12 +921,11 @@ class TestFromEarthengineComposite:
         out = tmp_path / "tiled_composite_cut.tif"
         ds = from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
-            bbox=_BBOX,
+            window=Window(bbox=_BBOX, shape=(8, 8)),
             geometry=gdf,
             start="2024-06-01",
             end="2024-06-30",
             reducer="median",
-            shape=(8, 8),
             tile_size=4,
             path=str(out),
         )
@@ -935,11 +948,10 @@ class TestFromEarthengineComposite:
         with pytest.raises(ReaderError, match="No Earth Engine scenes"):
             from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                bbox=_BBOX,
+                window=Window(bbox=_BBOX, shape=(8, 8)),
                 start="2024-06-01",
                 end="2024-06-30",
                 reducer="median",
-                shape=(8, 8),
                 tile_size=4,
                 path=str(tmp_path / "empty.tif"),
             )
@@ -954,7 +966,7 @@ class TestFromEarthengineComposite:
         with pytest.raises(ValueError, match="reducer") as exc_info:
             from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                bbox=_BBOX,
+                window=Window(bbox=_BBOX),
                 start="2024-06-01",
                 end="2024-06-30",
             )
@@ -979,8 +991,10 @@ class TestFromEarthengineComposite:
         Test scenario:
             Any missing member of the trio raises ``ValueError``.
         """
+        params = dict(kwargs)
+        window = Window(bbox=params.pop("bbox", None))
         with pytest.raises(ValueError, match="requires 'start', 'end', and"):
-            from_earthengine("COPERNICUS/S2_SR_HARMONIZED", **kwargs)
+            from_earthengine("COPERNICUS/S2_SR_HARMONIZED", window=window, **params)
 
     def test_no_scenes_raises_reader_error(self, monkeypatch) -> None:
         """An empty discovery result raises ``ReaderError``.
@@ -992,7 +1006,7 @@ class TestFromEarthengineComposite:
         with pytest.raises(ReaderError, match="No Earth Engine scenes"):
             from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                bbox=_BBOX,
+                window=Window(bbox=_BBOX),
                 start="2024-06-01",
                 end="2024-06-30",
                 reducer="median",
@@ -1014,10 +1028,9 @@ class TestCollectionFromEarthengine:
         """
         dc = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(4, 4)),
             start="2024-06-01",
             end="2024-06-30",
-            bbox=_BBOX,
-            shape=(4, 4),
         )
         assert isinstance(dc, DatasetCollection), (
             f"Expected a DatasetCollection, got {type(dc)}"
@@ -1041,11 +1054,9 @@ class TestCollectionFromEarthengine:
         with pytest.raises(ValueError, match="scale.*shape"):
             collection_from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
+                window=Window(bbox=_BBOX, scale=0.01, shape=(4, 4)),
                 start="2024-06-01",
                 end="2024-06-30",
-                bbox=_BBOX,
-                scale=0.01,
-                shape=(4, 4),
             )
 
     def test_no_scenes_raises_reader_error(self, monkeypatch) -> None:
@@ -1058,9 +1069,9 @@ class TestCollectionFromEarthengine:
         with pytest.raises(ReaderError, match="No Earth Engine scenes"):
             collection_from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
+                window=Window(bbox=_BBOX),
                 start="2024-06-01",
                 end="2024-06-30",
-                bbox=_BBOX,
             )
 
     def test_native_grid_alignment_without_scale_or_shape(self, three_scenes) -> None:
@@ -1072,9 +1083,9 @@ class TestCollectionFromEarthengine:
         """
         dc = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX),
             start="2024-06-01",
             end="2024-06-30",
-            bbox=_BBOX,
         )
         shapes = {ds.shape for ds in dc.datasets}
         assert len(shapes) == 1, f"Scenes are not aligned to one grid: {shapes}"
@@ -1461,7 +1472,9 @@ class TestGeometryClip:
             masked with the nodata value.
         """
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, geometry=self._triangle(), shape=(10, 10)
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(10, 10)),
+            geometry=self._triangle(),
         )
         arr = ds.read_array()
         nodata = ds.no_data_value[0]
@@ -1476,7 +1489,7 @@ class TestGeometryClip:
             Passing only `geometry` yields a Dataset (window derived from bounds).
         """
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", geometry=self._triangle(), shape=(8, 8)
+            "USGS/SRTMGL1_003", window=Window(shape=(8, 8)), geometry=self._triangle()
         )
         assert isinstance(ds, Dataset), f"Expected a Dataset, got {type(ds)}"
 
@@ -1501,12 +1514,11 @@ class TestGeometryClip:
         """
         ds = from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
-            bbox=_BBOX,
+            window=Window(bbox=_BBOX, shape=(10, 10)),
             geometry=self._triangle(),
             start="2024-06-01",
             end="2024-06-30",
             reducer="median",
-            shape=(10, 10),
         )
         arr = ds.read_array()
         assert int((arr == ds.no_data_value[0]).sum()) > 0, "Composite not clipped"
@@ -1522,10 +1534,10 @@ class TestGeometryClip:
         """
         dc = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(shape=(10, 10)),
             start="2024-06-01",
             end="2024-06-30",
             geometry=self._triangle(),
-            shape=(10, 10),
         )
         for ds in dc.datasets:
             arr = ds.read_array()
@@ -1634,7 +1646,9 @@ class TestCredentialLifetime:
             lambda a, *, bands, credentials, **_kw: Dataset(_synthetic_srtm()),
         )
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, credentials={"type": "service_account"}
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX),
+            credentials={"type": "service_account"},
         )
         path = ds._ee_credentials.service_account_path
         gc.collect()
@@ -1731,7 +1745,9 @@ class TestGeometryCrs:
         tri_3857 = gpd.GeoDataFrame(geometry=[tri_4326], crs="EPSG:4326").to_crs(
             "EPSG:3857"
         )
-        ds = from_earthengine("USGS/SRTMGL1_003", geometry=tri_3857, shape=(8, 8))
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(shape=(8, 8)), geometry=tri_3857
+        )
         assert isinstance(ds, Dataset), f"Expected a Dataset, got {type(ds)}"
         # Envelope came back in lon/lat degrees, not 3857 metres (~9.6e6).
         assert abs(ds.geotransform[0]) < 200, (
@@ -1846,7 +1862,9 @@ class TestCredentialScope:
         monkeypatch.setattr(ee_reader, "_window", _spy)
         before = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
         from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), credentials=str(key)
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(5, 5)),
+            credentials=str(key),
         )
         assert seen["cfg"] == str(key), "Config must be active during the windowed read"
         assert gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) == before, (
@@ -2138,7 +2156,7 @@ class TestLivePixelCorrectness:
         scene = "COPERNICUS/S2_SR_HARMONIZED/20240702T102601_20240702T103203_T32TLR"
         bbox = (7.00, 45.50, 7.03, 45.53)
         ds = from_earthengine(
-            scene, bbox=bbox, shape=(24, 24), bands=["B4", "B11", "B1"]
+            scene, window=Window(bbox=bbox, shape=(24, 24)), bands=["B4", "B11", "B1"]
         )
         assert ds.shape == (3, 24, 24), f"Expected 3 aligned bands, got {ds.shape}"
         arr = np.asarray(ds.read_array()).astype(float)
@@ -2157,9 +2175,12 @@ class TestLivePixelCorrectness:
             projected read lands on the same mountains, not a displaced/empty area.
         """
         ll = (86.92, 27.92, 86.98, 27.98)
-        latlon = from_earthengine("USGS/SRTMGL1_003", bbox=ll, shape=(24, 24))
+        latlon = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=ll, shape=(24, 24))
+        )
         utm = from_earthengine(
-            "USGS/SRTMGL1_003", crs="EPSG:32645", bbox=_to_utm45(ll), shape=(24, 24)
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_to_utm45(ll), crs="EPSG:32645", shape=(24, 24)),
         )
         assert utm.epsg == 32645, f"Expected EPSG:32645, got {utm.epsg}"
         mean_ll = float(np.mean(np.asarray(latlon.read_array())))
@@ -2180,14 +2201,12 @@ class TestLivePixelCorrectness:
         """
         untagged = from_earthengine(
             "JRC/GSW1_4/GlobalSurfaceWater",
-            bbox=_BBOX,
-            shape=(32, 32),
+            window=Window(bbox=_BBOX, shape=(32, 32)),
             bands=["occurrence"],
         )
         tagged = from_earthengine(
             "JRC/GSW1_4/GlobalSurfaceWater",
-            bbox=_BBOX,
-            shape=(32, 32),
+            window=Window(bbox=_BBOX, shape=(32, 32)),
             bands=["occurrence"],
             nodata=-128,
         )
@@ -2210,9 +2229,13 @@ class TestLivePixelCorrectness:
             default 256-block read — the block size is a transport knob, not a
             correctness one.
         """
-        default = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(60, 60))
+        default = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(60, 60))
+        )
         larger = from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(60, 60), block_size=512
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(60, 60)),
+            block_size=512,
         )
         assert np.array_equal(
             np.asarray(default.read_array()), np.asarray(larger.read_array())
@@ -2268,8 +2291,12 @@ class TestLivePixelCorrectness:
             return byte-identical arrays — the regression guard for the EEDAI
             block/overview corruption bug.
         """
-        first = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(96, 96))
-        second = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(96, 96))
+        first = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(96, 96))
+        )
+        second = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(96, 96))
+        )
         values = first.read_array()
         out_of_range = int(((values < -500) | (values > 9000)).sum())
         assert out_of_range == 0, (
@@ -2318,11 +2345,10 @@ class TestLivePixelCorrectness:
         """
         collection = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_S2_BBOX, shape=(32, 32)),
             start="2024-06-05",
             end="2024-06-08",
-            bbox=_S2_BBOX,
             bands=["B4"],
-            shape=(32, 32),
         )
         assert collection.time_length > 0, "Expected at least one scene in the window"
         for index, scene in enumerate(collection.datasets):
@@ -2355,7 +2381,9 @@ class TestResample:
             (no ``_open_eedai`` monkeypatch is needed — it never reaches it).
         """
         with pytest.raises(ValueError, match="Unknown resample"):
-            from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, resample="neareset")
+            from_earthengine(
+                "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, resample="neareset")
+            )
 
     def test_from_earthengine_honours_resample(self, patched_eedai) -> None:
         """A non-default ``resample`` is accepted end-to-end.
@@ -2364,7 +2392,8 @@ class TestResample:
             ``resample="average"`` reads without error and returns a Dataset.
         """
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), resample="average"
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(5, 5), resample="average"),
         )
         assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
 
@@ -2392,12 +2421,12 @@ class TestResample:
         common = {"bbox": bbox, "crs": "EPSG:4326", "scale": None, "shape": (10, 10)}
         nearest = np.asarray(
             ee_reader._window(
-                Dataset(src), ee_reader._Window(resample="nearest", **common)
+                Dataset(src), ee_reader.Window(resample="nearest", **common)
             ).read_array()
         )
         average = np.asarray(
             ee_reader._window(
-                Dataset(src), ee_reader._Window(resample="average", **common)
+                Dataset(src), ee_reader.Window(resample="average", **common)
             ).read_array()
         )
         assert not np.array_equal(nearest, average), (
@@ -2458,7 +2487,7 @@ class TestWindowValueObject:
             A scale-defined window yields a tile window at the tile's exact shape with
             ``scale`` cleared (shape and scale are mutually exclusive).
         """
-        window = ee_reader._Window(
+        window = ee_reader.Window(
             bbox=(0.0, 0.0, 1.0, 1.0),
             crs="EPSG:4326",
             scale=0.1,
@@ -2480,7 +2509,7 @@ class TestWindowValueObject:
             union covers every output pixel exactly once, and each tile's per-edge halo
             is the halo size on a shared edge and 0 on the outer window boundary.
         """
-        window = ee_reader._Window(
+        window = ee_reader.Window(
             bbox=(0.0, 0.0, 10.0, 10.0),
             crs="EPSG:4326",
             scale=None,
@@ -2505,7 +2534,7 @@ class TestWindowValueObject:
         Test scenario:
             With ``halo_size=0`` every tile edge halo is 0 — the zero-overhead path.
         """
-        window = ee_reader._Window(
+        window = ee_reader.Window(
             bbox=(0.0, 0.0, 8.0, 8.0),
             crs="EPSG:4326",
             scale=None,
@@ -2545,11 +2574,11 @@ class TestTiledRead:
             A 20x20 window over a distinct-per-pixel gradient, split into tiles of 7
             (a 3x3 tile grid), mosaics back to exactly the un-tiled 20x20 read.
         """
-        untiled_ds = from_earthengine("X", bbox=_BBOX, shape=(20, 20))
+        untiled_ds = from_earthengine("X", window=Window(bbox=_BBOX, shape=(20, 20)))
         untiled = np.asarray(untiled_ds.read_array())
         out = tmp_path / "mosaic.tif"
         tiled_ds = from_earthengine(
-            "X", bbox=_BBOX, shape=(20, 20), tile_size=7, path=str(out)
+            "X", window=Window(bbox=_BBOX, shape=(20, 20)), tile_size=7, path=str(out)
         )
         tiled = np.asarray(tiled_ds.read_array())
         assert out.exists(), "the mosaic file should be written to path"
@@ -2573,16 +2602,14 @@ class TestTiledRead:
         """
         untiled = np.asarray(
             from_earthengine(
-                "X", bbox=_BBOX, shape=(20, 20), resample="bilinear"
+                "X", window=Window(bbox=_BBOX, shape=(20, 20), resample="bilinear")
             ).read_array()
         )
         out = tmp_path / "bilinear_mosaic.tif"
         tiled = np.asarray(
             from_earthengine(
                 "X",
-                bbox=_BBOX,
-                shape=(20, 20),
-                resample="bilinear",
+                window=Window(bbox=_BBOX, shape=(20, 20), resample="bilinear"),
                 tile_size=7,
                 path=str(out),
             ).read_array()
@@ -2615,12 +2642,18 @@ class TestTiledRead:
             crs="EPSG:4326",
         )
         untiled = np.asarray(
-            from_earthengine("X", geometry=gdf, shape=(20, 20)).read_array()
+            from_earthengine(
+                "X", window=Window(shape=(20, 20)), geometry=gdf
+            ).read_array()
         )
         out = tmp_path / "cutline_mosaic.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", geometry=gdf, shape=(20, 20), tile_size=7, path=str(out)
+                "X",
+                window=Window(shape=(20, 20)),
+                geometry=gdf,
+                tile_size=7,
+                path=str(out),
             ).read_array()
         )
         assert np.array_equal(tiled, untiled), (
@@ -2637,12 +2670,15 @@ class TestTiledRead:
             un-tiled read.
         """
         untiled = np.asarray(
-            from_earthengine("X", bbox=_BBOX, shape=(8, 8)).read_array()
+            from_earthengine("X", window=Window(bbox=_BBOX, shape=(8, 8))).read_array()
         )
         out = tmp_path / "one.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=_BBOX, shape=(8, 8), tile_size=64, path=str(out)
+                "X",
+                window=Window(bbox=_BBOX, shape=(8, 8)),
+                tile_size=64,
+                path=str(out),
             ).read_array()
         )
         assert np.array_equal(tiled, untiled), "single-tile mosaic must equal the read"
@@ -2655,7 +2691,9 @@ class TestTiledRead:
             that shape.
         """
         out = tmp_path / "scaled.tif"
-        ds = from_earthengine("X", bbox=_BBOX, scale=0.01, tile_size=4, path=str(out))
+        ds = from_earthengine(
+            "X", window=Window(bbox=_BBOX, scale=0.01), tile_size=4, path=str(out)
+        )
         assert ds.shape == (1, 10, 10), f"Expected (1, 10, 10), got {ds.shape}"
 
     def test_tiled_scale_matches_untiled_at_rounding_boundary(
@@ -2669,12 +2707,12 @@ class TestTiledRead:
             The tiled read must match the un-tiled ``scale`` read's grid and pixels.
         """
         untiled = np.asarray(
-            from_earthengine("X", bbox=_BBOX, scale=0.008).read_array()
+            from_earthengine("X", window=Window(bbox=_BBOX, scale=0.008)).read_array()
         )
         out = tmp_path / "scale_boundary.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=_BBOX, scale=0.008, tile_size=5, path=str(out)
+                "X", window=Window(bbox=_BBOX, scale=0.008), tile_size=5, path=str(out)
             ).read_array()
         )
         assert untiled.shape[0] == 13, (
@@ -2695,7 +2733,9 @@ class TestTiledRead:
             5x5 Dataset reading it.
         """
         out = tmp_path / "single.tif"
-        ds = from_earthengine("X", bbox=_BBOX, shape=(5, 5), path=str(out))
+        ds = from_earthengine(
+            "X", window=Window(bbox=_BBOX, shape=(5, 5)), path=str(out)
+        )
         assert out.exists(), "path should be written"
         assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
 
@@ -2725,12 +2765,17 @@ class TestTiledRead:
         )
 
         untiled = np.asarray(
-            from_earthengine("X", bbox=_BBOX, shape=(18, 18)).read_array()
+            from_earthengine(
+                "X", window=Window(bbox=_BBOX, shape=(18, 18))
+            ).read_array()
         )
         out = tmp_path / "multiband.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=_BBOX, shape=(18, 18), tile_size=7, path=str(out)
+                "X",
+                window=Window(bbox=_BBOX, shape=(18, 18)),
+                tile_size=7,
+                path=str(out),
             ).read_array()
         )
         assert tiled.shape == untiled.shape == (3, 18, 18), f"shape {tiled.shape}"
@@ -2750,12 +2795,15 @@ class TestTiledRead:
         """
         over = (87.0, 28.0, 89.0, 30.0)
         untiled = np.asarray(
-            from_earthengine("X", bbox=over, shape=(20, 20)).read_array()
+            from_earthengine("X", window=Window(bbox=over, shape=(20, 20))).read_array()
         )
         out = tmp_path / "edge.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=over, shape=(20, 20), tile_size=7, path=str(out)
+                "X",
+                window=Window(bbox=over, shape=(20, 20)),
+                tile_size=7,
+                path=str(out),
             ).read_array()
         )
         assert (untiled == -32768).any(), "the overhang should include nodata pixels"
@@ -2774,10 +2822,12 @@ class TestTiledRead:
         """
         far = (100.0, 50.0, 101.0, 51.0)
         with pytest.raises(ReaderError, match="does not intersect"):
-            from_earthengine("X", bbox=far, shape=(8, 8))
+            from_earthengine("X", window=Window(bbox=far, shape=(8, 8)))
         out = tmp_path / "far.tif"
         with pytest.raises(ReaderError, match="does not intersect"):
-            from_earthengine("X", bbox=far, shape=(8, 8), tile_size=4, path=str(out))
+            from_earthengine(
+                "X", window=Window(bbox=far, shape=(8, 8)), tile_size=4, path=str(out)
+            )
 
     def test_tiled_reraises_other_reader_errors(
         self, patched_gradient, monkeypatch, tmp_path
@@ -2795,7 +2845,9 @@ class TestTiledRead:
         monkeypatch.setattr(ee_reader, "_window", boom)
         out = tmp_path / "boom.tif"
         with pytest.raises(ReaderError, match="boom"):
-            from_earthengine("X", bbox=_BBOX, shape=(8, 8), tile_size=4, path=str(out))
+            from_earthengine(
+                "X", window=Window(bbox=_BBOX, shape=(8, 8)), tile_size=4, path=str(out)
+            )
 
     def test_tiled_reprojects_like_untiled(self, patched_gradient, tmp_path) -> None:
         """A reprojecting (``crs`` != source) tiled read equals the un-tiled read.
@@ -2820,16 +2872,14 @@ class TestTiledRead:
         merc = (x0, y0, x1, y1)
         untiled = np.asarray(
             from_earthengine(
-                "X", bbox=merc, crs="EPSG:3857", shape=(18, 18)
+                "X", window=Window(bbox=merc, crs="EPSG:3857", shape=(18, 18))
             ).read_array()
         )
         out = tmp_path / "merc.tif"
         tiled = np.asarray(
             from_earthengine(
                 "X",
-                bbox=merc,
-                crs="EPSG:3857",
-                shape=(18, 18),
+                window=Window(bbox=merc, crs="EPSG:3857", shape=(18, 18)),
                 tile_size=7,
                 path=str(out),
             ).read_array()
@@ -2864,12 +2914,15 @@ class TestTiledRead:
         )
         aoi = (86.7, 27.7, 87.3, 28.3)
         untiled = np.asarray(
-            from_earthengine("X", bbox=aoi, shape=(30, 30)).read_array()
+            from_earthengine("X", window=Window(bbox=aoi, shape=(30, 30))).read_array()
         )
         out = tmp_path / "innodata.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=aoi, shape=(30, 30), tile_size=11, path=str(out)
+                "X",
+                window=Window(bbox=aoi, shape=(30, 30)),
+                tile_size=11,
+                path=str(out),
             ).read_array()
         )
         assert (untiled == -32768).any(), "the window should include nodata pixels"
@@ -2891,7 +2944,9 @@ class TestTiledRead:
         pattern = os.path.join(tempfile.gettempdir(), "ee_tiles_*")
         before = set(glob.glob(pattern))
         out = tmp_path / "clean.tif"
-        from_earthengine("X", bbox=_BBOX, shape=(16, 16), tile_size=6, path=str(out))
+        from_earthengine(
+            "X", window=Window(bbox=_BBOX, shape=(16, 16)), tile_size=6, path=str(out)
+        )
         leaked = set(glob.glob(pattern)) - before
         assert not leaked, f"tiled read leaked temp dir(s): {leaked}"
 
@@ -2903,12 +2958,17 @@ class TestTiledRead:
             reproduces the un-tiled read, guarding the row/column tile arithmetic.
         """
         untiled = np.asarray(
-            from_earthengine("X", bbox=_BBOX, shape=(12, 20)).read_array()
+            from_earthengine(
+                "X", window=Window(bbox=_BBOX, shape=(12, 20))
+            ).read_array()
         )
         out = tmp_path / "rect.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=_BBOX, shape=(12, 20), tile_size=7, path=str(out)
+                "X",
+                window=Window(bbox=_BBOX, shape=(12, 20)),
+                tile_size=7,
+                path=str(out),
             ).read_array()
         )
         assert tiled.shape == untiled.shape == (12, 20), f"shape {tiled.shape}"
@@ -2928,10 +2988,10 @@ class TestTiledRead:
                 _gradient_source(nodata=None)
             ),
         )
-        untiled_ds = from_earthengine("X", bbox=_BBOX, shape=(16, 16))
+        untiled_ds = from_earthengine("X", window=Window(bbox=_BBOX, shape=(16, 16)))
         out = tmp_path / "no_nodata.tif"
         tiled_ds = from_earthengine(
-            "X", bbox=_BBOX, shape=(16, 16), tile_size=6, path=str(out)
+            "X", window=Window(bbox=_BBOX, shape=(16, 16)), tile_size=6, path=str(out)
         )
         assert np.array_equal(
             np.asarray(tiled_ds.read_array()), np.asarray(untiled_ds.read_array())
@@ -2954,7 +3014,9 @@ class TestTiledValidation:
             No ``path`` to stream the mosaic to → ``ValueError``.
         """
         with pytest.raises(ValueError, match="path"):
-            from_earthengine("X", bbox=_BBOX, shape=(20, 20), tile_size=7)
+            from_earthengine(
+                "X", window=Window(bbox=_BBOX, shape=(20, 20)), tile_size=7
+            )
 
     def test_tile_size_requires_scale_or_shape(self) -> None:
         """``tile_size`` without ``scale``/``shape`` raises up front.
@@ -2963,7 +3025,9 @@ class TestTiledValidation:
             No output grid defined → ``ValueError``.
         """
         with pytest.raises(ValueError, match="scale.*shape"):
-            from_earthengine("X", bbox=_BBOX, tile_size=7, path="out.tif")
+            from_earthengine(
+                "X", window=Window(bbox=_BBOX), tile_size=7, path="out.tif"
+            )
 
     def test_tiled_composite_still_needs_path(self) -> None:
         """A tiled composite without ``path`` raises up front (#59).
@@ -2975,8 +3039,7 @@ class TestTiledValidation:
         with pytest.raises(ValueError, match="path"):
             from_earthengine(
                 "X",
-                bbox=_BBOX,
-                shape=(8, 8),
+                window=Window(bbox=_BBOX, shape=(8, 8)),
                 tile_size=4,
                 reducer="median",
                 start="2024-06-01",
@@ -2992,8 +3055,7 @@ class TestTiledValidation:
         with pytest.raises(ValueError, match="property_filter"):
             from_earthengine(
                 "X",
-                bbox=_BBOX,
-                shape=(8, 8),
+                window=Window(bbox=_BBOX, shape=(8, 8)),
                 property_filter="CLOUDY_PIXEL_PERCENTAGE < 20",
             )
 
@@ -3021,7 +3083,9 @@ class TestTiledValidation:
             ``tile_size=0`` → ``ValueError``.
         """
         with pytest.raises(ValueError, match="positive"):
-            from_earthengine("X", bbox=_BBOX, shape=(8, 8), tile_size=0, path="o.tif")
+            from_earthengine(
+                "X", window=Window(bbox=_BBOX, shape=(8, 8)), tile_size=0, path="o.tif"
+            )
 
     @pytest.mark.parametrize(
         ("resample", "expected"),
@@ -3116,15 +3180,14 @@ class TestTiledLive:
         """
         untiled = np.asarray(
             from_earthengine(
-                "USGS/SRTMGL1_003", bbox=_BBOX, shape=(40, 40)
+                "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(40, 40))
             ).read_array()
         )
         out = tmp_path / "srtm_tiled.tif"
         tiled = np.asarray(
             from_earthengine(
                 "USGS/SRTMGL1_003",
-                bbox=_BBOX,
-                shape=(40, 40),
+                window=Window(bbox=_BBOX, shape=(40, 40)),
                 tile_size=16,
                 path=str(out),
             ).read_array()
@@ -3152,16 +3215,15 @@ class TestTiledLive:
         """
         untiled = np.asarray(
             from_earthengine(
-                "USGS/SRTMGL1_003", bbox=_BBOX, shape=(40, 40), resample=resample
+                "USGS/SRTMGL1_003",
+                window=Window(bbox=_BBOX, shape=(40, 40), resample=resample),
             ).read_array()
         ).astype(float)
         out = tmp_path / f"srtm_{resample}.tif"
         tiled = np.asarray(
             from_earthengine(
                 "USGS/SRTMGL1_003",
-                bbox=_BBOX,
-                shape=(40, 40),
-                resample=resample,
+                window=Window(bbox=_BBOX, shape=(40, 40), resample=resample),
                 tile_size=13,
                 path=str(out),
             ).read_array()
@@ -3194,15 +3256,15 @@ class TestTiledLive:
         )
         untiled = np.asarray(
             from_earthengine(
-                "USGS/SRTMGL1_003", geometry=gdf, shape=(40, 40)
+                "USGS/SRTMGL1_003", window=Window(shape=(40, 40)), geometry=gdf
             ).read_array()
         )
         out = tmp_path / "srtm_cut.tif"
         tiled = np.asarray(
             from_earthengine(
                 "USGS/SRTMGL1_003",
+                window=Window(shape=(40, 40)),
                 geometry=gdf,
-                shape=(40, 40),
                 tile_size=13,
                 path=str(out),
             ).read_array()
