@@ -321,6 +321,31 @@ class TestFromEarthengine:
         with pytest.raises(ReaderError, match="resolution groups|subdataset"):
             from_earthengine("COPERNICUS/S2_SR_HARMONIZED", bands=["B4", "B11", "B1"])
 
+    def test_mixed_resolution_with_tile_size_unsupported(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """A cross-group request cannot be tiled → ``ReaderError`` (#58 + #59).
+
+        Test scenario:
+            The combined open returns a single band (a cross-group request), so a
+            ``tile_size`` read would need the per-band resample path the streamer does
+            not implement — it raises up front, naming the limitation, rather than
+            silently tiling one group.
+        """
+
+        def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
+            return Dataset(_synthetic_srtm())  # one band < 3 requested → cross-group
+
+        monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
+        with pytest.raises(ReaderError, match="does not support|resolution group"):
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                window=Window(bbox=_BBOX, shape=(10, 10)),
+                bands=["B4", "B11", "B1"],
+                tile_size=4,
+                path=str(tmp_path / "mixed_tiled.tif"),
+            )
+
     def test_single_band_request_not_treated_as_mixed(self, patched_eedai) -> None:
         """A single-band request reads normally — never the mixed path (#58).
 
@@ -2542,6 +2567,103 @@ class TestWindowValueObject:
         )
         for _tile, halo, _cx, _cy in ee_reader._iter_tiles(window, 3, 0):
             assert halo == (0, 0, 0, 0), f"nearest tiles need no halo, got {halo}"
+
+    def test_read_scene_tile_fills_a_scene_that_misses_the_tile(
+        self, monkeypatch
+    ) -> None:
+        """A scene whose footprint misses a tile contributes an all-fill tile (#59).
+
+        Test scenario:
+            The tiled composite reduces the *global* scene set on every tile. When a
+            scene does not reach a given tile its windowed read raises "does not
+            intersect"; ``_read_scene_tile`` must swallow that and substitute a nodata
+            tile — exactly what the un-tiled warp lays down where a scene does not
+            cover — so the per-tile stack still has one layer per scene. Here the second
+            of two scenes misses: its layer must come back all-nodata (``-32768``) while
+            the first is the real windowed pixels.
+        """
+        fill_source = Dataset(_synthetic_srtm(fill=7))  # nodata -32768
+        scenes = [
+            ee_reader._Scene("EEDAI:hit", "2024-06-01T00:00:00"),
+            ee_reader._Scene("EEDAI:miss", "2024-06-02T00:00:00"),
+        ]
+        tile = ee_reader.Window(bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(4, 4))
+
+        monkeypatch.setattr(
+            ee_reader,
+            "_open_eedai",
+            lambda connection, **_kwargs: Dataset(_synthetic_srtm(fill=7)),
+        )
+
+        calls = {"n": 0}
+
+        def _fake_halo(source, tile_, *, cell_x, cell_y, halo):  # noqa: ARG001
+            calls["n"] += 1
+            if calls["n"] == 2:  # the second scene does not reach this tile
+                raise ReaderError(
+                    f"AOI {tile_.bbox} does not intersect the Earth Engine asset."
+                )
+            return ee_reader._window(source, tile_)
+
+        monkeypatch.setattr(ee_reader, "_read_tile_with_halo", _fake_halo)
+
+        cell_x = (_BBOX[2] - _BBOX[0]) / 4
+        cell_y = (_BBOX[3] - _BBOX[1]) / 4
+        result = ee_reader._read_scene_tile(
+            scenes,
+            fill_source=fill_source,
+            tile=tile,
+            cell_x=cell_x,
+            cell_y=cell_y,
+            halo=(0, 0, 0, 0),
+            bands=None,
+            credentials=EarthEngineCredentials.coerce(None),
+            block_size=None,
+        )
+        assert len(result) == 2, f"one layer per scene expected, got {len(result)}"
+        hit = np.asarray(result[0].read_array())
+        miss = np.asarray(result[1].read_array())
+        assert (hit == 7).all(), f"covering scene should hold its pixels, got {hit}"
+        assert miss.shape[-2:] == (4, 4), f"fill tile must match the grid, got {miss.shape}"
+        assert (miss == -32768).all(), (
+            f"a scene that misses the tile must be nodata-filled, got {miss}"
+        )
+
+    def test_read_scene_tile_propagates_a_non_footprint_error(
+        self, monkeypatch
+    ) -> None:
+        """A tile read error that is *not* a footprint miss propagates (#59).
+
+        Test scenario:
+            ``_read_scene_tile`` fills only the "does not intersect" case; any other
+            ``ReaderError`` (a genuine read failure) must surface, not be silently
+            turned into a fill tile.
+        """
+        fill_source = Dataset(_synthetic_srtm(fill=7))
+        scenes = [ee_reader._Scene("EEDAI:boom", "2024-06-01T00:00:00")]
+        tile = ee_reader.Window(bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(4, 4))
+        monkeypatch.setattr(
+            ee_reader,
+            "_open_eedai",
+            lambda connection, **_kwargs: Dataset(_synthetic_srtm(fill=7)),
+        )
+
+        def _boom(source, tile_, *, cell_x, cell_y, halo):  # noqa: ARG001
+            raise ReaderError("Earth Engine block read failed at (0, 0): boom")
+
+        monkeypatch.setattr(ee_reader, "_read_tile_with_halo", _boom)
+        with pytest.raises(ReaderError, match="block read failed"):
+            ee_reader._read_scene_tile(
+                scenes,
+                fill_source=fill_source,
+                tile=tile,
+                cell_x=1.0,
+                cell_y=1.0,
+                halo=(0, 0, 0, 0),
+                bands=None,
+                credentials=EarthEngineCredentials.coerce(None),
+                block_size=None,
+            )
 
 
 class TestTileEdges:
