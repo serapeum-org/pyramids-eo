@@ -27,6 +27,7 @@ import gc
 import os
 import shutil
 import tempfile
+from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import NamedTuple
@@ -124,6 +125,45 @@ class _Scene(NamedTuple):
     pixel_size: float = 0.0
     crs: str = ""
     size_bytes: int = 0
+
+
+class _Window(NamedTuple):
+    """The requested output window: which ground, in which CRS, on which grid.
+
+    Groups the five values that always travel together through the read pipeline — the
+    AOI, its CRS, the output resolution/size, and the resampler — so the reader passes
+    one window rather than threading them (and mis-ordering them) through every warp,
+    scene read and tile.
+
+    Attributes:
+        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``, or ``None`` for a
+            whole-asset (lazy) read that has no window yet.
+        crs: The CRS ``bbox`` is expressed in and the output is delivered in.
+        scale: Output pixel size in ``crs`` units, or ``None``.
+        shape: Output ``(rows, cols)``, or ``None``.
+        resample: Resampling algorithm for the warp.
+    """
+
+    bbox: BBox | None
+    crs: str
+    scale: float | None
+    shape: tuple[int, int] | None
+    resample: str = "nearest"
+
+    def for_tile(self, sub_bbox: BBox, tile_shape: tuple[int, int]) -> _Window:
+        """Derive a tile's window: the tile's sub-bounds at its exact pixel shape.
+
+        The tile is sized by ``shape`` (its exact ``(rows, cols)``), so ``scale`` is
+        dropped — the two are mutually exclusive and the tile grid is shape-driven.
+
+        Args:
+            sub_bbox: The tile's bounds in ``crs``.
+            tile_shape: The tile's ``(rows, cols)``.
+
+        Returns:
+            A ``_Window`` for the tile, sharing this window's CRS and resampler.
+        """
+        return self._replace(bbox=sub_bbox, shape=tile_shape, scale=None)
 
 
 def _open_eedai(
@@ -370,16 +410,8 @@ def _read_native_blocks(
     return data
 
 
-def _window(
-    source: Dataset,
-    *,
-    bbox: BBox,
-    crs: str,
-    scale: float | None,
-    shape: tuple[int, int] | None,
-    resample: str = "nearest",
-) -> Dataset:
-    """Read ``source`` over ``bbox`` in ``crs`` at the requested resolution/shape.
+def _window(source: Dataset, window: _Window) -> Dataset:
+    """Read ``source`` over ``window`` at the requested CRS / resolution / shape.
 
     The EEDAI window is first materialised block-aligned into a clean native-res
     ``Dataset`` (:func:`_materialize`) — reading EEDAI directly through ``gdal.Warp``
@@ -390,11 +422,8 @@ def _window(
 
     Args:
         source: The source EEDAI ``Dataset`` to window.
-        bbox: Output bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
-        crs: Target CRS (and the CRS ``bbox`` is expressed in).
-        scale: Output pixel size in ``crs`` units, or ``None``.
-        shape: Output ``(rows, cols)``, or ``None``.
-        resample: Resampling algorithm for the warp — see :func:`_resample_alg`.
+        window: The output window (bounds + CRS + grid + resampler); its ``bbox`` must
+            be set (this is a windowed read, not the whole-asset path).
 
     Returns:
         The warped pyramids ``Dataset``.
@@ -402,26 +431,28 @@ def _window(
     Raises:
         ReaderError: The read or warp failed.
     """
-    native = _materialize(source, bbox, crs)
+    bbox = window.bbox
+    assert bbox is not None  # a windowed read always has an AOI
+    native = _materialize(source, bbox, window.crs)
     warp_kwargs: dict[str, object] = {
         "format": "MEM",
         "outputBounds": list(bbox),
-        "outputBoundsSRS": crs,
-        "dstSRS": crs,
-        "resampleAlg": _resample_alg(resample),
+        "outputBoundsSRS": window.crs,
+        "dstSRS": window.crs,
+        "resampleAlg": _resample_alg(window.resample),
     }
-    if shape is not None:
-        rows, cols = shape
+    if window.shape is not None:
+        rows, cols = window.shape
         warp_kwargs["width"] = cols
         warp_kwargs["height"] = rows
-    elif scale is not None:
-        warp_kwargs["xRes"] = scale
-        warp_kwargs["yRes"] = scale
+    elif window.scale is not None:
+        warp_kwargs["xRes"] = window.scale
+        warp_kwargs["yRes"] = window.scale
 
     out = gdal.Warp("", native.raster, **warp_kwargs)
     if out is None:
         raise ReaderError(
-            f"Earth Engine read failed while windowing to {bbox} in {crs}: "
+            f"Earth Engine read failed while windowing to {bbox} in {window.crs}: "
             f"{gdal.GetLastErrorMsg() or 'no detail'}"
         )
     return Dataset(out)
@@ -431,11 +462,7 @@ def _read_mixed_resolution(
     asset_id: str,
     *,
     bands: list[str],
-    bbox: BBox,
-    crs: str,
-    scale: float | None,
-    shape: tuple[int, int] | None,
-    resample: str,
+    window: _Window,
     credentials: EarthEngineCredentials,
     block_size: int | None,
 ) -> Dataset:
@@ -445,21 +472,17 @@ def _read_mixed_resolution(
     10 m, 20 m and 60 m groups, say — a single EEDAI open with all of them silently
     returns only one, because the driver exposes the groups as separate subdatasets and
     cannot serve them together. This reads each band on its own and warps every one to
-    the *same* target grid (``bbox`` + ``crs`` + ``scale`` / ``shape``), so they align
-    exactly, then stacks them in the requested order into one multi-band ``Dataset``.
+    the *same* target ``window``, so they align exactly, then stacks them in the
+    requested order into one multi-band ``Dataset``.
 
     A shared target grid is required: with the bands at different native resolutions
-    there is no single "native" grid to fall back to, so ``scale`` or ``shape`` must be
-    given.
+    there is no single "native" grid to fall back to, so the window's ``scale`` or
+    ``shape`` must be given.
 
     Args:
         asset_id: The EE image asset id.
         bands: The requested band names, spanning >1 resolution group.
-        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``.
-        crs: Target CRS.
-        scale: Output pixel size in ``crs`` units, or ``None``.
-        shape: Output ``(rows, cols)``, or ``None``.
-        resample: Resampling algorithm for the per-band warp.
+        window: The shared output window every band is warped to.
         credentials: Resolved credentials.
         block_size: EEDAI block size, or ``None`` for the default.
 
@@ -470,7 +493,7 @@ def _read_mixed_resolution(
         ReaderError: No ``scale`` / ``shape`` defines the shared grid, or a band read
             produced a grid that does not match the others.
     """
-    if scale is None and shape is None:
+    if window.scale is None and window.shape is None:
         raise ReaderError(
             f"The requested bands {bands} span multiple Earth Engine resolution groups "
             "(subdatasets); pass 'scale' or 'shape' to resample them onto one grid, or "
@@ -484,14 +507,7 @@ def _read_mixed_resolution(
                 asset_id, bands=[band], credentials=credentials, block_size=block_size
             )
             try:
-                windowed = _window(
-                    single,
-                    bbox=bbox,
-                    crs=crs,
-                    scale=scale,
-                    shape=shape,
-                    resample=resample,
-                )
+                windowed = _window(single, window)
             finally:
                 single = None  # release the per-band EEDAI source
         array = np.asarray(windowed.read_array())
@@ -877,13 +893,9 @@ def _discover_scenes(
 def _read_scenes_aligned(
     scenes: list[_Scene],
     *,
-    bbox: BBox,
-    crs: str,
-    scale: float | None,
-    shape: tuple[int, int] | None,
+    window: _Window,
     bands: list[str] | None,
     credentials: EarthEngineCredentials,
-    resample: str = "nearest",
     block_size: int | None = None,
 ) -> list[Dataset]:
     """Read every scene windowed to one common grid.
@@ -894,13 +906,10 @@ def _read_scenes_aligned(
 
     Args:
         scenes: The scenes to read.
-        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``.
-        crs: Target CRS.
-        scale: Output pixel size in ``crs`` units, or ``None``.
-        shape: Output ``(rows, cols)``, or ``None``.
+        window: The output window (bounds + CRS + grid + resampler) shared by every
+            scene.
         bands: Band names to request, or ``None`` for all.
         credentials: Resolved credentials.
-        resample: Resampling algorithm for the warp.
         block_size: EEDAI block size (pixels per side) for each scene's open, or
             ``None`` for the conservative default.
 
@@ -908,7 +917,7 @@ def _read_scenes_aligned(
         One windowed pyramids ``Dataset`` per scene, all on the same grid.
     """
     windowed: list[Dataset] = []
-    target_shape = shape
+    target = window
     for scene in scenes:
         src = _open_eedai(
             scene.connection,
@@ -920,23 +929,13 @@ def _read_scenes_aligned(
         # the windowed result is a self-contained in-memory copy that no longer
         # needs it.
         try:
-            if target_shape is None and scale is None:
-                first = _window(
-                    src, bbox=bbox, crs=crs, scale=None, shape=None, resample=resample
+            windowed_scene = _window(src, target)
+            if target.shape is None and target.scale is None:
+                # First scene's native window fixes the grid for the rest.
+                target = target._replace(
+                    shape=(windowed_scene.rows, windowed_scene.columns)
                 )
-                target_shape = (first.rows, first.columns)
-                windowed.append(first)
-            else:
-                windowed.append(
-                    _window(
-                        src,
-                        bbox=bbox,
-                        crs=crs,
-                        scale=scale,
-                        shape=target_shape,
-                        resample=resample,
-                    )
-                )
+            windowed.append(windowed_scene)
         finally:
             src = None
     return windowed
@@ -1082,11 +1081,7 @@ def _composite_read(
     asset_id: str,
     *,
     bands: list[str] | None,
-    bbox: BBox | None,
-    crs: str,
-    scale: float | None,
-    shape: tuple[int, int] | None,
-    resample: str,
+    window: _Window,
     start: str | None,
     end: str | None,
     reducer: str | None,
@@ -1114,7 +1109,7 @@ def _composite_read(
             "'start'/'end' select an ImageCollection; pass 'reducer' for a single "
             "composite, or use collection_from_earthengine() for a DatasetCollection."
         )
-    if start is None or end is None or bbox is None:
+    if start is None or end is None or window.bbox is None:
         raise ValueError(
             "The composite mode requires 'start', 'end', and a 'bbox' or 'geometry'."
         )
@@ -1125,11 +1120,7 @@ def _composite_read(
         return _tiled_composite_read(
             asset_id,
             bands=bands,
-            bbox=bbox,
-            crs=crs,
-            scale=scale,
-            shape=shape,
-            resample=resample,
+            window=window,
             start=start,
             end=end,
             reducer=reducer,
@@ -1144,26 +1135,23 @@ def _composite_read(
         asset_id,
         start=start,
         end=end,
-        bbox_4326=_bbox_to_4326(bbox, crs),
+        bbox_4326=_bbox_to_4326(window.bbox, window.crs),
         credentials=credentials,
         property_filter=property_filter,
     )
     if not scenes:
         raise ReaderError(
-            f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over {bbox}."
+            f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over "
+            f"{window.bbox}."
         )
     # Keep the credential config in effect across the scene reads (the EEDAI pixel
     # fetch is the ``gdal.Warp`` inside `_read_scenes_aligned`), then restore it.
     with credentials.activate():
         windowed = _read_scenes_aligned(
             scenes,
-            bbox=bbox,
-            crs=crs,
-            scale=scale,
-            shape=shape,
+            window=window,
             bands=bands,
             credentials=credentials,
-            resample=resample,
             block_size=block_size,
         )
     composite = _composite(windowed, reducer, credentials, geometry)
@@ -1177,15 +1165,12 @@ def _read_scene_tile(
     scenes: list[_Scene],
     *,
     fill_source: Dataset,
-    sub_bbox: BBox,
-    tile_shape: tuple[int, int],
-    crs: str,
+    tile: _Window,
     cell_x: float,
     cell_y: float,
     halo: tuple[int, int, int, int],
     bands: list[str] | None,
     credentials: EarthEngineCredentials,
-    resample: str,
     block_size: int | None,
 ) -> list[Dataset]:
     """Warp every scene to one tile grid, filling scenes whose footprint misses it.
@@ -1202,20 +1187,19 @@ def _read_scene_tile(
         scenes: The globally-discovered scenes, in order.
         fill_source: An opened scene (for band count / dtype / fill) used to build the
             all-fill tile for a non-intersecting scene.
-        sub_bbox: The tile's bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
-        tile_shape: The tile's ``(rows, cols)``.
-        crs: Target CRS.
+        tile: The tile's ``_Window`` (its ``bbox`` / ``shape`` are the tile's sub-bounds
+            and ``(rows, cols)``).
         cell_x: Output pixel width in ``crs`` units.
         cell_y: Output pixel height in ``crs`` units.
         halo: Per-edge ``(left, right, top, bottom)`` margins in output pixels.
         bands: Band names to request, or ``None`` for all.
         credentials: Resolved credentials.
-        resample: Resampling algorithm for the warp.
         block_size: EEDAI block size, or ``None`` for the default.
 
     Returns:
         One windowed ``Dataset`` per scene, all on the tile grid.
     """
+    assert tile.bbox is not None and tile.shape is not None
     windowed: list[Dataset] = []
     for scene in scenes:
         src = _open_eedai(
@@ -1225,37 +1209,71 @@ def _read_scene_tile(
             block_size=block_size,
         )
         try:
-            tile = _read_tile_with_halo(
-                src,
-                sub_bbox=sub_bbox,
-                tile_shape=tile_shape,
-                crs=crs,
-                cell_x=cell_x,
-                cell_y=cell_y,
-                resample=resample,
-                halo=halo,
+            tile_ds = _read_tile_with_halo(
+                src, tile, cell_x=cell_x, cell_y=cell_y, halo=halo
             )
         except ReaderError as exc:
             if "does not intersect" not in str(exc):
                 raise
-            tile = _nodata_tile(
-                fill_source, sub_bbox, tile_shape, crs, fill_source.no_data_value[0]
+            tile_ds = _nodata_tile(
+                fill_source,
+                tile.bbox,
+                tile.shape,
+                tile.crs,
+                fill_source.no_data_value[0],
             )
         finally:
             src = None
-        windowed.append(tile)
+        windowed.append(tile_ds)
     return windowed
+
+
+def _iter_tiles(
+    window: _Window, tile_size: int, halo_size: int
+) -> Iterator[tuple[_Window, tuple[int, int, int, int], float, float]]:
+    """Yield each tile of ``window``'s grid: its ``_Window``, per-edge halo, cell sizes.
+
+    Splits the output grid into ``tile_size`` blocks and, for each, produces the tile's
+    window (sub-bounds at the tile's exact shape) and a per-edge
+    ``(left, right, top, bottom)`` halo that is ``halo_size`` only on edges shared with a
+    neighbouring tile — the outer window edges keep a zero halo so the mosaic border
+    matches the un-tiled read. ``cell_x`` / ``cell_y`` (constant across tiles) are the
+    grid's output pixel sizes, needed to grow a tile by its halo.
+
+    Args:
+        window: The full output window to tile (its ``bbox`` must be set).
+        tile_size: Maximum tile size in pixels per side.
+        halo_size: The per-edge halo in output pixels for an interior edge.
+
+    Yields:
+        ``(tile, halo, cell_x, cell_y)`` per tile, in row-major order.
+    """
+    assert window.bbox is not None
+    rows, cols, cell_x, cell_y = _tile_grid(window.bbox, window.scale, window.shape)
+    min_x, _, _, max_y = window.bbox
+    for row0, row1 in _tile_edges(rows, tile_size):
+        for col0, col1 in _tile_edges(cols, tile_size):
+            sub_bbox = (
+                min_x + col0 * cell_x,
+                max_y - row1 * cell_y,
+                min_x + col1 * cell_x,
+                max_y - row0 * cell_y,
+            )
+            tile = window.for_tile(sub_bbox, (row1 - row0, col1 - col0))
+            halo = (
+                halo_size if col0 > 0 else 0,
+                halo_size if col1 < cols else 0,
+                halo_size if row0 > 0 else 0,
+                halo_size if row1 < rows else 0,
+            )
+            yield tile, halo, cell_x, cell_y
 
 
 def _tiled_composite_read(
     asset_id: str,
     *,
     bands: list[str] | None,
-    bbox: BBox,
-    crs: str,
-    scale: float | None,
-    shape: tuple[int, int] | None,
-    resample: str,
+    window: _Window,
     start: str,
     end: str,
     reducer: str,
@@ -1286,11 +1304,7 @@ def _tiled_composite_read(
     Args:
         asset_id: EE ``ImageCollection`` id.
         bands: Band names to request, or ``None`` for all.
-        bbox: Output bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
-        crs: Target CRS.
-        scale: Output pixel size in ``crs`` units, or ``None`` when ``shape`` is set.
-        shape: Output ``(rows, cols)``, or ``None`` when ``scale`` is set.
-        resample: Resampling algorithm for each scene's warp.
+        window: The output window (bounds + CRS + grid + resampler) to tile.
         start: Inclusive ISO start of the acquisition window.
         end: Inclusive ISO end of the acquisition window.
         reducer: Client-side reducer applied to each tile's scene stack.
@@ -1307,25 +1321,25 @@ def _tiled_composite_read(
     Raises:
         ReaderError: The date range + AOI matched no scenes anywhere in the window.
     """
+    assert window.bbox is not None  # a tiled composite always has an AOI
     # Confirm the window has scenes and grab a nodata/band-count reference from the
     # first scene's metadata (no pixel fetch), used to fill tiles no scene covers.
     scenes = _discover_scenes(
         asset_id,
         start=start,
         end=end,
-        bbox_4326=_bbox_to_4326(bbox, crs),
+        bbox_4326=_bbox_to_4326(window.bbox, window.crs),
         credentials=credentials,
         property_filter=property_filter,
     )
     if not scenes:
         raise ReaderError(
-            f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over {bbox}."
+            f"No Earth Engine scenes for {asset_id!r} in [{start}, {end}] over "
+            f"{window.bbox}."
         )
-    rows, cols, cell_x, cell_y = _tile_grid(bbox, scale, shape)
-    min_x, _, _, max_y = bbox
     # Scenes reproject to ``crs``, so even a ``nearest`` warp needs a small halo at a
     # seam to sample the same source pixel the un-tiled warp does; floor it at 2.
-    halo_size = max(2, _resample_halo(resample))
+    halo_size = max(2, _resample_halo(window.resample))
     tmp_dir = tempfile.mkdtemp(prefix="ee_composite_tiles_")
     tile_paths: list[str] = []
     tile_nodata: float | None = None
@@ -1338,51 +1352,31 @@ def _tiled_composite_read(
                 block_size=block_size,
             )
             try:
-                for row0, row1 in _tile_edges(rows, tile_size):
-                    for col0, col1 in _tile_edges(cols, tile_size):
-                        sub_bbox = (
-                            min_x + col0 * cell_x,
-                            max_y - row1 * cell_y,
-                            min_x + col1 * cell_x,
-                            max_y - row0 * cell_y,
-                        )
-                        tile_shape = (row1 - row0, col1 - col0)
-                        # Grow the halo only into a neighbouring tile; the outer window
-                        # edges keep a zero halo so the mosaic border matches un-tiled.
-                        tile_halo = (
-                            halo_size if col0 > 0 else 0,
-                            halo_size if col1 < cols else 0,
-                            halo_size if row0 > 0 else 0,
-                            halo_size if row1 < rows else 0,
-                        )
-                        # Reduce the SAME globally-discovered scenes over this tile:
-                        # warp each to the tile grid, substituting an all-fill tile for
-                        # a scene whose footprint misses it (exactly what the un-tiled
-                        # warp puts there). Reducing the global set — not a per-tile
-                        # re-discovery — keeps the tiled composite identical to the
-                        # un-tiled one for every reducer, while the reduction still
-                        # happens wholly within a tile (a seam is a mosaic boundary).
-                        windowed = _read_scene_tile(
-                            scenes,
-                            fill_source=probe,
-                            sub_bbox=sub_bbox,
-                            tile_shape=tile_shape,
-                            crs=crs,
-                            cell_x=cell_x,
-                            cell_y=cell_y,
-                            halo=tile_halo,
-                            bands=bands,
-                            credentials=credentials,
-                            resample=resample,
-                            block_size=block_size,
-                        )
-                        tile = _composite(windowed, reducer, credentials, None)
-                        if tile_nodata is None:
-                            tile_nodata = tile.no_data_value[0]
-                        tile_path = os.path.join(tmp_dir, f"tile_{row0}_{col0}.tif")
-                        tile.to_file(tile_path)
-                        tile.close()
-                        tile_paths.append(tile_path)
+                for index, (tile, halo, cell_x, cell_y) in enumerate(
+                    _iter_tiles(window, tile_size, halo_size)
+                ):
+                    # Reduce the SAME globally-discovered scenes over this tile (filling
+                    # a scene whose footprint misses it, as the un-tiled warp does), so
+                    # the tiled composite equals the un-tiled one and each reduction
+                    # stays wholly within a tile (a seam is a mosaic boundary).
+                    windowed = _read_scene_tile(
+                        scenes,
+                        fill_source=probe,
+                        tile=tile,
+                        cell_x=cell_x,
+                        cell_y=cell_y,
+                        halo=halo,
+                        bands=bands,
+                        credentials=credentials,
+                        block_size=block_size,
+                    )
+                    tile_ds = _composite(windowed, reducer, credentials, None)
+                    if tile_nodata is None:
+                        tile_nodata = tile_ds.no_data_value[0]
+                    tile_path = os.path.join(tmp_dir, f"tile_{index}.tif")
+                    tile_ds.to_file(tile_path)
+                    tile_ds.close()
+                    tile_paths.append(tile_path)
             finally:
                 probe = None  # release the reference scene handle
         _mosaic_tiles(tile_paths, str(path), tile_nodata)
@@ -1394,15 +1388,65 @@ def _tiled_composite_read(
     return _retain_credentials(merged, credentials)
 
 
+def _read_whole_asset(
+    asset_id: str,
+    *,
+    window: _Window,
+    bands: list[str] | None,
+    credentials: EarthEngineCredentials,
+    block_size: int | None,
+) -> Dataset:
+    """Lazily open a whole EE asset (no ``bbox``) as a ``Dataset``.
+
+    A whole-asset read has no target grid, so any windowing option (a non-default CRS /
+    scale / shape / resample) is rejected, and bands that span resolution groups cannot
+    be aligned — they fail loudly rather than the driver silently returning one group
+    (#58). The lazy ``Dataset``'s deferred pixel reads authenticate from its own
+    ``gdal_env`` (attached by ``_open_eedai``), never the process-global config (#68).
+
+    Args:
+        asset_id: The EE image asset id.
+        window: The requested window — its ``bbox`` is ``None`` here; its other fields
+            must be at their defaults (no windowing without a ``bbox``).
+        bands: Band names to request, or ``None`` for all.
+        credentials: Resolved credentials.
+        block_size: EEDAI block size, or ``None`` for the default.
+
+    Returns:
+        The whole-asset ``Dataset``, credential-pinned.
+
+    Raises:
+        ReaderError: A windowing option was set without a ``bbox``, or the requested
+            bands span multiple resolution groups.
+    """
+    if (
+        window.scale is not None
+        or window.shape is not None
+        or window.crs != _DEFAULT_CRS
+        or window.resample != "nearest"
+    ):
+        raise ReaderError(
+            "A 'bbox' is required to window an Earth Engine asset when 'crs', 'scale', "
+            "'shape', or 'resample' is set (assets are global/huge)."
+        )
+    dataset = _open_eedai(
+        asset_id, bands=bands, credentials=credentials, block_size=block_size
+    )
+    if bands is not None and dataset.band_count < len(bands):
+        raise ReaderError(
+            f"The requested bands {bands} span multiple Earth Engine resolution "
+            "groups (subdatasets), so a whole-asset read cannot return them together. "
+            "Pass a 'bbox' with a 'scale' or 'shape' to resample them onto one grid, "
+            "or request a single-resolution band set."
+        )
+    return _retain_credentials(dataset, credentials)
+
+
 def _single_image_read(
     asset_id: str,
     *,
     bands: list[str] | None,
-    bbox: BBox | None,
-    crs: str,
-    scale: float | None,
-    shape: tuple[int, int] | None,
-    resample: str,
+    window: _Window,
     geometry: object | None,
     credentials: EarthEngineCredentials,
     tile_size: int | None = None,
@@ -1418,38 +1462,14 @@ def _single_image_read(
         ReaderError: A windowing option is set without a ``bbox``, or the asset
             could not be opened / windowed.
     """
-    if bbox is None:
-        if (
-            scale is not None
-            or shape is not None
-            or crs != _DEFAULT_CRS
-            or resample != "nearest"
-        ):
-            raise ReaderError(
-                "A 'bbox' is required to window an Earth Engine asset when "
-                "'crs', 'scale', 'shape', or 'resample' is set (assets are "
-                "global/huge)."
-            )
-        dataset = _open_eedai(
-            asset_id, bands=bands, credentials=credentials, block_size=block_size
+    if window.bbox is None:
+        return _read_whole_asset(
+            asset_id,
+            window=window,
+            bands=bands,
+            credentials=credentials,
+            block_size=block_size,
         )
-        # A whole-asset read has no target grid, so bands from different resolution
-        # groups cannot be aligned — the driver would silently hand back one group.
-        # Fail loudly instead of returning a subset (#58).
-        if bands is not None and dataset.band_count < len(bands):
-            raise ReaderError(
-                f"The requested bands {bands} span multiple Earth Engine resolution "
-                "groups (subdatasets), so a whole-asset read cannot return them "
-                "together. Pass a 'bbox' with a 'scale' or 'shape' to resample them "
-                "onto one grid, or request a single-resolution band set."
-            )
-        # The whole-asset Dataset is read lazily, so its pixel reads happen after this
-        # returns — outside any `activate()` block. `_open_eedai` already attaches the
-        # credential as the Dataset's own ``gdal_env``, which pyramids re-applies (and
-        # restores) around every deferred read, so those reads authenticate per-dataset
-        # without leaving anything in the process-global GDAL config. That per-open
-        # binding is what lets two credentials coexist in one process (#68).
-        return _retain_credentials(dataset, credentials)
 
     # Keep the credential config in effect across the open AND the windowing read
     # (the EEDAI pixel fetch is the block-aligned RasterIO inside `_window`), then
@@ -1479,14 +1499,7 @@ def _single_image_read(
                 if path is None:  # pragma: no cover - guaranteed by from_earthengine
                     raise ReaderError("A tiled read requires a 'path'.")
                 merged = _tiled_windowed_read(
-                    src,
-                    bbox=bbox,
-                    crs=crs,
-                    scale=scale,
-                    shape=shape,
-                    resample=resample,
-                    tile_size=tile_size,
-                    path=path,  # required by from_earthengine when tile_size is set
+                    src, window=window, tile_size=tile_size, path=path
                 )
                 # A polygon AOI tiles its envelope, then the cutline is applied to the
                 # assembled mosaic — so the tiled result matches the un-tiled cutline
@@ -1494,23 +1507,17 @@ def _single_image_read(
                 merged = _clip_mosaic_to_geometry(merged, geometry, path)
                 return _retain_credentials(merged, credentials)
             else:
-                windowed_single = _window(
-                    src, bbox=bbox, crs=crs, scale=scale, shape=shape, resample=resample
-                )
+                windowed_single = _window(src, window)
         finally:
             src = None  # release the EEDAI source whether the window succeeds or not
     if mixed_resolution:
         assert bands is not None  # mixed_resolution is only set for a band request
         # Read each band on its own and warp them all to the same target grid, then
-        # stack — the bands align because they share bbox + crs + scale/shape.
+        # stack — the bands align because they share the window.
         windowed_single = _read_mixed_resolution(
             asset_id,
             bands=bands,  # non-empty (mixed_resolution requires it)
-            bbox=bbox,
-            crs=crs,
-            scale=scale,
-            shape=shape,
-            resample=resample,
+            window=window,
             credentials=credentials,
             block_size=block_size,
         )
@@ -1679,13 +1686,10 @@ def _resample_halo(resample: str) -> int:
 
 def _read_tile_with_halo(
     source: Dataset,
+    tile: _Window,
     *,
-    sub_bbox: BBox,
-    tile_shape: tuple[int, int],
-    crs: str,
     cell_x: float,
     cell_y: float,
-    resample: str,
     halo: tuple[int, int, int, int],
 ) -> Dataset:
     """Warp one tile, growing it by ``halo`` output pixels per edge, then trim.
@@ -1700,12 +1704,10 @@ def _read_tile_with_halo(
 
     Args:
         source: The opened EEDAI source ``Dataset``.
-        sub_bbox: The tile's output bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
-        tile_shape: The tile's ``(rows, cols)``.
-        crs: Target CRS.
+        tile: The tile's ``_Window`` (its ``bbox`` and ``shape`` are the tile's exact
+            sub-bounds and ``(rows, cols)``).
         cell_x: Output pixel width in ``crs`` units.
         cell_y: Output pixel height in ``crs`` units.
-        resample: Resampling algorithm for the warp.
         halo: Per-edge ``(left, right, top, bottom)`` margins in output pixels.
 
     Returns:
@@ -1713,34 +1715,22 @@ def _read_tile_with_halo(
     """
     left, right, top, bottom = halo
     if not any(halo):
-        return _window(
-            source,
-            bbox=sub_bbox,
-            crs=crs,
-            scale=None,
-            shape=tile_shape,
-            resample=resample,
-        )
-    min_x, min_y, max_x, max_y = sub_bbox
+        return _window(source, tile)
+    assert tile.bbox is not None and tile.shape is not None
+    min_x, min_y, max_x, max_y = tile.bbox
+    tile_rows, tile_cols = tile.shape
     grown_bbox = (
         min_x - left * cell_x,
         min_y - bottom * cell_y,
         max_x + right * cell_x,
         max_y + top * cell_y,
     )
-    grown_shape = (tile_shape[0] + top + bottom, tile_shape[1] + left + right)
-    grown = _window(
-        source,
-        bbox=grown_bbox,
-        crs=crs,
-        scale=None,
-        shape=grown_shape,
-        resample=resample,
-    )
+    grown_shape = (tile_rows + top + bottom, tile_cols + left + right)
+    grown = _window(source, tile._replace(bbox=grown_bbox, shape=grown_shape))
     array = np.asarray(grown.read_array())
     if array.ndim == 2:
         array = array[None, :, :]
-    core = array[:, top : top + tile_shape[0], left : left + tile_shape[1]]
+    core = array[:, top : top + tile_rows, left : left + tile_cols]
     gt = grown.geotransform
     core_geo = (
         gt[0] + left * gt[1],
@@ -1758,11 +1748,7 @@ def _read_tile_with_halo(
 def _tiled_windowed_read(
     source: Dataset,
     *,
-    bbox: BBox,
-    crs: str,
-    scale: float | None,
-    shape: tuple[int, int] | None,
-    resample: str,
+    window: _Window,
     tile_size: int,
     path: str | Path,
 ) -> Dataset:
@@ -1791,73 +1777,48 @@ def _tiled_windowed_read(
 
     Args:
         source: The opened EEDAI source ``Dataset`` (reused for every tile).
-        bbox: Output bounds ``(min_x, min_y, max_x, max_y)`` in ``crs``.
-        crs: Target CRS (and the CRS ``bbox`` is expressed in).
-        scale: Output pixel size in ``crs`` units, or ``None`` when ``shape`` is set.
-        shape: Output ``(rows, cols)``, or ``None`` when ``scale`` is set.
-        resample: Resampling algorithm for each tile's warp (always ``"nearest"``).
+        window: The output window (bounds + CRS + grid + resampler) to tile.
         tile_size: Maximum tile size in pixels per side.
         path: Destination raster path for the mosaic.
 
     Returns:
         A file-backed pyramids ``Dataset`` reading the mosaic at ``path``.
     """
-    min_x, _, _, max_y = bbox  # only the top-left anchors the tile grid
-    rows, cols, cell_x, cell_y = _tile_grid(bbox, scale, shape)
     # An interpolating resampler needs neighbours across each seam; read every tile
     # with a kernel-sized halo and trim it, so the mosaic matches the un-tiled read.
-    halo = _resample_halo(resample)
-
+    halo_size = _resample_halo(window.resample)
     # All tiles inherit the source's per-band nodata, so read it once here.
     nodata = source.no_data_value[0]
     tmp_dir = tempfile.mkdtemp(prefix="ee_tiles_")
     tile_paths: list[str] = []
     any_covered = False
     try:
-        for row0, row1 in _tile_edges(rows, tile_size):
-            for col0, col1 in _tile_edges(cols, tile_size):
-                sub_bbox = (
-                    min_x + col0 * cell_x,
-                    max_y - row1 * cell_y,
-                    min_x + col1 * cell_x,
-                    max_y - row0 * cell_y,
+        for index, (tile, halo, cell_x, cell_y) in enumerate(
+            _iter_tiles(window, tile_size, halo_size)
+        ):
+            try:
+                tile_ds = _read_tile_with_halo(
+                    source, tile, cell_x=cell_x, cell_y=cell_y, halo=halo
                 )
-                tile_shape = (row1 - row0, col1 - col0)
-                # Grow the halo only into a neighbouring tile; the outer window edges
-                # keep a zero halo so the mosaic border matches the un-tiled read.
-                tile_halo = (
-                    halo if col0 > 0 else 0,  # left
-                    halo if col1 < cols else 0,  # right
-                    halo if row0 > 0 else 0,  # top
-                    halo if row1 < rows else 0,  # bottom
-                )
-                try:
-                    tile = _read_tile_with_halo(
-                        source,
-                        sub_bbox=sub_bbox,
-                        tile_shape=tile_shape,
-                        crs=crs,
-                        cell_x=cell_x,
-                        cell_y=cell_y,
-                        resample=resample,
-                        halo=tile_halo,
-                    )
-                    any_covered = True
-                except ReaderError as exc:
-                    if "does not intersect" not in str(exc):
-                        raise
-                    # A tile fully outside the asset footprint: emit an all-nodata
-                    # tile, matching how the un-tiled warp nodata-fills that region
-                    # (the un-tiled read clamps the window and fills the overhang).
-                    tile = _nodata_tile(source, sub_bbox, tile_shape, crs, nodata)
-                tile_path = os.path.join(tmp_dir, f"tile_{row0}_{col0}.tif")
-                tile.to_file(tile_path)
-                tile.close()  # release the GDAL handle so the temp file can be removed
-                tile_paths.append(tile_path)
+                any_covered = True
+            except ReaderError as exc:
+                if "does not intersect" not in str(exc):
+                    raise
+                # A tile fully outside the asset footprint: emit an all-nodata tile,
+                # matching how the un-tiled warp nodata-fills that region (the un-tiled
+                # read clamps the window and fills the overhang).
+                assert tile.bbox is not None and tile.shape is not None
+                tile_ds = _nodata_tile(source, tile.bbox, tile.shape, tile.crs, nodata)
+            tile_path = os.path.join(tmp_dir, f"tile_{index}.tif")
+            tile_ds.to_file(tile_path)
+            tile_ds.close()  # release the GDAL handle so the temp file can be removed
+            tile_paths.append(tile_path)
         if not any_covered:
             # No tile intersected the asset — the whole AOI is off the footprint,
             # the same case the un-tiled read rejects.
-            raise ReaderError(f"AOI {bbox} does not intersect the Earth Engine asset.")
+            raise ReaderError(
+                f"AOI {window.bbox} does not intersect the Earth Engine asset."
+            )
         _mosaic_tiles(tile_paths, str(path), nodata)
     finally:
         # merge_rasters opens the tile files (and holds them via GC-managed handles);
@@ -2199,15 +2160,12 @@ def from_earthengine(
         if bbox is None:
             bbox = _geometry_bounds(geometry)
 
+    window = _Window(bbox=bbox, crs=crs, scale=scale, shape=shape, resample=resample)
     if reducer is not None or start is not None or end is not None:
         result = _composite_read(
             asset_id,
             bands=bands,
-            bbox=bbox,
-            crs=crs,
-            scale=scale,
-            shape=shape,
-            resample=resample,
+            window=window,
             start=start,
             end=end,
             reducer=reducer,
@@ -2222,11 +2180,7 @@ def from_earthengine(
         result = _single_image_read(
             asset_id,
             bands=bands,
-            bbox=bbox,
-            crs=crs,
-            scale=scale,
-            shape=shape,
-            resample=resample,
+            window=window,
             geometry=geometry,
             credentials=creds,
             tile_size=tile_size,
@@ -2344,13 +2298,11 @@ def collection_from_earthengine(
     with creds.activate():
         windowed = _read_scenes_aligned(
             scenes,
-            bbox=bbox,
-            crs=crs,
-            scale=scale,
-            shape=shape,
+            window=_Window(
+                bbox=bbox, crs=crs, scale=scale, shape=shape, resample=resample
+            ),
             bands=bands,
             credentials=creds,
-            resample=resample,
             block_size=block_size,
         )
     env = creds.gdal_env()

@@ -700,10 +700,9 @@ class TestWindow:
         """
         source = Dataset(_synthetic_srtm())
         monkeypatch.setattr(ee_reader.gdal, "Warp", lambda dest, src, **kw: None)
+        window = ee_reader._Window(bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None)
         with pytest.raises(ReaderError, match="windowing"):
-            ee_reader._window(
-                source, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None
-            )
+            ee_reader._window(source, window)
 
 
 class _FakeFeature:
@@ -1835,9 +1834,9 @@ class TestCredentialScope:
         seen = {}
         real_window = ee_reader._window
 
-        def _spy(src, **kwargs):
+        def _spy(src, window):
             seen["cfg"] = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
-            return real_window(src, **kwargs)
+            return real_window(src, window)
 
         monkeypatch.setattr(
             ee_reader,
@@ -2392,10 +2391,14 @@ class TestResample:
         bbox = (86.0, 29.0 - size * 0.001, 86.0 + size * 0.001, 29.0)
         common = {"bbox": bbox, "crs": "EPSG:4326", "scale": None, "shape": (10, 10)}
         nearest = np.asarray(
-            ee_reader._window(Dataset(src), resample="nearest", **common).read_array()
+            ee_reader._window(
+                Dataset(src), ee_reader._Window(resample="nearest", **common)
+            ).read_array()
         )
         average = np.asarray(
-            ee_reader._window(Dataset(src), resample="average", **common).read_array()
+            ee_reader._window(
+                Dataset(src), ee_reader._Window(resample="average", **common)
+            ).read_array()
         )
         assert not np.array_equal(nearest, average), (
             "nearest and average must differ — resample is not reaching the warp"
@@ -2443,6 +2446,73 @@ def patched_gradient(monkeypatch):
         "_open_eedai",
         lambda a, *, bands, credentials, **_kw: Dataset(_gradient_source()),
     )
+
+
+class TestWindowValueObject:
+    """Tests for the :class:`_Window` value object and the :func:`_iter_tiles` grid."""
+
+    def test_for_tile_derives_sub_window_and_drops_scale(self) -> None:
+        """``_Window.for_tile`` sets the tile's bounds/shape, keeps CRS, drops scale.
+
+        Test scenario:
+            A scale-defined window yields a tile window at the tile's exact shape with
+            ``scale`` cleared (shape and scale are mutually exclusive).
+        """
+        window = ee_reader._Window(
+            bbox=(0.0, 0.0, 1.0, 1.0),
+            crs="EPSG:4326",
+            scale=0.1,
+            shape=None,
+            resample="bilinear",
+        )
+        tile = window.for_tile((0.2, 0.2, 0.4, 0.4), (7, 9))
+        assert tile.bbox == (0.2, 0.2, 0.4, 0.4), f"bad tile bbox: {tile.bbox}"
+        assert tile.shape == (7, 9), f"bad tile shape: {tile.shape}"
+        assert tile.scale is None, "scale must be dropped for a shape-sized tile"
+        assert tile.crs == "EPSG:4326", "tile must inherit the parent CRS"
+        assert tile.resample == "bilinear", "tile must inherit the parent resampler"
+
+    def test_iter_tiles_covers_grid_with_interior_only_halo(self) -> None:
+        """``_iter_tiles`` tiles the grid; the halo is nonzero only on interior edges.
+
+        Test scenario:
+            A 10x10 shape window split into 4-px tiles yields a 3x3 tile grid whose
+            union covers every output pixel exactly once, and each tile's per-edge halo
+            is the halo size on a shared edge and 0 on the outer window boundary.
+        """
+        window = ee_reader._Window(
+            bbox=(0.0, 0.0, 10.0, 10.0),
+            crs="EPSG:4326",
+            scale=None,
+            shape=(10, 10),
+        )
+        tiles = list(ee_reader._iter_tiles(window, tile_size=4, halo_size=2))
+        assert len(tiles) == 9, f"expected a 3x3 tile grid, got {len(tiles)} tiles"
+        covered = sum(t.shape[0] * t.shape[1] for t, _halo, _cx, _cy in tiles)
+        assert covered == 100, f"tiles must cover all 100 output pixels, got {covered}"
+        _first_tile, first_halo, _, _ = tiles[0]
+        assert first_halo == (0, 2, 0, 2), (
+            f"top-left tile: outer edges 0, interior edges 2, got {first_halo}"
+        )
+        _last_tile, last_halo, _, _ = tiles[-1]
+        assert last_halo == (2, 0, 2, 0), (
+            f"bottom-right tile: interior edges 2, outer edges 0, got {last_halo}"
+        )
+
+    def test_iter_tiles_nearest_uses_zero_halo(self) -> None:
+        """A zero ``halo_size`` (nearest) yields all-zero per-edge halos (#65).
+
+        Test scenario:
+            With ``halo_size=0`` every tile edge halo is 0 — the zero-overhead path.
+        """
+        window = ee_reader._Window(
+            bbox=(0.0, 0.0, 8.0, 8.0),
+            crs="EPSG:4326",
+            scale=None,
+            shape=(8, 8),
+        )
+        for _tile, halo, _cx, _cy in ee_reader._iter_tiles(window, 3, 0):
+            assert halo == (0, 0, 0, 0), f"nearest tiles need no halo, got {halo}"
 
 
 class TestTileEdges:
