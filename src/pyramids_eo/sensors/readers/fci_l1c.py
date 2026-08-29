@@ -558,19 +558,31 @@ def _assemble_channel(
     height = _satellite_height(top["crs"])
     # The granule's geotransform is in geostationary radians; scale it by the
     # satellite height to get the metre grid the geostationary CRS expects.
-    origin_x, pixel_w, row_rot, origin_y, col_rot, pixel_h = (
+    origin_x, pixel_w, row_rot, origin_y, col_rot, pixel_h = tuple(
         term * height for term in top["geotransform"]
     )
+    # The reconciliation below adjusts only the x scale and origin, so a skewed grid
+    # (non-zero rotation terms) would be left geometrically inconsistent. FCI
+    # geostationary grids are always axis-aligned; guard rather than emit a silently
+    # wrong geotransform if that ever stops holding.
+    if row_rot != 0.0 or col_rot != 0.0:
+        raise ReaderError(
+            "read_fci_l1c: a rotated grid (non-zero geotransform rotation terms) "
+            "is not supported"
+        )
     # FCI stores x as a scanning azimuth angle whose sign runs opposite to PROJ's
     # geostationary x (which increases eastward), so the scaled x pixel width comes
-    # out negative with the origin on the eastern limb. Left as-is, any warp mirrors
+    # out negative with its origin on the eastern limb. Left as-is, any warp mirrors
     # the scene east-west (issue #56). The pixels are already in west -> east column
     # order — only their geolocation is mislabelled — so reconcile the geotransform
     # to the CRS (re-anchor the origin on the western limb, emit a positive x width)
-    # and leave the array untouched. The y axis is already north-up (pixel_h < 0).
+    # and leave the array untouched. The y axis is guaranteed north-up (pixel_h < 0)
+    # upstream by `_validate_chunks`, so it is not reconciled here.
     if pixel_w < 0:
         origin_x += pixel_w * data.shape[1]
         pixel_w = -pixel_w
+    if pixel_w == 0.0:
+        raise ReaderError("read_fci_l1c: a degenerate zero-width x geotransform")
     geo = (origin_x, pixel_w, row_rot, origin_y, col_rot, pixel_h)
     dataset = Dataset.create_from_array(data, geo=geo, epsg=None, no_data_value=np.nan)
     dataset.crs = top["crs"]

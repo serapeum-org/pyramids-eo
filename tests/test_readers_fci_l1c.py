@@ -518,6 +518,34 @@ class TestReadFciL1c:
             "an already-positive width is not re-anchored (origin is the scaled one)"
         )
 
+    def test_rotated_grid_raises(self, monkeypatch):
+        """A non-zero geotransform rotation term is rejected, not silently emitted."""
+        record = {
+            "radiance": np.ones((2, 3)),
+            "start_row": 1,
+            "end_row": 1,
+            "coeffs": _THERMAL,
+            "geotransform": (0.1, -1e-5, 0.1, 0.0, 0.0, -1e-5),  # non-zero row_rot
+            "crs": GEOS_WKT,
+        }
+        self._patch(monkeypatch, {"a.nc": record})
+        with pytest.raises(ReaderError, match="rotated grid"):
+            read_fci_l1c(["a.nc"], "ir_105", calibrate=False)
+
+    def test_zero_x_width_raises(self, monkeypatch):
+        """A degenerate zero-width x geotransform is rejected."""
+        record = {
+            "radiance": np.ones((2, 3)),
+            "start_row": 1,
+            "end_row": 1,
+            "coeffs": _THERMAL,
+            "geotransform": (0.1, 0.0, 0.0, 0.0, 0.0, -1e-5),  # zero x width
+            "crs": GEOS_WKT,
+        }
+        self._patch(monkeypatch, {"a.nc": record})
+        with pytest.raises(ReaderError, match="zero-width"):
+            read_fci_l1c(["a.nc"], "ir_105", calibrate=False)
+
     def test_mixed_column_count_raises(self, monkeypatch):
         """Chunks with different widths are rejected."""
         mapping = {
