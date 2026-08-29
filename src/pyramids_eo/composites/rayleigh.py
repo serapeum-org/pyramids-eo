@@ -129,9 +129,11 @@ def rayleigh_reflectance(
 
     mu_s = np.cos(sza_r)
     mu_v = np.cos(vza_r)
-    # Rayleigh phase function at the scattering angle; cos^2 is even, so the
-    # azimuth sign convention does not matter.
-    cos_scat = -mu_s * mu_v + np.sin(sza_r) * np.sin(vza_r) * np.cos(raz_r)
+    # Rayleigh phase function at the scattering angle. cos(Theta) is
+    # -mu_s*mu_v - sin(sza)*sin(vza)*cos(azidiff); azidiff = 0 (co-azimuth) is
+    # back-scatter, where cos(Theta) = -1 and the phase is maximal. cos**2 is even,
+    # so only the azimuth *sign* is immaterial -- the term's own sign is not.
+    cos_scat = -mu_s * mu_v - np.sin(sza_r) * np.sin(vza_r) * np.cos(raz_r)
     phase = 0.75 * (1.0 + cos_scat**2)
 
     with np.errstate(divide="ignore", invalid="ignore"):
