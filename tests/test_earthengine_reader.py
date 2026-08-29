@@ -1301,6 +1301,24 @@ class TestDiscoverScenes:
                 credentials=creds,
             )
 
+    def test_estimate_cost_no_scenes_raises(self, monkeypatch) -> None:
+        """``estimate_earthengine_cost`` over an empty window raises ``ReaderError`` (#61).
+
+        Test scenario:
+            Discovery returns no scenes, so there is nothing to size — the estimate fails
+            loudly like the reader rather than returning a zero-scene cost.
+        """
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: [])
+        creds = EarthEngineCredentials.application_default()
+        with pytest.raises(ReaderError, match="No Earth Engine scenes"):
+            ee_reader.estimate_earthengine_cost(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                start="2024-06-01",
+                end="2024-06-30",
+                bbox=_BBOX,
+                credentials=creds,
+            )
+
     def test_estimate_cost_accepts_geometry_envelope(self, monkeypatch) -> None:
         """``estimate_earthengine_cost`` bounds discovery by a geometry's envelope (#61).
 
@@ -2673,6 +2691,51 @@ class TestWindowValueObject:
                 credentials=creds,
                 block_size=None,
             )
+
+    def test_apply_nodata_file_backed_without_credentials(self, tmp_path) -> None:
+        """A file-backed ``_apply_nodata`` with no credentials re-tags without a pin.
+
+        Test scenario:
+            A dataset read from disk has its fill streamed into the file and a fresh
+            file-backed dataset returned; with ``credentials=None`` no credential is
+            pinned — the branch the public API (which always passes credentials) never
+            takes.
+        """
+        path = tmp_path / "backed.tif"
+        Dataset(_synthetic_srtm(fill=5)).to_file(str(path))
+        backed = Dataset.read_file(str(path))
+        tagged = ee_reader._apply_nodata(backed, 999, credentials=None)
+        assert tagged.no_data_value[0] == 999, (
+            f"file-backed nodata should re-tag to 999, got {tagged.no_data_value[0]}"
+        )
+        assert not hasattr(tagged, "_ee_credentials"), (
+            "no credentials were given, so none should be pinned onto the result"
+        )
+
+    def test_read_tile_with_halo_multiband_source(self) -> None:
+        """A haloed tile read of a multi-band source keeps every band (ndim != 2 path).
+
+        Test scenario:
+            An interpolating (haloed) tile read of a 2-band source returns a 2-band tile
+            on the tile's exact grid — the grown warp yields a ``(bands, rows, cols)``
+            array, so the single-band ``ndim == 2`` reshape is skipped and each band's
+            constant fill is preserved.
+        """
+        source = _multiband_scene(n_bands=2, fills=(10, 20), nodatas=(-1, -2))
+        tile = ee_reader.Window(
+            bbox=(86.05, 28.85, 86.15, 28.95),
+            crs="EPSG:4326",
+            scale=None,
+            shape=(4, 4),
+            resample="bilinear",
+        )
+        result = ee_reader._read_tile_with_halo(
+            source, tile, cell_x=0.025, cell_y=0.025, halo=(1, 1, 1, 1)
+        )
+        assert result.shape == (2, 4, 4), f"expected a 2-band 4x4 tile, got {result.shape}"
+        arr = np.asarray(result.read_array())
+        assert int(round(arr[0].mean())) == 10, f"band 0 should stay ~10, got {arr[0].mean()}"
+        assert int(round(arr[1].mean())) == 20, f"band 1 should stay ~20, got {arr[1].mean()}"
 
 
 class TestTileEdges:
