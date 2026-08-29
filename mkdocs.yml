@@ -110,6 +110,7 @@ nav:
     - FCI / SEVIRI readers & harmonise: examples/readers_fci_seviri_harmonise.ipynb
     - Day/night compositing primitives: examples/day_night_compositing.ipynb
     - Day/night + eclipse (end to end): examples/eclipse_day_night.ipynb
+    - Sentinel-2 reader: examples/sentinel2_reader.ipynb
   - Reference:
     - Overview: reference/index.md
     - Sensors:
