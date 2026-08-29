@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import json
 import os
+import time
+import urllib.error
 import urllib.request
 
 import numpy as np
@@ -84,12 +86,26 @@ def _search_clearest_l2a(months: int = 3, limit: int = 30) -> dict:
         data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(request, timeout=60) as response:
-        features = json.load(response).get("features", [])
+    features: list[dict] = []
+    for attempt in range(3):  # tolerate a transient CDSE STAC hiccup
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                features = json.load(response).get("features", [])
+            break
+        except urllib.error.URLError:  # pragma: no cover - network dependent
+            if attempt == 2:
+                raise
+            time.sleep(2**attempt)
     if not features:  # pragma: no cover - depends on CDSE catalog state
         pytest.fail("CDSE STAC returned no Sentinel-2 L2A scenes for the AOI/window")
-    features.sort(key=lambda f: f["properties"].get("eo:cloud_cover", 999.0))
+    features.sort(key=lambda f: _cloud_cover_key(f))
     return features[0]
+
+
+def _cloud_cover_key(feature: dict) -> float:
+    """Cloud-cover sort key; a missing or null value sorts last (not as 0)."""
+    value = feature.get("properties", {}).get("eo:cloud_cover")
+    return 999.0 if value is None else float(value)
 
 
 def _safe_mtd_path(item: dict) -> str:
@@ -101,7 +117,7 @@ def _safe_mtd_path(item: dict) -> str:
     href = next(
         a["href"]
         for a in item["assets"].values()
-        if a.get("href", "").startswith("s3://")
+        if a.get("href", "").startswith("s3://") and ".SAFE/" in a["href"]
     )
     safe_root = href.split(".SAFE/", 1)[0] + ".SAFE"
     key = safe_root[len("s3://") :]
@@ -123,17 +139,39 @@ def _centre_window(item: dict, metres: int = 1500) -> tuple[float, float, float,
     return (cx - half, cy - half, cx + half, cy + half)
 
 
+_S3_CONFIG_KEYS = (
+    "AWS_S3_ENDPOINT",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_VIRTUAL_HOSTING",
+    "AWS_HTTPS",
+    "GDAL_DISABLE_READDIR_ON_OPEN",
+)
+
+
 @pytest.fixture(scope="module")
-def scene() -> dict:
-    """Resolve one clear CDSE L2A scene and configure S3 access once per module."""
+def scene():
+    """Resolve one clear CDSE L2A scene, restoring the global GDAL config after.
+
+    ``_configure_cdse_s3`` mutates process-global GDAL options (including the
+    credentials); this snapshots and restores them on teardown so no state — and
+    no secret — leaks to any later GDAL operation in the same pytest session.
+    """
+    from osgeo import gdal
+
+    saved = {key: gdal.GetConfigOption(key) for key in _S3_CONFIG_KEYS}
     _configure_cdse_s3()
     item = _search_clearest_l2a()
-    return {
-        "path": _safe_mtd_path(item),
-        "bbox": _centre_window(item),
-        "id": item["id"],
-        "cloud_cover": item["properties"].get("eo:cloud_cover"),
-    }
+    try:
+        yield {
+            "path": _safe_mtd_path(item),
+            "bbox": _centre_window(item),
+            "id": item["id"],
+            "cloud_cover": item["properties"].get("eo:cloud_cover"),
+        }
+    finally:
+        for key, value in saved.items():
+            gdal.SetConfigOption(key, value)
 
 
 def test_open_product_reads_real_l2a_over_s3(scene):
@@ -163,9 +201,11 @@ def test_reflectance_is_physical_with_baseline_offset(scene):
     assert finite.min() >= -0.2
     assert np.percentile(finite, 99) <= 2.0
     assert 0.01 < float(np.nanmean(finite)) < 0.9
-    # Post-baseline-04.00 products carry scale 1/quant and a non-zero offset.
+    # Post-baseline-04.00 products carry scale 1/quant and a strictly negative
+    # offset; a recent scene is always baseline >= 04.00, so 0.0 would mean the
+    # offset was silently dropped.
     assert ds.scale[0] == pytest.approx(1.0 / 10000.0)
-    assert ds.offset[0] <= 0.0
+    assert ds.offset[0] < 0.0
 
 
 def test_cross_resolution_harmonise_onto_finest_grid(scene):
@@ -175,20 +215,45 @@ def test_cross_resolution_harmonise_onto_finest_grid(scene):
     ds = from_sentinel2(scene["path"], bands=["B04", "B11"], bbox=scene["bbox"])
     assert ds.band_count == 2
     assert ds.cell_size == 10.0
-    assert ds.shape[0] == 2
 
 
-def test_scl_masking_marks_pixels_nodata(scene):
-    """Masking an SCL class returns the same grid with a no-data value set."""
+def test_scl_masking_is_class_sensitive(scene):
+    """Masking a class present in the window drops more pixels than an absent one.
+
+    Reads the SCL band to learn which classes are actually present, then masks
+    B04 twice — once with the most-common present class, once with a class that
+    does not occur in the window — and asserts the present-class mask sets
+    strictly more pixels to no-data. This fails if ``mask_scl=`` were ignored or
+    ``scl_mask`` were a no-op (both counts would be equal), without depending on
+    the reader's masked-vs-unmasked grid staying identical.
+    """
     from pyramids_eo.sentinel import from_sentinel2
     from pyramids_eo.sentinel.s2.masks import SclClass
 
-    unmasked = from_sentinel2(scene["path"], bands=["B04"], bbox=scene["bbox"])
-    masked = from_sentinel2(
-        scene["path"],
-        bands=["B04"],
-        bbox=scene["bbox"],
-        mask_scl=[SclClass.CLOUD_HIGH_PROBA, SclClass.CLOUD_MEDIUM_PROBA],
+    scl = np.asarray(
+        from_sentinel2(scene["path"], bands=["SCL"], bbox=scene["bbox"]).read_array()
     )
-    assert masked.shape == unmasked.shape
-    assert any(v is not None for v in masked.no_data_value)
+    present = {int(c) for c in np.unique(scl)} - {int(SclClass.NODATA)}
+    assert present, "window has no maskable SCL class"
+    target = SclClass(max(present, key=lambda c: int(np.count_nonzero(scl == c))))
+    absent = next(SclClass(c) for c in range(1, 12) if c not in present)
+
+    masked_present = from_sentinel2(
+        scene["path"], bands=["B04"], bbox=scene["bbox"], mask_scl=[target]
+    )
+    masked_absent = from_sentinel2(
+        scene["path"], bands=["B04"], bbox=scene["bbox"], mask_scl=[absent]
+    )
+    present_nodata = int(
+        np.count_nonzero(
+            np.asarray(masked_present.read_array()) == masked_present.no_data_value[0]
+        )
+    )
+    absent_nodata = int(
+        np.count_nonzero(
+            np.asarray(masked_absent.read_array()) == masked_absent.no_data_value[0]
+        )
+    )
+    assert present_nodata > absent_nodata, (
+        "masking a present class removed no more pixels than masking an absent one"
+    )
