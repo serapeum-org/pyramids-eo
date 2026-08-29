@@ -77,6 +77,7 @@ class TestCloudCoverKey:
         assert _cloud_cover_key({"properties": {"eo:cloud_cover": None}}) == 999.0
         assert _cloud_cover_key({"properties": {}}) == 999.0
         assert _cloud_cover_key({}) == 999.0
+        assert _cloud_cover_key({"properties": None}) == 999.0
 
     def test_zero_cloud_cover_stays_zero(self):
         """A 0.0 (clearest) cover is kept, not coerced to the 999 sentinel.
