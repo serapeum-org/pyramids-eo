@@ -383,8 +383,8 @@ def _crop_to_bbox(dataset: Any, bbox: BBox) -> Any:
 
     Contract: this runs only inside the Sentinel-2 read path, on a **north-up**
     grid in its own (UTM) CRS, before any ``to_crs`` reprojection. It enforces
-    north-up (raising otherwise), preserves the per-band no-data values, and
-    carries the source EPSG — all lossless in that pipeline.
+    north-up (raising otherwise), carries the per-band no-data values (defaulting
+    a genuinely-unset value to 0.0, the S2 DN fill), and carries the source EPSG.
 
     Args:
         dataset: The dataset to window (its bands are read over the bbox).
@@ -406,13 +406,20 @@ def _crop_to_bbox(dataset: Any, bbox: BBox) -> Any:
 
     minx, miny, maxx, maxy = bbox
     gt = dataset.raster.GetGeoTransform()
-    x0, dx, row_skew, y0, col_skew, dy = gt
-    if row_skew or col_skew or dx <= 0 or dy >= 0:
+    x0, dx, x_rot, y0, y_rot, dy = gt
+    if x_rot or y_rot or dx <= 0 or dy >= 0:
         raise ProductError(
             "_crop_to_bbox requires a north-up grid (no rotation, dx > 0, "
             f"dy < 0); got geotransform {gt}"
         )
     cols, rows = dataset.raster.RasterXSize, dataset.raster.RasterYSize
+    # The window is hand-rolled rather than read_array(bbox=, bbox_rounding=
+    # "cover") because we also need the resolved pixel offsets to rebuild the
+    # output geotransform, which read_array(bbox=) does not return; the
+    # floor-near / ceil-far snap and [0, cols/rows] clamp match its "cover"
+    # rounding. eps absorbs FP noise when a bbox edge lands on a pixel boundary:
+    # 1e-9 is far below a UTM pixel (>= 10 m) yet above the ~2e-9 noise of
+    # differencing two ~1e7 UTM northings.
     eps = 1e-9
     xoff = min(max(math.floor((minx - x0) / dx + eps), 0), cols)
     x_far = min(max(math.ceil((maxx - x0) / dx - eps), 0), cols)
