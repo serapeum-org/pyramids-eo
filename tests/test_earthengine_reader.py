@@ -2585,7 +2585,7 @@ def patched_gradient(monkeypatch):
 
 
 class TestWindowValueObject:
-    """Tests for the :class:`_Window` value object and the :func:`_iter_tiles` grid."""
+    """Tests for the :class:`Window` value object and the :func:`_iter_tiles` grid."""
 
     def test_for_tile_derives_sub_window_and_drops_scale(self) -> None:
         """``Window._for_tile`` sets the tile's bounds/shape, keeps CRS, drops scale.
