@@ -573,7 +573,7 @@ def _assemble_channel(
     # (non-zero rotation terms) would be left geometrically inconsistent. FCI
     # geostationary grids are always axis-aligned; guard rather than emit a silently
     # wrong geotransform if that ever stops holding.
-    if row_rot != 0.0 or col_rot != 0.0:
+    if not np.isclose(row_rot, 0.0) or not np.isclose(col_rot, 0.0):
         raise ReaderError(
             "read_fci_l1c: a rotated grid (non-zero geotransform rotation terms) "
             "is not supported"
@@ -589,7 +589,7 @@ def _assemble_channel(
     if pixel_w < 0:
         origin_x += pixel_w * data.shape[1]
         pixel_w = -pixel_w
-    if pixel_w == 0.0:
+    if np.isclose(pixel_w, 0.0):
         raise ReaderError("read_fci_l1c: a degenerate zero-width x geotransform")
     geo = (origin_x, pixel_w, row_rot, origin_y, col_rot, pixel_h)
     dataset = Dataset.create_from_array(data, geo=geo, epsg=None, no_data_value=np.nan)
