@@ -2650,7 +2650,9 @@ class TestWindowValueObject:
         hit = np.asarray(result[0].read_array())
         miss = np.asarray(result[1].read_array())
         assert (hit == 7).all(), f"covering scene should hold its pixels, got {hit}"
-        assert miss.shape[-2:] == (4, 4), f"fill tile must match the grid, got {miss.shape}"
+        assert miss.shape[-2:] == (4, 4), (
+            f"fill tile must match the grid, got {miss.shape}"
+        )
         assert (miss == -32768).all(), (
             f"a scene that misses the tile must be nodata-filled, got {miss}"
         )
@@ -2732,10 +2734,16 @@ class TestWindowValueObject:
         result = ee_reader._read_tile_with_halo(
             source, tile, cell_x=0.025, cell_y=0.025, halo=(1, 1, 1, 1)
         )
-        assert result.shape == (2, 4, 4), f"expected a 2-band 4x4 tile, got {result.shape}"
+        assert result.shape == (2, 4, 4), (
+            f"expected a 2-band 4x4 tile, got {result.shape}"
+        )
         arr = np.asarray(result.read_array())
-        assert int(round(arr[0].mean())) == 10, f"band 0 should stay ~10, got {arr[0].mean()}"
-        assert int(round(arr[1].mean())) == 20, f"band 1 should stay ~20, got {arr[1].mean()}"
+        assert int(round(arr[0].mean())) == 10, (
+            f"band 0 should stay ~10, got {arr[0].mean()}"
+        )
+        assert int(round(arr[1].mean())) == 20, (
+            f"band 1 should stay ~20, got {arr[1].mean()}"
+        )
 
 
 class TestTileEdges:
