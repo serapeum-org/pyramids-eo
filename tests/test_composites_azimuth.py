@@ -127,6 +127,11 @@ class TestSatelliteZenithAzimuth:
         vza, _ = satellite_zenith_azimuth(0.0, 180.0, sat_lon=0.0)
         assert np.isnan(vza), f"far-side point should be NaN, got {vza}"
 
+    def test_sub_earth_radius_raises(self):
+        """A sat_radius_km at or below Earth's radius is rejected (needs an orbital radius)."""
+        with pytest.raises(ValueError, match="sat_radius_km"):
+            satellite_zenith_azimuth(0.0, 0.0, sat_radius_km=6000.0)
+
 
 class TestRelativeAzimuth:
     """`relative_azimuth` folds the Sun-satellite difference into [0, 180]."""

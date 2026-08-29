@@ -321,7 +321,9 @@ def satellite_zenith_azimuth(
         side of the Earth on a full global grid).
 
     Raises:
-        ValueError: Same coordinate-argument errors as `solar_zenith_angle`.
+        ValueError: When `sat_radius_km` is not greater than Earth's radius (it is
+            an orbital radius, not an altitude), or on the same coordinate-argument
+            errors as `solar_zenith_angle`.
 
     Examples:
         - The sub-satellite point sees the satellite at the local zenith (0deg):
@@ -341,6 +343,12 @@ def satellite_zenith_azimuth(
 
             ```
     """
+    if sat_radius_km <= _R_EARTH_KM:
+        raise ValueError(
+            f"sat_radius_km must exceed Earth's radius ({_R_EARTH_KM} km); got "
+            f"{sat_radius_km}. Pass an orbital radius from Earth's centre, not an "
+            "altitude (geostationary is ~42164 km)."
+        )
     lon2d, lat2d = _resolve_coords(lat, lon, grid)
     la = np.deg2rad(lat2d)
     dlon = np.deg2rad(lon2d - sat_lon)
