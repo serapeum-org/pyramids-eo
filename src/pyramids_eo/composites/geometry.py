@@ -205,19 +205,23 @@ def sunz_correct(
         band: The solar band (reflectance) — array-like or a pyramids `Dataset`.
         sza: Per-pixel solar zenith angle in **degrees** (e.g. from
             `solar_zenith_angle`), broadcastable against `band`.
-        correction_limit: SZA (degrees) at/beyond which the `1 / cos` factor is
-            capped and starts to taper. Also the largest correction applied
-            (`1 / cos(correction_limit)`).
+        correction_limit: SZA (degrees), in `[0, 90)`, at/beyond which the
+            `1 / cos` factor is capped and starts to taper. Also the largest
+            correction applied (`1 / cos(correction_limit)`).
         max_sza: SZA (degrees) at which the correction reaches `0`, or `None` to
             hold the factor constant at `1 / cos(correction_limit)` beyond the
             limit (no taper). Must exceed `correction_limit`.
 
     Returns:
-        The corrected band. A pyramids `Dataset` (carrying `band`'s geotransform +
-        CRS) when `band` is a `Dataset`, otherwise an ndarray.
+        The corrected band (`band` times the per-pixel factor). A pyramids
+        `Dataset` (carrying `band`'s geotransform + CRS) when `band` is a
+        `Dataset`, otherwise an ndarray (a 0-d array for scalar inputs). The
+        *factor* is `0` beyond `max_sza` and where `sza` is NaN, but a NaN band
+        value stays NaN (`0 * NaN`), so off-disk nodata is preserved, not blacked.
 
     Raises:
-        ValueError: When `max_sza` is not greater than `correction_limit`.
+        ValueError: When `correction_limit` is not in `[0, 90)`, or `max_sza` is
+            not greater than `correction_limit`.
 
     Examples:
         - Overhead sun is unchanged; a 60deg zenith doubles the signal (`1/cos60`):
@@ -237,6 +241,10 @@ def sunz_correct(
 
             ```
     """
+    if not 0.0 <= correction_limit < 90.0:
+        raise ValueError(
+            f"correction_limit must be in [0, 90) degrees, got {correction_limit}"
+        )
     if max_sza is not None and max_sza <= correction_limit:
         raise ValueError(
             f"max_sza ({max_sza}) must be greater than correction_limit "
@@ -245,18 +253,17 @@ def sunz_correct(
     arr = _as_array(band)
     angle = _as_array(sza)
     cos_zen = np.cos(np.deg2rad(angle))
-    limit_rad = np.deg2rad(correction_limit)
-    limit_cos = float(np.cos(limit_rad))
+    limit_cos = float(np.cos(np.deg2rad(correction_limit)))
 
     with np.errstate(divide="ignore", invalid="ignore"):
         corr = 1.0 / cos_zen
     if max_sza is not None:
-        ramp = (np.deg2rad(angle) - limit_rad) / (np.deg2rad(max_sza) - limit_rad)
+        ramp = (angle - correction_limit) / (max_sza - correction_limit)
         with np.errstate(invalid="ignore"):
             grad_factor = 1.0 - np.log2(ramp + 1.0)
         grad_factor = np.clip(grad_factor, 0.0, None)
     else:
-        grad_factor = 1.0
+        grad_factor = np.ones_like(cos_zen)
 
     corr = np.where(cos_zen > limit_cos, corr, grad_factor / limit_cos)
     corr = np.where(np.isnan(cos_zen), 0.0, corr)
@@ -268,7 +275,7 @@ def sunz_reduce(
     sza: Any,
     *,
     correction_limit: float = 80.0,
-    max_sza: float = 90.0,
+    max_sza: float | None = 90.0,
     strength: float = 1.3,
 ) -> Any:
     """Taper a solar band's signal toward the terminator so deep shadow reads dark.
@@ -284,19 +291,24 @@ def sunz_reduce(
         band: The solar band (reflectance) — array-like or a pyramids `Dataset`.
         sza: Per-pixel solar zenith angle in **degrees** (e.g. from
             `solar_zenith_angle`), broadcastable against `band`.
-        correction_limit: SZA (degrees) below which the signal is unchanged.
+        correction_limit: SZA (degrees), `>= 0`, below which the signal is
+            unchanged.
         max_sza: SZA (degrees) at which the signal is fully reduced to `0`. Must
-            exceed `correction_limit`.
+            exceed `correction_limit`; required (unlike `sunz_correct`, `None` is
+            rejected).
         strength: Sigmoid power sharpening the reduction ramp; `1.0` leaves it as
             the plain inverted-`log2` curve. Must be `> 0`.
 
     Returns:
-        The reduced band. A pyramids `Dataset` (carrying `band`'s geotransform +
-        CRS) when `band` is a `Dataset`, otherwise an ndarray.
+        The reduced band (`band` times the per-pixel factor). A pyramids `Dataset`
+        (carrying `band`'s geotransform + CRS) when `band` is a `Dataset`,
+        otherwise an ndarray (a 0-d array for scalar inputs). The *factor* is `0`
+        at/beyond `max_sza` and where `sza` is NaN, but a NaN band value stays NaN
+        (`0 * NaN`), so off-disk nodata is preserved, not blacked.
 
     Raises:
-        ValueError: When `max_sza` is not greater than `correction_limit`, or
-            `strength <= 0`.
+        ValueError: When `max_sza` is `None` or not greater than
+            `correction_limit`, `correction_limit < 0`, or `strength <= 0`.
 
     Examples:
         - Unchanged below the limit, fully reduced to `0` at `max_sza`:
@@ -316,6 +328,10 @@ def sunz_reduce(
 
             ```
     """
+    if max_sza is None:
+        raise ValueError("max_sza is required for sunz_reduce (got None)")
+    if correction_limit < 0:
+        raise ValueError(f"correction_limit must be >= 0, got {correction_limit}")
     if max_sza <= correction_limit:
         raise ValueError(
             f"max_sza ({max_sza}) must be greater than correction_limit "
@@ -328,10 +344,9 @@ def sunz_reduce(
 
     ramp = np.clip((angle - correction_limit) / (max_sza - correction_limit), 0.0, 1.0)
     reduction = 1.0 - np.log2(ramp + 1.0)
-    with np.errstate(invalid="ignore"):
-        reduction = reduction**strength / (
-            reduction**strength + (1.0 - reduction) ** strength
-        )
+    reduction = reduction**strength / (
+        reduction**strength + (1.0 - reduction) ** strength
+    )
     corr = np.where(angle < correction_limit, 1.0, reduction)
     corr = np.where(np.isnan(angle), 0.0, corr)
     return _wrap_like(arr * corr, band)
