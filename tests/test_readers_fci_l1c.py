@@ -538,14 +538,26 @@ class TestReadFciL1c:
             "0.1 * 1e5 + (-1.0) * 3"
         )
 
-    def test_rotated_grid_raises(self, monkeypatch):
-        """A non-zero geotransform rotation term is rejected, not silently emitted."""
+    @pytest.mark.parametrize(
+        "geotransform",
+        [
+            pytest.param((0.1, -1e-5, 0.1, 0.0, 0.0, -1e-5), id="row_rot"),  # gt[2]
+            pytest.param((0.1, -1e-5, 0.0, 0.0, 0.1, -1e-5), id="col_rot"),  # gt[4]
+        ],
+    )
+    def test_rotated_grid_raises(self, monkeypatch, geotransform):
+        """A non-zero geotransform rotation term (either axis) is rejected.
+
+        Args:
+            geotransform: A grid with one non-zero rotation term (gt[2] or gt[4]),
+                covering both halves of the `row_rot or col_rot` guard.
+        """
         record = {
             "radiance": np.ones((2, 3)),
             "start_row": 1,
             "end_row": 1,
             "coeffs": _THERMAL,
-            "geotransform": (0.1, -1e-5, 0.1, 0.0, 0.0, -1e-5),  # non-zero row_rot
+            "geotransform": geotransform,
             "crs": GEOS_WKT,
         }
         self._patch(monkeypatch, {"a.nc": record})
