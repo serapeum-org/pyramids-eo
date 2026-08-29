@@ -24,7 +24,11 @@ The granule stores the grid in geostationary *angular* (radian) coordinates with
 a metre geostationary CRS; the metre geotransform is reconstructed as
 `angular_geotransform * satellite_height` (from the CRS `+h`). This addresses the
 axis-unit mismatch behind pyramids #706 by keeping the CRS explicit rather than
-letting it be misread as lon/lat.
+letting it be misread as lon/lat. FCI's x is a scanning azimuth angle whose sign
+runs opposite to PROJ's geostationary x (which increases eastward), so the scaled
+x pixel width comes out negative on the eastern limb; the reader reconciles it to
+the CRS — re-anchoring the origin on the western limb with a positive x width, the
+array left untouched — so a warped scene is not mirrored east-west (issue #56).
 
 Validated against real MTI1/Meteosat-12 FDHSI chunks (see issue #40): `ir_105`
 stitches to brightness temperature in the expected range on the geostationary
@@ -549,7 +553,20 @@ def _assemble_channel(
     height = _satellite_height(top["crs"])
     # The granule's geotransform is in geostationary radians; scale it by the
     # satellite height to get the metre grid the geostationary CRS expects.
-    geo = tuple(term * height for term in top["geotransform"])
+    origin_x, pixel_w, row_rot, origin_y, col_rot, pixel_h = (
+        term * height for term in top["geotransform"]
+    )
+    # FCI stores x as a scanning azimuth angle whose sign runs opposite to PROJ's
+    # geostationary x (which increases eastward), so the scaled x pixel width comes
+    # out negative with the origin on the eastern limb. Left as-is, any warp mirrors
+    # the scene east-west (issue #56). The pixels are already in west -> east column
+    # order — only their geolocation is mislabelled — so reconcile the geotransform
+    # to the CRS (re-anchor the origin on the western limb, emit a positive x width)
+    # and leave the array untouched. The y axis is already north-up (pixel_h < 0).
+    if pixel_w < 0:
+        origin_x += pixel_w * data.shape[1]
+        pixel_w = -pixel_w
+    geo = (origin_x, pixel_w, row_rot, origin_y, col_rot, pixel_h)
     dataset = Dataset.create_from_array(data, geo=geo, epsg=None, no_data_value=np.nan)
     dataset.crs = top["crs"]
     return dataset
