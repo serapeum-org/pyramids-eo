@@ -939,6 +939,10 @@ def _read_scenes_aligned(
 
     Returns:
         One windowed pyramids ``Dataset`` per scene, all on the same grid.
+
+    Raises:
+        ReaderError: A scene's requested bands span multiple resolution groups
+            (subdatasets), which cannot be aligned across scenes (#58).
     """
     windowed: list[Dataset] = []
     target = window
@@ -953,6 +957,17 @@ def _read_scenes_aligned(
         # the windowed result is a self-contained in-memory copy that no longer
         # needs it.
         try:
+            # A single EEDAI open cannot serve bands from different subdataset
+            # (resolution) groups — it silently returns just one. Detect the drop by
+            # band count and fail loudly here too (#58), rather than compositing /
+            # stacking a silent subset the way the single-image path used to.
+            if bands is not None and src.band_count < len(bands):
+                raise ReaderError(
+                    f"The requested bands {bands} span multiple Earth Engine "
+                    "resolution groups (subdatasets), which the composite/collection "
+                    "reader cannot align across scenes; request a single-resolution "
+                    "band set."
+                )
             windowed_scene = _window(src, target)
             if target.shape is None and target.scale is None:
                 # First scene's native window fixes the grid for the rest.

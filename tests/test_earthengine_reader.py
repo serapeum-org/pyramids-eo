@@ -986,6 +986,32 @@ class TestFromEarthengineComposite:
                 path=out,
             )
 
+    def test_composite_mixed_resolution_bands_fail_loudly(self, monkeypatch) -> None:
+        """A composite spanning resolution groups raises, not drops bands (#58).
+
+        Test scenario:
+            Each scene's combined open yields fewer bands than requested (a cross-group
+            request), so the composite path must raise rather than reduce a silent
+            band subset — parity with the single-image guard.
+        """
+        scenes = [ee_reader._Scene("EEDAI:a", "2024-06-01T00:00:00")]
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: scenes)
+        monkeypatch.setattr(
+            ee_reader,
+            "_open_eedai",
+            lambda *a, **k: Dataset(_synthetic_srtm()),  # 1 band < 3 requested
+        )
+        window = Window(bbox=_BBOX, shape=(8, 8))
+        with pytest.raises(ReaderError, match="resolution groups|subdataset"):
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                window=window,
+                start="2024-06-01",
+                end="2024-06-30",
+                reducer="median",
+                bands=["B4", "B11", "B1"],
+            )
+
     def test_start_end_without_reducer_raises(self) -> None:
         """A date range without a reducer is rejected with guidance.
 
