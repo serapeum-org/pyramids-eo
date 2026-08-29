@@ -121,7 +121,8 @@ class TestSatelliteZenithAzimuth:
             np.zeros((2, 2)), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
         )
         vza, az = satellite_zenith_azimuth(grid=grid, sat_lon=0.0)
-        assert vza.shape == (2, 2) and az.shape == (2, 2), "grid shapes wrong"
+        assert vza.shape == (2, 2), f"grid zenith shape wrong: {vza.shape}"
+        assert az.shape == (2, 2), f"grid azimuth shape wrong: {az.shape}"
 
     def test_higher_orbit_reduces_off_nadir_zenith(self):
         """A larger orbital radius sees the same point closer to nadir."""
