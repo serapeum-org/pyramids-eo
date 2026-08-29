@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.error
 import urllib.request
 
 import numpy as np
@@ -85,11 +84,8 @@ def _search_clearest_l2a(months: int = 3, limit: int = 30) -> dict:
         data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json"},
     )
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            features = json.load(response).get("features", [])
-    except urllib.error.URLError as exc:  # pragma: no cover - network dependent
-        pytest.fail(f"CDSE STAC search failed: {exc}")
+    with urllib.request.urlopen(request, timeout=60) as response:
+        features = json.load(response).get("features", [])
     if not features:  # pragma: no cover - depends on CDSE catalog state
         pytest.fail("CDSE STAC returned no Sentinel-2 L2A scenes for the AOI/window")
     features.sort(key=lambda f: f["properties"].get("eo:cloud_cover", 999.0))
