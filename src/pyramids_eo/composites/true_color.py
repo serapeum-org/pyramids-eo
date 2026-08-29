@@ -30,6 +30,7 @@ import numpy as np
 
 from pyramids_eo.composites._common import _as_array, _wrap_like
 
+
 def _rayleigh_wants_role(fn: Callable[..., Any]) -> bool:
     """Return whether the `rayleigh` callable accepts a `role=` keyword.
 
