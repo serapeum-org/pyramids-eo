@@ -30,16 +30,12 @@ import numpy as np
 
 from pyramids_eo.composites._common import _as_array, _wrap_like
 
-#: The band's part in the composite, passed to a role-aware `rayleigh` callable.
-_SOLAR_ROLES = ("red", "green", "blue", "nir")
-
-
 def _rayleigh_wants_role(fn: Callable[..., Any]) -> bool:
     """Return whether the `rayleigh` callable accepts a `role=` keyword.
 
     Probed once (not per band) so a legacy `(band)`-only callable keeps working.
-    An un-introspectable callable (a builtin or a `functools.partial`) is treated
-    as the legacy one-argument form.
+    A callable whose signature cannot be introspected (e.g. some C builtins) is
+    treated as the legacy one-argument form.
 
     Args:
         fn: The caller-supplied `rayleigh` callable.
@@ -62,7 +58,8 @@ def _apply_rayleigh(
     Args:
         fn: The `rayleigh` callable.
         band: The solar band to correct.
-        role: The band's part in the composite (one of `_SOLAR_ROLES`).
+        role: The band's part in the composite (`"red"`, `"green"`, `"blue"`, or
+            `"nir"`).
         rich: Whether `fn` accepts the `role` keyword (from `_rayleigh_wants_role`).
 
     Returns:
