@@ -300,10 +300,11 @@ class TestFromEarthengine:
             return Dataset(_synthetic_srtm())  # always one band → cross-group
 
         monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
+        window = Window(bbox=_BBOX)
         with pytest.raises(ReaderError, match="resolution groups|subdataset"):
             from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                window=Window(bbox=_BBOX),
+                window=window,
                 bands=["B4", "B11", "B1"],
             )
 
@@ -337,13 +338,15 @@ class TestFromEarthengine:
             return Dataset(_synthetic_srtm())  # one band < 3 requested → cross-group
 
         monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
+        window = Window(bbox=_BBOX, shape=(10, 10))
+        out = str(tmp_path / "mixed_tiled.tif")
         with pytest.raises(ReaderError, match="does not support|resolution group"):
             from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                window=Window(bbox=_BBOX, shape=(10, 10)),
+                window=window,
                 bands=["B4", "B11", "B1"],
                 tile_size=4,
-                path=str(tmp_path / "mixed_tiled.tif"),
+                path=out,
             )
 
     def test_single_band_request_not_treated_as_mixed(self, patched_eedai) -> None:
@@ -427,10 +430,9 @@ class TestFromEarthengine:
         Test scenario:
             The guard rejects the ambiguous combination before any read.
         """
+        window = Window(bbox=_BBOX, scale=0.01, shape=(5, 5))
         with pytest.raises(ValueError, match="scale.*shape") as exc_info:
-            from_earthengine(
-                "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, scale=0.01, shape=(5, 5))
-            )
+            from_earthengine("USGS/SRTMGL1_003", window=window)
         assert "scale" in str(exc_info.value), f"Unexpected message: {exc_info.value}"
 
     @pytest.mark.parametrize(
@@ -452,8 +454,9 @@ class TestFromEarthengine:
             ``scale`` / ``shape`` / non-default ``crs`` all demand a bbox because
             EE assets are global and cannot be materialised whole.
         """
+        window = Window(**kwargs)
         with pytest.raises(ReaderError, match="bbox") as exc_info:
-            from_earthengine("USGS/SRTMGL1_003", window=Window(**kwargs))
+            from_earthengine("USGS/SRTMGL1_003", window=window)
         assert "bbox" in str(exc_info.value), (
             f"Message should mention bbox: {exc_info.value}"
         )
@@ -970,15 +973,17 @@ class TestFromEarthengineComposite:
             un-tiled one rather than writing an empty mosaic.
         """
         monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: [])
+        window = Window(bbox=_BBOX, shape=(8, 8))
+        out = str(tmp_path / "empty.tif")
         with pytest.raises(ReaderError, match="No Earth Engine scenes"):
             from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                window=Window(bbox=_BBOX, shape=(8, 8)),
+                window=window,
                 start="2024-06-01",
                 end="2024-06-30",
                 reducer="median",
                 tile_size=4,
-                path=str(tmp_path / "empty.tif"),
+                path=out,
             )
 
     def test_start_end_without_reducer_raises(self) -> None:
@@ -988,10 +993,11 @@ class TestFromEarthengineComposite:
             ``start``/``end`` but no ``reducer`` raises ``ValueError`` pointing to
             ``collection_from_earthengine``.
         """
+        window = Window(bbox=_BBOX)
         with pytest.raises(ValueError, match="reducer") as exc_info:
             from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                window=Window(bbox=_BBOX),
+                window=window,
                 start="2024-06-01",
                 end="2024-06-30",
             )
@@ -1028,10 +1034,11 @@ class TestFromEarthengineComposite:
             No scenes in the window -> ``ReaderError`` naming the asset.
         """
         monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: [])
+        window = Window(bbox=_BBOX)
         with pytest.raises(ReaderError, match="No Earth Engine scenes"):
             from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                window=Window(bbox=_BBOX),
+                window=window,
                 start="2024-06-01",
                 end="2024-06-30",
                 reducer="median",
@@ -1076,10 +1083,11 @@ class TestCollectionFromEarthengine:
         Test scenario:
             The guard rejects the ambiguous combination before any read.
         """
+        window = Window(bbox=_BBOX, scale=0.01, shape=(4, 4))
         with pytest.raises(ValueError, match="scale.*shape"):
             collection_from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                window=Window(bbox=_BBOX, scale=0.01, shape=(4, 4)),
+                window=window,
                 start="2024-06-01",
                 end="2024-06-30",
             )
@@ -1091,10 +1099,11 @@ class TestCollectionFromEarthengine:
             No scenes in the window -> ``ReaderError``.
         """
         monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: [])
+        window = Window(bbox=_BBOX)
         with pytest.raises(ReaderError, match="No Earth Engine scenes"):
             collection_from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                window=Window(bbox=_BBOX),
+                window=window,
                 start="2024-06-01",
                 end="2024-06-30",
             )
@@ -2405,10 +2414,9 @@ class TestResample:
             ``from_earthengine`` validates ``resample`` before touching the driver
             (no ``_open_eedai`` monkeypatch is needed — it never reaches it).
         """
+        window = Window(bbox=_BBOX, resample="neareset")
         with pytest.raises(ValueError, match="Unknown resample"):
-            from_earthengine(
-                "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, resample="neareset")
-            )
+            from_earthengine("USGS/SRTMGL1_003", window=window)
 
     def test_from_earthengine_honours_resample(self, patched_eedai) -> None:
         """A non-default ``resample`` is accepted end-to-end.
@@ -2652,6 +2660,7 @@ class TestWindowValueObject:
             raise ReaderError("Earth Engine block read failed at (0, 0): boom")
 
         monkeypatch.setattr(ee_reader, "_read_tile_with_halo", _boom)
+        creds = EarthEngineCredentials.coerce(None)
         with pytest.raises(ReaderError, match="block read failed"):
             ee_reader._read_scene_tile(
                 scenes,
@@ -2661,7 +2670,7 @@ class TestWindowValueObject:
                 cell_y=1.0,
                 halo=(0, 0, 0, 0),
                 bands=None,
-                credentials=EarthEngineCredentials.coerce(None),
+                credentials=creds,
                 block_size=None,
             )
 
@@ -2943,13 +2952,12 @@ class TestTiledRead:
             ``does not intersect`` ``ReaderError`` as the un-tiled read.
         """
         far = (100.0, 50.0, 101.0, 51.0)
+        window = Window(bbox=far, shape=(8, 8))
         with pytest.raises(ReaderError, match="does not intersect"):
-            from_earthengine("X", window=Window(bbox=far, shape=(8, 8)))
-        out = tmp_path / "far.tif"
+            from_earthengine("X", window=window)
+        out = str(tmp_path / "far.tif")
         with pytest.raises(ReaderError, match="does not intersect"):
-            from_earthengine(
-                "X", window=Window(bbox=far, shape=(8, 8)), tile_size=4, path=str(out)
-            )
+            from_earthengine("X", window=window, tile_size=4, path=out)
 
     def test_tiled_reraises_other_reader_errors(
         self, patched_gradient, monkeypatch, tmp_path
@@ -2965,11 +2973,10 @@ class TestTiledRead:
             raise ReaderError("boom: block read failed")
 
         monkeypatch.setattr(ee_reader, "_window", boom)
-        out = tmp_path / "boom.tif"
+        out = str(tmp_path / "boom.tif")
+        window = Window(bbox=_BBOX, shape=(8, 8))
         with pytest.raises(ReaderError, match="boom"):
-            from_earthengine(
-                "X", window=Window(bbox=_BBOX, shape=(8, 8)), tile_size=4, path=str(out)
-            )
+            from_earthengine("X", window=window, tile_size=4, path=out)
 
     def test_tiled_reprojects_like_untiled(self, patched_gradient, tmp_path) -> None:
         """A reprojecting (``crs`` != source) tiled read equals the un-tiled read.
@@ -3135,10 +3142,9 @@ class TestTiledValidation:
         Test scenario:
             No ``path`` to stream the mosaic to → ``ValueError``.
         """
+        window = Window(bbox=_BBOX, shape=(20, 20))
         with pytest.raises(ValueError, match="path"):
-            from_earthengine(
-                "X", window=Window(bbox=_BBOX, shape=(20, 20)), tile_size=7
-            )
+            from_earthengine("X", window=window, tile_size=7)
 
     def test_tile_size_requires_scale_or_shape(self) -> None:
         """``tile_size`` without ``scale``/``shape`` raises up front.
@@ -3146,10 +3152,9 @@ class TestTiledValidation:
         Test scenario:
             No output grid defined → ``ValueError``.
         """
+        window = Window(bbox=_BBOX)
         with pytest.raises(ValueError, match="scale.*shape"):
-            from_earthengine(
-                "X", window=Window(bbox=_BBOX), tile_size=7, path="out.tif"
-            )
+            from_earthengine("X", window=window, tile_size=7, path="out.tif")
 
     def test_tiled_composite_still_needs_path(self) -> None:
         """A tiled composite without ``path`` raises up front (#59).
@@ -3158,10 +3163,11 @@ class TestTiledValidation:
             The composite mode now tiles, but only to disk — no ``path`` is a
             combination that genuinely cannot stream → ``ValueError``.
         """
+        window = Window(bbox=_BBOX, shape=(8, 8))
         with pytest.raises(ValueError, match="path"):
             from_earthengine(
                 "X",
-                window=Window(bbox=_BBOX, shape=(8, 8)),
+                window=window,
                 tile_size=4,
                 reducer="median",
                 start="2024-06-01",
@@ -3174,10 +3180,11 @@ class TestTiledValidation:
         Test scenario:
             A single-image read has no scene set to filter → ``ValueError``.
         """
+        window = Window(bbox=_BBOX, shape=(8, 8))
         with pytest.raises(ValueError, match="property_filter"):
             from_earthengine(
                 "X",
-                window=Window(bbox=_BBOX, shape=(8, 8)),
+                window=window,
                 property_filter="CLOUDY_PIXEL_PERCENTAGE < 20",
             )
 
@@ -3204,10 +3211,9 @@ class TestTiledValidation:
         Test scenario:
             ``tile_size=0`` → ``ValueError``.
         """
+        window = Window(bbox=_BBOX, shape=(8, 8))
         with pytest.raises(ValueError, match="positive"):
-            from_earthengine(
-                "X", window=Window(bbox=_BBOX, shape=(8, 8)), tile_size=0, path="o.tif"
-            )
+            from_earthengine("X", window=window, tile_size=0, path="o.tif")
 
     @pytest.mark.parametrize(
         ("resample", "expected"),
