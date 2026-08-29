@@ -122,7 +122,7 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
     if mask_scl:
         dataset = _apply_scl_mask(dataset, product, target_res, epsg, mask_scl)
     if bbox is not None:
-        dataset = dataset.crop(bbox=list(bbox))
+        dataset = _crop_to_bbox(dataset, bbox)
     if crs is not None:
         dataset = dataset.to_crs(crs)
     if reflectance:
@@ -359,6 +359,87 @@ def _check_bands_present(subdataset: S2Subdataset, wanted: list[str]) -> None:
             f"bands {missing} not at {subdataset.resolution_m}m; "
             f"available there: {subdataset.bands}"
         )
+
+
+# -- crop ------------------------------------------------------------------
+
+
+def _crop_to_bbox(dataset: Any, bbox: BBox) -> Any:
+    """Window ``dataset`` to ``bbox`` (in its own CRS), keeping the full window.
+
+    ``Dataset.crop(bbox=)`` reads the bbox window and then trims all-no-data
+    border rows/columns — and for a multi-band array a row is trimmed only when
+    *every* band is no-data there, whereas a single band trims on that one band.
+    So the output grid shrinks by an amount that depends on how many bands are
+    read, and a single-band or masked read of the same ``bbox`` comes back on a
+    different, smaller grid than a multi-band read (see #81).
+
+    This reads exactly the bbox pixel window and rebuilds it **without** the
+    trim, so the returned grid (rows × cols and geotransform) is a deterministic
+    function of the ``bbox`` and the resolution — identical regardless of band
+    selection, masking, or whether the window straddles the granule's no-data
+    fill. The snapping matches pyramids' own windowed-crop path (floor the near
+    edges, ceil the far edges).
+
+    Contract: this runs only inside the Sentinel-2 read path, on a **north-up**
+    grid in its own (UTM) CRS, before any ``to_crs`` reprojection. It enforces
+    north-up (raising otherwise), carries the per-band no-data values (defaulting
+    a genuinely-unset value to 0.0, the S2 DN fill), and carries the source EPSG.
+
+    Args:
+        dataset: The dataset to window (its bands are read over the bbox).
+        bbox: ``(minx, miny, maxx, maxy)`` in ``dataset``'s CRS.
+
+    Returns:
+        A new pyramids ``Dataset`` covering the bbox window. A bbox that extends
+        beyond the raster is clipped to the dataset extent (no no-data fill is
+        added outside it).
+
+    Raises:
+        ProductError: The grid is not north-up, or the bbox does not overlap the
+            dataset's extent.
+    """
+    import math
+
+    import numpy as np
+    from pyramids.dataset import Dataset
+
+    minx, miny, maxx, maxy = bbox
+    gt = dataset.raster.GetGeoTransform()
+    x0, dx, x_rot, y0, y_rot, dy = gt
+    if x_rot or y_rot or dx <= 0 or dy >= 0:
+        raise ProductError(
+            "_crop_to_bbox requires a north-up grid (no rotation, dx > 0, "
+            f"dy < 0); got geotransform {gt}"
+        )
+    cols, rows = dataset.raster.RasterXSize, dataset.raster.RasterYSize
+    # The window is hand-rolled rather than read_array(bbox=, bbox_rounding=
+    # "cover") because we also need the resolved pixel offsets to rebuild the
+    # output geotransform, which read_array(bbox=) does not return; the
+    # floor-near / ceil-far snap and [0, cols/rows] clamp match its "cover"
+    # rounding. eps absorbs FP noise when a bbox edge lands on a pixel boundary:
+    # 1e-9 is far below a UTM pixel (>= 10 m) yet above the ~2e-9 noise of
+    # differencing two ~1e7 UTM northings.
+    eps = 1e-9
+    xoff = min(max(math.floor((minx - x0) / dx + eps), 0), cols)
+    x_far = min(max(math.ceil((maxx - x0) / dx - eps), 0), cols)
+    yoff = min(max(math.floor((y0 - maxy) / -dy + eps), 0), rows)
+    y_far = min(max(math.ceil((y0 - miny) / -dy - eps), 0), rows)
+    xsize, ysize = x_far - xoff, y_far - yoff
+    if xsize <= 0 or ysize <= 0:
+        raise ProductError(f"bbox {bbox} does not overlap the product extent")
+
+    array = np.asarray(dataset.read_array(window=[xoff, yoff, xsize, ysize]))
+    if array.ndim == 2:
+        array = array[np.newaxis, ...]
+    out = Dataset.create_from_array(
+        arr=array,
+        geo=(x0 + xoff * dx, dx, 0.0, y0 + yoff * dy, 0.0, dy),
+        epsg=dataset.epsg,
+        no_data_value=[0.0 if v is None else v for v in dataset.no_data_value],
+    )
+    out.band_names = list(dataset.band_names)
+    return out
 
 
 # -- reads -----------------------------------------------------------------
