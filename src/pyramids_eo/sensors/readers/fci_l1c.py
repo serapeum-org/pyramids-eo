@@ -444,6 +444,35 @@ def _satellite_height(crs_wkt: str) -> float:
     return height
 
 
+def _check_shared_grid(chunk: dict, first: dict, columns: int) -> None:
+    """Raise if `chunk` disagrees with `first` on the shared-grid properties.
+
+    Args:
+        chunk: A chunk record to compare.
+        first: The reference (northernmost) chunk record.
+        columns: The reference column count.
+
+    Raises:
+        ReaderError: On a mismatched CRS, cell size, x origin, column count, or
+            calibration coefficients — each of which would mis-stitch the scene.
+    """
+    if chunk["crs"] != first["crs"]:
+        raise ReaderError("read_fci_l1c: chunks have mixed CRS")
+    if not np.isclose(
+        chunk["geotransform"][1], first["geotransform"][1]
+    ) or not np.isclose(chunk["geotransform"][5], first["geotransform"][5]):
+        raise ReaderError("read_fci_l1c: chunks have mixed cell size")
+    # The assembled geotransform takes its x origin/width from the northernmost
+    # chunk alone, so a disagreement in x origin would mis-stitch the scene in x
+    # with no error. Real FCI chunks span the full disc width and share it.
+    if not np.isclose(chunk["geotransform"][0], first["geotransform"][0]):
+        raise ReaderError("read_fci_l1c: chunks have mixed x origin")
+    if chunk["radiance"].shape[1] != columns:
+        raise ReaderError("read_fci_l1c: chunks have mixed column count")
+    if chunk["coeffs"] != first["coeffs"]:
+        raise ReaderError("read_fci_l1c: chunks have mixed calibration coefficients")
+
+
 def _validate_chunks(chunks: list) -> None:
     """Check the ordered chunks form one consistent geostationary mosaic.
 
@@ -470,23 +499,7 @@ def _validate_chunks(chunks: list) -> None:
         )
     columns = first["radiance"].shape[1]
     for chunk in chunks[1:]:
-        if chunk["crs"] != first["crs"]:
-            raise ReaderError("read_fci_l1c: chunks have mixed CRS")
-        if not np.isclose(
-            chunk["geotransform"][1], first["geotransform"][1]
-        ) or not np.isclose(chunk["geotransform"][5], first["geotransform"][5]):
-            raise ReaderError("read_fci_l1c: chunks have mixed cell size")
-        # The assembled geotransform takes its x origin/width from the northernmost
-        # chunk alone, so a disagreement in x origin would mis-stitch the scene in x
-        # with no error. Real FCI chunks span the full disc width and share it.
-        if not np.isclose(chunk["geotransform"][0], first["geotransform"][0]):
-            raise ReaderError("read_fci_l1c: chunks have mixed x origin")
-        if chunk["radiance"].shape[1] != columns:
-            raise ReaderError("read_fci_l1c: chunks have mixed column count")
-        if chunk["coeffs"] != first["coeffs"]:
-            raise ReaderError(
-                "read_fci_l1c: chunks have mixed calibration coefficients"
-            )
+        _check_shared_grid(chunk, first, columns)
 
     # Tolerance scaled to the (angular) row pixel, so it tracks the grid rather
     # than depending on the coordinate magnitude.
