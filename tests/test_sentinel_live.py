@@ -92,7 +92,11 @@ def _search_clearest_l2a(months: int = 3, limit: int = 30) -> dict:
             with urllib.request.urlopen(request, timeout=60) as response:
                 features = json.load(response).get("features", [])
             break
-        except urllib.error.URLError:  # pragma: no cover - network dependent
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            json.JSONDecodeError,
+        ):  # pragma: no cover - network dependent
             if attempt == 2:
                 raise
             time.sleep(2**attempt)
@@ -104,7 +108,7 @@ def _search_clearest_l2a(months: int = 3, limit: int = 30) -> dict:
 
 def _cloud_cover_key(feature: dict) -> float:
     """Cloud-cover sort key; a missing or null value sorts last (not as 0)."""
-    value = feature.get("properties", {}).get("eo:cloud_cover")
+    value = (feature.get("properties") or {}).get("eo:cloud_cover")
     return 999.0 if value is None else float(value)
 
 
@@ -127,8 +131,10 @@ def _safe_mtd_path(item: dict) -> str:
 def _centre_window(item: dict, metres: int = 1500) -> tuple[float, float, float, float]:
     """A small bbox at the tile centre, in the product's native UTM CRS.
 
-    Reading a small central window keeps the S3 fetch light and lands on valid
-    (non-fill) pixels.
+    This is the centre of the *whole tile*, not the small lon/lat search AOI used
+    to pick the scene — the search only chooses which (clearest) tile to read;
+    the pixels come from its centre. Reading a small central window keeps the S3
+    fetch light and lands on valid (non-fill) pixels.
     """
     proj_bbox = next(
         a["proj:bbox"] for a in item["assets"].values() if "proj:bbox" in a
@@ -166,8 +172,6 @@ def scene():
         yield {
             "path": _safe_mtd_path(item),
             "bbox": _centre_window(item),
-            "id": item["id"],
-            "cloud_cover": item["properties"].get("eo:cloud_cover"),
         }
     finally:
         for key, value in saved.items():
@@ -215,6 +219,10 @@ def test_cross_resolution_harmonise_onto_finest_grid(scene):
     ds = from_sentinel2(scene["path"], bands=["B04", "B11"], bbox=scene["bbox"])
     assert ds.band_count == 2
     assert ds.cell_size == 10.0
+    # The resampled 20 m band (B11) must carry real values, not an empty grid.
+    b11 = np.asarray(ds.read_array())[1]
+    valid = b11[b11 != ds.no_data_value[1]]
+    assert valid.size > 0 and np.any(valid > 0), "harmonised B11 has no real data"
 
 
 def test_scl_masking_is_class_sensitive(scene):
@@ -236,7 +244,10 @@ def test_scl_masking_is_class_sensitive(scene):
     present = {int(c) for c in np.unique(scl)} - {int(SclClass.NODATA)}
     assert present, "window has no maskable SCL class"
     target = SclClass(max(present, key=lambda c: int(np.count_nonzero(scl == c))))
-    absent = next(SclClass(c) for c in range(1, 12) if c not in present)
+    absent_code = next((c for c in range(1, 12) if c not in present), None)
+    if absent_code is None:  # pragma: no cover - a 1500 m window never holds all 11
+        pytest.skip("window contains every SCL class; no absent class to compare")
+    absent = SclClass(absent_code)
 
     masked_present = from_sentinel2(
         scene["path"], bands=["B04"], bbox=scene["bbox"], mask_scl=[target]
