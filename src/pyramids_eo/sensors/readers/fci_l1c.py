@@ -448,17 +448,17 @@ def _validate_chunks(chunks: list) -> None:
     """Check the ordered chunks form one consistent geostationary mosaic.
 
     The chunks must be pre-sorted north -> south by their geotransform Y origin.
-    Validates that they share a CRS, cell size and column count, and that each
-    chunk's bottom edge meets the next chunk's top edge (no vertical gap or
+    Validates that they share a CRS, cell size, x origin and column count, and that
+    each chunk's bottom edge meets the next chunk's top edge (no vertical gap or
     overlap) — so concatenating their arrays yields a correctly geolocated grid.
 
     Args:
         chunks: The chunk records, sorted by `geotransform[3]` descending.
 
     Raises:
-        ReaderError: On a non-north-up grid, mixed CRS / cell size / column count /
-            calibration coefficients, or a vertical gap / overlap between chunks
-            (which would silently mis-stitch the scene).
+        ReaderError: On a non-north-up grid, mixed CRS / cell size / x origin /
+            column count / calibration coefficients, or a vertical gap / overlap
+            between chunks (which would silently mis-stitch the scene).
     """
     first = chunks[0]
     # The sort-descending + top-down concatenation assumes a north-up grid; make
@@ -531,7 +531,9 @@ def _assemble_channel(
         (issue #56). The stitched array is returned unchanged.
 
     Raises:
-        ReaderError: When `records` is empty, or the chunks are inconsistent.
+        ReaderError: When `records` is empty, when the chunks are inconsistent (see
+            `_validate_chunks`), or when the assembled grid is unsupported — a
+            rotated (skewed) grid or a degenerate zero-width x geotransform.
     """
     if not records:
         raise ReaderError(f"read_fci_l1c: no chunk carries channel {channel!r}")
