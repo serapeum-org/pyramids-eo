@@ -294,8 +294,7 @@ def test_grid_is_stable_across_band_selection(scene):
     # Absolute check (not just one == many): the 1500 m window at 10 m is the
     # full ~150x150 grid, so a systematic shrink (e.g. the #81 trim to the valid
     # extent) fails here even if it hit every band count equally.
-    assert abs(grid[0] - 150) <= 1 and abs(grid[1] - 150) <= 1, (
-        f"grid {grid} is not the full ~150x150 window"
-    )
+    assert abs(grid[0] - 150) <= 1, f"grid rows {grid[0]} not the full ~150 window"
+    assert abs(grid[1] - 150) <= 1, f"grid cols {grid[1]} not the full ~150 window"
     assert many.shape[1:] == grid, f"multi-band grid {many.shape[1:]} != {grid}"
     assert masked.shape[1:] == grid, f"masked grid {masked.shape[1:]} != {grid}"

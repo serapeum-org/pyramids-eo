@@ -128,8 +128,9 @@ class TestCropToBbox:
         class _Rotated:
             raster = _Raster()
 
+        rotated = _Rotated()
         with pytest.raises(ProductError, match="north-up"):
-            _reader._crop_to_bbox(_Rotated(), (0.0, 0.0, 10.0, 10.0))
+            _reader._crop_to_bbox(rotated, (0.0, 0.0, 10.0, 10.0))
 
     def test_per_band_no_data_is_carried(self):
         """Heterogeneous per-band no-data values survive the crop.
