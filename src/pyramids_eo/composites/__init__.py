@@ -7,6 +7,10 @@ dependency. So far:
 * `solar_zenith_angle` / `cos_solar_zenith_angle` — per-pixel solar zenith angle
   (degrees) and its cosine (the `cos_sza` form the readers expect), the geometry
   the day/night blend keys off.
+* `sunz_correct` / `sunz_reduce` — sun-zenith correction (divide by `cos(sza)`,
+  capped) and reduction (taper the signal toward the terminator), the
+  `sunz_corrected` / `sunz_reduced` pair applied to a true-colour composite's
+  solar bands so deep shadow renders dark rather than as a washed-out floor.
 * `day_night_blend` / `day_weight` — the SZA-weighted cross-fade of a day and a
   night image.
 * `alpha_overlay` — the "over" composite of an RGBA foreground on an RGB(A)
@@ -28,6 +32,8 @@ from pyramids_eo.composites.blend import day_night_blend, day_weight
 from pyramids_eo.composites.geometry import (
     cos_solar_zenith_angle,
     solar_zenith_angle,
+    sunz_correct,
+    sunz_reduce,
 )
 from pyramids_eo.composites.overlay import alpha_overlay
 from pyramids_eo.composites.true_color import true_color
@@ -44,6 +50,8 @@ __all__ = [
     "night_ir",
     "solar_zenith_angle",
     "static_image",
+    "sunz_correct",
+    "sunz_reduce",
     "true_color",
     "true_color_with_night_ir",
 ]
