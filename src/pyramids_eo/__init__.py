@@ -27,7 +27,10 @@ from importlib.metadata import version as _get_version
 
 from pyramids_eo.earthengine import (
     EarthEngineCredentials,
+    ReadCost,
+    Window,
     collection_from_earthengine,
+    estimate_earthengine_cost,
     from_earthengine,
 )
 from pyramids_eo.sentinel import (
@@ -45,10 +48,13 @@ except PackageNotFoundError:  # pragma: no cover
 
 __all__ = [
     "EarthEngineCredentials",
+    "ReadCost",
     "SclClass",
+    "Window",
     "__version__",
     "collection_from_earthengine",
     "collection_from_sentinel2",
+    "estimate_earthengine_cost",
     "from_earthengine",
     "from_sentinel2",
     "open_product",

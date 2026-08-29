@@ -13,7 +13,12 @@ import pytest
 from pyramids.dataset import Dataset, DatasetCollection
 
 import pyramids_eo.earthengine.reader as ee_reader
-from pyramids_eo import collection_from_earthengine, from_earthengine
+from pyramids_eo import (
+    Window,
+    collection_from_earthengine,
+    estimate_earthengine_cost,
+    from_earthengine,
+)
 from pyramids_eo.earthengine import EarthEngineCredentials
 from pyramids_eo.earthengine.reader import _Scene
 from pyramids_eo.errors import ReaderError
@@ -23,6 +28,26 @@ _BBOX = (86.9, 27.9, 87.0, 28.0)
 # several 256-px blocks (so it exercises the block-crossing read the fix targets)
 # without reading the ~25 blocks the full ``_BBOX`` would.
 _S2_BBOX = (86.90, 27.90, 86.94, 27.94)
+
+
+def _to_utm45(bbox_4326):
+    """Transform a ``(min_lon, min_lat, max_lon, max_lat)`` box to EPSG:32645 metres.
+
+    Used by the projected-CRS tests to express an AOI in a projected space (UTM 45N)
+    the way a consumer with a projected ``crs`` would.
+    """
+    from osgeo import osr
+
+    def _srs(epsg):
+        s = osr.SpatialReference()
+        s.ImportFromEPSG(epsg)
+        s.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)  # x=lon, y=lat
+        return s
+
+    tx = osr.CoordinateTransformation(_srs(4326), _srs(32645))
+    minx, miny, _ = tx.TransformPoint(bbox_4326[0], bbox_4326[1])
+    maxx, maxy, _ = tx.TransformPoint(bbox_4326[2], bbox_4326[3])
+    return (minx, miny, maxx, maxy)
 
 
 def _synthetic_srtm(fill: int = 42):
@@ -60,7 +85,7 @@ def patched_eedai(monkeypatch):
         never touches the network.
     """
 
-    def _fake_open(asset_id, *, bands, credentials):  # noqa: ARG001
+    def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
         return Dataset(_synthetic_srtm())
 
     monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
@@ -106,7 +131,7 @@ class TestFromEarthengine:
             A 0.1-degree bbox over a 0.01-degree source yields a ~10x10 EPSG:4326
             ``Dataset`` with no Earth Engine objects leaking out.
         """
-        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX)
+        ds = from_earthengine("USGS/SRTMGL1_003", window=Window(bbox=_BBOX))
         assert isinstance(ds, Dataset), f"Expected a pyramids Dataset, got {type(ds)}"
         assert ds.epsg == 4326, f"Expected EPSG:4326, got {ds.epsg}"
         _bands, rows, cols = ds.shape
@@ -119,8 +144,270 @@ class TestFromEarthengine:
         Test scenario:
             ``shape=(5, 5)`` yields a single-band 5x5 dataset.
         """
-        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5))
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(5, 5))
+        )
         assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
+
+    def test_nodata_tags_returned_dataset_without_altering_pixels(
+        self, patched_eedai
+    ) -> None:
+        """A ``nodata`` value is tagged on the result, pixels untouched (#63).
+
+        Test scenario:
+            The synthetic source is a constant ``42``; ``nodata=999`` (a value not in
+            the data) is marked as no-data on the returned dataset while every pixel
+            stays ``42`` — the sentinel is recognised, not written.
+        """
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(5, 5)), nodata=999
+        )
+        assert ds.no_data_value[0] == 999, (
+            f"Expected nodata 999, got {ds.no_data_value}"
+        )
+        assert np.all(np.asarray(ds.read_array()) == 42), (
+            "nodata tagging altered pixels"
+        )
+
+    def test_nodata_default_leaves_source_value(self, patched_eedai) -> None:
+        """Omitting ``nodata`` does not force a fill tag (#63).
+
+        Test scenario:
+            Without ``nodata`` the reader does not stamp 999; the result keeps whatever
+            the read produced (never the caller's sentinel).
+        """
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(5, 5))
+        )
+        assert ds.no_data_value[0] != 999
+
+    def test_nodata_with_path_writes_the_tag_to_disk(
+        self, patched_eedai, tmp_path
+    ) -> None:
+        """``nodata`` is written into the on-disk file, returned file-backed (#63).
+
+        Test scenario:
+            A ``path`` read with ``nodata=999`` writes the fill into the GeoTIFF (so a
+            reopen sees it) and returns a file-backed dataset — not an in-memory copy
+            that leaves the file untagged.
+        """
+        from osgeo import gdal
+
+        out = tmp_path / "tagged.tif"
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(5, 5)),
+            path=str(out),
+            nodata=999,
+        )
+        assert ds.raster.GetDriver().ShortName == "GTiff", (
+            "a path read must return a file-backed dataset, not an in-memory copy"
+        )
+        disk = gdal.Open(str(out))
+        on_disk = disk.GetRasterBand(1).GetNoDataValue()
+        assert on_disk == 999, f"on-disk nodata should be 999, got {on_disk}"
+
+    def test_nodata_with_tile_size_stays_file_backed(
+        self, patched_eedai, tmp_path
+    ) -> None:
+        """``nodata`` with ``tile_size`` keeps the mosaic file-backed and tagged (#63).
+
+        Test scenario:
+            A tiled ``nodata`` read tags the on-disk mosaic and returns it file-backed —
+            it must not materialise the whole mosaic into memory (which would defeat the
+            oversize-tiling memory bound) nor leave the file untagged.
+        """
+        from osgeo import gdal
+
+        out = tmp_path / "tagged_tiled.tif"
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(20, 20)),
+            tile_size=7,
+            path=str(out),
+            nodata=999,
+        )
+        assert ds.raster.GetDriver().ShortName == "GTiff", (
+            "a tiled read must stay file-backed (memory-bounded), not become MEM"
+        )
+        disk = gdal.Open(str(out))
+        on_disk = disk.GetRasterBand(1).GetNoDataValue()
+        assert on_disk == 999, f"on-disk mosaic nodata should be 999, got {on_disk}"
+
+    def test_nodata_with_path_keeps_credential_pin(
+        self, patched_eedai, tmp_path
+    ) -> None:
+        """A ``path`` + ``nodata`` read keeps the credential pin (#63).
+
+        Test scenario:
+            The file-backed swap re-reads the tagged file; it must re-pin
+            ``_ee_credentials`` so a ``path`` + ``nodata`` read matches every other
+            return path (which carry the pin), not silently drop it.
+        """
+        out = tmp_path / "pinned.tif"
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(5, 5)),
+            path=str(out),
+            nodata=999,
+        )
+        assert hasattr(ds, "_ee_credentials"), (
+            "file-backed nodata swap dropped the _ee_credentials pin"
+        )
+
+    def test_mixed_resolution_bands_resampled_and_stacked(self, monkeypatch) -> None:
+        """Bands spanning resolution groups are resampled onto one grid (#58).
+
+        Test scenario:
+            The combined open returns a single band (the driver's silent-drop), so the
+            reader re-opens each band alone, warps all to the requested ``shape`` and
+            stacks them in request order — three bands out, not one.
+        """
+        fills = {"B4": 10, "B11": 20, "B1": 60}
+        opened: list = []
+
+        def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
+            opened.append(tuple(bands) if bands else None)
+            # A multi-band (cross-group) request silently yields ONE band.
+            first = bands[0] if bands else "B4"
+            return Dataset(_synthetic_srtm(fill=fills[first]))
+
+        monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
+        ds = from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(10, 10)),
+            bands=["B4", "B11", "B1"],
+        )
+        assert ds.shape == (3, 10, 10), f"Expected 3 bands stacked, got {ds.shape}"
+        arr = np.asarray(ds.read_array())
+        assert [int(arr[i].flat[0]) for i in range(3)] == [10, 20, 60], (
+            f"Bands stacked out of order / wrong values: {arr[:, 0, 0]}"
+        )
+        assert opened[0] == ("B4", "B11", "B1"), "combined open should be tried first"
+        assert {("B4",), ("B11",), ("B1",)}.issubset(set(opened)), (
+            f"each band should be opened alone: {opened}"
+        )
+
+    def test_mixed_resolution_without_grid_fails_loudly(self, monkeypatch) -> None:
+        """A cross-group request with no target grid raises, not drops bands (#58).
+
+        Test scenario:
+            A windowed cross-group read without ``scale``/``shape`` cannot align the
+            groups → ``ReaderError`` naming the subdataset ambiguity.
+        """
+
+        def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
+            return Dataset(_synthetic_srtm())  # always one band → cross-group
+
+        monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
+        window = Window(bbox=_BBOX)
+        with pytest.raises(ReaderError, match="resolution groups|subdataset"):
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                window=window,
+                bands=["B4", "B11", "B1"],
+            )
+
+    def test_mixed_resolution_whole_asset_fails_loudly(self, monkeypatch) -> None:
+        """A cross-group whole-asset read raises rather than return a subset (#58).
+
+        Test scenario:
+            No ``bbox`` means no grid to align onto → ``ReaderError``.
+        """
+
+        def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
+            return Dataset(_synthetic_srtm())  # one band < 3 requested
+
+        monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
+        with pytest.raises(ReaderError, match="resolution groups|subdataset"):
+            from_earthengine("COPERNICUS/S2_SR_HARMONIZED", bands=["B4", "B11", "B1"])
+
+    def test_mixed_resolution_with_tile_size_unsupported(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """A cross-group request cannot be tiled → ``ReaderError`` (#58 + #59).
+
+        Test scenario:
+            The combined open returns a single band (a cross-group request), so a
+            ``tile_size`` read would need the per-band resample path the streamer does
+            not implement — it raises up front, naming the limitation, rather than
+            silently tiling one group.
+        """
+
+        def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
+            return Dataset(_synthetic_srtm())  # one band < 3 requested → cross-group
+
+        monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
+        window = Window(bbox=_BBOX, shape=(10, 10))
+        out = str(tmp_path / "mixed_tiled.tif")
+        with pytest.raises(ReaderError, match="does not support|resolution group"):
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                window=window,
+                bands=["B4", "B11", "B1"],
+                tile_size=4,
+                path=out,
+            )
+
+    def test_single_band_request_not_treated_as_mixed(self, patched_eedai) -> None:
+        """A single-band request reads normally — never the mixed path (#58).
+
+        Test scenario:
+            One band in, one band out, no spurious per-band stacking.
+        """
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(5, 5)), bands=["B4"]
+        )
+        assert ds.shape == (1, 5, 5), f"Expected a single band, got {ds.shape}"
+
+    def test_projected_crs_bbox_interpreted_in_projected_units(
+        self, patched_eedai
+    ) -> None:
+        """A ``bbox`` under a projected ``crs`` reads that ground, in projected units (#66).
+
+        Test scenario:
+            A 4326 sub-window is transformed to EPSG:32645 (UTM 45N) metres and passed
+            as ``bbox`` with ``crs="EPSG:32645"``; the output is delivered in
+            EPSG:32645 with bounds matching the projected box (within a pixel), proving
+            the coordinates were read as metres, not mistaken for lon/lat.
+        """
+        minx, miny, maxx, maxy = _to_utm45((86.92, 27.92, 86.98, 27.98))
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003",
+            window=Window(
+                bbox=(minx, miny, maxx, maxy), crs="EPSG:32645", shape=(10, 10)
+            ),
+        )
+        assert ds.epsg == 32645, f"Expected EPSG:32645 output, got {ds.epsg}"
+        out = ds.total_bounds
+        assert out[0] == pytest.approx(minx, abs=1000), f"minx off: {out}"
+        assert out[2] == pytest.approx(maxx, abs=1000), f"maxx off: {out}"
+        assert out[1] == pytest.approx(miny, abs=1000), f"miny off: {out}"
+
+    def test_projected_crs_geometry_interpreted_in_projected_units(
+        self, patched_eedai
+    ) -> None:
+        """A ``geometry`` under a projected ``crs`` reads that ground (#66).
+
+        Test scenario:
+            A polygon built in EPSG:32645 over the same sub-window drives a projected
+            read; the output is in EPSG:32645 and its bounds fall within the polygon's
+            projected envelope, so a labelled geometry is honoured in its own CRS.
+        """
+        import geopandas as gpd
+        from shapely.geometry import box
+
+        minx, miny, maxx, maxy = _to_utm45((86.92, 27.92, 86.98, 27.98))
+        gdf = gpd.GeoDataFrame(geometry=[box(minx, miny, maxx, maxy)], crs="EPSG:32645")
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003",
+            window=Window(crs="EPSG:32645", shape=(10, 10)),
+            geometry=gdf,
+        )
+        assert ds.epsg == 32645, f"Expected EPSG:32645 output, got {ds.epsg}"
+        out = ds.total_bounds
+        assert out[0] == pytest.approx(minx, abs=2000), f"minx off: {out}"
+        assert out[2] == pytest.approx(maxx, abs=2000), f"maxx off: {out}"
 
     def test_honours_scale(self, patched_eedai) -> None:
         """An explicit ``scale`` sets the output pixel size in CRS units.
@@ -128,7 +415,7 @@ class TestFromEarthengine:
         Test scenario:
             ``scale=0.02`` over a 0.1-degree bbox yields ~5x5 pixels.
         """
-        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, scale=0.02)
+        ds = from_earthengine("USGS/SRTMGL1_003", window=Window(bbox=_BBOX, scale=0.02))
         _bands, rows, cols = ds.shape
         assert rows == pytest.approx(5, abs=1), (
             f"Expected ~5 rows at scale 0.02, got {rows}"
@@ -143,8 +430,9 @@ class TestFromEarthengine:
         Test scenario:
             The guard rejects the ambiguous combination before any read.
         """
+        window = Window(bbox=_BBOX, scale=0.01, shape=(5, 5))
         with pytest.raises(ValueError, match="scale.*shape") as exc_info:
-            from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, scale=0.01, shape=(5, 5))
+            from_earthengine("USGS/SRTMGL1_003", window=window)
         assert "scale" in str(exc_info.value), f"Unexpected message: {exc_info.value}"
 
     @pytest.mark.parametrize(
@@ -166,8 +454,9 @@ class TestFromEarthengine:
             ``scale`` / ``shape`` / non-default ``crs`` all demand a bbox because
             EE assets are global and cannot be materialised whole.
         """
+        window = Window(**kwargs)
         with pytest.raises(ReaderError, match="bbox") as exc_info:
-            from_earthengine("USGS/SRTMGL1_003", **kwargs)
+            from_earthengine("USGS/SRTMGL1_003", window=window)
         assert "bbox" in str(exc_info.value), (
             f"Message should mention bbox: {exc_info.value}"
         )
@@ -191,12 +480,14 @@ class TestFromEarthengine:
         """
         captured = {}
 
-        def _fake_open(asset_id, *, bands, credentials):  # noqa: ARG001
+        def _fake_open(asset_id, *, bands, credentials, **_kwargs):  # noqa: ARG001
             captured["credentials"] = credentials
             return Dataset(_synthetic_srtm())
 
         monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
-        from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, credentials=str(key_tmp))
+        from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX), credentials=str(key_tmp)
+        )
         assert isinstance(captured["credentials"], EarthEngineCredentials), (
             "credentials should be coerced to EarthEngineCredentials"
         )
@@ -211,7 +502,7 @@ class TestFromEarthengine:
         Test scenario:
             The real EEDAI driver returns a non-empty EPSG:4326 window for SRTM.
         """
-        ds = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX)
+        ds = from_earthengine("USGS/SRTMGL1_003", window=Window(bbox=_BBOX))
         assert isinstance(ds, Dataset), f"Expected a Dataset, got {type(ds)}"
         assert ds.epsg == 4326, f"Expected EPSG:4326, got {ds.epsg}"
         _bands, rows, cols = ds.shape
@@ -228,12 +519,11 @@ class TestFromEarthengine:
         """
         ds = from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
-            bbox=_BBOX,
+            window=Window(bbox=_BBOX, shape=(16, 16)),
             start="2024-06-01",
             end="2024-06-10",
             reducer="median",
             bands=["B4"],
-            shape=(16, 16),
         )
         assert isinstance(ds, Dataset), f"Expected a Dataset, got {type(ds)}"
         assert ds.shape == (1, 16, 16), f"Expected (1, 16, 16), got {ds.shape}"
@@ -252,11 +542,10 @@ class TestCollectionFromEarthengineLive:
         """
         dc = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(16, 16)),
             start="2024-06-01",
             end="2024-06-10",
-            bbox=_BBOX,
             bands=["B4"],
-            shape=(16, 16),
         )
         assert isinstance(dc, DatasetCollection), (
             f"Expected a DatasetCollection, got {type(dc)}"
@@ -264,6 +553,53 @@ class TestCollectionFromEarthengineLive:
         assert dc.time_length > 0, "Expected at least one scene in the window"
         assert dc.datasets[0].shape == (1, 16, 16), (
             f"Unexpected scene shape: {dc.datasets[0].shape}"
+        )
+
+    @pytest.mark.live
+    def test_live_cost_estimate_from_catalog(self) -> None:
+        """``estimate_earthengine_cost`` reports real scene dimensions (#61).
+
+        Test scenario:
+            A Sentinel-2 window's cost estimate is sourced from the EEDA catalog —
+            24 bands, ~10980 px wide — without fetching any pixels.
+        """
+        cost = estimate_earthengine_cost(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox=_S2_BBOX,
+        )
+        assert cost.scene_count > 0, "Expected at least one scene in the window"
+        assert cost.max_band_count == 24, (
+            f"Expected 24 bands, got {cost.max_band_count}"
+        )
+        assert cost.max_width >= 10000, (
+            f"Expected a ~10980 px scene, got {cost.max_width}"
+        )
+        assert cost.min_pixel_size == 10.0, (
+            f"Expected a 10 m finest band, got {cost.min_pixel_size}"
+        )
+
+    @pytest.mark.live
+    def test_live_property_filter_narrows_selection(self) -> None:
+        """A cloud-cover ``property_filter`` selects a subset of scenes (#62).
+
+        Test scenario:
+            Filtering ``CLOUDY_PIXEL_PERCENTAGE < 20`` never selects more scenes than
+            the unfiltered window over the same date range + AOI.
+        """
+        window = dict(
+            asset_id="COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox=_S2_BBOX,
+        )
+        all_scenes = estimate_earthengine_cost(**window).scene_count
+        clear = estimate_earthengine_cost(
+            **window, property_filter="CLOUDY_PIXEL_PERCENTAGE < 20"
+        ).scene_count
+        assert clear <= all_scenes, (
+            f"Filtered ({clear}) should not exceed unfiltered ({all_scenes})"
         )
 
 
@@ -307,15 +643,18 @@ class TestOpenEedai:
         assert result.raster is opened, "Dataset should wrap the driver's open result"
         conn, options = fake.calls[0]
         assert conn == "EEDAI:USGS/SRTMGL1_003", f"Unexpected connection string: {conn}"
-        assert options == ["BLOCK_SIZE=256", "BANDS=B4,B3"], (
-            f"Unexpected open options: {options}"
-        )
+        assert options == [
+            "BLOCK_SIZE=256",
+            "PIXEL_ENCODING=GEO_TIFF",
+            "BANDS=B4,B3",
+        ], f"Unexpected open options: {options}"
 
     def test_no_bands_option_when_bands_none(self, monkeypatch) -> None:
         """No ``BANDS`` option is emitted when ``bands`` is ``None``.
 
         Test scenario:
-            ``bands=None`` opens with only the pinned ``BLOCK_SIZE`` option.
+            ``bands=None`` opens with only the pinned ``BLOCK_SIZE`` and lossless
+            ``PIXEL_ENCODING`` options.
         """
         fake = _FakeGdal(_synthetic_srtm())
         monkeypatch.setattr(ee_reader, "gdal", fake)
@@ -325,7 +664,57 @@ class TestOpenEedai:
             credentials=EarthEngineCredentials.application_default(),
         )
         _conn, options = fake.calls[0]
-        assert options == ["BLOCK_SIZE=256"], f"Unexpected open options: {options}"
+        assert options == ["BLOCK_SIZE=256", "PIXEL_ENCODING=GEO_TIFF"], (
+            f"Unexpected open options: {options}"
+        )
+
+    def test_block_size_threads_to_open_option(self, monkeypatch) -> None:
+        """A caller ``block_size`` sets the EEDAI ``BLOCK_SIZE`` open option (#60).
+
+        Test scenario:
+            ``block_size=1024`` opens with ``BLOCK_SIZE=1024`` instead of the default.
+        """
+        fake = _FakeGdal(_synthetic_srtm())
+        monkeypatch.setattr(ee_reader, "gdal", fake)
+        ee_reader._open_eedai(
+            "USGS/SRTMGL1_003",
+            bands=None,
+            credentials=EarthEngineCredentials.application_default(),
+            block_size=1024,
+        )
+        _conn, options = fake.calls[0]
+        assert "BLOCK_SIZE=1024" in options, f"block_size not threaded: {options}"
+
+    def test_block_size_rejects_non_positive(self) -> None:
+        """A non-positive ``block_size`` raises ``ValueError`` (#60).
+
+        Test scenario:
+            ``block_size=0`` is rejected before any open.
+        """
+        creds = EarthEngineCredentials.application_default()
+        with pytest.raises(ValueError, match="block_size"):
+            ee_reader._open_eedai(
+                "USGS/SRTMGL1_003", bands=None, credentials=creds, block_size=0
+            )
+
+    def test_pins_lossless_pixel_encoding(self, monkeypatch) -> None:
+        """Every EEDAI open pins a lossless ``PIXEL_ENCODING`` (regression for #69).
+
+        Test scenario:
+            The driver's ``AUTO`` default can pick a lossy codec for multi-band Byte
+            reads; ``_open_eedai`` must pin ``GEO_TIFF`` so pixels are never lossy.
+        """
+        fake = _FakeGdal(_synthetic_srtm())
+        monkeypatch.setattr(ee_reader, "gdal", fake)
+        ee_reader._open_eedai(
+            "USGS/SRTMGL1_003",
+            bands=["TCI_R", "TCI_G", "TCI_B"],
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        _conn, options = fake.calls[0]
+        assert "PIXEL_ENCODING=GEO_TIFF" in options, (
+            f"lossless PIXEL_ENCODING must be pinned; got {options}"
+        )
 
     def test_raises_reader_error_on_open_failure(self, monkeypatch) -> None:
         """A ``None`` driver result raises ``ReaderError`` with the GDAL message.
@@ -356,10 +745,9 @@ class TestWindow:
         """
         source = Dataset(_synthetic_srtm())
         monkeypatch.setattr(ee_reader.gdal, "Warp", lambda dest, src, **kw: None)
+        window = ee_reader.Window(bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None)
         with pytest.raises(ReaderError, match="windowing"):
-            ee_reader._window(
-                source, bbox=_BBOX, crs="EPSG:4326", scale=None, shape=None
-            )
+            ee_reader._window(source, window)
 
 
 class _FakeFeature:
@@ -436,10 +824,10 @@ def three_scenes(monkeypatch):
     ]
     fills = {"EEDAI:scene/a": 10, "EEDAI:scene/b": 20, "EEDAI:scene/c": 30}
 
-    def _fake_discover(asset_id, *, start, end, bbox_4326, credentials):  # noqa: ARG001
+    def _fake_discover(asset_id, *, start, end, bbox_4326, credentials, **_kwargs):  # noqa: ARG001
         return scenes
 
-    def _fake_open(connection, *, bands, credentials):  # noqa: ARG001
+    def _fake_open(connection, *, bands, credentials, **_kwargs):  # noqa: ARG001
         return Dataset(_synthetic_srtm(fill=fills[connection]))
 
     monkeypatch.setattr(ee_reader, "_discover_scenes", _fake_discover)
@@ -478,11 +866,10 @@ class TestFromEarthengineComposite:
         """
         ds = from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
-            bbox=_BBOX,
+            window=Window(bbox=_BBOX, shape=(4, 4)),
             start="2024-06-01",
             end="2024-06-30",
             reducer=reducer,
-            shape=(4, 4),
         )
         assert ds.shape == (1, 4, 4), f"Expected (1, 4, 4), got {ds.shape}"
         values = ds.read_array()
@@ -504,15 +891,157 @@ class TestFromEarthengineComposite:
         out = tmp_path / "composite.tif"
         ds = from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
-            bbox=_BBOX,
+            window=Window(bbox=_BBOX, shape=(4, 4)),
             start="2024-06-01",
             end="2024-06-30",
             reducer="median",
-            shape=(4, 4),
             path=str(out),
         )
         assert out.exists(), "composite mode must honour 'path' and write the file"
         assert (ds.read_array() == 20).all(), "file-backed composite has wrong values"
+
+    def test_tiled_composite_writes_and_reduces(self, three_scenes, tmp_path) -> None:
+        """A tiled composite streams to disk and reduces each tile's scene stack (#59).
+
+        Args:
+            three_scenes: Fixture patching discovery/open (fills 10, 20, 30).
+            tmp_path: pytest temp directory.
+
+        Test scenario:
+            An 8x8 median composite read as 4-px tiles writes the mosaic and every
+            pixel is the median (20) — the tiled path reduces the same three scenes on
+            each tile and mosaics them.
+        """
+        out = tmp_path / "tiled_composite.tif"
+        ds = from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(8, 8)),
+            start="2024-06-01",
+            end="2024-06-30",
+            reducer="median",
+            tile_size=4,
+            path=str(out),
+        )
+        assert out.exists(), "tiled composite must write the mosaic to 'path'"
+        assert ds.shape == (1, 8, 8), f"expected an 8x8 mosaic, got {ds.shape}"
+        assert (np.asarray(ds.read_array()) == 20).all(), (
+            "tiled composite median differs from the untiled median (20)"
+        )
+
+    def test_tiled_composite_applies_cutline(self, three_scenes, tmp_path) -> None:
+        """A tiled composite with a polygon clips the finished mosaic (#59 + #64).
+
+        Args:
+            three_scenes: Fixture patching discovery/open (fills 10, 20, 30).
+            tmp_path: pytest temp directory.
+
+        Test scenario:
+            A half-bbox triangle (its envelope is the full window) is tiled and the
+            cutline masks the corner outside it — composite (20) inside, masked outside.
+        """
+        import geopandas as gpd
+        from shapely.geometry import Polygon
+
+        gdf = gpd.GeoDataFrame(
+            geometry=[Polygon([(86.9, 27.9), (87.0, 27.9), (86.9, 28.0)])],
+            crs="EPSG:4326",
+        )
+        out = tmp_path / "tiled_composite_cut.tif"
+        ds = from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(8, 8)),
+            geometry=gdf,
+            start="2024-06-01",
+            end="2024-06-30",
+            reducer="median",
+            tile_size=4,
+            path=str(out),
+        )
+        arr = np.asarray(ds.read_array())
+        assert (arr == 20).any(), (
+            "composite value (20) should survive inside the polygon"
+        )
+        assert int((arr == ds.no_data_value[0]).sum()) > 0, (
+            "pixels outside the triangle should be masked to the composite nodata"
+        )
+
+    def test_tiled_composite_no_scenes_raises(self, monkeypatch, tmp_path) -> None:
+        """A tiled composite over an empty window raises ``ReaderError`` (#59).
+
+        Test scenario:
+            Discovery returns no scenes, so the tiled composite fails loudly like the
+            un-tiled one rather than writing an empty mosaic.
+        """
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: [])
+        window = Window(bbox=_BBOX, shape=(8, 8))
+        out = str(tmp_path / "empty.tif")
+        with pytest.raises(ReaderError, match="No Earth Engine scenes"):
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                window=window,
+                start="2024-06-01",
+                end="2024-06-30",
+                reducer="median",
+                tile_size=4,
+                path=out,
+            )
+
+    def test_composite_mixed_resolution_bands_fail_loudly(self, monkeypatch) -> None:
+        """A composite spanning resolution groups raises, not drops bands (#58).
+
+        Test scenario:
+            Each scene's combined open yields fewer bands than requested (a cross-group
+            request), so the composite path must raise rather than reduce a silent
+            band subset — parity with the single-image guard.
+        """
+        scenes = [ee_reader._Scene("EEDAI:a", "2024-06-01T00:00:00")]
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: scenes)
+        monkeypatch.setattr(
+            ee_reader,
+            "_open_eedai",
+            lambda *a, **k: Dataset(_synthetic_srtm()),  # 1 band < 3 requested
+        )
+        window = Window(bbox=_BBOX, shape=(8, 8))
+        with pytest.raises(ReaderError, match="resolution groups|subdataset"):
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                window=window,
+                start="2024-06-01",
+                end="2024-06-30",
+                reducer="median",
+                bands=["B4", "B11", "B1"],
+            )
+
+    def test_tiled_composite_mixed_resolution_bands_fail_loudly(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """A tiled composite spanning resolution groups raises too (#58 + #59).
+
+        Test scenario:
+            The tiled composite probes one scene; a cross-group band request yields a
+            one-band probe, so it must raise before mosaicking a dropped-band composite
+            — parity with the un-tiled composite and single-image paths.
+        """
+        scenes = [ee_reader._Scene("EEDAI:a", "2024-06-01T00:00:00")]
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: scenes)
+        monkeypatch.setattr(
+            ee_reader,
+            "_open_eedai",
+            lambda *a, **k: Dataset(_synthetic_srtm()),  # 1 band < 3 requested
+        )
+        window = Window(bbox=_BBOX, shape=(8, 8))
+        out = str(tmp_path / "mixed_tiled_composite.tif")
+        with pytest.raises(ReaderError, match="resolution groups|subdataset"):
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                window=window,
+                start="2024-06-01",
+                end="2024-06-30",
+                reducer="median",
+                bands=["B4", "B11", "B1"],
+                tile_size=4,
+                path=out,
+            )
 
     def test_start_end_without_reducer_raises(self) -> None:
         """A date range without a reducer is rejected with guidance.
@@ -521,10 +1050,11 @@ class TestFromEarthengineComposite:
             ``start``/``end`` but no ``reducer`` raises ``ValueError`` pointing to
             ``collection_from_earthengine``.
         """
+        window = Window(bbox=_BBOX)
         with pytest.raises(ValueError, match="reducer") as exc_info:
             from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                bbox=_BBOX,
+                window=window,
                 start="2024-06-01",
                 end="2024-06-30",
             )
@@ -549,8 +1079,10 @@ class TestFromEarthengineComposite:
         Test scenario:
             Any missing member of the trio raises ``ValueError``.
         """
+        params = dict(kwargs)
+        window = Window(bbox=params.pop("bbox", None))
         with pytest.raises(ValueError, match="requires 'start', 'end', and"):
-            from_earthengine("COPERNICUS/S2_SR_HARMONIZED", **kwargs)
+            from_earthengine("COPERNICUS/S2_SR_HARMONIZED", window=window, **params)
 
     def test_no_scenes_raises_reader_error(self, monkeypatch) -> None:
         """An empty discovery result raises ``ReaderError``.
@@ -559,10 +1091,11 @@ class TestFromEarthengineComposite:
             No scenes in the window -> ``ReaderError`` naming the asset.
         """
         monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: [])
+        window = Window(bbox=_BBOX)
         with pytest.raises(ReaderError, match="No Earth Engine scenes"):
             from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
-                bbox=_BBOX,
+                window=window,
                 start="2024-06-01",
                 end="2024-06-30",
                 reducer="median",
@@ -584,10 +1117,9 @@ class TestCollectionFromEarthengine:
         """
         dc = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(4, 4)),
             start="2024-06-01",
             end="2024-06-30",
-            bbox=_BBOX,
-            shape=(4, 4),
         )
         assert isinstance(dc, DatasetCollection), (
             f"Expected a DatasetCollection, got {type(dc)}"
@@ -608,14 +1140,13 @@ class TestCollectionFromEarthengine:
         Test scenario:
             The guard rejects the ambiguous combination before any read.
         """
+        window = Window(bbox=_BBOX, scale=0.01, shape=(4, 4))
         with pytest.raises(ValueError, match="scale.*shape"):
             collection_from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
+                window=window,
                 start="2024-06-01",
                 end="2024-06-30",
-                bbox=_BBOX,
-                scale=0.01,
-                shape=(4, 4),
             )
 
     def test_no_scenes_raises_reader_error(self, monkeypatch) -> None:
@@ -625,12 +1156,13 @@ class TestCollectionFromEarthengine:
             No scenes in the window -> ``ReaderError``.
         """
         monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: [])
+        window = Window(bbox=_BBOX)
         with pytest.raises(ReaderError, match="No Earth Engine scenes"):
             collection_from_earthengine(
                 "COPERNICUS/S2_SR_HARMONIZED",
+                window=window,
                 start="2024-06-01",
                 end="2024-06-30",
-                bbox=_BBOX,
             )
 
     def test_native_grid_alignment_without_scale_or_shape(self, three_scenes) -> None:
@@ -642,9 +1174,9 @@ class TestCollectionFromEarthengine:
         """
         dc = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX),
             start="2024-06-01",
             end="2024-06-30",
-            bbox=_BBOX,
         )
         shapes = {ds.shape for ds in dc.datasets}
         assert len(shapes) == 1, f"Scenes are not aligned to one grid: {shapes}"
@@ -719,6 +1251,211 @@ class TestDiscoverScenes:
                 bbox_4326=(0.0, 0.0, 1.0, 1.0),
                 credentials=creds,
             )
+
+    def test_property_filter_ands_into_attribute_filter(self, monkeypatch) -> None:
+        """A ``property_filter`` is ANDed onto the time selection (#62).
+
+        Test scenario:
+            A cloud-cover filter appears as a parenthesised ``AND`` clause alongside
+            the ``startTime`` bounds.
+        """
+        layer = _FakeLayer(
+            [
+                _FakeFeature(
+                    {"gdal_dataset": "EEDAI:a", "startTime": "2024-06-01T00:00:00"}
+                )
+            ]
+        )
+        monkeypatch.setattr(ee_reader, "gdal", _FakeEeda(layer))
+        ee_reader._discover_scenes(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox_4326=(0.0, 0.0, 1.0, 1.0),
+            credentials=EarthEngineCredentials.application_default(),
+            property_filter="CLOUDY_PIXEL_PERCENTAGE < 20",
+        )
+        assert "startTime >=" in layer.attribute_filter
+        assert "AND (CLOUDY_PIXEL_PERCENTAGE < 20)" in layer.attribute_filter, (
+            f"property_filter not ANDed on: {layer.attribute_filter}"
+        )
+
+    def test_scene_carries_cost_metadata(self, monkeypatch) -> None:
+        """Scene records carry the EEDA cost fields (#61).
+
+        Test scenario:
+            ``band_count`` / ``band_max_width`` / ``sizeBytes`` fields on the feature
+            surface on the returned ``_Scene``; a blank field coerces to zero.
+        """
+        layer = _FakeLayer(
+            [
+                _FakeFeature(
+                    {
+                        "gdal_dataset": "EEDAI:a",
+                        "startTime": "2024-06-01T00:00:00",
+                        "band_count": "24",
+                        "band_max_width": "10980",
+                        "band_max_height": "10980",
+                        "band_min_pixel_size": "10",
+                        "band_crs": "EPSG:32645",
+                        "sizeBytes": "123456",
+                    }
+                )
+            ]
+        )
+        monkeypatch.setattr(ee_reader, "gdal", _FakeEeda(layer))
+        (scene,) = ee_reader._discover_scenes(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox_4326=(0.0, 0.0, 1.0, 1.0),
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        assert scene.band_count == 24
+        assert scene.width == 10980
+        assert scene.pixel_size == 10.0
+        assert scene.crs == "EPSG:32645"
+        assert scene.size_bytes == 123456
+
+    def test_estimate_cost_aggregates_scene_metadata(self, monkeypatch) -> None:
+        """``estimate_earthengine_cost`` aggregates the scene records (#61).
+
+        Test scenario:
+            Two scenes of differing size aggregate into scene count, total bytes and
+            the per-field maxima — with no pixel fetch (only ``_discover_scenes`` runs).
+        """
+        scenes = [
+            ee_reader._Scene(
+                "EEDAI:a", "2024-06-01T00:00:00", 24, 10980, 10980, 10.0, "", 100
+            ),
+            ee_reader._Scene(
+                "EEDAI:b", "2024-06-02T00:00:00", 13, 5490, 5490, 20.0, "", 50
+            ),
+        ]
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: scenes)
+        cost = ee_reader.estimate_earthengine_cost(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox=(0.0, 0.0, 1.0, 1.0),
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        assert cost.scene_count == 2
+        assert cost.total_size_bytes == 150
+        assert cost.max_width == 10980
+        assert cost.max_band_count == 24
+        assert cost.min_pixel_size == 10.0
+        assert [s.connection for s in cost.scenes] == ["EEDAI:a", "EEDAI:b"]
+
+    def test_estimate_cost_requires_aoi(self) -> None:
+        """``estimate_earthengine_cost`` needs a ``bbox`` or ``geometry`` (#61)."""
+        creds = EarthEngineCredentials.application_default()
+        with pytest.raises(ValueError, match="bbox.*geometry|geometry"):
+            ee_reader.estimate_earthengine_cost(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                start="2024-06-01",
+                end="2024-06-30",
+                credentials=creds,
+            )
+
+    def test_estimate_cost_no_scenes_raises(self, monkeypatch) -> None:
+        """``estimate_earthengine_cost`` over an empty window raises ``ReaderError`` (#61).
+
+        Test scenario:
+            Discovery returns no scenes, so there is nothing to size — the estimate fails
+            loudly like the reader rather than returning a zero-scene cost.
+        """
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: [])
+        creds = EarthEngineCredentials.application_default()
+        with pytest.raises(ReaderError, match="No Earth Engine scenes"):
+            ee_reader.estimate_earthengine_cost(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                start="2024-06-01",
+                end="2024-06-30",
+                bbox=_BBOX,
+                credentials=creds,
+            )
+
+    def test_estimate_cost_accepts_geometry_envelope(self, monkeypatch) -> None:
+        """``estimate_earthengine_cost`` bounds discovery by a geometry's envelope (#61).
+
+        Test scenario:
+            With no ``bbox`` but a polygon ``geometry``, the estimate uses the polygon's
+            envelope and returns the aggregated cost of the discovered scenes.
+        """
+        import geopandas as gpd
+        from shapely.geometry import box
+
+        gdf = gpd.GeoDataFrame(geometry=[box(86.9, 27.9, 87.0, 28.0)], crs="EPSG:4326")
+        scenes = [
+            ee_reader._Scene(
+                "EEDAI:a", "2024-06-01T00:00:00", 24, 10980, 10980, 10.0, "", 100
+            )
+        ]
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: scenes)
+        cost = ee_reader.estimate_earthengine_cost(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            geometry=gdf,
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        assert cost.scene_count == 1, f"expected 1 scene, got {cost.scene_count}"
+        assert cost.max_band_count == 24, (
+            f"expected 24 bands, got {cost.max_band_count}"
+        )
+
+    def test_estimate_cost_min_pixel_size_zero_when_unreported(
+        self, monkeypatch
+    ) -> None:
+        """``min_pixel_size`` is ``0.0`` when no scene reports a pixel size (#61).
+
+        Test scenario:
+            Scenes whose ``pixel_size`` is ``0`` (catalog reported none) aggregate to a
+            ``0.0`` finest pixel size rather than raising on an empty min().
+        """
+        scenes = [
+            ee_reader._Scene("EEDAI:a", "2024-06-01T00:00:00", 1, 10, 10, 0.0, "", 0)
+        ]
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: scenes)
+        cost = ee_reader.estimate_earthengine_cost(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox=_BBOX,
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        assert cost.min_pixel_size == 0.0, (
+            f"expected 0.0 finest pixel size, got {cost.min_pixel_size}"
+        )
+
+    @pytest.mark.parametrize("raw", ["", "not-a-number", "12.3.4"])
+    def test_field_int_tolerates_bad_values(self, raw) -> None:
+        """``_field_int`` yields ``0`` for blank/unparseable catalog fields (#61).
+
+        Args:
+            raw: A blank or non-numeric field value.
+
+        Test scenario:
+            The tolerant coercion never raises; a bad field reads as ``0``.
+        """
+        assert ee_reader._field_int(_FakeFeature({"k": raw}), "k") == 0, (
+            f"expected 0 for {raw!r}"
+        )
+
+    @pytest.mark.parametrize("raw", ["", "not-a-number", "1,2"])
+    def test_field_float_tolerates_bad_values(self, raw) -> None:
+        """``_field_float`` yields ``0.0`` for blank/unparseable catalog fields (#61).
+
+        Args:
+            raw: A blank or non-numeric field value.
+
+        Test scenario:
+            The tolerant coercion never raises; a bad field reads as ``0.0``.
+        """
+        assert ee_reader._field_float(_FakeFeature({"k": raw}), "k") == 0.0, (
+            f"expected 0.0 for {raw!r}"
+        )
 
 
 class TestHelpers:
@@ -844,7 +1581,9 @@ class TestGeometryClip:
             masked with the nodata value.
         """
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, geometry=self._triangle(), shape=(10, 10)
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(10, 10)),
+            geometry=self._triangle(),
         )
         arr = ds.read_array()
         nodata = ds.no_data_value[0]
@@ -859,7 +1598,7 @@ class TestGeometryClip:
             Passing only `geometry` yields a Dataset (window derived from bounds).
         """
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", geometry=self._triangle(), shape=(8, 8)
+            "USGS/SRTMGL1_003", window=Window(shape=(8, 8)), geometry=self._triangle()
         )
         assert isinstance(ds, Dataset), f"Expected a Dataset, got {type(ds)}"
 
@@ -884,12 +1623,11 @@ class TestGeometryClip:
         """
         ds = from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
-            bbox=_BBOX,
+            window=Window(bbox=_BBOX, shape=(10, 10)),
             geometry=self._triangle(),
             start="2024-06-01",
             end="2024-06-30",
             reducer="median",
-            shape=(10, 10),
         )
         arr = ds.read_array()
         assert int((arr == ds.no_data_value[0]).sum()) > 0, "Composite not clipped"
@@ -905,10 +1643,10 @@ class TestGeometryClip:
         """
         dc = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(shape=(10, 10)),
             start="2024-06-01",
             end="2024-06-30",
             geometry=self._triangle(),
-            shape=(10, 10),
         )
         for ds in dc.datasets:
             arr = ds.read_array()
@@ -1014,10 +1752,12 @@ class TestCredentialLifetime:
         monkeypatch.setattr(
             ee_reader,
             "_open_eedai",
-            lambda a, *, bands, credentials: Dataset(_synthetic_srtm()),
+            lambda a, *, bands, credentials, **_kw: Dataset(_synthetic_srtm()),
         )
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, credentials={"type": "service_account"}
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX),
+            credentials={"type": "service_account"},
         )
         path = ds._ee_credentials.service_account_path
         gc.collect()
@@ -1063,28 +1803,36 @@ class TestReducerDtype:
             "max changed dtype"
         )
 
-    def test_lazy_wrap_installs_credential_config(self, monkeypatch, tmp_path) -> None:
-        """The lazy whole-asset wrap installs the credential GDAL config (M2).
+    def test_lazy_wrap_binds_credential_per_dataset_no_global_leak(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """The lazy whole-asset wrap binds the credential per-``Dataset``, not globally (#68).
 
         Test scenario:
-            A no-bbox read with a service-account key sets
-            GOOGLE_APPLICATION_CREDENTIALS process-wide for the deferred reads.
+            A no-bbox read with a service-account key leaves the process-global
+            GOOGLE_APPLICATION_CREDENTIALS untouched (no leak) and returns a
+            ``Dataset`` carrying the credential as its own ``gdal_env`` — the binding
+            pyramids re-applies around each deferred read.
         """
         from osgeo import gdal
 
         key = tmp_path / "k.json"
         key.write_text("{}", encoding="utf-8")
-        monkeypatch.setattr(
-            ee_reader,
-            "_open_eedai",
-            lambda a, *, bands, credentials: Dataset(_synthetic_srtm()),
-        )
+
+        def _fake_open(a, *, bands, credentials, **_kw):  # noqa: ARG001
+            # Mirror the real _open_eedai: attach the credential as the Dataset's env.
+            return Dataset(_synthetic_srtm(), gdal_env=credentials.gdal_env())
+
+        monkeypatch.setattr(ee_reader, "_open_eedai", _fake_open)
         before = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
         try:
-            from_earthengine("USGS/SRTMGL1_003", credentials=str(key))
-            assert gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) == str(
-                key
-            ), "Lazy wrap should install the credential config for deferred reads"
+            ds = from_earthengine("USGS/SRTMGL1_003", credentials=str(key))
+            assert (
+                gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) == before
+            ), "No-bbox wrap must not leak the credential into process-global config"
+            assert ds.gdal_env.get("GOOGLE_APPLICATION_CREDENTIALS") == str(key), (
+                "Returned Dataset should carry the credential as its own gdal_env"
+            )
         finally:
             gdal.SetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", before)
 
@@ -1106,7 +1854,9 @@ class TestGeometryCrs:
         tri_3857 = gpd.GeoDataFrame(geometry=[tri_4326], crs="EPSG:4326").to_crs(
             "EPSG:3857"
         )
-        ds = from_earthengine("USGS/SRTMGL1_003", geometry=tri_3857, shape=(8, 8))
+        ds = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(shape=(8, 8)), geometry=tri_3857
+        )
         assert isinstance(ds, Dataset), f"Expected a Dataset, got {type(ds)}"
         # Envelope came back in lon/lat degrees, not 3857 metres (~9.6e6).
         assert abs(ds.geotransform[0]) < 200, (
@@ -1209,19 +1959,21 @@ class TestCredentialScope:
         seen = {}
         real_window = ee_reader._window
 
-        def _spy(src, **kwargs):
+        def _spy(src, window):
             seen["cfg"] = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
-            return real_window(src, **kwargs)
+            return real_window(src, window)
 
         monkeypatch.setattr(
             ee_reader,
             "_open_eedai",
-            lambda a, *, bands, credentials: Dataset(_synthetic_srtm()),
+            lambda a, *, bands, credentials, **_kw: Dataset(_synthetic_srtm()),
         )
         monkeypatch.setattr(ee_reader, "_window", _spy)
         before = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
         from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), credentials=str(key)
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(5, 5)),
+            credentials=str(key),
         )
         assert seen["cfg"] == str(key), "Config must be active during the windowed read"
         assert gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) == before, (
@@ -1313,19 +2065,30 @@ class TestMaterialize:
             "Constant fill should be preserved"
         )
 
-    def test_stitches_tiles_across_block_boundary(self) -> None:
-        """A window spanning several 256-px blocks is stitched exactly.
+    def test_stitches_tiles_across_block_boundary(self, tmp_path) -> None:
+        """A window spanning several source blocks is stitched exactly (#60 guard).
 
         Test scenario:
-            Over a 600x600 gradient source (so no block is constant and the window
-            crosses the 256/512 boundaries), the materialised array equals the
-            source's exact sub-window — the regression guard for the block-stitch
-            math that the corruption fix relies on.
+            A 600x600 gradient GeoTIFF with **128-px tiles** (so ``GetBlockSize`` is
+            128 — a ``MEM`` source instead reports a full-width ``(width, 1)`` block,
+            which would collapse the window into a single read) is windowed over a
+            ~400 px region, forcing the block-aligned read to stitch a multi-block
+            grid; the result equals the source's exact sub-window. Guards the
+            block-placement math the EEDAI corruption workaround relies on,
+            independent of the source width and of any ``block_size`` change.
         """
         from osgeo import gdal, osr
 
         size = 600
-        src = gdal.GetDriverByName("MEM").Create("", size, size, 1, gdal.GDT_Int32)
+        path = tmp_path / "tiled.tif"
+        src = gdal.GetDriverByName("GTiff").Create(
+            str(path),
+            size,
+            size,
+            1,
+            gdal.GDT_Int32,
+            options=["TILED=YES", "BLOCKXSIZE=128", "BLOCKYSIZE=128"],
+        )
         src.SetGeoTransform((86.0, 0.001, 0.0, 29.0, 0.0, -0.001))
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(4326)
@@ -1333,23 +2096,30 @@ class TestMaterialize:
         src.GetRasterBand(1).WriteArray(
             np.arange(size * size, dtype="int32").reshape(size, size)
         )
-        # bbox covering native pixels ~[100, 500) on each axis -> a ~400 px window
-        # that straddles the 256 and 512 block boundaries.
+        src.FlushCache()
+        src = None
+        reopened = gdal.Open(str(path))
+        block = reopened.GetRasterBand(1).GetBlockSize()[0]
+        assert block == 128, f"expected a 128-px tiled source, got block {block}"
+        # bbox covering native pixels ~[100, 500) on each axis -> a ~400 px window that
+        # straddles several 128-px block boundaries.
         bbox = (
             86.0 + 100 * 0.001,
             29.0 - 500 * 0.001,
             86.0 + 500 * 0.001,
             29.0 - 100 * 0.001,
         )
-        mem = ee_reader._materialize(Dataset(src), bbox, "EPSG:4326")
-        assert mem.columns > 256, (
-            "window must span >1 block on x to exercise the stitch"
+        mem = ee_reader._materialize(Dataset(reopened), bbox, "EPSG:4326")
+        assert mem.columns > block, (
+            f"window width {mem.columns} must exceed the {block}-px block to stitch"
         )
-        assert mem.rows > 256, "window must span >1 block on y to exercise the stitch"
-        inverse = gdal.InvGeoTransform(src.GetGeoTransform())
+        assert mem.rows > block, (
+            f"window height {mem.rows} must exceed the {block}-px block to stitch"
+        )
+        inverse = gdal.InvGeoTransform(reopened.GetGeoTransform())
         mem_gt = mem.geotransform
         origin_col, origin_row = gdal.ApplyGeoTransform(inverse, mem_gt[0], mem_gt[3])
-        reference = src.GetRasterBand(1).ReadAsArray(
+        reference = reopened.GetRasterBand(1).ReadAsArray(
             round(origin_col), round(origin_row), mem.columns, mem.rows
         )
         assert np.array_equal(np.asarray(mem.read_array()), reference), (
@@ -1467,6 +2237,9 @@ class TestMaterialize:
                     def GetNoDataValue(self):  # noqa: N802
                         return real_band.GetNoDataValue()
 
+                    def GetBlockSize(self):  # noqa: N802
+                        return real_band.GetBlockSize()
+
                     def ReadAsArray(self, *args, **kwargs):  # noqa: N802, ARG002
                         return None
 
@@ -1481,6 +2254,144 @@ class TestLivePixelCorrectness:
     """Live safety net: EEDAI reads must return correct, deterministic pixels."""
 
     @pytest.mark.live
+    def test_mixed_resolution_bands_read_live(self) -> None:
+        """Live cross-group S2 read returns all bands resampled, not one (#58).
+
+        Test scenario:
+            The exact scene from #57's measurement, asked for B4 (10 m), B11 (20 m)
+            and B1 (60 m) at a shared shape, returns three aligned bands — where a
+            plain open would have silently returned one — with distinct spectra.
+        """
+        scene = "COPERNICUS/S2_SR_HARMONIZED/20240702T102601_20240702T103203_T32TLR"
+        bbox = (7.00, 45.50, 7.03, 45.53)
+        ds = from_earthengine(
+            scene, window=Window(bbox=bbox, shape=(24, 24)), bands=["B4", "B11", "B1"]
+        )
+        assert ds.shape == (3, 24, 24), f"Expected 3 aligned bands, got {ds.shape}"
+        arr = np.asarray(ds.read_array()).astype(float)
+        means = [float(np.mean(arr[i])) for i in range(3)]
+        assert len({round(m) for m in means}) > 1, (
+            f"Bands look identical — likely one band broadcast, not three: {means}"
+        )
+
+    @pytest.mark.live
+    def test_projected_crs_reads_same_ground_as_4326(self) -> None:
+        """A projected-CRS read covers the same ground as the 4326 read (#66).
+
+        Test scenario:
+            The same AOI read once as a 4326 lon/lat box and once as the equivalent
+            EPSG:32645 metre box returns matching SRTM elevation statistics — the
+            projected read lands on the same mountains, not a displaced/empty area.
+        """
+        ll = (86.92, 27.92, 86.98, 27.98)
+        latlon = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=ll, shape=(24, 24))
+        )
+        utm = from_earthengine(
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_to_utm45(ll), crs="EPSG:32645", shape=(24, 24)),
+        )
+        assert utm.epsg == 32645, f"Expected EPSG:32645, got {utm.epsg}"
+        mean_ll = float(np.mean(np.asarray(latlon.read_array())))
+        mean_utm = float(np.mean(np.asarray(utm.read_array())))
+        assert mean_ll > 1000, f"Expected mountainous ground, got mean {mean_ll}"
+        assert abs(mean_ll - mean_utm) < 0.1 * mean_ll, (
+            f"Projected read landed on different ground: {mean_ll} vs {mean_utm}"
+        )
+
+    @pytest.mark.live
+    def test_nodata_tag_marks_gsw_fill(self) -> None:
+        """A catalog-sourced fill is tagged on a live GSW read (#63).
+
+        Test scenario:
+            ``JRC/GSW1_4/GlobalSurfaceWater`` ``occurrence`` (Int8) uses ``-128`` for
+            "never observed" but the driver reports no no-data; passing ``nodata=-128``
+            tags it so downstream masking sees fill as fill, pixels unchanged.
+        """
+        untagged = from_earthengine(
+            "JRC/GSW1_4/GlobalSurfaceWater",
+            window=Window(bbox=_BBOX, shape=(32, 32)),
+            bands=["occurrence"],
+        )
+        tagged = from_earthengine(
+            "JRC/GSW1_4/GlobalSurfaceWater",
+            window=Window(bbox=_BBOX, shape=(32, 32)),
+            bands=["occurrence"],
+            nodata=-128,
+        )
+        assert untagged.no_data_value[0] is None, (
+            f"EEDAI unexpectedly reported a fill: {untagged.no_data_value}"
+        )
+        assert tagged.no_data_value[0] == -128, (
+            f"Expected -128 tagged, got {tagged.no_data_value}"
+        )
+        assert np.array_equal(
+            np.asarray(untagged.read_array()), np.asarray(tagged.read_array())
+        ), "tagging nodata changed the pixels"
+
+    @pytest.mark.live
+    def test_block_size_pixels_unchanged(self) -> None:
+        """A larger ``block_size`` returns identical pixels (#60).
+
+        Test scenario:
+            An SRTM window read with ``block_size=512`` is byte-identical to the
+            default 256-block read — the block size is a transport knob, not a
+            correctness one.
+        """
+        default = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(60, 60))
+        )
+        larger = from_earthengine(
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(60, 60)),
+            block_size=512,
+        )
+        assert np.array_equal(
+            np.asarray(default.read_array()), np.asarray(larger.read_array())
+        ), "block_size changed the pixels"
+
+    @pytest.mark.live
+    def test_pinned_encoding_lossless_at_large_transfer(self) -> None:
+        """The pinned lossless encoding keeps a large multi-band Byte read bit-exact.
+
+        Test scenario:
+            At a large (1024 px) transfer — the size the block-sizing work will use —
+            the driver's ``AUTO`` default silently loses data on a multi-band Byte
+            read, while the reader's pinned ``_EEDAI_PIXEL_ENCODING`` is byte-identical
+            to a lossless ``NPY`` read. Guards #69 (and the future larger-block path).
+        """
+        from osgeo import gdal
+
+        scene = (
+            "EEDAI:projects/earthengine-public/assets/COPERNICUS/S2_SR_HARMONIZED/"
+            "20240702T102601_20240702T103203_T32TLR"
+        )
+        creds = EarthEngineCredentials.application_default()
+
+        def read(encoding: str) -> np.ndarray:
+            with creds.activate():
+                ds = gdal.OpenEx(
+                    scene,
+                    gdal.OF_RASTER,
+                    open_options=[
+                        "BLOCK_SIZE=1024",
+                        "BANDS=TCI_R,TCI_G,TCI_B",
+                        f"PIXEL_ENCODING={encoding}",
+                    ],
+                )
+                return np.asarray(ds.ReadAsArray(2048, 2048, 1024, 1024))
+
+        reference = read("NPY")
+        pinned = read(ee_reader._EEDAI_PIXEL_ENCODING)
+        lossy = read("AUTO")
+        assert np.array_equal(pinned, reference), (
+            "the pinned encoding must be byte-identical to a lossless NPY read"
+        )
+        assert not np.array_equal(lossy, reference), (
+            "AUTO is expected to be lossy at this transfer size (proves the pin matters)"
+        )
+
+    @pytest.mark.live
     def test_srtm_values_correct_and_deterministic(self) -> None:
         """A live SRTM read has plausible elevations and repeats identically.
 
@@ -1489,8 +2400,12 @@ class TestLivePixelCorrectness:
             return byte-identical arrays — the regression guard for the EEDAI
             block/overview corruption bug.
         """
-        first = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(96, 96))
-        second = from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, shape=(96, 96))
+        first = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(96, 96))
+        )
+        second = from_earthengine(
+            "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(96, 96))
+        )
         values = first.read_array()
         out_of_range = int(((values < -500) | (values > 9000)).sum())
         assert out_of_range == 0, (
@@ -1510,12 +2425,11 @@ class TestLivePixelCorrectness:
             garbage, and two composites of the same window are byte-identical.
         """
         request = dict(
-            bbox=_S2_BBOX,
+            window=Window(bbox=_S2_BBOX, shape=(32, 32)),
             start="2024-06-05",
             end="2024-06-08",
             reducer="median",
             bands=["B4", "B3", "B2"],
-            shape=(32, 32),
         )
         first = from_earthengine("COPERNICUS/S2_SR_HARMONIZED", **request)
         values = first.read_array()
@@ -1539,11 +2453,10 @@ class TestLivePixelCorrectness:
         """
         collection = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_S2_BBOX, shape=(32, 32)),
             start="2024-06-05",
             end="2024-06-08",
-            bbox=_S2_BBOX,
             bands=["B4"],
-            shape=(32, 32),
         )
         assert collection.time_length > 0, "Expected at least one scene in the window"
         for index, scene in enumerate(collection.datasets):
@@ -1575,8 +2488,9 @@ class TestResample:
             ``from_earthengine`` validates ``resample`` before touching the driver
             (no ``_open_eedai`` monkeypatch is needed — it never reaches it).
         """
+        window = Window(bbox=_BBOX, resample="neareset")
         with pytest.raises(ValueError, match="Unknown resample"):
-            from_earthengine("USGS/SRTMGL1_003", bbox=_BBOX, resample="neareset")
+            from_earthengine("USGS/SRTMGL1_003", window=window)
 
     def test_from_earthengine_honours_resample(self, patched_eedai) -> None:
         """A non-default ``resample`` is accepted end-to-end.
@@ -1585,7 +2499,8 @@ class TestResample:
             ``resample="average"`` reads without error and returns a Dataset.
         """
         ds = from_earthengine(
-            "USGS/SRTMGL1_003", bbox=_BBOX, shape=(5, 5), resample="average"
+            "USGS/SRTMGL1_003",
+            window=Window(bbox=_BBOX, shape=(5, 5), resample="average"),
         )
         assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
 
@@ -1612,10 +2527,14 @@ class TestResample:
         bbox = (86.0, 29.0 - size * 0.001, 86.0 + size * 0.001, 29.0)
         common = {"bbox": bbox, "crs": "EPSG:4326", "scale": None, "shape": (10, 10)}
         nearest = np.asarray(
-            ee_reader._window(Dataset(src), resample="nearest", **common).read_array()
+            ee_reader._window(
+                Dataset(src), ee_reader.Window(resample="nearest", **common)
+            ).read_array()
         )
         average = np.asarray(
-            ee_reader._window(Dataset(src), resample="average", **common).read_array()
+            ee_reader._window(
+                Dataset(src), ee_reader.Window(resample="average", **common)
+            ).read_array()
         )
         assert not np.array_equal(nearest, average), (
             "nearest and average must differ — resample is not reaching the warp"
@@ -1661,8 +2580,226 @@ def patched_gradient(monkeypatch):
     monkeypatch.setattr(
         ee_reader,
         "_open_eedai",
-        lambda a, *, bands, credentials: Dataset(_gradient_source()),
+        lambda a, *, bands, credentials, **_kw: Dataset(_gradient_source()),
     )
+
+
+class TestWindowValueObject:
+    """Tests for the :class:`Window` value object and the :func:`_iter_tiles` grid."""
+
+    def test_for_tile_derives_sub_window_and_drops_scale(self) -> None:
+        """``Window._for_tile`` sets the tile's bounds/shape, keeps CRS, drops scale.
+
+        Test scenario:
+            A scale-defined window yields a tile window at the tile's exact shape with
+            ``scale`` cleared (shape and scale are mutually exclusive).
+        """
+        window = ee_reader.Window(
+            bbox=(0.0, 0.0, 1.0, 1.0),
+            crs="EPSG:4326",
+            scale=0.1,
+            shape=None,
+            resample="bilinear",
+        )
+        tile = window._for_tile((0.2, 0.2, 0.4, 0.4), (7, 9))
+        assert tile.bbox == (0.2, 0.2, 0.4, 0.4), f"bad tile bbox: {tile.bbox}"
+        assert tile.shape == (7, 9), f"bad tile shape: {tile.shape}"
+        assert tile.scale is None, "scale must be dropped for a shape-sized tile"
+        assert tile.crs == "EPSG:4326", "tile must inherit the parent CRS"
+        assert tile.resample == "bilinear", "tile must inherit the parent resampler"
+
+    def test_iter_tiles_covers_grid_with_interior_only_halo(self) -> None:
+        """``_iter_tiles`` tiles the grid; the halo is nonzero only on interior edges.
+
+        Test scenario:
+            A 10x10 shape window split into 4-px tiles yields a 3x3 tile grid whose
+            union covers every output pixel exactly once, and each tile's per-edge halo
+            is the halo size on a shared edge and 0 on the outer window boundary.
+        """
+        window = ee_reader.Window(
+            bbox=(0.0, 0.0, 10.0, 10.0),
+            crs="EPSG:4326",
+            scale=None,
+            shape=(10, 10),
+        )
+        tiles = list(ee_reader._iter_tiles(window, tile_size=4, halo_size=2))
+        assert len(tiles) == 9, f"expected a 3x3 tile grid, got {len(tiles)} tiles"
+        covered = sum(t.shape[0] * t.shape[1] for t, _halo, _cx, _cy in tiles)
+        assert covered == 100, f"tiles must cover all 100 output pixels, got {covered}"
+        _first_tile, first_halo, _, _ = tiles[0]
+        assert first_halo == (0, 2, 0, 2), (
+            f"top-left tile: outer edges 0, interior edges 2, got {first_halo}"
+        )
+        _last_tile, last_halo, _, _ = tiles[-1]
+        assert last_halo == (2, 0, 2, 0), (
+            f"bottom-right tile: interior edges 2, outer edges 0, got {last_halo}"
+        )
+
+    def test_iter_tiles_nearest_uses_zero_halo(self) -> None:
+        """A zero ``halo_size`` (nearest) yields all-zero per-edge halos (#65).
+
+        Test scenario:
+            With ``halo_size=0`` every tile edge halo is 0 — the zero-overhead path.
+        """
+        window = ee_reader.Window(
+            bbox=(0.0, 0.0, 8.0, 8.0),
+            crs="EPSG:4326",
+            scale=None,
+            shape=(8, 8),
+        )
+        for _tile, halo, _cx, _cy in ee_reader._iter_tiles(window, 3, 0):
+            assert halo == (0, 0, 0, 0), f"nearest tiles need no halo, got {halo}"
+
+    def test_read_scene_tile_fills_a_scene_that_misses_the_tile(
+        self, monkeypatch
+    ) -> None:
+        """A scene whose footprint misses a tile contributes an all-fill tile (#59).
+
+        Test scenario:
+            The tiled composite reduces the *global* scene set on every tile. When a
+            scene does not reach a given tile its windowed read raises "does not
+            intersect"; ``_read_scene_tile`` must swallow that and substitute a nodata
+            tile — exactly what the un-tiled warp lays down where a scene does not
+            cover — so the per-tile stack still has one layer per scene. Here the second
+            of two scenes misses: its layer must come back all-nodata (``-32768``) while
+            the first is the real windowed pixels.
+        """
+        fill_source = Dataset(_synthetic_srtm(fill=7))  # nodata -32768
+        scenes = [
+            ee_reader._Scene("EEDAI:hit", "2024-06-01T00:00:00"),
+            ee_reader._Scene("EEDAI:miss", "2024-06-02T00:00:00"),
+        ]
+        tile = ee_reader.Window(bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(4, 4))
+
+        monkeypatch.setattr(
+            ee_reader,
+            "_open_eedai",
+            lambda connection, **_kwargs: Dataset(_synthetic_srtm(fill=7)),
+        )
+
+        calls = {"n": 0}
+
+        def _fake_halo(source, tile_, *, cell_x, cell_y, halo):  # noqa: ARG001
+            calls["n"] += 1
+            if calls["n"] == 2:  # the second scene does not reach this tile
+                raise ReaderError(
+                    f"AOI {tile_.bbox} does not intersect the Earth Engine asset."
+                )
+            return ee_reader._window(source, tile_)
+
+        monkeypatch.setattr(ee_reader, "_read_tile_with_halo", _fake_halo)
+
+        cell_x = (_BBOX[2] - _BBOX[0]) / 4
+        cell_y = (_BBOX[3] - _BBOX[1]) / 4
+        result = ee_reader._read_scene_tile(
+            scenes,
+            fill_source=fill_source,
+            tile=tile,
+            cell_x=cell_x,
+            cell_y=cell_y,
+            halo=(0, 0, 0, 0),
+            bands=None,
+            credentials=EarthEngineCredentials.coerce(None),
+            block_size=None,
+        )
+        assert len(result) == 2, f"one layer per scene expected, got {len(result)}"
+        hit = np.asarray(result[0].read_array())
+        miss = np.asarray(result[1].read_array())
+        assert (hit == 7).all(), f"covering scene should hold its pixels, got {hit}"
+        assert miss.shape[-2:] == (4, 4), (
+            f"fill tile must match the grid, got {miss.shape}"
+        )
+        assert (miss == -32768).all(), (
+            f"a scene that misses the tile must be nodata-filled, got {miss}"
+        )
+
+    def test_read_scene_tile_propagates_a_non_footprint_error(
+        self, monkeypatch
+    ) -> None:
+        """A tile read error that is *not* a footprint miss propagates (#59).
+
+        Test scenario:
+            ``_read_scene_tile`` fills only the "does not intersect" case; any other
+            ``ReaderError`` (a genuine read failure) must surface, not be silently
+            turned into a fill tile.
+        """
+        fill_source = Dataset(_synthetic_srtm(fill=7))
+        scenes = [ee_reader._Scene("EEDAI:boom", "2024-06-01T00:00:00")]
+        tile = ee_reader.Window(bbox=_BBOX, crs="EPSG:4326", scale=None, shape=(4, 4))
+        monkeypatch.setattr(
+            ee_reader,
+            "_open_eedai",
+            lambda connection, **_kwargs: Dataset(_synthetic_srtm(fill=7)),
+        )
+
+        def _boom(source, tile_, *, cell_x, cell_y, halo):  # noqa: ARG001
+            raise ReaderError("Earth Engine block read failed at (0, 0): boom")
+
+        monkeypatch.setattr(ee_reader, "_read_tile_with_halo", _boom)
+        creds = EarthEngineCredentials.coerce(None)
+        with pytest.raises(ReaderError, match="block read failed"):
+            ee_reader._read_scene_tile(
+                scenes,
+                fill_source=fill_source,
+                tile=tile,
+                cell_x=1.0,
+                cell_y=1.0,
+                halo=(0, 0, 0, 0),
+                bands=None,
+                credentials=creds,
+                block_size=None,
+            )
+
+    def test_apply_nodata_file_backed_without_credentials(self, tmp_path) -> None:
+        """A file-backed ``_apply_nodata`` with no credentials re-tags without a pin.
+
+        Test scenario:
+            A dataset read from disk has its fill streamed into the file and a fresh
+            file-backed dataset returned; with ``credentials=None`` no credential is
+            pinned — the branch the public API (which always passes credentials) never
+            takes.
+        """
+        path = tmp_path / "backed.tif"
+        Dataset(_synthetic_srtm(fill=5)).to_file(str(path))
+        backed = Dataset.read_file(str(path))
+        tagged = ee_reader._apply_nodata(backed, 999, credentials=None)
+        assert tagged.no_data_value[0] == 999, (
+            f"file-backed nodata should re-tag to 999, got {tagged.no_data_value[0]}"
+        )
+        assert not hasattr(tagged, "_ee_credentials"), (
+            "no credentials were given, so none should be pinned onto the result"
+        )
+
+    def test_read_tile_with_halo_multiband_source(self) -> None:
+        """A haloed tile read of a multi-band source keeps every band (ndim != 2 path).
+
+        Test scenario:
+            An interpolating (haloed) tile read of a 2-band source returns a 2-band tile
+            on the tile's exact grid — the grown warp yields a ``(bands, rows, cols)``
+            array, so the single-band ``ndim == 2`` reshape is skipped and each band's
+            constant fill is preserved.
+        """
+        source = _multiband_scene(n_bands=2, fills=(10, 20), nodatas=(-1, -2))
+        tile = ee_reader.Window(
+            bbox=(86.05, 28.85, 86.15, 28.95),
+            crs="EPSG:4326",
+            scale=None,
+            shape=(4, 4),
+            resample="bilinear",
+        )
+        result = ee_reader._read_tile_with_halo(
+            source, tile, cell_x=0.025, cell_y=0.025, halo=(1, 1, 1, 1)
+        )
+        assert result.shape == (2, 4, 4), (
+            f"expected a 2-band 4x4 tile, got {result.shape}"
+        )
+        arr = np.asarray(result.read_array())
+        assert int(round(arr[0].mean())) == 10, (
+            f"band 0 should stay ~10, got {arr[0].mean()}"
+        )
+        assert int(round(arr[1].mean())) == 20, (
+            f"band 1 should stay ~20, got {arr[1].mean()}"
+        )
 
 
 class TestTileEdges:
@@ -1695,11 +2832,11 @@ class TestTiledRead:
             A 20x20 window over a distinct-per-pixel gradient, split into tiles of 7
             (a 3x3 tile grid), mosaics back to exactly the un-tiled 20x20 read.
         """
-        untiled_ds = from_earthengine("X", bbox=_BBOX, shape=(20, 20))
+        untiled_ds = from_earthengine("X", window=Window(bbox=_BBOX, shape=(20, 20)))
         untiled = np.asarray(untiled_ds.read_array())
         out = tmp_path / "mosaic.tif"
         tiled_ds = from_earthengine(
-            "X", bbox=_BBOX, shape=(20, 20), tile_size=7, path=str(out)
+            "X", window=Window(bbox=_BBOX, shape=(20, 20)), tile_size=7, path=str(out)
         )
         tiled = np.asarray(tiled_ds.read_array())
         assert out.exists(), "the mosaic file should be written to path"
@@ -1713,6 +2850,74 @@ class TestTiledRead:
             "tiled mosaic differs from the un-tiled read"
         )
 
+    def test_tiled_bilinear_equals_untiled(self, patched_gradient, tmp_path) -> None:
+        """A tiled interpolating read matches the un-tiled read via the halo (#65).
+
+        Test scenario:
+            A 20x20 bilinear window over the gradient, tiled at 7, equals the un-tiled
+            bilinear read pixel-for-pixel — each tile's kernel-sized halo restores the
+            neighbours it would otherwise miss at a seam.
+        """
+        untiled = np.asarray(
+            from_earthengine(
+                "X", window=Window(bbox=_BBOX, shape=(20, 20), resample="bilinear")
+            ).read_array()
+        )
+        out = tmp_path / "bilinear_mosaic.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X",
+                window=Window(bbox=_BBOX, shape=(20, 20), resample="bilinear"),
+                tile_size=7,
+                path=str(out),
+            ).read_array()
+        )
+        assert np.array_equal(tiled, untiled), (
+            "tiled bilinear mosaic differs from the un-tiled read at a seam"
+        )
+
+    def test_tiled_cutline_equals_untiled(self, patched_gradient, tmp_path) -> None:
+        """A tiled cutline read equals the un-tiled cutline read (#64).
+
+        Test scenario:
+            A grid-aligned polygon over the window, read un-tiled and tiled at 7, are
+            pixel-identical — the envelope is tiled and the cutline applied to the
+            assembled mosaic.
+        """
+        import geopandas as gpd
+        from shapely.geometry import box
+
+        cell = (_BBOX[2] - _BBOX[0]) / 20
+        gdf = gpd.GeoDataFrame(
+            geometry=[
+                box(
+                    _BBOX[0] + 4 * cell,
+                    _BBOX[1] + 4 * cell,
+                    _BBOX[0] + 16 * cell,
+                    _BBOX[1] + 15 * cell,
+                )
+            ],
+            crs="EPSG:4326",
+        )
+        untiled = np.asarray(
+            from_earthengine(
+                "X", window=Window(shape=(20, 20)), geometry=gdf
+            ).read_array()
+        )
+        out = tmp_path / "cutline_mosaic.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "X",
+                window=Window(shape=(20, 20)),
+                geometry=gdf,
+                tile_size=7,
+                path=str(out),
+            ).read_array()
+        )
+        assert np.array_equal(tiled, untiled), (
+            "tiled cutline mosaic differs from the un-tiled cutline read"
+        )
+
     def test_single_tile_when_tile_covers_grid(
         self, patched_gradient, tmp_path
     ) -> None:
@@ -1723,12 +2928,15 @@ class TestTiledRead:
             un-tiled read.
         """
         untiled = np.asarray(
-            from_earthengine("X", bbox=_BBOX, shape=(8, 8)).read_array()
+            from_earthengine("X", window=Window(bbox=_BBOX, shape=(8, 8))).read_array()
         )
         out = tmp_path / "one.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=_BBOX, shape=(8, 8), tile_size=64, path=str(out)
+                "X",
+                window=Window(bbox=_BBOX, shape=(8, 8)),
+                tile_size=64,
+                path=str(out),
             ).read_array()
         )
         assert np.array_equal(tiled, untiled), "single-tile mosaic must equal the read"
@@ -1741,7 +2949,9 @@ class TestTiledRead:
             that shape.
         """
         out = tmp_path / "scaled.tif"
-        ds = from_earthengine("X", bbox=_BBOX, scale=0.01, tile_size=4, path=str(out))
+        ds = from_earthengine(
+            "X", window=Window(bbox=_BBOX, scale=0.01), tile_size=4, path=str(out)
+        )
         assert ds.shape == (1, 10, 10), f"Expected (1, 10, 10), got {ds.shape}"
 
     def test_tiled_scale_matches_untiled_at_rounding_boundary(
@@ -1755,12 +2965,12 @@ class TestTiledRead:
             The tiled read must match the un-tiled ``scale`` read's grid and pixels.
         """
         untiled = np.asarray(
-            from_earthengine("X", bbox=_BBOX, scale=0.008).read_array()
+            from_earthengine("X", window=Window(bbox=_BBOX, scale=0.008)).read_array()
         )
         out = tmp_path / "scale_boundary.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=_BBOX, scale=0.008, tile_size=5, path=str(out)
+                "X", window=Window(bbox=_BBOX, scale=0.008), tile_size=5, path=str(out)
             ).read_array()
         )
         assert untiled.shape[0] == 13, (
@@ -1781,7 +2991,9 @@ class TestTiledRead:
             5x5 Dataset reading it.
         """
         out = tmp_path / "single.tif"
-        ds = from_earthengine("X", bbox=_BBOX, shape=(5, 5), path=str(out))
+        ds = from_earthengine(
+            "X", window=Window(bbox=_BBOX, shape=(5, 5)), path=str(out)
+        )
         assert out.exists(), "path should be written"
         assert ds.shape == (1, 5, 5), f"Expected (1, 5, 5), got {ds.shape}"
 
@@ -1805,16 +3017,23 @@ class TestTiledRead:
             src.GetRasterBand(band + 1).WriteArray(base + band * 1_000_000)
             src.GetRasterBand(band + 1).SetNoDataValue(-32768)
         monkeypatch.setattr(
-            ee_reader, "_open_eedai", lambda a, *, bands, credentials: Dataset(src)
+            ee_reader,
+            "_open_eedai",
+            lambda a, *, bands, credentials, **_kw: Dataset(src),
         )
 
         untiled = np.asarray(
-            from_earthengine("X", bbox=_BBOX, shape=(18, 18)).read_array()
+            from_earthengine(
+                "X", window=Window(bbox=_BBOX, shape=(18, 18))
+            ).read_array()
         )
         out = tmp_path / "multiband.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=_BBOX, shape=(18, 18), tile_size=7, path=str(out)
+                "X",
+                window=Window(bbox=_BBOX, shape=(18, 18)),
+                tile_size=7,
+                path=str(out),
             ).read_array()
         )
         assert tiled.shape == untiled.shape == (3, 18, 18), f"shape {tiled.shape}"
@@ -1834,12 +3053,15 @@ class TestTiledRead:
         """
         over = (87.0, 28.0, 89.0, 30.0)
         untiled = np.asarray(
-            from_earthengine("X", bbox=over, shape=(20, 20)).read_array()
+            from_earthengine("X", window=Window(bbox=over, shape=(20, 20))).read_array()
         )
         out = tmp_path / "edge.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=over, shape=(20, 20), tile_size=7, path=str(out)
+                "X",
+                window=Window(bbox=over, shape=(20, 20)),
+                tile_size=7,
+                path=str(out),
             ).read_array()
         )
         assert (untiled == -32768).any(), "the overhang should include nodata pixels"
@@ -1857,11 +3079,12 @@ class TestTiledRead:
             ``does not intersect`` ``ReaderError`` as the un-tiled read.
         """
         far = (100.0, 50.0, 101.0, 51.0)
+        window = Window(bbox=far, shape=(8, 8))
         with pytest.raises(ReaderError, match="does not intersect"):
-            from_earthengine("X", bbox=far, shape=(8, 8))
-        out = tmp_path / "far.tif"
+            from_earthengine("X", window=window)
+        out = str(tmp_path / "far.tif")
         with pytest.raises(ReaderError, match="does not intersect"):
-            from_earthengine("X", bbox=far, shape=(8, 8), tile_size=4, path=str(out))
+            from_earthengine("X", window=window, tile_size=4, path=out)
 
     def test_tiled_reraises_other_reader_errors(
         self, patched_gradient, monkeypatch, tmp_path
@@ -1877,9 +3100,10 @@ class TestTiledRead:
             raise ReaderError("boom: block read failed")
 
         monkeypatch.setattr(ee_reader, "_window", boom)
-        out = tmp_path / "boom.tif"
+        out = str(tmp_path / "boom.tif")
+        window = Window(bbox=_BBOX, shape=(8, 8))
         with pytest.raises(ReaderError, match="boom"):
-            from_earthengine("X", bbox=_BBOX, shape=(8, 8), tile_size=4, path=str(out))
+            from_earthengine("X", window=window, tile_size=4, path=out)
 
     def test_tiled_reprojects_like_untiled(self, patched_gradient, tmp_path) -> None:
         """A reprojecting (``crs`` != source) tiled read equals the un-tiled read.
@@ -1904,16 +3128,14 @@ class TestTiledRead:
         merc = (x0, y0, x1, y1)
         untiled = np.asarray(
             from_earthengine(
-                "X", bbox=merc, crs="EPSG:3857", shape=(18, 18)
+                "X", window=Window(bbox=merc, crs="EPSG:3857", shape=(18, 18))
             ).read_array()
         )
         out = tmp_path / "merc.tif"
         tiled = np.asarray(
             from_earthengine(
                 "X",
-                bbox=merc,
-                crs="EPSG:3857",
-                shape=(18, 18),
+                window=Window(bbox=merc, crs="EPSG:3857", shape=(18, 18)),
                 tile_size=7,
                 path=str(out),
             ).read_array()
@@ -1942,16 +3164,21 @@ class TestTiledRead:
         src.GetRasterBand(1).WriteArray(array)
         src.GetRasterBand(1).SetNoDataValue(-32768)
         monkeypatch.setattr(
-            ee_reader, "_open_eedai", lambda a, *, bands, credentials: Dataset(src)
+            ee_reader,
+            "_open_eedai",
+            lambda a, *, bands, credentials, **_kw: Dataset(src),
         )
         aoi = (86.7, 27.7, 87.3, 28.3)
         untiled = np.asarray(
-            from_earthengine("X", bbox=aoi, shape=(30, 30)).read_array()
+            from_earthengine("X", window=Window(bbox=aoi, shape=(30, 30))).read_array()
         )
         out = tmp_path / "innodata.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=aoi, shape=(30, 30), tile_size=11, path=str(out)
+                "X",
+                window=Window(bbox=aoi, shape=(30, 30)),
+                tile_size=11,
+                path=str(out),
             ).read_array()
         )
         assert (untiled == -32768).any(), "the window should include nodata pixels"
@@ -1973,7 +3200,9 @@ class TestTiledRead:
         pattern = os.path.join(tempfile.gettempdir(), "ee_tiles_*")
         before = set(glob.glob(pattern))
         out = tmp_path / "clean.tif"
-        from_earthengine("X", bbox=_BBOX, shape=(16, 16), tile_size=6, path=str(out))
+        from_earthengine(
+            "X", window=Window(bbox=_BBOX, shape=(16, 16)), tile_size=6, path=str(out)
+        )
         leaked = set(glob.glob(pattern)) - before
         assert not leaked, f"tiled read leaked temp dir(s): {leaked}"
 
@@ -1985,12 +3214,17 @@ class TestTiledRead:
             reproduces the un-tiled read, guarding the row/column tile arithmetic.
         """
         untiled = np.asarray(
-            from_earthengine("X", bbox=_BBOX, shape=(12, 20)).read_array()
+            from_earthengine(
+                "X", window=Window(bbox=_BBOX, shape=(12, 20))
+            ).read_array()
         )
         out = tmp_path / "rect.tif"
         tiled = np.asarray(
             from_earthengine(
-                "X", bbox=_BBOX, shape=(12, 20), tile_size=7, path=str(out)
+                "X",
+                window=Window(bbox=_BBOX, shape=(12, 20)),
+                tile_size=7,
+                path=str(out),
             ).read_array()
         )
         assert tiled.shape == untiled.shape == (12, 20), f"shape {tiled.shape}"
@@ -2006,12 +3240,14 @@ class TestTiledRead:
         monkeypatch.setattr(
             ee_reader,
             "_open_eedai",
-            lambda a, *, bands, credentials: Dataset(_gradient_source(nodata=None)),
+            lambda a, *, bands, credentials, **_kw: Dataset(
+                _gradient_source(nodata=None)
+            ),
         )
-        untiled_ds = from_earthengine("X", bbox=_BBOX, shape=(16, 16))
+        untiled_ds = from_earthengine("X", window=Window(bbox=_BBOX, shape=(16, 16)))
         out = tmp_path / "no_nodata.tif"
         tiled_ds = from_earthengine(
-            "X", bbox=_BBOX, shape=(16, 16), tile_size=6, path=str(out)
+            "X", window=Window(bbox=_BBOX, shape=(16, 16)), tile_size=6, path=str(out)
         )
         assert np.array_equal(
             np.asarray(tiled_ds.read_array()), np.asarray(untiled_ds.read_array())
@@ -2033,8 +3269,9 @@ class TestTiledValidation:
         Test scenario:
             No ``path`` to stream the mosaic to → ``ValueError``.
         """
+        window = Window(bbox=_BBOX, shape=(20, 20))
         with pytest.raises(ValueError, match="path"):
-            from_earthengine("X", bbox=_BBOX, shape=(20, 20), tile_size=7)
+            from_earthengine("X", window=window, tile_size=7)
 
     def test_tile_size_requires_scale_or_shape(self) -> None:
         """``tile_size`` without ``scale``/``shape`` raises up front.
@@ -2042,30 +3279,48 @@ class TestTiledValidation:
         Test scenario:
             No output grid defined → ``ValueError``.
         """
+        window = Window(bbox=_BBOX)
         with pytest.raises(ValueError, match="scale.*shape"):
-            from_earthengine("X", bbox=_BBOX, tile_size=7, path="out.tif")
+            from_earthengine("X", window=window, tile_size=7, path="out.tif")
 
-    def test_tile_size_rejects_composite(self) -> None:
-        """``tile_size`` with a reducer (composite mode) raises up front.
+    def test_tiled_composite_still_needs_path(self) -> None:
+        """A tiled composite without ``path`` raises up front (#59).
 
         Test scenario:
-            The oversize tiler is single-image only → ``ValueError``.
+            The composite mode now tiles, but only to disk — no ``path`` is a
+            combination that genuinely cannot stream → ``ValueError``.
         """
-        with pytest.raises(ValueError, match="composite"):
+        window = Window(bbox=_BBOX, shape=(8, 8))
+        with pytest.raises(ValueError, match="path"):
             from_earthengine(
                 "X",
-                bbox=_BBOX,
-                shape=(8, 8),
+                window=window,
                 tile_size=4,
-                path="o.tif",
                 reducer="median",
+                start="2024-06-01",
+                end="2024-06-10",
             )
 
-    def test_tile_size_rejects_geometry(self) -> None:
-        """``tile_size`` combined with a polygon ``geometry`` raises up front.
+    def test_property_filter_rejects_single_image(self) -> None:
+        """``property_filter`` without composite mode raises up front (#62).
 
         Test scenario:
-            A polygon cutline is incompatible with the tiler → ``ValueError``.
+            A single-image read has no scene set to filter → ``ValueError``.
+        """
+        window = Window(bbox=_BBOX, shape=(8, 8))
+        with pytest.raises(ValueError, match="property_filter"):
+            from_earthengine(
+                "X",
+                window=window,
+                property_filter="CLOUDY_PIXEL_PERCENTAGE < 20",
+            )
+
+    def test_tile_size_geometry_still_needs_grid(self) -> None:
+        """A tiled cutline still needs a target grid (#64).
+
+        Test scenario:
+            ``tile_size`` + ``geometry`` is now allowed, but without ``scale``/``shape``
+            there is no grid to tile → ``ValueError``.
         """
         import geopandas as gpd
         from shapely.geometry import Polygon
@@ -2074,8 +3329,8 @@ class TestTiledValidation:
             geometry=[Polygon([(86.9, 27.9), (87.0, 27.9), (86.9, 28.0)])],
             crs="EPSG:4326",
         )
-        with pytest.raises(ValueError, match="geometry"):
-            from_earthengine("X", geometry=gdf, shape=(8, 8), tile_size=4, path="o.tif")
+        with pytest.raises(ValueError, match="scale.*shape"):
+            from_earthengine("X", geometry=gdf, tile_size=4, path="o.tif")
 
     def test_tile_size_must_be_positive(self) -> None:
         """A non-positive ``tile_size`` raises up front.
@@ -2083,29 +3338,26 @@ class TestTiledValidation:
         Test scenario:
             ``tile_size=0`` → ``ValueError``.
         """
+        window = Window(bbox=_BBOX, shape=(8, 8))
         with pytest.raises(ValueError, match="positive"):
-            from_earthengine("X", bbox=_BBOX, shape=(8, 8), tile_size=0, path="o.tif")
+            from_earthengine("X", window=window, tile_size=0, path="o.tif")
 
-    @pytest.mark.parametrize("resample", ["bilinear", "cubic", "average", "mode"])
-    def test_tile_size_rejects_non_nearest_resample(self, resample) -> None:
-        """A non-nearest ``resample`` with ``tile_size`` raises up front.
+    @pytest.mark.parametrize(
+        ("resample", "expected"),
+        [("nearest", 0), ("bilinear", 1), ("cubic", 2), ("lanczos", 3), ("mode", 0)],
+    )
+    def test_resample_halo_sized_from_kernel(self, resample, expected) -> None:
+        """The tiling halo is sized from the resampling kernel, zero for nearest (#65).
 
         Args:
-            resample: A non-nearest resampling algorithm.
+            resample: A resampling algorithm name.
+            expected: Its expected per-edge halo in output pixels.
 
         Test scenario:
-            Interpolating (and footprint) resamplers differ from the un-tiled read
-            at tile seams, so they are rejected before any read.
+            Point samplers need no halo (zero-overhead); interpolating kernels need a
+            margin that grows with the kernel's reach.
         """
-        with pytest.raises(ValueError, match="nearest"):
-            from_earthengine(
-                "X",
-                bbox=_BBOX,
-                shape=(8, 8),
-                tile_size=4,
-                path="o.tif",
-                resample=resample,
-            )
+        assert ee_reader._resample_halo(resample) == expected
 
     def test_path_without_bbox_or_geometry(self) -> None:
         """A ``path`` with no ``bbox``/``geometry`` raises (the whole-asset read is lazy).
@@ -2115,6 +3367,59 @@ class TestTiledValidation:
         """
         with pytest.raises(ValueError, match="path"):
             from_earthengine("X", path="o.tif")
+
+
+class TestLiveServiceAccountAuth:
+    """Live: a service-account credential is bound per-``Dataset``, never globally (#68)."""
+
+    @pytest.mark.live
+    def test_no_bbox_read_authenticates_via_gdal_env_without_global_leak(
+        self, monkeypatch
+    ) -> None:
+        """A lazy whole-asset service-account read authenticates per-dataset, no leak (#68).
+
+        Test scenario:
+            With the ambient credential stripped from both the process environment and
+            GDAL config, a no-bbox read opened with a service-account key still reads
+            pixels (the deferred read authenticates from the ``Dataset``'s own
+            ``gdal_env``), and the process-global ``GOOGLE_APPLICATION_CREDENTIALS`` is
+            left unset — proving nothing leaked into global config.
+        """
+        import os
+
+        from osgeo import gdal
+
+        # The live environment provides a service-account key via ADC; use it explicitly.
+        key = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        if not key:  # pragma: no cover - live env is expected to provide the key
+            pytest.fail(
+                "live auth test needs a service-account key in "
+                "GOOGLE_APPLICATION_CREDENTIALS"
+            )
+        creds = EarthEngineCredentials.from_service_account(key)
+        # Isolate: strip the ambient credential so ONLY the Dataset's gdal_env can auth.
+        # monkeypatch restores the env var on teardown; GDAL config (not an env var) is
+        # save/restored manually since monkeypatch cannot manage it.
+        monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+        saved_cfg = gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
+        gdal.SetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None)
+        try:
+            ds = from_earthengine(
+                "USGS/SRTMGL1_003", credentials=creds
+            )  # no bbox → lazy
+            assert (
+                gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) is None
+            ), "no-bbox service-account read leaked the credential into global config"
+            block = np.asarray(ds.read_array(window=[1000, 1000, 4, 4]))
+            assert block is not None, "deferred read returned no data"
+            assert block.size == 16, (
+                "deferred read did not authenticate from the Dataset's gdal_env"
+            )
+            assert (
+                gdal.GetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", None) is None
+            ), "the deferred read leaked the credential into global config"
+        finally:
+            gdal.SetConfigOption("GOOGLE_APPLICATION_CREDENTIALS", saved_cfg)
 
 
 class TestTiledLive:
@@ -2130,15 +3435,14 @@ class TestTiledLive:
         """
         untiled = np.asarray(
             from_earthengine(
-                "USGS/SRTMGL1_003", bbox=_BBOX, shape=(40, 40)
+                "USGS/SRTMGL1_003", window=Window(bbox=_BBOX, shape=(40, 40))
             ).read_array()
         )
         out = tmp_path / "srtm_tiled.tif"
         tiled = np.asarray(
             from_earthengine(
                 "USGS/SRTMGL1_003",
-                bbox=_BBOX,
-                shape=(40, 40),
+                window=Window(bbox=_BBOX, shape=(40, 40)),
                 tile_size=16,
                 path=str(out),
             ).read_array()
@@ -2146,4 +3450,117 @@ class TestTiledLive:
         assert tiled.shape == untiled.shape, f"shape {tiled.shape} vs {untiled.shape}"
         assert np.array_equal(tiled, untiled), (
             "live tiled mosaic differs from the un-tiled read"
+        )
+
+    @pytest.mark.live
+    @pytest.mark.parametrize(("resample", "atol"), [("bilinear", 0), ("average", 1)])
+    def test_tiled_interpolating_equals_untiled(self, tmp_path, resample, atol) -> None:
+        """A tiled interpolating read matches the un-tiled read, seams included (#65).
+
+        Args:
+            tmp_path: pytest temp dir.
+            resample: An interpolating / footprint resampler that needs a halo.
+            atol: Allowed per-pixel deviation. ``bilinear`` (a point sampler) is exact;
+                ``average`` pools a footprint whose float accumulation is order-sensitive,
+                so it matches to within one integer LSB at a seam.
+
+        Test scenario:
+            A 40x40 SRTM window read as 13-px tiles with a non-nearest resampler equals
+            the un-tiled read — the per-tile halo restores the cross-seam neighbours.
+        """
+        untiled = np.asarray(
+            from_earthengine(
+                "USGS/SRTMGL1_003",
+                window=Window(bbox=_BBOX, shape=(40, 40), resample=resample),
+            ).read_array()
+        ).astype(float)
+        out = tmp_path / f"srtm_{resample}.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "USGS/SRTMGL1_003",
+                window=Window(bbox=_BBOX, shape=(40, 40), resample=resample),
+                tile_size=13,
+                path=str(out),
+            ).read_array()
+        ).astype(float)
+        assert tiled.shape == untiled.shape, f"shape {tiled.shape} vs {untiled.shape}"
+        assert np.max(np.abs(tiled - untiled)) <= atol, (
+            f"tiled {resample} mosaic differs from the un-tiled read at a seam"
+        )
+
+    @pytest.mark.live
+    def test_tiled_cutline_equals_untiled(self, tmp_path) -> None:
+        """A tiled cutline read equals the un-tiled cutline read (#64).
+
+        Test scenario:
+            A polygon AOI read un-tiled and as 13-px tiles (envelope tiled, cutline on
+            the mosaic) are pixel-identical, pixels outside the polygon masked alike. A
+            grid-aligned polygon is used so the cutline falls on pixel edges — an
+            arbitrary edge only differs by sub-pixel rasterization on the two grids,
+            which is not what this asserts.
+        """
+        import geopandas as gpd
+        from shapely.geometry import Polygon
+
+        cell = (_BBOX[2] - _BBOX[0]) / 40
+        x0, y0 = _BBOX[0] + 8 * cell, _BBOX[1] + 8 * cell
+        x1, y1 = _BBOX[0] + 32 * cell, _BBOX[1] + 31 * cell
+        gdf = gpd.GeoDataFrame(
+            geometry=[Polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])],
+            crs="EPSG:4326",
+        )
+        untiled = np.asarray(
+            from_earthengine(
+                "USGS/SRTMGL1_003", window=Window(shape=(40, 40)), geometry=gdf
+            ).read_array()
+        )
+        out = tmp_path / "srtm_cut.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "USGS/SRTMGL1_003",
+                window=Window(shape=(40, 40)),
+                geometry=gdf,
+                tile_size=13,
+                path=str(out),
+            ).read_array()
+        )
+        assert tiled.shape == untiled.shape, f"shape {tiled.shape} vs {untiled.shape}"
+        assert np.array_equal(tiled, untiled), (
+            "tiled cutline mosaic differs from the un-tiled cutline read"
+        )
+
+    @pytest.mark.live
+    def test_tiled_composite_equals_untiled(self, tmp_path) -> None:
+        """A tiled composite equals the un-tiled composite (#59).
+
+        Test scenario:
+            An S2 median composite read un-tiled and as 10-px tiles are pixel-identical.
+            The tiled path discovers the scenes once and reduces that same stack on
+            every tile (filling scenes whose footprint misses a tile, exactly as the
+            un-tiled warp does), so a seam is a mosaic boundary, not a reduction
+            boundary, and even an averaging reducer matches exactly. The read is done
+            in the scenes' native UTM (``EPSG:32645``) so no reprojection runs: a
+            reprojecting warp is not bit-exact between a per-tile and a whole-window
+            pass at a few seam pixels (a GDAL numerics property, not a reduction one),
+            which would mask what this asserts.
+        """
+        common = dict(
+            window=Window(bbox=_to_utm45(_S2_BBOX), crs="EPSG:32645", shape=(24, 24)),
+            start="2024-06-01",
+            end="2024-06-15",
+            reducer="median",
+            bands=["B4"],
+        )
+        untiled = np.asarray(
+            from_earthengine("COPERNICUS/S2_SR_HARMONIZED", **common).read_array()
+        ).astype(float)
+        out = tmp_path / "s2_composite.tif"
+        tiled = np.asarray(
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED", **common, tile_size=10, path=str(out)
+            ).read_array()
+        ).astype(float)
+        assert tiled.shape == untiled.shape, f"shape {tiled.shape} vs {untiled.shape}"
+        assert np.array_equal(tiled, untiled), (
+            "tiled composite differs from the un-tiled composite"
         )
