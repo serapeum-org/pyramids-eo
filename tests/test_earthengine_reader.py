@@ -1012,6 +1012,37 @@ class TestFromEarthengineComposite:
                 bands=["B4", "B11", "B1"],
             )
 
+    def test_tiled_composite_mixed_resolution_bands_fail_loudly(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """A tiled composite spanning resolution groups raises too (#58 + #59).
+
+        Test scenario:
+            The tiled composite probes one scene; a cross-group band request yields a
+            one-band probe, so it must raise before mosaicking a dropped-band composite
+            — parity with the un-tiled composite and single-image paths.
+        """
+        scenes = [ee_reader._Scene("EEDAI:a", "2024-06-01T00:00:00")]
+        monkeypatch.setattr(ee_reader, "_discover_scenes", lambda *a, **k: scenes)
+        monkeypatch.setattr(
+            ee_reader,
+            "_open_eedai",
+            lambda *a, **k: Dataset(_synthetic_srtm()),  # 1 band < 3 requested
+        )
+        window = Window(bbox=_BBOX, shape=(8, 8))
+        out = str(tmp_path / "mixed_tiled_composite.tif")
+        with pytest.raises(ReaderError, match="resolution groups|subdataset"):
+            from_earthengine(
+                "COPERNICUS/S2_SR_HARMONIZED",
+                window=window,
+                start="2024-06-01",
+                end="2024-06-30",
+                reducer="median",
+                bands=["B4", "B11", "B1"],
+                tile_size=4,
+                path=out,
+            )
+
     def test_start_end_without_reducer_raises(self) -> None:
         """A date range without a reducer is rejected with guidance.
 

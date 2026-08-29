@@ -1391,6 +1391,18 @@ def _tiled_composite_read(
                 block_size=block_size,
             )
             try:
+                # Cross-subdataset (resolution-group) bands come back as a silent
+                # one-band subset from a single EEDAI open; fail loudly here too (#58),
+                # as the un-tiled composite / single-image paths do, rather than
+                # mosaicking a dropped-band composite. The probe scene is representative
+                # (a collection's scenes share a band structure).
+                if bands is not None and probe.band_count < len(bands):
+                    raise ReaderError(
+                        f"The requested bands {bands} span multiple Earth Engine "
+                        "resolution groups (subdatasets), which the tiled composite "
+                        "reader cannot align across scenes; request a single-resolution "
+                        "band set."
+                    )
                 for index, (tile, halo, cell_x, cell_y) in enumerate(
                     _iter_tiles(window, tile_size, halo_size)
                 ):
