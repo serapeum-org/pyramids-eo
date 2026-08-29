@@ -7,7 +7,7 @@ import pytest
 from pyramids.dataset import Dataset
 
 from pyramids_eo.composites import true_color
-from pyramids_eo.composites.true_color import _ndvi_hybrid_green
+from pyramids_eo.composites.true_color import _ndvi_hybrid_green, _rayleigh_wants_role
 
 
 class TestTrueColor:
@@ -250,3 +250,66 @@ class TestTrueColorRayleigh:
         assert out[1].item() == pytest.approx(0.5), (
             "native green not rayleigh-corrected"
         )
+
+    def test_role_is_passed_to_a_role_aware_callable(self):
+        """A role-aware callable receives a distinct role for each solar band."""
+        seen = []
+
+        def correct(band, *, role):
+            seen.append(role)
+            return band
+
+        true_color(
+            np.full((1, 1), 0.5),
+            np.full((1, 1), 0.5),
+            np.full((1, 1), 0.5),
+            green=np.full((1, 1), 0.6),
+            green_mode="native",
+            rayleigh=correct,
+        )
+        assert seen == ["red", "blue", "nir", "green"], f"roles seen: {seen}"
+
+    def test_role_aware_callable_can_decline_a_band(self):
+        """Returning the band unchanged for a role declines that band's correction."""
+
+        def correct(band, *, role):
+            return band if role == "nir" else band - 0.1
+
+        out = true_color(
+            np.full((1, 1), 0.5),
+            np.full((1, 1), 0.5),
+            np.full((1, 1), 0.8),
+            rayleigh=correct,
+        )
+        assert out[0].item() == pytest.approx(0.4), "red should be corrected"
+        # synthetic green uses the (declined, so uncorrected) nir=0.8:
+        # 0.45*0.4 + 0.10*0.8 + 0.45*0.4 = 0.44
+        assert out[1].item() == pytest.approx(0.44), "declined nir should reach green"
+
+
+class TestRayleighWantsRole:
+    """`_rayleigh_wants_role` probes the callable once for the `role` keyword."""
+
+    def test_role_keyword_callable_is_rich(self):
+        """A callable declaring `role` is detected as role-aware."""
+
+        def f(band, *, role):
+            return band
+
+        assert _rayleigh_wants_role(f) is True, "role-kwarg callable not detected"
+
+    def test_var_keyword_callable_is_rich(self):
+        """A callable taking `**kwargs` is treated as role-aware."""
+
+        def f(band, **kwargs):
+            return band
+
+        assert _rayleigh_wants_role(f) is True, "**kwargs callable not detected"
+
+    def test_plain_band_callable_is_legacy(self):
+        """A `(band)`-only callable is the legacy form."""
+        assert _rayleigh_wants_role(lambda a: a) is False, "plain callable mis-detected"
+
+    def test_uninspectable_callable_is_legacy(self):
+        """An un-introspectable callable (a numpy ufunc) falls back to legacy."""
+        assert _rayleigh_wants_role(np.negative) is False, "ufunc should be legacy"

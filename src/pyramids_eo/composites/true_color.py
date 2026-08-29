@@ -22,11 +22,53 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
+from inspect import signature
 from typing import Any
 
 import numpy as np
 
 from pyramids_eo.composites._common import _as_array, _wrap_like
+
+#: The band's part in the composite, passed to a role-aware `rayleigh` callable.
+_SOLAR_ROLES = ("red", "green", "blue", "nir")
+
+
+def _rayleigh_wants_role(fn: Callable[..., Any]) -> bool:
+    """Return whether the `rayleigh` callable accepts a `role=` keyword.
+
+    Probed once (not per band) so a legacy `(band)`-only callable keeps working.
+    An un-introspectable callable (a builtin or a `functools.partial`) is treated
+    as the legacy one-argument form.
+
+    Args:
+        fn: The caller-supplied `rayleigh` callable.
+
+    Returns:
+        `True` when `fn` accepts a `role` keyword (or `**kwargs`), else `False`.
+    """
+    try:
+        params = signature(fn).parameters
+    except (ValueError, TypeError):
+        return False
+    return "role" in params or any(p.kind is p.VAR_KEYWORD for p in params.values())
+
+
+def _apply_rayleigh(
+    fn: Callable[..., Any], band: np.ndarray, role: str, rich: bool
+) -> np.ndarray:
+    """Apply the `rayleigh` callable to one band, passing `role` when supported.
+
+    Args:
+        fn: The `rayleigh` callable.
+        band: The solar band to correct.
+        role: The band's part in the composite (one of `_SOLAR_ROLES`).
+        rich: Whether `fn` accepts the `role` keyword (from `_rayleigh_wants_role`).
+
+    Returns:
+        The corrected band as a float ndarray.
+    """
+    return np.asarray(fn(band, role=role) if rich else fn(band), dtype=float)
+
 
 #: Default CIMSS synthetic-green weights (red, near-IR/veggie, blue).
 _DEFAULT_GREEN_WEIGHTS = (0.45, 0.10, 0.45)
@@ -144,7 +186,7 @@ def true_color(
     green_weights: tuple[float, float, float] = _DEFAULT_GREEN_WEIGHTS,
     ndvi_strength: float = 3.0,
     ndvi_limits: tuple[float, float] = (0.15, 0.05),
-    rayleigh: Callable[[np.ndarray], Any] | None = None,
+    rayleigh: Callable[..., Any] | None = None,
     gamma: float | None = None,
     clip: bool = False,
 ) -> Any:
@@ -161,7 +203,12 @@ def true_color(
 
     When `rayleigh` is given it is applied to each solar band (red, blue, nir, and
     a native `green`) before green synthesis; `None` (default) leaves the bands
-    untouched and adds no dependency.
+    untouched and adds no dependency. The callable may take just `(band)`, or
+    `(band, *, role)` where `role` is the band's part in the composite — one of
+    `"red"`, `"green"`, `"blue"`, `"nir"` — so it can pick a per-band correction
+    (e.g. a wavelength-dependent Rayleigh) or decline a band by returning it
+    unchanged. The `(band, role=...)` form is used when the callable accepts a
+    `role` keyword (probed once); otherwise the `(band)` form is called.
 
     Args:
         red: Red-band reflectance — array-like or a pyramids `Dataset`.
@@ -176,8 +223,9 @@ def true_color(
             (default the CIMSS `(0.45, 0.10, 0.45)`).
         ndvi_strength: Non-linear NDVI sharpening for `"ndvi_hybrid"` (default 3.0).
         ndvi_limits: The `(low, high)` NIR fractions for `"ndvi_hybrid"`.
-        rayleigh: Optional callable applied to each solar band before green
-            synthesis (an atmospheric correction), or `None`.
+        rayleigh: Optional atmospheric correction applied to each solar band
+            before green synthesis — a callable taking `(band)` or `(band, *,
+            role)` (see above), or `None`.
         gamma: Optional gamma to apply (`value ** (1 / gamma)`), or `None`.
         clip: When `True`, clip the output to `[0, 1]`.
 
@@ -228,11 +276,12 @@ def true_color(
     g_native = _as_array(green) if green is not None else None
 
     if rayleigh is not None:
-        r = np.asarray(rayleigh(r), dtype=float)
-        b = np.asarray(rayleigh(b), dtype=float)
-        n = np.asarray(rayleigh(n), dtype=float)
+        rich = _rayleigh_wants_role(rayleigh)
+        r = _apply_rayleigh(rayleigh, r, "red", rich)
+        b = _apply_rayleigh(rayleigh, b, "blue", rich)
+        n = _apply_rayleigh(rayleigh, n, "nir", rich)
         if g_native is not None:
-            g_native = np.asarray(rayleigh(g_native), dtype=float)
+            g_native = _apply_rayleigh(rayleigh, g_native, "green", rich)
 
     green_ch = _build_green_channel(
         green_mode, r, b, n, g_native, green_weights, ndvi_strength, ndvi_limits
