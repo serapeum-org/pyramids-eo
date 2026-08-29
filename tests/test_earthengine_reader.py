@@ -2368,12 +2368,11 @@ class TestLivePixelCorrectness:
             garbage, and two composites of the same window are byte-identical.
         """
         request = dict(
-            bbox=_S2_BBOX,
+            window=Window(bbox=_S2_BBOX, shape=(32, 32)),
             start="2024-06-05",
             end="2024-06-08",
             reducer="median",
             bands=["B4", "B3", "B2"],
-            shape=(32, 32),
         )
         first = from_earthengine("COPERNICUS/S2_SR_HARMONIZED", **request)
         values = first.read_array()
@@ -3489,13 +3488,11 @@ class TestTiledLive:
             which would mask what this asserts.
         """
         common = dict(
-            bbox=_to_utm45(_S2_BBOX),
-            crs="EPSG:32645",
+            window=Window(bbox=_to_utm45(_S2_BBOX), crs="EPSG:32645", shape=(24, 24)),
             start="2024-06-01",
             end="2024-06-15",
             reducer="median",
             bands=["B4"],
-            shape=(24, 24),
         )
         untiled = np.asarray(
             from_earthengine("COPERNICUS/S2_SR_HARMONIZED", **common).read_array()
