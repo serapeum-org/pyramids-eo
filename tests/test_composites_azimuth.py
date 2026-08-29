@@ -58,6 +58,19 @@ class TestSolarZenithAzimuth:
         with pytest.raises(ValueError, match="either"):
             solar_zenith_azimuth(_EQUINOX_NOON, lat=0.0, lon=0.0, grid=grid)
 
+    def test_non_geographic_grid_raises(self):
+        """A grid that is not EPSG:4326 is rejected."""
+        grid = Dataset.create_from_array(
+            np.zeros((1, 1)), top_left_corner=(0.0, 1.0), cell_size=1.0, epsg=3857
+        )
+        with pytest.raises(ValueError, match="EPSG:4326"):
+            solar_zenith_azimuth(_EQUINOX_NOON, grid=grid)
+
+    def test_missing_coordinates_raise(self):
+        """Neither a grid nor both lat and lon is rejected."""
+        with pytest.raises(ValueError, match="provide"):
+            solar_zenith_azimuth(_EQUINOX_NOON, lat=0.0)
+
 
 class TestSatelliteZenithAzimuth:
     """`satellite_zenith_azimuth` gives the geostationary viewing geometry."""
@@ -102,6 +115,12 @@ class TestSatelliteZenithAzimuth:
         )
         vza, az = satellite_zenith_azimuth(grid=grid, sat_lon=0.0)
         assert vza.shape == (2, 2) and az.shape == (2, 2), "grid shapes wrong"
+
+    def test_higher_orbit_reduces_off_nadir_zenith(self):
+        """A larger orbital radius sees the same point closer to nadir."""
+        geo, _ = satellite_zenith_azimuth(30.0, 20.0, sat_radius_km=42164.0)
+        higher, _ = satellite_zenith_azimuth(30.0, 20.0, sat_radius_km=60000.0)
+        assert float(higher) < float(geo), "a higher orbit should reduce the zenith"
 
 
 class TestRelativeAzimuth:

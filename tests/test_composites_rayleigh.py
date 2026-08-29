@@ -145,3 +145,26 @@ class TestRayleighCorrect:
         band = np.array([0.6, 0.6])
         rayleigh_correct(band, wavelength_um=0.444, **_GEOM)
         assert np.array_equal(band, [0.6, 0.6]), "band was mutated"
+
+    def test_broadcasts_over_a_disc(self):
+        """A 2-D band with per-pixel geometry corrects pixel-by-pixel."""
+        band = np.full((2, 2), 0.6)
+        sza = np.array([[20.0, 50.0], [70.0, 100.0]])  # (1, 1) is night
+        vza = np.full((2, 2), 30.0)
+        azidiff = np.full((2, 2), 60.0)
+        out = rayleigh_correct(
+            band, wavelength_um=0.444, sza=sza, vza=vza, azidiff=azidiff
+        )
+        assert out.shape == (2, 2), f"shape not preserved: {out.shape}"
+        assert float(out[0, 0]) < 0.6, "day pixel should be corrected"
+        assert float(out[1, 1]) == pytest.approx(0.6), "night pixel should be unchanged"
+
+    def test_higher_pressure_corrects_more(self):
+        """A higher surface pressure (thicker atmosphere) removes more haze."""
+        low = rayleigh_correct(
+            np.array([0.6]), wavelength_um=0.444, pressure_hpa=500.0, **_GEOM
+        )
+        high = rayleigh_correct(
+            np.array([0.6]), wavelength_um=0.444, pressure_hpa=1013.25, **_GEOM
+        )
+        assert float(high[0]) < float(low[0]), "higher pressure should correct more"
