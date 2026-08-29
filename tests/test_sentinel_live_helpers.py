@@ -13,6 +13,7 @@ import pytest
 
 from tests.test_sentinel_live import (
     _centre_window,
+    _cloud_cover_key,
     _configure_cdse_s3,
     _safe_mtd_path,
 )
@@ -60,6 +61,39 @@ class TestSafeMtdPath:
         path = _safe_mtd_path(_fake_item())
         assert path.startswith("/vsis3/eodata/"), f"Not a /vsis3 path: {path}"
         assert path.endswith("/MTD_MSIL2A.xml"), f"Not an MTD path: {path}"
+
+
+class TestCloudCoverKey:
+    """Tests for `_cloud_cover_key`."""
+
+    def test_null_or_missing_cloud_cover_sorts_last(self):
+        """A null or absent `eo:cloud_cover` sorts last (999), never as 0.
+
+        Test scenario:
+            An explicit `null`, a missing key, and missing `properties` all
+            resolve to the sentinel 999.0 so they never win the clearest-scene
+            sort.
+        """
+        assert _cloud_cover_key({"properties": {"eo:cloud_cover": None}}) == 999.0
+        assert _cloud_cover_key({"properties": {}}) == 999.0
+        assert _cloud_cover_key({}) == 999.0
+
+    def test_zero_cloud_cover_stays_zero(self):
+        """A 0.0 (clearest) cover is kept, not coerced to the 999 sentinel.
+
+        Test scenario:
+            The falsy 0.0 must sort first — the regression a naive `value or
+            999.0` would introduce.
+        """
+        assert _cloud_cover_key({"properties": {"eo:cloud_cover": 0.0}}) == 0.0
+
+    def test_passes_through_a_normal_percentage(self):
+        """A normal percentage is returned as a float.
+
+        Test scenario:
+            An integer 12 comes back as 12.0.
+        """
+        assert _cloud_cover_key({"properties": {"eo:cloud_cover": 12}}) == 12.0
 
 
 class TestCentreWindow:
