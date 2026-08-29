@@ -26,9 +26,10 @@ a metre geostationary CRS; the metre geotransform is reconstructed as
 axis-unit mismatch behind pyramids #706 by keeping the CRS explicit rather than
 letting it be misread as lon/lat. FCI's x is a scanning azimuth angle whose sign
 runs opposite to PROJ's geostationary x (which increases eastward), so the scaled
-x pixel width comes out negative on the eastern limb; the reader reconciles it to
-the CRS — re-anchoring the origin on the western limb with a positive x width, the
-array left untouched — so a warped scene is not mirrored east-west (issue #56).
+x pixel width comes out negative with its origin on the eastern limb; the reader
+reconciles it to the CRS — re-anchoring the origin on the western limb with a
+positive x width, the array left untouched — so a warped scene is not mirrored
+east-west (issue #56).
 
 Validated against real MTI1/Meteosat-12 FDHSI chunks (see issue #40): `ir_105`
 stitches to brightness temperature in the expected range on the geostationary
