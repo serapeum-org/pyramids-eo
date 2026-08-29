@@ -517,7 +517,12 @@ def _assemble_channel(
         cos_sza: Cosine of the solar zenith angle, or `None`.
 
     Returns:
-        A geolocated pyramids `Dataset` on the stitched geostationary grid.
+        A geolocated pyramids `Dataset` on the stitched geostationary grid, carrying
+        the northernmost chunk's CRS and a metre geotransform. The geotransform is
+        the granule's angular one scaled by the satellite height, with its x axis
+        reconciled to the geostationary CRS — a positive (east-increasing) pixel
+        width anchored on the western limb — so a warp is not mirrored east-west
+        (issue #56). The stitched array is returned unchanged.
 
     Raises:
         ReaderError: When `records` is empty, or the chunks are inconsistent.
@@ -591,7 +596,8 @@ def read_fci_l1c(
     it with the **per-granule** coefficients (reflectance for a solar channel,
     brightness temperature for a thermal one). Each result is a geolocated pyramids
     `Dataset` on the granule's geostationary grid (metre geotransform reconstructed
-    from the angular grid and the CRS satellite height).
+    from the angular grid and the CRS satellite height, with its x axis reconciled
+    to the CRS so a warp is not mirrored east-west — issue #56).
 
     Pass exactly one of `channel` (returns a `Dataset`) or `channels` (returns a
     `dict[str, Dataset]`); `read_fci_l1c(paths, "ir_105")` is unchanged.
