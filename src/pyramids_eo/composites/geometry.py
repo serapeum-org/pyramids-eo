@@ -6,6 +6,13 @@ algorithm over NumPy. The SZA drives the day/night cross-fade
 (`day_night_blend`),
 which keys off the Sun's *geometric* position rather than how dark a pixel looks
 (the property that renders an eclipse shadow as day, not night).
+
+`sunz_correct` and `sunz_reduce` consume that angle: the first divides a solar
+band by `cos(sza)` (capped, so it does not blow up at the terminator), the second
+tapers the signal back down toward the terminator so deep shadow renders dark
+rather than as a washed-out floor. Together they mirror the `sunz_corrected` and
+`sunz_reduced` modifiers used on every solar prerequisite of a reference
+true-colour composite.
 """
 
 from __future__ import annotations
@@ -14,6 +21,8 @@ import datetime as _dt
 from typing import Any
 
 import numpy as np
+
+from pyramids_eo.composites._common import _as_array, _wrap_like
 
 
 def _to_utc(time: _dt.datetime) -> _dt.datetime:
@@ -173,3 +182,156 @@ def cos_solar_zenith_angle(
         The cosine of the solar zenith angle, same shape as the coordinates.
     """
     return np.cos(np.deg2rad(solar_zenith_angle(time, lat=lat, lon=lon, grid=grid)))
+
+
+def sunz_correct(
+    band: Any,
+    sza: Any,
+    *,
+    correction_limit: float = 88.0,
+    max_sza: float | None = 95.0,
+) -> Any:
+    """Correct a solar band for the sun-zenith angle (divide by `cos(sza)`, capped).
+
+    A plain `1 / cos(sza)` diverges at the terminator, so the correction is capped:
+    below `correction_limit` the factor is `1 / cos(sza)`; from `correction_limit`
+    to `max_sza` it tapers from `1 / cos(correction_limit)` down to `0` by an
+    inverted-`log2` ramp; beyond `max_sza` (and where `sza` is NaN) the factor is
+    `0`. The band is multiplied by this factor. This mirrors the reference
+    `sunz_corrected` modifier (`SunZenithCorrector`), whose defaults are
+    `correction_limit=88`, `max_sza=95`.
+
+    Args:
+        band: The solar band (reflectance) — array-like or a pyramids `Dataset`.
+        sza: Per-pixel solar zenith angle in **degrees** (e.g. from
+            `solar_zenith_angle`), broadcastable against `band`.
+        correction_limit: SZA (degrees) at/beyond which the `1 / cos` factor is
+            capped and starts to taper. Also the largest correction applied
+            (`1 / cos(correction_limit)`).
+        max_sza: SZA (degrees) at which the correction reaches `0`, or `None` to
+            hold the factor constant at `1 / cos(correction_limit)` beyond the
+            limit (no taper). Must exceed `correction_limit`.
+
+    Returns:
+        The corrected band. A pyramids `Dataset` (carrying `band`'s geotransform +
+        CRS) when `band` is a `Dataset`, otherwise an ndarray.
+
+    Raises:
+        ValueError: When `max_sza` is not greater than `correction_limit`.
+
+    Examples:
+        - Overhead sun is unchanged; a 60deg zenith doubles the signal (`1/cos60`):
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import sunz_correct
+            >>> sunz_correct(np.array([1.0, 1.0]), np.array([0.0, 60.0])).round(3).tolist()
+            [1.0, 2.0]
+
+            ```
+        - The correction stays finite at the terminator (no `1/0` blow-up):
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import sunz_correct
+            >>> bool(np.isfinite(sunz_correct(np.array([1.0]), np.array([90.0]))).all())
+            True
+
+            ```
+    """
+    if max_sza is not None and max_sza <= correction_limit:
+        raise ValueError(
+            f"max_sza ({max_sza}) must be greater than correction_limit "
+            f"({correction_limit})"
+        )
+    arr = _as_array(band)
+    angle = _as_array(sza)
+    cos_zen = np.cos(np.deg2rad(angle))
+    limit_rad = np.deg2rad(correction_limit)
+    limit_cos = float(np.cos(limit_rad))
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        corr = 1.0 / cos_zen
+    if max_sza is not None:
+        ramp = (np.deg2rad(angle) - limit_rad) / (np.deg2rad(max_sza) - limit_rad)
+        with np.errstate(invalid="ignore"):
+            grad_factor = 1.0 - np.log2(ramp + 1.0)
+        grad_factor = np.clip(grad_factor, 0.0, None)
+    else:
+        grad_factor = 1.0
+
+    corr = np.where(cos_zen > limit_cos, corr, grad_factor / limit_cos)
+    corr = np.where(np.isnan(cos_zen), 0.0, corr)
+    return _wrap_like(arr * corr, band)
+
+
+def sunz_reduce(
+    band: Any,
+    sza: Any,
+    *,
+    correction_limit: float = 80.0,
+    max_sza: float = 90.0,
+    strength: float = 1.3,
+) -> Any:
+    """Taper a solar band's signal toward the terminator so deep shadow reads dark.
+
+    Below `correction_limit` the signal is unchanged; from `correction_limit` to
+    `max_sza` it is multiplied by a factor that ramps from `1` down to `0` by an
+    inverted-`log2` curve sharpened by a `strength` sigmoid; at/beyond `max_sza`
+    (and where `sza` is NaN) the factor is `0`. This mirrors the reference
+    `sunz_reduced` modifier (`SunZenithReducer`), whose defaults are
+    `correction_limit=80`, `max_sza=90`, `strength=1.3`.
+
+    Args:
+        band: The solar band (reflectance) — array-like or a pyramids `Dataset`.
+        sza: Per-pixel solar zenith angle in **degrees** (e.g. from
+            `solar_zenith_angle`), broadcastable against `band`.
+        correction_limit: SZA (degrees) below which the signal is unchanged.
+        max_sza: SZA (degrees) at which the signal is fully reduced to `0`. Must
+            exceed `correction_limit`.
+        strength: Sigmoid power sharpening the reduction ramp; `1.0` leaves it as
+            the plain inverted-`log2` curve. Must be `> 0`.
+
+    Returns:
+        The reduced band. A pyramids `Dataset` (carrying `band`'s geotransform +
+        CRS) when `band` is a `Dataset`, otherwise an ndarray.
+
+    Raises:
+        ValueError: When `max_sza` is not greater than `correction_limit`, or
+            `strength <= 0`.
+
+    Examples:
+        - Unchanged below the limit, fully reduced to `0` at `max_sza`:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import sunz_reduce
+            >>> sunz_reduce(np.array([1.0, 1.0]), np.array([70.0, 90.0])).round(3).tolist()
+            [1.0, 0.0]
+
+            ```
+        - Inside the band the signal is dimmed (a shadow, not a grey floor):
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.composites import sunz_reduce
+            >>> bool(sunz_reduce(np.array([1.0]), np.array([85.0]))[0] < 1.0)
+            True
+
+            ```
+    """
+    if max_sza <= correction_limit:
+        raise ValueError(
+            f"max_sza ({max_sza}) must be greater than correction_limit "
+            f"({correction_limit})"
+        )
+    if strength <= 0:
+        raise ValueError(f"strength must be > 0, got {strength}")
+    arr = _as_array(band)
+    angle = _as_array(sza)
+
+    ramp = np.clip((angle - correction_limit) / (max_sza - correction_limit), 0.0, 1.0)
+    reduction = 1.0 - np.log2(ramp + 1.0)
+    with np.errstate(invalid="ignore"):
+        reduction = reduction**strength / (
+            reduction**strength + (1.0 - reduction) ** strength
+        )
+    corr = np.where(angle < correction_limit, 1.0, reduction)
+    corr = np.where(np.isnan(angle), 0.0, corr)
+    return _wrap_like(arr * corr, band)
