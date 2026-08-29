@@ -86,13 +86,13 @@ class TestRayleighReflectance:
         assert float(rho) == pytest.approx(0.0), f"off-disc reflectance not 0: {rho}"
 
     def test_peaks_at_back_scatter(self):
-        """Rayleigh scattering peaks at back-scatter (azidiff=0) and falls to forward (180)."""
+        """Reflectance peaks at back-scatter (azidiff=0) and falls as the azimuth opens to 180."""
         geom = {"sza": 40.0, "vza": 50.0}  # non-negligible sin(sza)*sin(vza)
         back = rayleigh_reflectance(0.444, azidiff=0.0, **geom)
         side = rayleigh_reflectance(0.444, azidiff=90.0, **geom)
-        forward = rayleigh_reflectance(0.444, azidiff=180.0, **geom)
-        assert float(back) > float(side) > float(forward), (
-            f"azimuth dependence wrong: back={back}, side={side}, forward={forward}"
+        opposed = rayleigh_reflectance(0.444, azidiff=180.0, **geom)
+        assert float(back) > float(side) > float(opposed), (
+            f"azimuth dependence wrong: back={back}, side={side}, opposed={opposed}"
         )
 
     def test_matches_independent_reference(self):
