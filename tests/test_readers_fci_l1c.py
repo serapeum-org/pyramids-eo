@@ -500,8 +500,9 @@ class TestReadFciL1c:
 
     def test_positive_x_width_passes_through(self, monkeypatch):
         """A geotransform already east-increasing is scaled but not re-anchored."""
+        radiance = np.arange(6, dtype=float).reshape(2, 3)
         record = {
-            "radiance": np.ones((2, 3)),
+            "radiance": radiance,
             "start_row": 1,
             "end_row": 1,
             "coeffs": _THERMAL,
@@ -516,6 +517,25 @@ class TestReadFciL1c:
         )
         assert geo[0] == pytest.approx(0.1 * 1.0e5), (
             "an already-positive width is not re-anchored (origin is the scaled one)"
+        )
+        assert np.array_equal(out.read_array(), radiance), (
+            "the array is returned unchanged on the pass-through branch too"
+        )
+
+    def test_reanchor_uses_stitched_column_count(self, monkeypatch):
+        """The re-anchor uses the stitched array's column count, not its row count."""
+        mapping = {
+            "a.nc": self._chunk(np.ones((2, 3)), 0.0),  # north, 2 rows
+            "b.nc": self._chunk(np.full((2, 3), 2.0), -2e-5),  # south, contiguous
+        }
+        self._patch(monkeypatch, mapping)
+        out = read_fci_l1c(["a.nc", "b.nc"], "ir_105", calibrate=False)
+        assert out.read_array().shape == (4, 3), "two 2x3 chunks stitch to 4x3"
+        geo = out.geotransform
+        assert geo[1] == pytest.approx(1.0), "x width normalised positive"
+        assert geo[0] == pytest.approx(9997.0), (
+            "re-anchor uses the stitched column count (3), not the row count (4): "
+            "0.1 * 1e5 + (-1.0) * 3"
         )
 
     def test_rotated_grid_raises(self, monkeypatch):
