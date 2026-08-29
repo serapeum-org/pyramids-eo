@@ -2557,7 +2557,7 @@ class TestWindowValueObject:
     """Tests for the :class:`_Window` value object and the :func:`_iter_tiles` grid."""
 
     def test_for_tile_derives_sub_window_and_drops_scale(self) -> None:
-        """``_Window.for_tile`` sets the tile's bounds/shape, keeps CRS, drops scale.
+        """``Window._for_tile`` sets the tile's bounds/shape, keeps CRS, drops scale.
 
         Test scenario:
             A scale-defined window yields a tile window at the tile's exact shape with
@@ -2570,7 +2570,7 @@ class TestWindowValueObject:
             shape=None,
             resample="bilinear",
         )
-        tile = window.for_tile((0.2, 0.2, 0.4, 0.4), (7, 9))
+        tile = window._for_tile((0.2, 0.2, 0.4, 0.4), (7, 9))
         assert tile.bbox == (0.2, 0.2, 0.4, 0.4), f"bad tile bbox: {tile.bbox}"
         assert tile.shape == (7, 9), f"bad tile shape: {tile.shape}"
         assert tile.scale is None, "scale must be dropped for a shape-sized tile"

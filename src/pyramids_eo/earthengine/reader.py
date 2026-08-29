@@ -174,7 +174,7 @@ class Window(NamedTuple):
     shape: tuple[int, int] | None = None
     resample: str = "nearest"
 
-    def for_tile(self, sub_bbox: BBox, tile_shape: tuple[int, int]) -> Window:
+    def _for_tile(self, sub_bbox: BBox, tile_shape: tuple[int, int]) -> Window:
         """Derive a tile's window: the tile's sub-bounds at its exact pixel shape.
 
         The tile is sized by ``shape`` (its exact ``(rows, cols)``), so ``scale`` is
@@ -1298,7 +1298,7 @@ def _iter_tiles(
                 min_x + col1 * cell_x,
                 max_y - row0 * cell_y,
             )
-            tile = window.for_tile(sub_bbox, (row1 - row0, col1 - col0))
+            tile = window._for_tile(sub_bbox, (row1 - row0, col1 - col0))
             halo = (
                 halo_size if col0 > 0 else 0,
                 halo_size if col1 < cols else 0,
@@ -2086,8 +2086,7 @@ def from_earthengine(
             a ``DatasetCollection``); the composite mode is missing
             ``start`` / ``end`` / ``bbox``; ``path`` is given without a
             ``bbox`` / ``geometry``; or ``tile_size`` is invalid or set without its
-            required ``path`` / ``scale`` or ``shape`` (or combined with a composite
-            or a ``geometry``).
+            required ``path`` / ``scale`` or ``shape``.
         ReaderError: The asset could not be opened or windowed, or the composite
             date range + AOI matched no scenes.
 
