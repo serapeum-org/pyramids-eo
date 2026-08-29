@@ -290,9 +290,9 @@ def solar_zenith_azimuth(
 
 
 def satellite_zenith_azimuth(
+    *,
     lat: Any = None,
     lon: Any = None,
-    *,
     grid: Any = None,
     sat_lon: float = 0.0,
     sat_radius_km: float = _R_GEO_KM,
@@ -329,7 +329,7 @@ def satellite_zenith_azimuth(
         - The sub-satellite point sees the satellite at the local zenith (0deg):
             ```python
             >>> from pyramids_eo.composites import satellite_zenith_azimuth
-            >>> vza, _ = satellite_zenith_azimuth(0.0, 0.0, sat_lon=0.0)
+            >>> vza, _ = satellite_zenith_azimuth(lat=0.0, lon=0.0, sat_lon=0.0)
             >>> bool(vza < 0.01)
             True
 
@@ -337,7 +337,7 @@ def satellite_zenith_azimuth(
         - A point due north of the sub-point sees the satellite due south (~180deg):
             ```python
             >>> from pyramids_eo.composites import satellite_zenith_azimuth
-            >>> _, az = satellite_zenith_azimuth(30.0, 0.0, sat_lon=0.0)
+            >>> _, az = satellite_zenith_azimuth(lat=30.0, lon=0.0, sat_lon=0.0)
             >>> bool(175.0 < az < 185.0)
             True
 

@@ -77,35 +77,35 @@ class TestSatelliteZenithAzimuth:
 
     def test_zero_zenith_at_subsatellite_point(self):
         """The sub-satellite point sees the satellite at the local zenith (0deg)."""
-        vza, _ = satellite_zenith_azimuth(0.0, 0.0, sat_lon=0.0)
+        vza, _ = satellite_zenith_azimuth(lat=0.0, lon=0.0, sat_lon=0.0)
         assert float(vza) == pytest.approx(0.0, abs=1e-6), f"sub-sat vza != 0: {vza}"
 
     def test_zenith_rises_off_nadir(self):
         """A point away from the sub-satellite point is seen off-nadir (0 < vza < 90)."""
-        vza, _ = satellite_zenith_azimuth(30.0, 20.0, sat_lon=0.0)
+        vza, _ = satellite_zenith_azimuth(lat=30.0, lon=20.0, sat_lon=0.0)
         assert 0.0 < float(vza) < 90.0, f"off-nadir vza out of range: {vza}"
 
     def test_zenith_increases_with_distance(self):
         """Zenith grows monotonically as the ground point moves off the sub-point."""
         vza, _ = satellite_zenith_azimuth(
-            np.array([0.0, 20.0, 40.0]), np.array([0.0, 0.0, 0.0]), sat_lon=0.0
+            lat=np.array([0.0, 20.0, 40.0]), lon=np.array([0.0, 0.0, 0.0]), sat_lon=0.0
         )
         assert np.all(np.diff(vza) > 0), f"zenith not increasing with distance: {vza}"
 
     def test_azimuth_south_when_north_of_subpoint(self):
         """A point due north of the sub-point sees the satellite due south (~180)."""
-        _, az = satellite_zenith_azimuth(30.0, 0.0, sat_lon=0.0)
+        _, az = satellite_zenith_azimuth(lat=30.0, lon=0.0, sat_lon=0.0)
         assert 175.0 < float(az) < 185.0, f"expected ~180deg (south), got {az}"
 
     def test_azimuth_west_when_east_of_subpoint(self):
         """A point due east of the sub-point sees the satellite due west (~270)."""
-        _, az = satellite_zenith_azimuth(0.0, 15.0, sat_lon=0.0)
+        _, az = satellite_zenith_azimuth(lat=0.0, lon=15.0, sat_lon=0.0)
         assert 265.0 < float(az) < 275.0, f"expected ~270deg (west), got {az}"
 
     def test_azimuth_in_0_360(self):
         """The azimuth stays within [0, 360)."""
         lat, lon = np.meshgrid(np.linspace(-60, 60, 7), np.linspace(-60, 60, 7))
-        _, az = satellite_zenith_azimuth(lat, lon, sat_lon=0.0)
+        _, az = satellite_zenith_azimuth(lat=lat, lon=lon, sat_lon=0.0)
         assert np.all((az >= 0.0) & (az < 360.0)), "satellite azimuth out of range"
 
     def test_grid_signature(self):
@@ -118,19 +118,19 @@ class TestSatelliteZenithAzimuth:
 
     def test_higher_orbit_reduces_off_nadir_zenith(self):
         """A larger orbital radius sees the same point closer to nadir."""
-        geo, _ = satellite_zenith_azimuth(30.0, 20.0, sat_radius_km=42164.0)
-        higher, _ = satellite_zenith_azimuth(30.0, 20.0, sat_radius_km=60000.0)
+        geo, _ = satellite_zenith_azimuth(lat=30.0, lon=20.0, sat_radius_km=42164.0)
+        higher, _ = satellite_zenith_azimuth(lat=30.0, lon=20.0, sat_radius_km=60000.0)
         assert float(higher) < float(geo), "a higher orbit should reduce the zenith"
 
     def test_off_disc_point_is_not_viewable(self):
         """A point beyond the horizon (far side) reports NaN, not a saturated 90deg."""
-        vza, _ = satellite_zenith_azimuth(0.0, 180.0, sat_lon=0.0)
+        vza, _ = satellite_zenith_azimuth(lat=0.0, lon=180.0, sat_lon=0.0)
         assert np.isnan(vza), f"far-side point should be NaN, got {vza}"
 
     def test_sub_earth_radius_raises(self):
         """A sat_radius_km at or below Earth's radius is rejected (needs an orbital radius)."""
         with pytest.raises(ValueError, match="sat_radius_km"):
-            satellite_zenith_azimuth(0.0, 0.0, sat_radius_km=6000.0)
+            satellite_zenith_azimuth(lat=0.0, lon=0.0, sat_radius_km=6000.0)
 
 
 class TestRelativeAzimuth:
@@ -163,7 +163,7 @@ class TestConventionAlignment:
     def test_sun_and_satellite_both_south_gives_zero_relative(self):
         """At noon a 45N point sees both Sun and a sub-0 satellite due south."""
         _, sun_az = solar_zenith_azimuth(_EQUINOX_NOON, lat=45.0, lon=0.0)
-        _, sat_az = satellite_zenith_azimuth(45.0, 0.0, sat_lon=0.0)
+        _, sat_az = satellite_zenith_azimuth(lat=45.0, lon=0.0, sat_lon=0.0)
         azidiff = relative_azimuth(sun_az, sat_az)
         assert float(azidiff) < 10.0, (
             f"conventions misaligned: sun={sun_az}, sat={sat_az}, diff={azidiff}"
