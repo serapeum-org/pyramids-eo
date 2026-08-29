@@ -11,6 +11,12 @@ dependency. So far:
   capped) and reduction (taper the signal toward the terminator), the
   `sunz_corrected` / `sunz_reduced` pair applied to a true-colour composite's
   solar bands so deep shadow renders dark rather than as a washed-out floor.
+* `solar_zenith_azimuth` / `satellite_zenith_azimuth` / `relative_azimuth` — the
+  solar and geostationary viewing geometry (zenith + azimuth, degrees clockwise
+  from north) that an atmospheric correction needs.
+* `rayleigh_correct` — a local, closed-form single-scattering Rayleigh correction
+  (no third-party dependency) that removes the blue molecular-scattering veil,
+  usable per band through `true_color`'s `rayleigh=` hook.
 * `day_night_blend` / `day_weight` — the SZA-weighted cross-fade of a day and a
   night image.
 * `alpha_overlay` — the "over" composite of an RGBA foreground on an RGB(A)
@@ -39,6 +45,7 @@ from pyramids_eo.composites.geometry import (
     sunz_reduce,
 )
 from pyramids_eo.composites.overlay import alpha_overlay
+from pyramids_eo.composites.rayleigh import rayleigh_correct
 from pyramids_eo.composites.true_color import true_color
 from pyramids_eo.composites.true_color_night import (
     night_ir,
@@ -51,6 +58,7 @@ __all__ = [
     "day_night_blend",
     "day_weight",
     "night_ir",
+    "rayleigh_correct",
     "relative_azimuth",
     "satellite_zenith_azimuth",
     "solar_zenith_angle",
