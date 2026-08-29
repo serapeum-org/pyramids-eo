@@ -27,6 +27,28 @@ class TestSunzCorrect:
         out = sunz_correct(np.array([1.0, 1.0, 1.0]), np.array([0.0, 45.0, 80.0]))
         assert np.all(np.diff(out) > 0), f"correction not increasing: {out}"
 
+    def test_taper_decreases_from_limit_to_max_sza(self):
+        """Past the limit the factor falls from its peak to 0 at max_sza."""
+        out = sunz_correct(np.ones(4), np.array([88.0, 90.0, 92.0, 95.0]))
+        assert np.all(np.diff(out) < 0), f"taper not decreasing: {out}"
+
+    def test_interior_taper_matches_reference(self):
+        """At SZA 91 the tapered factor matches the reference formula."""
+        out = sunz_correct(np.array([1.0]), np.array([91.0]))
+        ramp = (91.0 - 88.0) / (95.0 - 88.0)
+        expected = (1.0 - np.log2(ramp + 1.0)) / np.cos(np.deg2rad(88.0))
+        assert out[0] == pytest.approx(expected, rel=1e-6), f"taper parity off: {out}"
+
+    def test_broadcasts_over_a_2d_grid(self):
+        """A 2-D band and matching 2-D SZA grid preserve shape per-pixel."""
+        band = np.ones((2, 2))
+        sza = np.array([[0.0, 60.0], [90.0, np.nan]])
+        out = sunz_correct(band, sza)
+        assert out.shape == (2, 2), f"shape not preserved: {out.shape}"
+        assert out[0, 0] == pytest.approx(1.0), "overhead pixel wrong"
+        assert out[0, 1] == pytest.approx(2.0), "60deg pixel wrong"
+        assert out[1, 1] == pytest.approx(0.0), "NaN pixel should be 0"
+
     def test_finite_at_terminator(self):
         """At SZA 90 the capped factor stays finite (no 1/0 blow-up)."""
         out = sunz_correct(np.array([1.0]), np.array([90.0]))
@@ -98,6 +120,17 @@ class TestSunzReduce:
         """Inside [limit, max_sza] the factor is strictly between 0 and 1."""
         out = sunz_reduce(np.array([1.0]), np.array([85.0]))
         assert 0.0 < out[0] < 1.0, f"factor not in (0, 1) inside the band: {out}"
+
+    def test_broadcasts_over_a_2d_grid(self):
+        """A 2-D band and matching 2-D SZA grid reduce per-pixel by region."""
+        band = np.ones((2, 2))
+        sza = np.array([[70.0, 85.0], [90.0, np.nan]])
+        out = sunz_reduce(band, sza)
+        assert out.shape == (2, 2), f"shape not preserved: {out.shape}"
+        assert out[0, 0] == pytest.approx(1.0), "below-limit pixel should be unchanged"
+        assert 0.0 < out[0, 1] < 1.0, "in-band pixel should be dimmed"
+        assert out[1, 0] == pytest.approx(0.0, abs=1e-9), "max_sza pixel should be 0"
+        assert out[1, 1] == pytest.approx(0.0), "NaN pixel should be 0"
 
     def test_matches_reference_value_at_85(self):
         """The default-parameter factor at SZA 85 matches the reference formula."""
