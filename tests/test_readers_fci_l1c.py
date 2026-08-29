@@ -870,6 +870,28 @@ def test_read_fci_l1c_real_granule():
     assert scene.geotransform[5] < 0, "the stitched grid must be north-up (gt[5] < 0)"
     assert np.isnan(scene.no_data_value[0]), "nodata should be NaN"
 
+    # Guard the un-mirror *direction*, not just the width sign: converting the grid's
+    # column centres (on a real on-disc row) to longitude, they must increase west ->
+    # east with column index. A mirrored (negative-width, east-anchored) geotransform
+    # — the issue #56 bug — makes them decrease. This is what actually pins the
+    # geolocation direction against real coordinates (issue #56).
+    from pyproj import CRS as _CRS
+    from pyproj import Transformer as _T
+
+    rows, cols = array.shape
+    gt = scene.geotransform
+    mid_y = gt[3] + (rows // 2 + 0.5) * gt[5]
+    xs = gt[0] + (np.arange(cols) + 0.5) * gt[1]
+    to_lonlat = _T.from_crs(
+        _CRS.from_wkt(str(scene.crs)), _CRS.from_epsg(4326), always_xy=True
+    )
+    lon, _lat = to_lonlat.transform(xs, np.full(cols, mid_y))
+    on_disc = lon[np.isfinite(lon)]
+    assert on_disc.size >= 2, "the mid row should cross the disc"
+    assert np.all(np.diff(on_disc) > 0), (
+        "longitude must increase west -> east across columns (not mirrored, issue #56)"
+    )
+
 
 @pytest.mark.live
 def test_read_fci_l1c_real_granule_multichannel():
