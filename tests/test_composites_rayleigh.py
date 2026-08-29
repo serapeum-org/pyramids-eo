@@ -85,6 +85,34 @@ class TestRayleighReflectance:
         rho = rayleigh_reflectance(0.444, sza=40.0, vza=95.0, azidiff=60.0)
         assert float(rho) == pytest.approx(0.0), f"off-disc reflectance not 0: {rho}"
 
+    def test_peaks_at_back_scatter(self):
+        """Rayleigh scattering peaks at back-scatter (azidiff=0) and falls to forward (180)."""
+        geom = {"sza": 40.0, "vza": 50.0}  # non-negligible sin(sza)*sin(vza)
+        back = rayleigh_reflectance(0.444, azidiff=0.0, **geom)
+        side = rayleigh_reflectance(0.444, azidiff=90.0, **geom)
+        forward = rayleigh_reflectance(0.444, azidiff=180.0, **geom)
+        assert float(back) > float(side) > float(forward), (
+            f"azimuth dependence wrong: back={back}, side={side}, forward={forward}"
+        )
+
+    def test_matches_independent_reference(self):
+        """The reflectance equals a hand-composed phase * bounded-transmittance value."""
+        wl, sza, vza, azidiff = 0.510, 40.0, 30.0, 60.0
+        tau = rayleigh_optical_depth(wl)
+        mu_s, mu_v = np.cos(np.deg2rad(sza)), np.cos(np.deg2rad(vza))
+        cos_theta = -mu_s * mu_v - (
+            np.sin(np.deg2rad(sza))
+            * np.sin(np.deg2rad(vza))
+            * np.cos(np.deg2rad(azidiff))
+        )
+        phase = 0.75 * (1.0 + cos_theta**2)
+        trans = 1.0 - np.exp(-tau * (1.0 / mu_s + 1.0 / mu_v))
+        expected = phase / (4.0 * (mu_s + mu_v)) * trans
+        rho = rayleigh_reflectance(wl, sza=sza, vza=vza, azidiff=azidiff)
+        assert float(rho) == pytest.approx(float(expected)), (
+            f"reflectance {rho} != independent reference {expected}"
+        )
+
 
 class TestRayleighCorrect:
     """`rayleigh_correct` subtracts the path reflectance from a band."""
