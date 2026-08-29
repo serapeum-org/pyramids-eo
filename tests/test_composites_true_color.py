@@ -311,5 +311,6 @@ class TestRayleighWantsRole:
         assert _rayleigh_wants_role(lambda a: a) is False, "plain callable mis-detected"
 
     def test_uninspectable_callable_is_legacy(self):
-        """An un-introspectable callable (a numpy ufunc) falls back to legacy."""
-        assert _rayleigh_wants_role(np.negative) is False, "ufunc should be legacy"
+        """A callable whose signature can't be introspected falls back to legacy."""
+        # a C builtin (min) has no introspectable signature -> ValueError -> legacy
+        assert _rayleigh_wants_role(min) is False, "un-introspectable should be legacy"

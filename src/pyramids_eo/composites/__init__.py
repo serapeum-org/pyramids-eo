@@ -31,7 +31,10 @@ from pyramids_eo.composites.background import static_image
 from pyramids_eo.composites.blend import day_night_blend, day_weight
 from pyramids_eo.composites.geometry import (
     cos_solar_zenith_angle,
+    relative_azimuth,
+    satellite_zenith_azimuth,
     solar_zenith_angle,
+    solar_zenith_azimuth,
     sunz_correct,
     sunz_reduce,
 )
@@ -48,7 +51,10 @@ __all__ = [
     "day_night_blend",
     "day_weight",
     "night_ir",
+    "relative_azimuth",
+    "satellite_zenith_azimuth",
     "solar_zenith_angle",
+    "solar_zenith_azimuth",
     "static_image",
     "sunz_correct",
     "sunz_reduce",
