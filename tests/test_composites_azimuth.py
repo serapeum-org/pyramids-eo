@@ -122,6 +122,11 @@ class TestSatelliteZenithAzimuth:
         higher, _ = satellite_zenith_azimuth(30.0, 20.0, sat_radius_km=60000.0)
         assert float(higher) < float(geo), "a higher orbit should reduce the zenith"
 
+    def test_off_disc_point_is_not_viewable(self):
+        """A point beyond the horizon (far side) reports NaN, not a saturated 90deg."""
+        vza, _ = satellite_zenith_azimuth(0.0, 180.0, sat_lon=0.0)
+        assert np.isnan(vza), f"far-side point should be NaN, got {vza}"
+
 
 class TestRelativeAzimuth:
     """`relative_azimuth` folds the Sun-satellite difference into [0, 180]."""

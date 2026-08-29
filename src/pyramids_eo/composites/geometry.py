@@ -316,7 +316,9 @@ def satellite_zenith_azimuth(
             (default 42164, geostationary) — this is a radius, not an altitude.
 
     Returns:
-        `(zenith, azimuth)` arrays in degrees.
+        `(zenith, azimuth)` arrays in degrees. The zenith is NaN beyond the
+        geometric horizon (points that cannot see the satellite, e.g. the far
+        side of the Earth on a full global grid).
 
     Raises:
         ValueError: Same coordinate-argument errors as `solar_zenith_angle`.
@@ -350,6 +352,10 @@ def satellite_zenith_azimuth(
     zenith = np.degrees(
         np.arcsin(np.clip(sat_radius_km * np.sin(psi) / distance, -1.0, 1.0))
     )
+    # Beyond the geometric horizon (cos_psi < R_earth / R_sat) the satellite is
+    # below the local horizon and cannot be seen; flag those points not-viewable
+    # (NaN) rather than letting the arcsin clamp saturate them at a plausible 90.
+    zenith = np.where(cos_psi >= _R_EARTH_KM / sat_radius_km, zenith, np.nan)
     azimuth = np.degrees(np.arctan2(np.sin(-dlon), -np.sin(la) * np.cos(dlon))) % 360.0
     return np.asarray(zenith, dtype=float), np.asarray(azimuth, dtype=float)
 
