@@ -475,6 +475,11 @@ def _validate_chunks(chunks: list) -> None:
             chunk["geotransform"][1], first["geotransform"][1]
         ) or not np.isclose(chunk["geotransform"][5], first["geotransform"][5]):
             raise ReaderError("read_fci_l1c: chunks have mixed cell size")
+        # The assembled geotransform takes its x origin/width from the northernmost
+        # chunk alone, so a disagreement in x origin would mis-stitch the scene in x
+        # with no error. Real FCI chunks span the full disc width and share it.
+        if not np.isclose(chunk["geotransform"][0], first["geotransform"][0]):
+            raise ReaderError("read_fci_l1c: chunks have mixed x origin")
         if chunk["radiance"].shape[1] != columns:
             raise ReaderError("read_fci_l1c: chunks have mixed column count")
         if chunk["coeffs"] != first["coeffs"]:

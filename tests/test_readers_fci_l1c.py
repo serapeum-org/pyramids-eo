@@ -565,6 +565,15 @@ class TestReadFciL1c:
         with pytest.raises(ReaderError, match="mixed CRS"):
             read_fci_l1c(["a.nc", "b.nc"], "ir_105")
 
+    def test_mixed_x_origin_raises(self, monkeypatch):
+        """Chunks that disagree on x origin are rejected (would mis-stitch in x)."""
+        other = self._chunk(np.ones((2, 3)), -2e-5)
+        other["geotransform"] = (0.5, -1e-5, 0.0, -2e-5, 0.0, -1e-5)  # x origin 0.5
+        mapping = {"a.nc": self._chunk(np.ones((2, 3)), 0.0), "b.nc": other}
+        self._patch(monkeypatch, mapping)
+        with pytest.raises(ReaderError, match="mixed x origin"):
+            read_fci_l1c(["a.nc", "b.nc"], "ir_105")
+
     def test_mixed_cell_size_raises(self, monkeypatch):
         """Chunks with a different cell size are rejected."""
         other = self._chunk(np.ones((2, 3)), -2e-5)
