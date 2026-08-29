@@ -75,6 +75,16 @@ class TestRayleighReflectance:
         rho = rayleigh_reflectance(0.444, sza=np.nan, vza=30.0, azidiff=60.0)
         assert np.isnan(rho), f"NaN geometry should give NaN: {rho}"
 
+    def test_clamped_to_unit_interval_toward_the_limb(self):
+        """The single-scattering form is unbounded near the limb but is clamped to <= 1."""
+        rho = rayleigh_reflectance(0.444, sza=89.0, vza=89.0, azidiff=0.0)
+        assert 0.0 <= float(rho) <= 1.0, f"reflectance not clamped to [0, 1]: {rho}"
+
+    def test_off_disc_view_is_zero(self):
+        """An off-disc view (vza >= 90) has no single-scatter path (reflectance 0)."""
+        rho = rayleigh_reflectance(0.444, sza=40.0, vza=95.0, azidiff=60.0)
+        assert float(rho) == pytest.approx(0.0), f"off-disc reflectance not 0: {rho}"
+
 
 class TestRayleighCorrect:
     """`rayleigh_correct` subtracts the path reflectance from a band."""

@@ -95,8 +95,10 @@ def rayleigh_reflectance(
         pressure_hpa: Surface pressure in hPa (default sea level).
 
     Returns:
-        The per-pixel Rayleigh path reflectance in `[0, 1]`, `0` on the night side
-        (`sza >= 90`) and NaN where a geometry input is NaN.
+        The per-pixel Rayleigh path reflectance in `[0, 1]` (clamped — the single-
+        scattering form is unbounded toward the limb), `0` on the night side
+        (`sza >= 90`) or where the view is off-disc (`vza >= 90`), and NaN where a
+        geometry input is NaN.
 
     Raises:
         ValueError: When `wavelength_um` or `pressure_hpa` is not positive (via
@@ -139,8 +141,12 @@ def rayleigh_reflectance(
     with np.errstate(divide="ignore", invalid="ignore"):
         transmittance = 1.0 - np.exp(-tau * (1.0 / mu_s + 1.0 / mu_v))
         refl = phase / (4.0 * (mu_s + mu_v)) * transmittance
-    # Only the sunlit side has a single-scatter path; a NaN geometry stays NaN.
-    refl = np.where(mu_s > 0, refl, 0.0)
+    # Only a sunlit, on-disc pixel (mu_s > 0 and mu_v > 0) has a single-scatter
+    # path; elsewhere (night, or an off-disc view) there is none. The single-
+    # scattering form is unbounded toward the limb, so clamp to the physical
+    # [0, 1]. A NaN geometry stays NaN.
+    refl = np.where((mu_s > 0) & (mu_v > 0), refl, 0.0)
+    refl = np.clip(refl, 0.0, 1.0)
     invalid = np.isnan(mu_s) | np.isnan(mu_v) | np.isnan(raz_r)
     return np.asarray(np.where(invalid, np.nan, refl), dtype=float)
 
