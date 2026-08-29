@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -3711,7 +3711,8 @@ in acquisition order.</p>
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pyramids_eo/earthengine/reader.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-2337">2337</a></span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-2336">2336</a></span>
+<span class="normal"><a href="#__codelineno-0-2337">2337</a></span>
 <span class="normal"><a href="#__codelineno-0-2338">2338</a></span>
 <span class="normal"><a href="#__codelineno-0-2339">2339</a></span>
 <span class="normal"><a href="#__codelineno-0-2340">2340</a></span>
@@ -3766,64 +3767,63 @@ in acquisition order.</p>
 <span class="normal"><a href="#__codelineno-0-2389">2389</a></span>
 <span class="normal"><a href="#__codelineno-0-2390">2390</a></span>
 <span class="normal"><a href="#__codelineno-0-2391">2391</a></span>
-<span class="normal"><a href="#__codelineno-0-2392">2392</a></span>
-<span class="normal"><a href="#__codelineno-0-2393">2393</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-2337" name="__codelineno-0-2337"></a><span class="k">class</span><span class="w"> </span><span class="nc">ReadCost</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
-<a id="__codelineno-0-2338" name="__codelineno-0-2338"></a><span class="w">    </span><span class="sd">"""A pre-read cost estimate for an ``ImageCollection`` window, from EEDA metadata.</span>
-<a id="__codelineno-0-2339" name="__codelineno-0-2339"></a>
-<a id="__codelineno-0-2340" name="__codelineno-0-2340"></a><span class="sd">    Every figure is read from the EEDA catalog's own per-scene fields — no pixels are</span>
-<a id="__codelineno-0-2341" name="__codelineno-0-2341"></a><span class="sd">    fetched — so a caller can size a read (and its EE egress) before paying for it.</span>
-<a id="__codelineno-0-2342" name="__codelineno-0-2342"></a>
-<a id="__codelineno-0-2343" name="__codelineno-0-2343"></a><span class="sd">    Attributes:</span>
-<a id="__codelineno-0-2344" name="__codelineno-0-2344"></a><span class="sd">        scene_count: Number of scenes the date range + AOI (and any ``property_filter``)</span>
-<a id="__codelineno-0-2345" name="__codelineno-0-2345"></a><span class="sd">            select.</span>
-<a id="__codelineno-0-2346" name="__codelineno-0-2346"></a><span class="sd">        total_size_bytes: Sum of the scenes' reported storage sizes (``sizeBytes``); a</span>
-<a id="__codelineno-0-2347" name="__codelineno-0-2347"></a><span class="sd">            scene the catalog does not size contributes ``0``.</span>
-<a id="__codelineno-0-2348" name="__codelineno-0-2348"></a><span class="sd">        max_width: Widest scene band width across the selection, in pixels.</span>
-<a id="__codelineno-0-2349" name="__codelineno-0-2349"></a><span class="sd">        max_height: Tallest scene band height across the selection, in pixels.</span>
-<a id="__codelineno-0-2350" name="__codelineno-0-2350"></a><span class="sd">        max_band_count: Largest per-scene band count across the selection.</span>
-<a id="__codelineno-0-2351" name="__codelineno-0-2351"></a><span class="sd">        min_pixel_size: Finest ground pixel size across the selection (``0.0`` when the</span>
-<a id="__codelineno-0-2352" name="__codelineno-0-2352"></a><span class="sd">            catalog reports none).</span>
-<a id="__codelineno-0-2353" name="__codelineno-0-2353"></a><span class="sd">        scenes: The per-scene records (connection, acquisition time, and cost fields),</span>
-<a id="__codelineno-0-2354" name="__codelineno-0-2354"></a><span class="sd">            in acquisition order.</span>
-<a id="__codelineno-0-2355" name="__codelineno-0-2355"></a>
-<a id="__codelineno-0-2356" name="__codelineno-0-2356"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-2357" name="__codelineno-0-2357"></a><span class="sd">        - Read the aggregate figures and derive the transfer size in megabytes:</span>
-<a id="__codelineno-0-2358" name="__codelineno-0-2358"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-2359" name="__codelineno-0-2359"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import ReadCost</span>
-<a id="__codelineno-0-2360" name="__codelineno-0-2360"></a><span class="sd">            &gt;&gt;&gt; cost = ReadCost(</span>
-<a id="__codelineno-0-2361" name="__codelineno-0-2361"></a><span class="sd">            ...     scene_count=2,</span>
-<a id="__codelineno-0-2362" name="__codelineno-0-2362"></a><span class="sd">            ...     total_size_bytes=300_000_000,</span>
-<a id="__codelineno-0-2363" name="__codelineno-0-2363"></a><span class="sd">            ...     max_width=10980,</span>
-<a id="__codelineno-0-2364" name="__codelineno-0-2364"></a><span class="sd">            ...     max_height=10980,</span>
-<a id="__codelineno-0-2365" name="__codelineno-0-2365"></a><span class="sd">            ...     max_band_count=24,</span>
-<a id="__codelineno-0-2366" name="__codelineno-0-2366"></a><span class="sd">            ...     min_pixel_size=10.0,</span>
-<a id="__codelineno-0-2367" name="__codelineno-0-2367"></a><span class="sd">            ...     scenes=[],</span>
-<a id="__codelineno-0-2368" name="__codelineno-0-2368"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-2369" name="__codelineno-0-2369"></a><span class="sd">            &gt;&gt;&gt; cost.scene_count</span>
-<a id="__codelineno-0-2370" name="__codelineno-0-2370"></a><span class="sd">            2</span>
-<a id="__codelineno-0-2371" name="__codelineno-0-2371"></a><span class="sd">            &gt;&gt;&gt; round(cost.total_size_bytes / 1e6)</span>
-<a id="__codelineno-0-2372" name="__codelineno-0-2372"></a><span class="sd">            300</span>
-<a id="__codelineno-0-2373" name="__codelineno-0-2373"></a><span class="sd">            &gt;&gt;&gt; cost.max_width, cost.min_pixel_size</span>
-<a id="__codelineno-0-2374" name="__codelineno-0-2374"></a><span class="sd">            (10980, 10.0)</span>
-<a id="__codelineno-0-2375" name="__codelineno-0-2375"></a>
-<a id="__codelineno-0-2376" name="__codelineno-0-2376"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-2377" name="__codelineno-0-2377"></a><span class="sd">        - A pixel budget for the widest scene, all bands:</span>
-<a id="__codelineno-0-2378" name="__codelineno-0-2378"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-2379" name="__codelineno-0-2379"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import ReadCost</span>
-<a id="__codelineno-0-2380" name="__codelineno-0-2380"></a><span class="sd">            &gt;&gt;&gt; cost = ReadCost(1, 0, 5490, 5490, 13, 20.0, [])</span>
-<a id="__codelineno-0-2381" name="__codelineno-0-2381"></a><span class="sd">            &gt;&gt;&gt; cost.max_width * cost.max_height * cost.max_band_count</span>
-<a id="__codelineno-0-2382" name="__codelineno-0-2382"></a><span class="sd">            391821300</span>
-<a id="__codelineno-0-2383" name="__codelineno-0-2383"></a>
-<a id="__codelineno-0-2384" name="__codelineno-0-2384"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-2385" name="__codelineno-0-2385"></a><span class="sd">    """</span>
-<a id="__codelineno-0-2386" name="__codelineno-0-2386"></a>
-<a id="__codelineno-0-2387" name="__codelineno-0-2387"></a>    <span class="n">scene_count</span><span class="p">:</span> <span class="nb">int</span>
-<a id="__codelineno-0-2388" name="__codelineno-0-2388"></a>    <span class="n">total_size_bytes</span><span class="p">:</span> <span class="nb">int</span>
-<a id="__codelineno-0-2389" name="__codelineno-0-2389"></a>    <span class="n">max_width</span><span class="p">:</span> <span class="nb">int</span>
-<a id="__codelineno-0-2390" name="__codelineno-0-2390"></a>    <span class="n">max_height</span><span class="p">:</span> <span class="nb">int</span>
-<a id="__codelineno-0-2391" name="__codelineno-0-2391"></a>    <span class="n">max_band_count</span><span class="p">:</span> <span class="nb">int</span>
-<a id="__codelineno-0-2392" name="__codelineno-0-2392"></a>    <span class="n">min_pixel_size</span><span class="p">:</span> <span class="nb">float</span>
-<a id="__codelineno-0-2393" name="__codelineno-0-2393"></a>    <span class="n">scenes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_Scene</span><span class="p">]</span>
+<span class="normal"><a href="#__codelineno-0-2392">2392</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-2336" name="__codelineno-0-2336"></a><span class="k">class</span><span class="w"> </span><span class="nc">ReadCost</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<a id="__codelineno-0-2337" name="__codelineno-0-2337"></a><span class="w">    </span><span class="sd">"""A pre-read cost estimate for an ``ImageCollection`` window, from EEDA metadata.</span>
+<a id="__codelineno-0-2338" name="__codelineno-0-2338"></a>
+<a id="__codelineno-0-2339" name="__codelineno-0-2339"></a><span class="sd">    Every figure is read from the EEDA catalog's own per-scene fields — no pixels are</span>
+<a id="__codelineno-0-2340" name="__codelineno-0-2340"></a><span class="sd">    fetched — so a caller can size a read (and its EE egress) before paying for it.</span>
+<a id="__codelineno-0-2341" name="__codelineno-0-2341"></a>
+<a id="__codelineno-0-2342" name="__codelineno-0-2342"></a><span class="sd">    Attributes:</span>
+<a id="__codelineno-0-2343" name="__codelineno-0-2343"></a><span class="sd">        scene_count: Number of scenes the date range + AOI (and any ``property_filter``)</span>
+<a id="__codelineno-0-2344" name="__codelineno-0-2344"></a><span class="sd">            select.</span>
+<a id="__codelineno-0-2345" name="__codelineno-0-2345"></a><span class="sd">        total_size_bytes: Sum of the scenes' reported storage sizes (``sizeBytes``); a</span>
+<a id="__codelineno-0-2346" name="__codelineno-0-2346"></a><span class="sd">            scene the catalog does not size contributes ``0``.</span>
+<a id="__codelineno-0-2347" name="__codelineno-0-2347"></a><span class="sd">        max_width: Widest scene band width across the selection, in pixels.</span>
+<a id="__codelineno-0-2348" name="__codelineno-0-2348"></a><span class="sd">        max_height: Tallest scene band height across the selection, in pixels.</span>
+<a id="__codelineno-0-2349" name="__codelineno-0-2349"></a><span class="sd">        max_band_count: Largest per-scene band count across the selection.</span>
+<a id="__codelineno-0-2350" name="__codelineno-0-2350"></a><span class="sd">        min_pixel_size: Finest ground pixel size across the selection (``0.0`` when the</span>
+<a id="__codelineno-0-2351" name="__codelineno-0-2351"></a><span class="sd">            catalog reports none).</span>
+<a id="__codelineno-0-2352" name="__codelineno-0-2352"></a><span class="sd">        scenes: The per-scene records (connection, acquisition time, and cost fields),</span>
+<a id="__codelineno-0-2353" name="__codelineno-0-2353"></a><span class="sd">            in acquisition order.</span>
+<a id="__codelineno-0-2354" name="__codelineno-0-2354"></a>
+<a id="__codelineno-0-2355" name="__codelineno-0-2355"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-2356" name="__codelineno-0-2356"></a><span class="sd">        - Read the aggregate figures and derive the transfer size in megabytes:</span>
+<a id="__codelineno-0-2357" name="__codelineno-0-2357"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-2358" name="__codelineno-0-2358"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import ReadCost</span>
+<a id="__codelineno-0-2359" name="__codelineno-0-2359"></a><span class="sd">            &gt;&gt;&gt; cost = ReadCost(</span>
+<a id="__codelineno-0-2360" name="__codelineno-0-2360"></a><span class="sd">            ...     scene_count=2,</span>
+<a id="__codelineno-0-2361" name="__codelineno-0-2361"></a><span class="sd">            ...     total_size_bytes=300_000_000,</span>
+<a id="__codelineno-0-2362" name="__codelineno-0-2362"></a><span class="sd">            ...     max_width=10980,</span>
+<a id="__codelineno-0-2363" name="__codelineno-0-2363"></a><span class="sd">            ...     max_height=10980,</span>
+<a id="__codelineno-0-2364" name="__codelineno-0-2364"></a><span class="sd">            ...     max_band_count=24,</span>
+<a id="__codelineno-0-2365" name="__codelineno-0-2365"></a><span class="sd">            ...     min_pixel_size=10.0,</span>
+<a id="__codelineno-0-2366" name="__codelineno-0-2366"></a><span class="sd">            ...     scenes=[],</span>
+<a id="__codelineno-0-2367" name="__codelineno-0-2367"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-2368" name="__codelineno-0-2368"></a><span class="sd">            &gt;&gt;&gt; cost.scene_count</span>
+<a id="__codelineno-0-2369" name="__codelineno-0-2369"></a><span class="sd">            2</span>
+<a id="__codelineno-0-2370" name="__codelineno-0-2370"></a><span class="sd">            &gt;&gt;&gt; round(cost.total_size_bytes / 1e6)</span>
+<a id="__codelineno-0-2371" name="__codelineno-0-2371"></a><span class="sd">            300</span>
+<a id="__codelineno-0-2372" name="__codelineno-0-2372"></a><span class="sd">            &gt;&gt;&gt; cost.max_width, cost.min_pixel_size</span>
+<a id="__codelineno-0-2373" name="__codelineno-0-2373"></a><span class="sd">            (10980, 10.0)</span>
+<a id="__codelineno-0-2374" name="__codelineno-0-2374"></a>
+<a id="__codelineno-0-2375" name="__codelineno-0-2375"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-2376" name="__codelineno-0-2376"></a><span class="sd">        - A pixel budget for the widest scene, all bands:</span>
+<a id="__codelineno-0-2377" name="__codelineno-0-2377"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-2378" name="__codelineno-0-2378"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import ReadCost</span>
+<a id="__codelineno-0-2379" name="__codelineno-0-2379"></a><span class="sd">            &gt;&gt;&gt; cost = ReadCost(1, 0, 5490, 5490, 13, 20.0, [])</span>
+<a id="__codelineno-0-2380" name="__codelineno-0-2380"></a><span class="sd">            &gt;&gt;&gt; cost.max_width * cost.max_height * cost.max_band_count</span>
+<a id="__codelineno-0-2381" name="__codelineno-0-2381"></a><span class="sd">            391821300</span>
+<a id="__codelineno-0-2382" name="__codelineno-0-2382"></a>
+<a id="__codelineno-0-2383" name="__codelineno-0-2383"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-2384" name="__codelineno-0-2384"></a><span class="sd">    """</span>
+<a id="__codelineno-0-2385" name="__codelineno-0-2385"></a>
+<a id="__codelineno-0-2386" name="__codelineno-0-2386"></a>    <span class="n">scene_count</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-0-2387" name="__codelineno-0-2387"></a>    <span class="n">total_size_bytes</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-0-2388" name="__codelineno-0-2388"></a>    <span class="n">max_width</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-0-2389" name="__codelineno-0-2389"></a>    <span class="n">max_height</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-0-2390" name="__codelineno-0-2390"></a>    <span class="n">max_band_count</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-0-2391" name="__codelineno-0-2391"></a>    <span class="n">min_pixel_size</span><span class="p">:</span> <span class="nb">float</span>
+<a id="__codelineno-0-2392" name="__codelineno-0-2392"></a>    <span class="n">scenes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_Scene</span><span class="p">]</span>
 </code></pre></div></td></tr></table></div>
               </details>
 
@@ -4080,7 +4080,7 @@ to <code>"EPSG:4326"</code>.</p>
 <a id="__codelineno-0-174" name="__codelineno-0-174"></a>    <span class="n">shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <a id="__codelineno-0-175" name="__codelineno-0-175"></a>    <span class="n">resample</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"nearest"</span>
 <a id="__codelineno-0-176" name="__codelineno-0-176"></a>
-<a id="__codelineno-0-177" name="__codelineno-0-177"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">for_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sub_bbox</span><span class="p">:</span> <span class="n">BBox</span><span class="p">,</span> <span class="n">tile_shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Window</span><span class="p">:</span>
+<a id="__codelineno-0-177" name="__codelineno-0-177"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_for_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sub_bbox</span><span class="p">:</span> <span class="n">BBox</span><span class="p">,</span> <span class="n">tile_shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Window</span><span class="p">:</span>
 <a id="__codelineno-0-178" name="__codelineno-0-178"></a><span class="w">        </span><span class="sd">"""Derive a tile's window: the tile's sub-bounds at its exact pixel shape.</span>
 <a id="__codelineno-0-179" name="__codelineno-0-179"></a>
 <a id="__codelineno-0-180" name="__codelineno-0-180"></a><span class="sd">        The tile is sized by ``shape`` (its exact ``(rows, cols)``), so ``scale`` is</span>
@@ -4109,127 +4109,6 @@ to <code>"EPSG:4326"</code>.</p>
 
 
 
-
-<div class="doc doc-object doc-function">
-
-
-<h5 id="pyramids_eo.Window.for_tile" class="doc doc-heading"><a href="#pyramids_eo.Window.for_tile" class="toclink">
-            <code class="highlight language-python"><span class="n">for_tile</span><span class="p">(</span><span class="n">sub_bbox</span><span class="p">,</span> <span class="n">tile_shape</span><span class="p">)</span></code>
-
-</a><a href="#pyramids_eo.Window.for_tile" class="headerlink" title="Permanent link">#</a></h5>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Derive a tile's window: the tile's sub-bounds at its exact pixel shape.</p>
-<p>The tile is sized by <code>shape</code> (its exact <code>(rows, cols)</code>), so <code>scale</code> is
-dropped — the two are mutually exclusive and the tile grid is shape-driven.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>sub_bbox</code>
-            </td>
-            <td>
-                  <code><span title="pyramids_eo.earthengine.reader.BBox">BBox</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The tile's bounds in <code>crs</code>.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>tile_shape</code>
-            </td>
-            <td>
-                  <code><span title="tuple">tuple</span>[<span title="int">int</span>, <span title="int">int</span>]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The tile's <code>(rows, cols)</code>.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code&gt;Window&lt;/code&gt; (&lt;code&gt;pyramids_eo.earthengine.reader.Window&lt;/code&gt;)" href="#pyramids_eo.Window">Window</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>A <code>Window</code> for the tile, sharing this window's CRS and resampler.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/pyramids_eo/earthengine/reader.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-177">177</a></span>
-<span class="normal"><a href="#__codelineno-0-178">178</a></span>
-<span class="normal"><a href="#__codelineno-0-179">179</a></span>
-<span class="normal"><a href="#__codelineno-0-180">180</a></span>
-<span class="normal"><a href="#__codelineno-0-181">181</a></span>
-<span class="normal"><a href="#__codelineno-0-182">182</a></span>
-<span class="normal"><a href="#__codelineno-0-183">183</a></span>
-<span class="normal"><a href="#__codelineno-0-184">184</a></span>
-<span class="normal"><a href="#__codelineno-0-185">185</a></span>
-<span class="normal"><a href="#__codelineno-0-186">186</a></span>
-<span class="normal"><a href="#__codelineno-0-187">187</a></span>
-<span class="normal"><a href="#__codelineno-0-188">188</a></span>
-<span class="normal"><a href="#__codelineno-0-189">189</a></span>
-<span class="normal"><a href="#__codelineno-0-190">190</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-177" name="__codelineno-0-177"></a><span class="k">def</span><span class="w"> </span><span class="nf">for_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sub_bbox</span><span class="p">:</span> <span class="n">BBox</span><span class="p">,</span> <span class="n">tile_shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Window</span><span class="p">:</span>
-<a id="__codelineno-0-178" name="__codelineno-0-178"></a><span class="w">    </span><span class="sd">"""Derive a tile's window: the tile's sub-bounds at its exact pixel shape.</span>
-<a id="__codelineno-0-179" name="__codelineno-0-179"></a>
-<a id="__codelineno-0-180" name="__codelineno-0-180"></a><span class="sd">    The tile is sized by ``shape`` (its exact ``(rows, cols)``), so ``scale`` is</span>
-<a id="__codelineno-0-181" name="__codelineno-0-181"></a><span class="sd">    dropped — the two are mutually exclusive and the tile grid is shape-driven.</span>
-<a id="__codelineno-0-182" name="__codelineno-0-182"></a>
-<a id="__codelineno-0-183" name="__codelineno-0-183"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-184" name="__codelineno-0-184"></a><span class="sd">        sub_bbox: The tile's bounds in ``crs``.</span>
-<a id="__codelineno-0-185" name="__codelineno-0-185"></a><span class="sd">        tile_shape: The tile's ``(rows, cols)``.</span>
-<a id="__codelineno-0-186" name="__codelineno-0-186"></a>
-<a id="__codelineno-0-187" name="__codelineno-0-187"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-188" name="__codelineno-0-188"></a><span class="sd">        A ``Window`` for the tile, sharing this window's CRS and resampler.</span>
-<a id="__codelineno-0-189" name="__codelineno-0-189"></a><span class="sd">    """</span>
-<a id="__codelineno-0-190" name="__codelineno-0-190"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replace</span><span class="p">(</span><span class="n">bbox</span><span class="o">=</span><span class="n">sub_bbox</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">tile_shape</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
 
 
 
@@ -4681,7 +4560,8 @@ matched no scenes.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/earthengine/reader.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-2212">2212</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-2211">2211</a></span>
+<span class="normal"><a href="#__codelineno-0-2212">2212</a></span>
 <span class="normal"><a href="#__codelineno-0-2213">2213</a></span>
 <span class="normal"><a href="#__codelineno-0-2214">2214</a></span>
 <span class="normal"><a href="#__codelineno-0-2215">2215</a></span>
@@ -4802,130 +4682,129 @@ matched no scenes.</p>
 <span class="normal"><a href="#__codelineno-0-2330">2330</a></span>
 <span class="normal"><a href="#__codelineno-0-2331">2331</a></span>
 <span class="normal"><a href="#__codelineno-0-2332">2332</a></span>
-<span class="normal"><a href="#__codelineno-0-2333">2333</a></span>
-<span class="normal"><a href="#__codelineno-0-2334">2334</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-2212" name="__codelineno-0-2212"></a><span class="k">def</span><span class="w"> </span><span class="nf">collection_from_earthengine</span><span class="p">(</span>
-<a id="__codelineno-0-2213" name="__codelineno-0-2213"></a>    <span class="n">asset_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-2214" name="__codelineno-0-2214"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-2215" name="__codelineno-0-2215"></a>    <span class="n">start</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-2216" name="__codelineno-0-2216"></a>    <span class="n">end</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-2217" name="__codelineno-0-2217"></a>    <span class="n">window</span><span class="p">:</span> <span class="n">Window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(),</span>
-<a id="__codelineno-0-2218" name="__codelineno-0-2218"></a>    <span class="n">geometry</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-2219" name="__codelineno-0-2219"></a>    <span class="n">bands</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-2220" name="__codelineno-0-2220"></a>    <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-2221" name="__codelineno-0-2221"></a>    <span class="n">block_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-2222" name="__codelineno-0-2222"></a>    <span class="n">property_filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-2223" name="__codelineno-0-2223"></a>    <span class="n">nodata</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-2224" name="__codelineno-0-2224"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DatasetCollection</span><span class="p">:</span>
-<a id="__codelineno-0-2225" name="__codelineno-0-2225"></a><span class="w">    </span><span class="sd">"""Read an Earth Engine ``ImageCollection`` into a ``DatasetCollection``.</span>
-<a id="__codelineno-0-2226" name="__codelineno-0-2226"></a>
-<a id="__codelineno-0-2227" name="__codelineno-0-2227"></a><span class="sd">    Discovers the collection's scenes over the AOI + date range via the GDAL EEDA</span>
-<a id="__codelineno-0-2228" name="__codelineno-0-2228"></a><span class="sd">    catalog driver, then reads each one (EEDAI) windowed to a common grid — one</span>
-<a id="__codelineno-0-2229" name="__codelineno-0-2229"></a><span class="sd">    aligned :class:`~pyramids.dataset.Dataset` per scene, in acquisition order.</span>
-<a id="__codelineno-0-2230" name="__codelineno-0-2230"></a>
-<a id="__codelineno-0-2231" name="__codelineno-0-2231"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-2232" name="__codelineno-0-2232"></a><span class="sd">        asset_id: EE ``ImageCollection`` id (e.g. ``"COPERNICUS/S2_SR_HARMONIZED"``).</span>
-<a id="__codelineno-0-2233" name="__codelineno-0-2233"></a><span class="sd">        start: Inclusive ISO start of the acquisition window.</span>
-<a id="__codelineno-0-2234" name="__codelineno-0-2234"></a><span class="sd">        end: Inclusive ISO end of the acquisition window.</span>
-<a id="__codelineno-0-2235" name="__codelineno-0-2235"></a><span class="sd">        window: The output window — a :class:`Window` grouping the AOI ``bbox`` with the</span>
-<a id="__codelineno-0-2236" name="__codelineno-0-2236"></a><span class="sd">            ``crs`` / ``scale`` / ``shape`` / ``resample`` grid spec shared by every</span>
-<a id="__codelineno-0-2237" name="__codelineno-0-2237"></a><span class="sd">            scene. A ``bbox`` is required (to bound scene discovery) unless a</span>
-<a id="__codelineno-0-2238" name="__codelineno-0-2238"></a><span class="sd">            ``geometry`` is given. When both ``scale`` and ``shape`` are omitted the</span>
-<a id="__codelineno-0-2239" name="__codelineno-0-2239"></a><span class="sd">            first scene's native windowed grid is used for every scene. See</span>
-<a id="__codelineno-0-2240" name="__codelineno-0-2240"></a><span class="sd">            :func:`from_earthengine` for the CRS/units contract.</span>
-<a id="__codelineno-0-2241" name="__codelineno-0-2241"></a><span class="sd">        geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids</span>
-<a id="__codelineno-0-2242" name="__codelineno-0-2242"></a><span class="sd">            ``FeatureCollection``). A geometry carrying its own CRS is reprojected to</span>
-<a id="__codelineno-0-2243" name="__codelineno-0-2243"></a><span class="sd">            the window's ``crs``; one without is assumed to already be in it. Its</span>
-<a id="__codelineno-0-2244" name="__codelineno-0-2244"></a><span class="sd">            envelope bounds scene discovery and each scene is clipped to the polygon</span>
-<a id="__codelineno-0-2245" name="__codelineno-0-2245"></a><span class="sd">            cutline. Takes the place of the window's ``bbox`` when that is omitted.</span>
-<a id="__codelineno-0-2246" name="__codelineno-0-2246"></a><span class="sd">        bands: Band names to request; ``None`` reads every band.</span>
-<a id="__codelineno-0-2247" name="__codelineno-0-2247"></a><span class="sd">        credentials: An</span>
-<a id="__codelineno-0-2248" name="__codelineno-0-2248"></a><span class="sd">            :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a</span>
-<a id="__codelineno-0-2249" name="__codelineno-0-2249"></a><span class="sd">            path to a service-account JSON key, or ``None`` for ADC.</span>
-<a id="__codelineno-0-2250" name="__codelineno-0-2250"></a><span class="sd">        block_size: EEDAI transfer block size (pixels per side); ``None`` uses the</span>
-<a id="__codelineno-0-2251" name="__codelineno-0-2251"></a><span class="sd">            conservative default. See :func:`from_earthengine`.</span>
-<a id="__codelineno-0-2252" name="__codelineno-0-2252"></a><span class="sd">        property_filter: OGR attribute-filter fragment on the collection's own</span>
-<a id="__codelineno-0-2253" name="__codelineno-0-2253"></a><span class="sd">            property fields (e.g. ``"CLOUDY_PIXEL_PERCENTAGE &lt; 20"``) constraining</span>
-<a id="__codelineno-0-2254" name="__codelineno-0-2254"></a><span class="sd">            which scenes are read. Filtered client-side over the discovered scene</span>
-<a id="__codelineno-0-2255" name="__codelineno-0-2255"></a><span class="sd">            page (trims pixel fetches, not the catalog query), not server-side. It is</span>
-<a id="__codelineno-0-2256" name="__codelineno-0-2256"></a><span class="sd">            interpolated verbatim and not escaped/validated — build it in code, never</span>
-<a id="__codelineno-0-2257" name="__codelineno-0-2257"></a><span class="sd">            from untrusted input.</span>
-<a id="__codelineno-0-2258" name="__codelineno-0-2258"></a><span class="sd">        nodata: Fill value to tag on every scene's bands (EEDAI exposes none). See</span>
-<a id="__codelineno-0-2259" name="__codelineno-0-2259"></a><span class="sd">            :func:`from_earthengine`; ``None`` leaves the scenes untagged.</span>
-<a id="__codelineno-0-2260" name="__codelineno-0-2260"></a>
-<a id="__codelineno-0-2261" name="__codelineno-0-2261"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-2262" name="__codelineno-0-2262"></a><span class="sd">        A pyramids :class:`~pyramids.dataset.DatasetCollection`, one timestep per</span>
-<a id="__codelineno-0-2263" name="__codelineno-0-2263"></a><span class="sd">        scene, with the acquisition times as its time axis.</span>
-<a id="__codelineno-0-2264" name="__codelineno-0-2264"></a>
-<a id="__codelineno-0-2265" name="__codelineno-0-2265"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-2266" name="__codelineno-0-2266"></a><span class="sd">        ValueError: ``scale`` and ``shape`` are both given, or neither ``bbox``</span>
-<a id="__codelineno-0-2267" name="__codelineno-0-2267"></a><span class="sd">            nor ``geometry`` is given.</span>
-<a id="__codelineno-0-2268" name="__codelineno-0-2268"></a><span class="sd">        ReaderError: The catalog could not be opened, or the date range + AOI</span>
-<a id="__codelineno-0-2269" name="__codelineno-0-2269"></a><span class="sd">            matched no scenes.</span>
-<a id="__codelineno-0-2270" name="__codelineno-0-2270"></a>
-<a id="__codelineno-0-2271" name="__codelineno-0-2271"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-2272" name="__codelineno-0-2272"></a><span class="sd">        - Read a Sentinel-2 collection over a date range (skipped offline):</span>
-<a id="__codelineno-0-2273" name="__codelineno-0-2273"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-2274" name="__codelineno-0-2274"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import collection_from_earthengine, Window</span>
-<a id="__codelineno-0-2275" name="__codelineno-0-2275"></a><span class="sd">            &gt;&gt;&gt; collection = collection_from_earthengine(  # doctest: +SKIP</span>
-<a id="__codelineno-0-2276" name="__codelineno-0-2276"></a><span class="sd">            ...     "COPERNICUS/S2_SR_HARMONIZED",</span>
-<a id="__codelineno-0-2277" name="__codelineno-0-2277"></a><span class="sd">            ...     start="2024-06-01",</span>
-<a id="__codelineno-0-2278" name="__codelineno-0-2278"></a><span class="sd">            ...     end="2024-06-10",</span>
-<a id="__codelineno-0-2279" name="__codelineno-0-2279"></a><span class="sd">            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0)),</span>
-<a id="__codelineno-0-2280" name="__codelineno-0-2280"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-2281" name="__codelineno-0-2281"></a>
-<a id="__codelineno-0-2282" name="__codelineno-0-2282"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-2283" name="__codelineno-0-2283"></a><span class="sd">    """</span>
-<a id="__codelineno-0-2284" name="__codelineno-0-2284"></a>    <span class="k">if</span> <span class="n">window</span><span class="o">.</span><span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">window</span><span class="o">.</span><span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-2285" name="__codelineno-0-2285"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Pass at most one of 'scale' or 'shape', not both."</span><span class="p">)</span>
-<a id="__codelineno-0-2286" name="__codelineno-0-2286"></a>    <span class="n">_resample_alg</span><span class="p">(</span><span class="n">window</span><span class="o">.</span><span class="n">resample</span><span class="p">)</span>  <span class="c1"># validate up front, before any network call</span>
-<a id="__codelineno-0-2287" name="__codelineno-0-2287"></a>    <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-2288" name="__codelineno-0-2288"></a>        <span class="n">geometry</span> <span class="o">=</span> <span class="n">_geometry_in_crs</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">window</span><span class="o">.</span><span class="n">crs</span><span class="p">)</span>
-<a id="__codelineno-0-2289" name="__codelineno-0-2289"></a>    <span class="k">if</span> <span class="n">window</span><span class="o">.</span><span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-2290" name="__codelineno-0-2290"></a>        <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-2291" name="__codelineno-0-2291"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Pass a 'bbox' or a 'geometry'."</span><span class="p">)</span>
-<a id="__codelineno-0-2292" name="__codelineno-0-2292"></a>        <span class="n">window</span> <span class="o">=</span> <span class="n">window</span><span class="o">.</span><span class="n">_replace</span><span class="p">(</span><span class="n">bbox</span><span class="o">=</span><span class="n">_geometry_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">))</span>
-<a id="__codelineno-0-2293" name="__codelineno-0-2293"></a>    <span class="k">assert</span> <span class="n">window</span><span class="o">.</span><span class="n">bbox</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>  <span class="c1"># resolved above from bbox or the geometry envelope</span>
-<a id="__codelineno-0-2294" name="__codelineno-0-2294"></a>
-<a id="__codelineno-0-2295" name="__codelineno-0-2295"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
-<a id="__codelineno-0-2296" name="__codelineno-0-2296"></a>    <span class="n">scenes</span> <span class="o">=</span> <span class="n">_discover_scenes</span><span class="p">(</span>
-<a id="__codelineno-0-2297" name="__codelineno-0-2297"></a>        <span class="n">asset_id</span><span class="p">,</span>
-<a id="__codelineno-0-2298" name="__codelineno-0-2298"></a>        <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
-<a id="__codelineno-0-2299" name="__codelineno-0-2299"></a>        <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
-<a id="__codelineno-0-2300" name="__codelineno-0-2300"></a>        <span class="n">bbox_4326</span><span class="o">=</span><span class="n">_bbox_to_4326</span><span class="p">(</span><span class="n">window</span><span class="o">.</span><span class="n">bbox</span><span class="p">,</span> <span class="n">window</span><span class="o">.</span><span class="n">crs</span><span class="p">),</span>
-<a id="__codelineno-0-2301" name="__codelineno-0-2301"></a>        <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
-<a id="__codelineno-0-2302" name="__codelineno-0-2302"></a>        <span class="n">property_filter</span><span class="o">=</span><span class="n">property_filter</span><span class="p">,</span>
-<a id="__codelineno-0-2303" name="__codelineno-0-2303"></a>    <span class="p">)</span>
-<a id="__codelineno-0-2304" name="__codelineno-0-2304"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">scenes</span><span class="p">:</span>
-<a id="__codelineno-0-2305" name="__codelineno-0-2305"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
-<a id="__codelineno-0-2306" name="__codelineno-0-2306"></a>            <span class="sa">f</span><span class="s2">"No Earth Engine scenes for </span><span class="si">{</span><span class="n">asset_id</span><span class="si">!r}</span><span class="s2"> in [</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">] over "</span>
-<a id="__codelineno-0-2307" name="__codelineno-0-2307"></a>            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">window</span><span class="o">.</span><span class="n">bbox</span><span class="si">}</span><span class="s2">."</span>
-<a id="__codelineno-0-2308" name="__codelineno-0-2308"></a>        <span class="p">)</span>
-<a id="__codelineno-0-2309" name="__codelineno-0-2309"></a>    <span class="c1"># Keep the credential config in effect across the scene reads, then restore it.</span>
-<a id="__codelineno-0-2310" name="__codelineno-0-2310"></a>    <span class="k">with</span> <span class="n">creds</span><span class="o">.</span><span class="n">activate</span><span class="p">():</span>
-<a id="__codelineno-0-2311" name="__codelineno-0-2311"></a>        <span class="n">windowed</span> <span class="o">=</span> <span class="n">_read_scenes_aligned</span><span class="p">(</span>
-<a id="__codelineno-0-2312" name="__codelineno-0-2312"></a>            <span class="n">scenes</span><span class="p">,</span>
-<a id="__codelineno-0-2313" name="__codelineno-0-2313"></a>            <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span>
-<a id="__codelineno-0-2314" name="__codelineno-0-2314"></a>            <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span>
-<a id="__codelineno-0-2315" name="__codelineno-0-2315"></a>            <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
-<a id="__codelineno-0-2316" name="__codelineno-0-2316"></a>            <span class="n">block_size</span><span class="o">=</span><span class="n">block_size</span><span class="p">,</span>
-<a id="__codelineno-0-2317" name="__codelineno-0-2317"></a>        <span class="p">)</span>
-<a id="__codelineno-0-2318" name="__codelineno-0-2318"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span>
-<a id="__codelineno-0-2319" name="__codelineno-0-2319"></a>    <span class="c1"># ``windowed`` scenes are already fully-materialised pyramids Datasets (the warp</span>
-<a id="__codelineno-0-2320" name="__codelineno-0-2320"></a>    <span class="c1"># read every pixel eagerly), so they need no re-wrapping or credential env.</span>
-<a id="__codelineno-0-2321" name="__codelineno-0-2321"></a>    <span class="n">datasets</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-0-2322" name="__codelineno-0-2322"></a>        <span class="n">_retain_credentials</span><span class="p">(</span>
-<a id="__codelineno-0-2323" name="__codelineno-0-2323"></a>            <span class="n">_apply_nodata</span><span class="p">(</span><span class="n">_apply_geometry</span><span class="p">(</span><span class="n">scene</span><span class="p">,</span> <span class="n">geometry</span><span class="p">),</span> <span class="n">nodata</span><span class="p">),</span> <span class="n">creds</span>
-<a id="__codelineno-0-2324" name="__codelineno-0-2324"></a>        <span class="p">)</span>
-<a id="__codelineno-0-2325" name="__codelineno-0-2325"></a>        <span class="k">for</span> <span class="n">scene</span> <span class="ow">in</span> <span class="n">windowed</span>
-<a id="__codelineno-0-2326" name="__codelineno-0-2326"></a>    <span class="p">]</span>
-<a id="__codelineno-0-2327" name="__codelineno-0-2327"></a>    <span class="n">collection</span> <span class="o">=</span> <span class="n">DatasetCollection</span><span class="p">(</span>
-<a id="__codelineno-0-2328" name="__codelineno-0-2328"></a>        <span class="n">datasets</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
-<a id="__codelineno-0-2329" name="__codelineno-0-2329"></a>        <span class="n">time_length</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">datasets</span><span class="p">),</span>
-<a id="__codelineno-0-2330" name="__codelineno-0-2330"></a>        <span class="n">datasets</span><span class="o">=</span><span class="n">datasets</span><span class="p">,</span>
-<a id="__codelineno-0-2331" name="__codelineno-0-2331"></a>        <span class="n">time</span><span class="o">=</span><span class="p">[</span><span class="n">scene</span><span class="o">.</span><span class="n">time</span> <span class="k">for</span> <span class="n">scene</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">],</span>
-<a id="__codelineno-0-2332" name="__codelineno-0-2332"></a>        <span class="n">gdal_env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
-<a id="__codelineno-0-2333" name="__codelineno-0-2333"></a>    <span class="p">)</span>
-<a id="__codelineno-0-2334" name="__codelineno-0-2334"></a>    <span class="k">return</span> <span class="n">_retain_credentials</span><span class="p">(</span><span class="n">collection</span><span class="p">,</span> <span class="n">creds</span><span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-2333">2333</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-2211" name="__codelineno-0-2211"></a><span class="k">def</span><span class="w"> </span><span class="nf">collection_from_earthengine</span><span class="p">(</span>
+<a id="__codelineno-0-2212" name="__codelineno-0-2212"></a>    <span class="n">asset_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-2213" name="__codelineno-0-2213"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-2214" name="__codelineno-0-2214"></a>    <span class="n">start</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-2215" name="__codelineno-0-2215"></a>    <span class="n">end</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-2216" name="__codelineno-0-2216"></a>    <span class="n">window</span><span class="p">:</span> <span class="n">Window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(),</span>
+<a id="__codelineno-0-2217" name="__codelineno-0-2217"></a>    <span class="n">geometry</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-2218" name="__codelineno-0-2218"></a>    <span class="n">bands</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-2219" name="__codelineno-0-2219"></a>    <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-2220" name="__codelineno-0-2220"></a>    <span class="n">block_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-2221" name="__codelineno-0-2221"></a>    <span class="n">property_filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-2222" name="__codelineno-0-2222"></a>    <span class="n">nodata</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-2223" name="__codelineno-0-2223"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DatasetCollection</span><span class="p">:</span>
+<a id="__codelineno-0-2224" name="__codelineno-0-2224"></a><span class="w">    </span><span class="sd">"""Read an Earth Engine ``ImageCollection`` into a ``DatasetCollection``.</span>
+<a id="__codelineno-0-2225" name="__codelineno-0-2225"></a>
+<a id="__codelineno-0-2226" name="__codelineno-0-2226"></a><span class="sd">    Discovers the collection's scenes over the AOI + date range via the GDAL EEDA</span>
+<a id="__codelineno-0-2227" name="__codelineno-0-2227"></a><span class="sd">    catalog driver, then reads each one (EEDAI) windowed to a common grid — one</span>
+<a id="__codelineno-0-2228" name="__codelineno-0-2228"></a><span class="sd">    aligned :class:`~pyramids.dataset.Dataset` per scene, in acquisition order.</span>
+<a id="__codelineno-0-2229" name="__codelineno-0-2229"></a>
+<a id="__codelineno-0-2230" name="__codelineno-0-2230"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-2231" name="__codelineno-0-2231"></a><span class="sd">        asset_id: EE ``ImageCollection`` id (e.g. ``"COPERNICUS/S2_SR_HARMONIZED"``).</span>
+<a id="__codelineno-0-2232" name="__codelineno-0-2232"></a><span class="sd">        start: Inclusive ISO start of the acquisition window.</span>
+<a id="__codelineno-0-2233" name="__codelineno-0-2233"></a><span class="sd">        end: Inclusive ISO end of the acquisition window.</span>
+<a id="__codelineno-0-2234" name="__codelineno-0-2234"></a><span class="sd">        window: The output window — a :class:`Window` grouping the AOI ``bbox`` with the</span>
+<a id="__codelineno-0-2235" name="__codelineno-0-2235"></a><span class="sd">            ``crs`` / ``scale`` / ``shape`` / ``resample`` grid spec shared by every</span>
+<a id="__codelineno-0-2236" name="__codelineno-0-2236"></a><span class="sd">            scene. A ``bbox`` is required (to bound scene discovery) unless a</span>
+<a id="__codelineno-0-2237" name="__codelineno-0-2237"></a><span class="sd">            ``geometry`` is given. When both ``scale`` and ``shape`` are omitted the</span>
+<a id="__codelineno-0-2238" name="__codelineno-0-2238"></a><span class="sd">            first scene's native windowed grid is used for every scene. See</span>
+<a id="__codelineno-0-2239" name="__codelineno-0-2239"></a><span class="sd">            :func:`from_earthengine` for the CRS/units contract.</span>
+<a id="__codelineno-0-2240" name="__codelineno-0-2240"></a><span class="sd">        geometry: Optional polygon AOI (a geopandas ``GeoDataFrame`` / pyramids</span>
+<a id="__codelineno-0-2241" name="__codelineno-0-2241"></a><span class="sd">            ``FeatureCollection``). A geometry carrying its own CRS is reprojected to</span>
+<a id="__codelineno-0-2242" name="__codelineno-0-2242"></a><span class="sd">            the window's ``crs``; one without is assumed to already be in it. Its</span>
+<a id="__codelineno-0-2243" name="__codelineno-0-2243"></a><span class="sd">            envelope bounds scene discovery and each scene is clipped to the polygon</span>
+<a id="__codelineno-0-2244" name="__codelineno-0-2244"></a><span class="sd">            cutline. Takes the place of the window's ``bbox`` when that is omitted.</span>
+<a id="__codelineno-0-2245" name="__codelineno-0-2245"></a><span class="sd">        bands: Band names to request; ``None`` reads every band.</span>
+<a id="__codelineno-0-2246" name="__codelineno-0-2246"></a><span class="sd">        credentials: An</span>
+<a id="__codelineno-0-2247" name="__codelineno-0-2247"></a><span class="sd">            :class:`~pyramids_eo.earthengine.credentials.EarthEngineCredentials`, a</span>
+<a id="__codelineno-0-2248" name="__codelineno-0-2248"></a><span class="sd">            path to a service-account JSON key, or ``None`` for ADC.</span>
+<a id="__codelineno-0-2249" name="__codelineno-0-2249"></a><span class="sd">        block_size: EEDAI transfer block size (pixels per side); ``None`` uses the</span>
+<a id="__codelineno-0-2250" name="__codelineno-0-2250"></a><span class="sd">            conservative default. See :func:`from_earthengine`.</span>
+<a id="__codelineno-0-2251" name="__codelineno-0-2251"></a><span class="sd">        property_filter: OGR attribute-filter fragment on the collection's own</span>
+<a id="__codelineno-0-2252" name="__codelineno-0-2252"></a><span class="sd">            property fields (e.g. ``"CLOUDY_PIXEL_PERCENTAGE &lt; 20"``) constraining</span>
+<a id="__codelineno-0-2253" name="__codelineno-0-2253"></a><span class="sd">            which scenes are read. Filtered client-side over the discovered scene</span>
+<a id="__codelineno-0-2254" name="__codelineno-0-2254"></a><span class="sd">            page (trims pixel fetches, not the catalog query), not server-side. It is</span>
+<a id="__codelineno-0-2255" name="__codelineno-0-2255"></a><span class="sd">            interpolated verbatim and not escaped/validated — build it in code, never</span>
+<a id="__codelineno-0-2256" name="__codelineno-0-2256"></a><span class="sd">            from untrusted input.</span>
+<a id="__codelineno-0-2257" name="__codelineno-0-2257"></a><span class="sd">        nodata: Fill value to tag on every scene's bands (EEDAI exposes none). See</span>
+<a id="__codelineno-0-2258" name="__codelineno-0-2258"></a><span class="sd">            :func:`from_earthengine`; ``None`` leaves the scenes untagged.</span>
+<a id="__codelineno-0-2259" name="__codelineno-0-2259"></a>
+<a id="__codelineno-0-2260" name="__codelineno-0-2260"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-2261" name="__codelineno-0-2261"></a><span class="sd">        A pyramids :class:`~pyramids.dataset.DatasetCollection`, one timestep per</span>
+<a id="__codelineno-0-2262" name="__codelineno-0-2262"></a><span class="sd">        scene, with the acquisition times as its time axis.</span>
+<a id="__codelineno-0-2263" name="__codelineno-0-2263"></a>
+<a id="__codelineno-0-2264" name="__codelineno-0-2264"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-2265" name="__codelineno-0-2265"></a><span class="sd">        ValueError: ``scale`` and ``shape`` are both given, or neither ``bbox``</span>
+<a id="__codelineno-0-2266" name="__codelineno-0-2266"></a><span class="sd">            nor ``geometry`` is given.</span>
+<a id="__codelineno-0-2267" name="__codelineno-0-2267"></a><span class="sd">        ReaderError: The catalog could not be opened, or the date range + AOI</span>
+<a id="__codelineno-0-2268" name="__codelineno-0-2268"></a><span class="sd">            matched no scenes.</span>
+<a id="__codelineno-0-2269" name="__codelineno-0-2269"></a>
+<a id="__codelineno-0-2270" name="__codelineno-0-2270"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-2271" name="__codelineno-0-2271"></a><span class="sd">        - Read a Sentinel-2 collection over a date range (skipped offline):</span>
+<a id="__codelineno-0-2272" name="__codelineno-0-2272"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-2273" name="__codelineno-0-2273"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import collection_from_earthengine, Window</span>
+<a id="__codelineno-0-2274" name="__codelineno-0-2274"></a><span class="sd">            &gt;&gt;&gt; collection = collection_from_earthengine(  # doctest: +SKIP</span>
+<a id="__codelineno-0-2275" name="__codelineno-0-2275"></a><span class="sd">            ...     "COPERNICUS/S2_SR_HARMONIZED",</span>
+<a id="__codelineno-0-2276" name="__codelineno-0-2276"></a><span class="sd">            ...     start="2024-06-01",</span>
+<a id="__codelineno-0-2277" name="__codelineno-0-2277"></a><span class="sd">            ...     end="2024-06-10",</span>
+<a id="__codelineno-0-2278" name="__codelineno-0-2278"></a><span class="sd">            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0)),</span>
+<a id="__codelineno-0-2279" name="__codelineno-0-2279"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-2280" name="__codelineno-0-2280"></a>
+<a id="__codelineno-0-2281" name="__codelineno-0-2281"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-2282" name="__codelineno-0-2282"></a><span class="sd">    """</span>
+<a id="__codelineno-0-2283" name="__codelineno-0-2283"></a>    <span class="k">if</span> <span class="n">window</span><span class="o">.</span><span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">window</span><span class="o">.</span><span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-2284" name="__codelineno-0-2284"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Pass at most one of 'scale' or 'shape', not both."</span><span class="p">)</span>
+<a id="__codelineno-0-2285" name="__codelineno-0-2285"></a>    <span class="n">_resample_alg</span><span class="p">(</span><span class="n">window</span><span class="o">.</span><span class="n">resample</span><span class="p">)</span>  <span class="c1"># validate up front, before any network call</span>
+<a id="__codelineno-0-2286" name="__codelineno-0-2286"></a>    <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-2287" name="__codelineno-0-2287"></a>        <span class="n">geometry</span> <span class="o">=</span> <span class="n">_geometry_in_crs</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">window</span><span class="o">.</span><span class="n">crs</span><span class="p">)</span>
+<a id="__codelineno-0-2288" name="__codelineno-0-2288"></a>    <span class="k">if</span> <span class="n">window</span><span class="o">.</span><span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-2289" name="__codelineno-0-2289"></a>        <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-2290" name="__codelineno-0-2290"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Pass a 'bbox' or a 'geometry'."</span><span class="p">)</span>
+<a id="__codelineno-0-2291" name="__codelineno-0-2291"></a>        <span class="n">window</span> <span class="o">=</span> <span class="n">window</span><span class="o">.</span><span class="n">_replace</span><span class="p">(</span><span class="n">bbox</span><span class="o">=</span><span class="n">_geometry_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">))</span>
+<a id="__codelineno-0-2292" name="__codelineno-0-2292"></a>    <span class="k">assert</span> <span class="n">window</span><span class="o">.</span><span class="n">bbox</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>  <span class="c1"># resolved above from bbox or the geometry envelope</span>
+<a id="__codelineno-0-2293" name="__codelineno-0-2293"></a>
+<a id="__codelineno-0-2294" name="__codelineno-0-2294"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
+<a id="__codelineno-0-2295" name="__codelineno-0-2295"></a>    <span class="n">scenes</span> <span class="o">=</span> <span class="n">_discover_scenes</span><span class="p">(</span>
+<a id="__codelineno-0-2296" name="__codelineno-0-2296"></a>        <span class="n">asset_id</span><span class="p">,</span>
+<a id="__codelineno-0-2297" name="__codelineno-0-2297"></a>        <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
+<a id="__codelineno-0-2298" name="__codelineno-0-2298"></a>        <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
+<a id="__codelineno-0-2299" name="__codelineno-0-2299"></a>        <span class="n">bbox_4326</span><span class="o">=</span><span class="n">_bbox_to_4326</span><span class="p">(</span><span class="n">window</span><span class="o">.</span><span class="n">bbox</span><span class="p">,</span> <span class="n">window</span><span class="o">.</span><span class="n">crs</span><span class="p">),</span>
+<a id="__codelineno-0-2300" name="__codelineno-0-2300"></a>        <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
+<a id="__codelineno-0-2301" name="__codelineno-0-2301"></a>        <span class="n">property_filter</span><span class="o">=</span><span class="n">property_filter</span><span class="p">,</span>
+<a id="__codelineno-0-2302" name="__codelineno-0-2302"></a>    <span class="p">)</span>
+<a id="__codelineno-0-2303" name="__codelineno-0-2303"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">scenes</span><span class="p">:</span>
+<a id="__codelineno-0-2304" name="__codelineno-0-2304"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
+<a id="__codelineno-0-2305" name="__codelineno-0-2305"></a>            <span class="sa">f</span><span class="s2">"No Earth Engine scenes for </span><span class="si">{</span><span class="n">asset_id</span><span class="si">!r}</span><span class="s2"> in [</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">] over "</span>
+<a id="__codelineno-0-2306" name="__codelineno-0-2306"></a>            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">window</span><span class="o">.</span><span class="n">bbox</span><span class="si">}</span><span class="s2">."</span>
+<a id="__codelineno-0-2307" name="__codelineno-0-2307"></a>        <span class="p">)</span>
+<a id="__codelineno-0-2308" name="__codelineno-0-2308"></a>    <span class="c1"># Keep the credential config in effect across the scene reads, then restore it.</span>
+<a id="__codelineno-0-2309" name="__codelineno-0-2309"></a>    <span class="k">with</span> <span class="n">creds</span><span class="o">.</span><span class="n">activate</span><span class="p">():</span>
+<a id="__codelineno-0-2310" name="__codelineno-0-2310"></a>        <span class="n">windowed</span> <span class="o">=</span> <span class="n">_read_scenes_aligned</span><span class="p">(</span>
+<a id="__codelineno-0-2311" name="__codelineno-0-2311"></a>            <span class="n">scenes</span><span class="p">,</span>
+<a id="__codelineno-0-2312" name="__codelineno-0-2312"></a>            <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span>
+<a id="__codelineno-0-2313" name="__codelineno-0-2313"></a>            <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span>
+<a id="__codelineno-0-2314" name="__codelineno-0-2314"></a>            <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
+<a id="__codelineno-0-2315" name="__codelineno-0-2315"></a>            <span class="n">block_size</span><span class="o">=</span><span class="n">block_size</span><span class="p">,</span>
+<a id="__codelineno-0-2316" name="__codelineno-0-2316"></a>        <span class="p">)</span>
+<a id="__codelineno-0-2317" name="__codelineno-0-2317"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">creds</span><span class="o">.</span><span class="n">gdal_env</span><span class="p">()</span>
+<a id="__codelineno-0-2318" name="__codelineno-0-2318"></a>    <span class="c1"># ``windowed`` scenes are already fully-materialised pyramids Datasets (the warp</span>
+<a id="__codelineno-0-2319" name="__codelineno-0-2319"></a>    <span class="c1"># read every pixel eagerly), so they need no re-wrapping or credential env.</span>
+<a id="__codelineno-0-2320" name="__codelineno-0-2320"></a>    <span class="n">datasets</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-0-2321" name="__codelineno-0-2321"></a>        <span class="n">_retain_credentials</span><span class="p">(</span>
+<a id="__codelineno-0-2322" name="__codelineno-0-2322"></a>            <span class="n">_apply_nodata</span><span class="p">(</span><span class="n">_apply_geometry</span><span class="p">(</span><span class="n">scene</span><span class="p">,</span> <span class="n">geometry</span><span class="p">),</span> <span class="n">nodata</span><span class="p">),</span> <span class="n">creds</span>
+<a id="__codelineno-0-2323" name="__codelineno-0-2323"></a>        <span class="p">)</span>
+<a id="__codelineno-0-2324" name="__codelineno-0-2324"></a>        <span class="k">for</span> <span class="n">scene</span> <span class="ow">in</span> <span class="n">windowed</span>
+<a id="__codelineno-0-2325" name="__codelineno-0-2325"></a>    <span class="p">]</span>
+<a id="__codelineno-0-2326" name="__codelineno-0-2326"></a>    <span class="n">collection</span> <span class="o">=</span> <span class="n">DatasetCollection</span><span class="p">(</span>
+<a id="__codelineno-0-2327" name="__codelineno-0-2327"></a>        <span class="n">datasets</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+<a id="__codelineno-0-2328" name="__codelineno-0-2328"></a>        <span class="n">time_length</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">datasets</span><span class="p">),</span>
+<a id="__codelineno-0-2329" name="__codelineno-0-2329"></a>        <span class="n">datasets</span><span class="o">=</span><span class="n">datasets</span><span class="p">,</span>
+<a id="__codelineno-0-2330" name="__codelineno-0-2330"></a>        <span class="n">time</span><span class="o">=</span><span class="p">[</span><span class="n">scene</span><span class="o">.</span><span class="n">time</span> <span class="k">for</span> <span class="n">scene</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">],</span>
+<a id="__codelineno-0-2331" name="__codelineno-0-2331"></a>        <span class="n">gdal_env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
+<a id="__codelineno-0-2332" name="__codelineno-0-2332"></a>    <span class="p">)</span>
+<a id="__codelineno-0-2333" name="__codelineno-0-2333"></a>    <span class="k">return</span> <span class="n">_retain_credentials</span><span class="p">(</span><span class="n">collection</span><span class="p">,</span> <span class="n">creds</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -5192,7 +5071,8 @@ no scenes.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/earthengine/reader.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-2396">2396</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-2395">2395</a></span>
+<span class="normal"><a href="#__codelineno-0-2396">2396</a></span>
 <span class="normal"><a href="#__codelineno-0-2397">2397</a></span>
 <span class="normal"><a href="#__codelineno-0-2398">2398</a></span>
 <span class="normal"><a href="#__codelineno-0-2399">2399</a></span>
@@ -5295,112 +5175,111 @@ no scenes.</p>
 <span class="normal"><a href="#__codelineno-0-2496">2496</a></span>
 <span class="normal"><a href="#__codelineno-0-2497">2497</a></span>
 <span class="normal"><a href="#__codelineno-0-2498">2498</a></span>
-<span class="normal"><a href="#__codelineno-0-2499">2499</a></span>
-<span class="normal"><a href="#__codelineno-0-2500">2500</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-2396" name="__codelineno-0-2396"></a><span class="k">def</span><span class="w"> </span><span class="nf">estimate_earthengine_cost</span><span class="p">(</span>
-<a id="__codelineno-0-2397" name="__codelineno-0-2397"></a>    <span class="n">asset_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-2398" name="__codelineno-0-2398"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-2399" name="__codelineno-0-2399"></a>    <span class="n">start</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-2400" name="__codelineno-0-2400"></a>    <span class="n">end</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-2401" name="__codelineno-0-2401"></a>    <span class="n">bbox</span><span class="p">:</span> <span class="n">BBox</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-2402" name="__codelineno-0-2402"></a>    <span class="n">geometry</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-2403" name="__codelineno-0-2403"></a>    <span class="n">crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">_DEFAULT_CRS</span><span class="p">,</span>
-<a id="__codelineno-0-2404" name="__codelineno-0-2404"></a>    <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-2405" name="__codelineno-0-2405"></a>    <span class="n">property_filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-2406" name="__codelineno-0-2406"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ReadCost</span><span class="p">:</span>
-<a id="__codelineno-0-2407" name="__codelineno-0-2407"></a><span class="w">    </span><span class="sd">"""Estimate what an ``ImageCollection`` read would cost, without fetching pixels.</span>
-<a id="__codelineno-0-2408" name="__codelineno-0-2408"></a>
-<a id="__codelineno-0-2409" name="__codelineno-0-2409"></a><span class="sd">    Runs only the EEDA scene discovery (the catalog query) and aggregates the cost</span>
-<a id="__codelineno-0-2410" name="__codelineno-0-2410"></a><span class="sd">    fields the catalog reports per scene — band count, pixel dimensions, pixel size and</span>
-<a id="__codelineno-0-2411" name="__codelineno-0-2411"></a><span class="sd">    storage size — into a :class:`ReadCost`. This answers "how big is this read" as a</span>
-<a id="__codelineno-0-2412" name="__codelineno-0-2412"></a><span class="sd">    fact about the actual scenes rather than a guess from asset-level metadata.</span>
-<a id="__codelineno-0-2413" name="__codelineno-0-2413"></a>
-<a id="__codelineno-0-2414" name="__codelineno-0-2414"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-2415" name="__codelineno-0-2415"></a><span class="sd">        asset_id: EE ``ImageCollection`` id (e.g. ``"COPERNICUS/S2_SR_HARMONIZED"``).</span>
-<a id="__codelineno-0-2416" name="__codelineno-0-2416"></a><span class="sd">        start: Inclusive ISO start of the acquisition window.</span>
-<a id="__codelineno-0-2417" name="__codelineno-0-2417"></a><span class="sd">        end: Inclusive ISO end of the acquisition window.</span>
-<a id="__codelineno-0-2418" name="__codelineno-0-2418"></a><span class="sd">        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required unless a</span>
-<a id="__codelineno-0-2419" name="__codelineno-0-2419"></a><span class="sd">            ``geometry`` is given.</span>
-<a id="__codelineno-0-2420" name="__codelineno-0-2420"></a><span class="sd">        geometry: Optional polygon AOI whose envelope bounds scene discovery (its CRS</span>
-<a id="__codelineno-0-2421" name="__codelineno-0-2421"></a><span class="sd">            is honoured as in :func:`collection_from_earthengine`).</span>
-<a id="__codelineno-0-2422" name="__codelineno-0-2422"></a><span class="sd">        crs: The CRS ``bbox`` is expressed in. Defaults to ``"EPSG:4326"``.</span>
-<a id="__codelineno-0-2423" name="__codelineno-0-2423"></a><span class="sd">        credentials: Credentials authorising the catalog query (see</span>
-<a id="__codelineno-0-2424" name="__codelineno-0-2424"></a><span class="sd">            :func:`collection_from_earthengine`).</span>
-<a id="__codelineno-0-2425" name="__codelineno-0-2425"></a><span class="sd">        property_filter: Optional scene property filter (e.g. cloud cover), applied</span>
-<a id="__codelineno-0-2426" name="__codelineno-0-2426"></a><span class="sd">            client-side over the discovered page — the same selection a matching read</span>
-<a id="__codelineno-0-2427" name="__codelineno-0-2427"></a><span class="sd">            would see. Interpolated verbatim into the OGR filter and not</span>
-<a id="__codelineno-0-2428" name="__codelineno-0-2428"></a><span class="sd">            escaped/validated, so build it in code, never from untrusted input.</span>
-<a id="__codelineno-0-2429" name="__codelineno-0-2429"></a>
-<a id="__codelineno-0-2430" name="__codelineno-0-2430"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-2431" name="__codelineno-0-2431"></a><span class="sd">        A :class:`ReadCost` for the selected scenes.</span>
-<a id="__codelineno-0-2432" name="__codelineno-0-2432"></a>
-<a id="__codelineno-0-2433" name="__codelineno-0-2433"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-2434" name="__codelineno-0-2434"></a><span class="sd">        ValueError: Neither ``bbox`` nor ``geometry`` is given.</span>
-<a id="__codelineno-0-2435" name="__codelineno-0-2435"></a><span class="sd">        ReaderError: The catalog could not be opened, or the date range + AOI matched</span>
-<a id="__codelineno-0-2436" name="__codelineno-0-2436"></a><span class="sd">            no scenes.</span>
-<a id="__codelineno-0-2437" name="__codelineno-0-2437"></a>
-<a id="__codelineno-0-2438" name="__codelineno-0-2438"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-2439" name="__codelineno-0-2439"></a><span class="sd">        - Size a Sentinel-2 window before fetching any pixels (needs live credentials):</span>
-<a id="__codelineno-0-2440" name="__codelineno-0-2440"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-2441" name="__codelineno-0-2441"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import estimate_earthengine_cost</span>
-<a id="__codelineno-0-2442" name="__codelineno-0-2442"></a><span class="sd">            &gt;&gt;&gt; cost = estimate_earthengine_cost(  # doctest: +SKIP</span>
-<a id="__codelineno-0-2443" name="__codelineno-0-2443"></a><span class="sd">            ...     "COPERNICUS/S2_SR_HARMONIZED",</span>
-<a id="__codelineno-0-2444" name="__codelineno-0-2444"></a><span class="sd">            ...     start="2024-06-01",</span>
-<a id="__codelineno-0-2445" name="__codelineno-0-2445"></a><span class="sd">            ...     end="2024-06-30",</span>
-<a id="__codelineno-0-2446" name="__codelineno-0-2446"></a><span class="sd">            ...     bbox=(86.90, 27.90, 86.94, 27.94),</span>
-<a id="__codelineno-0-2447" name="__codelineno-0-2447"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-2448" name="__codelineno-0-2448"></a><span class="sd">            &gt;&gt;&gt; cost.scene_count, cost.max_band_count  # doctest: +SKIP</span>
-<a id="__codelineno-0-2449" name="__codelineno-0-2449"></a><span class="sd">            (6, 24)</span>
-<a id="__codelineno-0-2450" name="__codelineno-0-2450"></a>
-<a id="__codelineno-0-2451" name="__codelineno-0-2451"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-2452" name="__codelineno-0-2452"></a><span class="sd">        - Narrow the estimate to low-cloud scenes with a property filter:</span>
-<a id="__codelineno-0-2453" name="__codelineno-0-2453"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-2454" name="__codelineno-0-2454"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import estimate_earthengine_cost</span>
-<a id="__codelineno-0-2455" name="__codelineno-0-2455"></a><span class="sd">            &gt;&gt;&gt; clear = estimate_earthengine_cost(  # doctest: +SKIP</span>
-<a id="__codelineno-0-2456" name="__codelineno-0-2456"></a><span class="sd">            ...     "COPERNICUS/S2_SR_HARMONIZED",</span>
-<a id="__codelineno-0-2457" name="__codelineno-0-2457"></a><span class="sd">            ...     start="2024-06-01",</span>
-<a id="__codelineno-0-2458" name="__codelineno-0-2458"></a><span class="sd">            ...     end="2024-06-30",</span>
-<a id="__codelineno-0-2459" name="__codelineno-0-2459"></a><span class="sd">            ...     bbox=(86.90, 27.90, 86.94, 27.94),</span>
-<a id="__codelineno-0-2460" name="__codelineno-0-2460"></a><span class="sd">            ...     property_filter="CLOUDY_PIXEL_PERCENTAGE &lt; 20",</span>
-<a id="__codelineno-0-2461" name="__codelineno-0-2461"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-2462" name="__codelineno-0-2462"></a><span class="sd">            &gt;&gt;&gt; clear.scene_count &lt;= 6  # doctest: +SKIP</span>
-<a id="__codelineno-0-2463" name="__codelineno-0-2463"></a><span class="sd">            True</span>
-<a id="__codelineno-0-2464" name="__codelineno-0-2464"></a>
-<a id="__codelineno-0-2465" name="__codelineno-0-2465"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-2466" name="__codelineno-0-2466"></a>
-<a id="__codelineno-0-2467" name="__codelineno-0-2467"></a><span class="sd">    See Also:</span>
-<a id="__codelineno-0-2468" name="__codelineno-0-2468"></a><span class="sd">        collection_from_earthengine: Actually read the selected scenes into a</span>
-<a id="__codelineno-0-2469" name="__codelineno-0-2469"></a><span class="sd">            ``DatasetCollection``.</span>
-<a id="__codelineno-0-2470" name="__codelineno-0-2470"></a><span class="sd">    """</span>
-<a id="__codelineno-0-2471" name="__codelineno-0-2471"></a>    <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-2472" name="__codelineno-0-2472"></a>        <span class="n">geometry</span> <span class="o">=</span> <span class="n">_geometry_in_crs</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">crs</span><span class="p">)</span>
-<a id="__codelineno-0-2473" name="__codelineno-0-2473"></a>    <span class="k">if</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-2474" name="__codelineno-0-2474"></a>        <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-2475" name="__codelineno-0-2475"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Pass a 'bbox' or a 'geometry'."</span><span class="p">)</span>
-<a id="__codelineno-0-2476" name="__codelineno-0-2476"></a>        <span class="n">bbox</span> <span class="o">=</span> <span class="n">_geometry_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
-<a id="__codelineno-0-2477" name="__codelineno-0-2477"></a>
-<a id="__codelineno-0-2478" name="__codelineno-0-2478"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
-<a id="__codelineno-0-2479" name="__codelineno-0-2479"></a>    <span class="n">scenes</span> <span class="o">=</span> <span class="n">_discover_scenes</span><span class="p">(</span>
-<a id="__codelineno-0-2480" name="__codelineno-0-2480"></a>        <span class="n">asset_id</span><span class="p">,</span>
-<a id="__codelineno-0-2481" name="__codelineno-0-2481"></a>        <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
-<a id="__codelineno-0-2482" name="__codelineno-0-2482"></a>        <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
-<a id="__codelineno-0-2483" name="__codelineno-0-2483"></a>        <span class="n">bbox_4326</span><span class="o">=</span><span class="n">_bbox_to_4326</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="n">crs</span><span class="p">),</span>
-<a id="__codelineno-0-2484" name="__codelineno-0-2484"></a>        <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
-<a id="__codelineno-0-2485" name="__codelineno-0-2485"></a>        <span class="n">property_filter</span><span class="o">=</span><span class="n">property_filter</span><span class="p">,</span>
-<a id="__codelineno-0-2486" name="__codelineno-0-2486"></a>    <span class="p">)</span>
-<a id="__codelineno-0-2487" name="__codelineno-0-2487"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">scenes</span><span class="p">:</span>
-<a id="__codelineno-0-2488" name="__codelineno-0-2488"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
-<a id="__codelineno-0-2489" name="__codelineno-0-2489"></a>            <span class="sa">f</span><span class="s2">"No Earth Engine scenes for </span><span class="si">{</span><span class="n">asset_id</span><span class="si">!r}</span><span class="s2"> in [</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">] over </span><span class="si">{</span><span class="n">bbox</span><span class="si">}</span><span class="s2">."</span>
-<a id="__codelineno-0-2490" name="__codelineno-0-2490"></a>        <span class="p">)</span>
-<a id="__codelineno-0-2491" name="__codelineno-0-2491"></a>    <span class="n">pixel_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">pixel_size</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scenes</span> <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">pixel_size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-0-2492" name="__codelineno-0-2492"></a>    <span class="k">return</span> <span class="n">ReadCost</span><span class="p">(</span>
-<a id="__codelineno-0-2493" name="__codelineno-0-2493"></a>        <span class="n">scene_count</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">scenes</span><span class="p">),</span>
-<a id="__codelineno-0-2494" name="__codelineno-0-2494"></a>        <span class="n">total_size_bytes</span><span class="o">=</span><span class="nb">sum</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">size_bytes</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">),</span>
-<a id="__codelineno-0-2495" name="__codelineno-0-2495"></a>        <span class="n">max_width</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">width</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">),</span>
-<a id="__codelineno-0-2496" name="__codelineno-0-2496"></a>        <span class="n">max_height</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">height</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">),</span>
-<a id="__codelineno-0-2497" name="__codelineno-0-2497"></a>        <span class="n">max_band_count</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">band_count</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">),</span>
-<a id="__codelineno-0-2498" name="__codelineno-0-2498"></a>        <span class="n">min_pixel_size</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="n">pixel_sizes</span><span class="p">)</span> <span class="k">if</span> <span class="n">pixel_sizes</span> <span class="k">else</span> <span class="mf">0.0</span><span class="p">,</span>
-<a id="__codelineno-0-2499" name="__codelineno-0-2499"></a>        <span class="n">scenes</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">scenes</span><span class="p">),</span>
-<a id="__codelineno-0-2500" name="__codelineno-0-2500"></a>    <span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-2499">2499</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-2395" name="__codelineno-0-2395"></a><span class="k">def</span><span class="w"> </span><span class="nf">estimate_earthengine_cost</span><span class="p">(</span>
+<a id="__codelineno-0-2396" name="__codelineno-0-2396"></a>    <span class="n">asset_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-2397" name="__codelineno-0-2397"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-2398" name="__codelineno-0-2398"></a>    <span class="n">start</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-2399" name="__codelineno-0-2399"></a>    <span class="n">end</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-2400" name="__codelineno-0-2400"></a>    <span class="n">bbox</span><span class="p">:</span> <span class="n">BBox</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-2401" name="__codelineno-0-2401"></a>    <span class="n">geometry</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-2402" name="__codelineno-0-2402"></a>    <span class="n">crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">_DEFAULT_CRS</span><span class="p">,</span>
+<a id="__codelineno-0-2403" name="__codelineno-0-2403"></a>    <span class="n">credentials</span><span class="p">:</span> <span class="n">CredentialsLike</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-2404" name="__codelineno-0-2404"></a>    <span class="n">property_filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-2405" name="__codelineno-0-2405"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ReadCost</span><span class="p">:</span>
+<a id="__codelineno-0-2406" name="__codelineno-0-2406"></a><span class="w">    </span><span class="sd">"""Estimate what an ``ImageCollection`` read would cost, without fetching pixels.</span>
+<a id="__codelineno-0-2407" name="__codelineno-0-2407"></a>
+<a id="__codelineno-0-2408" name="__codelineno-0-2408"></a><span class="sd">    Runs only the EEDA scene discovery (the catalog query) and aggregates the cost</span>
+<a id="__codelineno-0-2409" name="__codelineno-0-2409"></a><span class="sd">    fields the catalog reports per scene — band count, pixel dimensions, pixel size and</span>
+<a id="__codelineno-0-2410" name="__codelineno-0-2410"></a><span class="sd">    storage size — into a :class:`ReadCost`. This answers "how big is this read" as a</span>
+<a id="__codelineno-0-2411" name="__codelineno-0-2411"></a><span class="sd">    fact about the actual scenes rather than a guess from asset-level metadata.</span>
+<a id="__codelineno-0-2412" name="__codelineno-0-2412"></a>
+<a id="__codelineno-0-2413" name="__codelineno-0-2413"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-2414" name="__codelineno-0-2414"></a><span class="sd">        asset_id: EE ``ImageCollection`` id (e.g. ``"COPERNICUS/S2_SR_HARMONIZED"``).</span>
+<a id="__codelineno-0-2415" name="__codelineno-0-2415"></a><span class="sd">        start: Inclusive ISO start of the acquisition window.</span>
+<a id="__codelineno-0-2416" name="__codelineno-0-2416"></a><span class="sd">        end: Inclusive ISO end of the acquisition window.</span>
+<a id="__codelineno-0-2417" name="__codelineno-0-2417"></a><span class="sd">        bbox: AOI ``(min_x, min_y, max_x, max_y)`` in ``crs``. Required unless a</span>
+<a id="__codelineno-0-2418" name="__codelineno-0-2418"></a><span class="sd">            ``geometry`` is given.</span>
+<a id="__codelineno-0-2419" name="__codelineno-0-2419"></a><span class="sd">        geometry: Optional polygon AOI whose envelope bounds scene discovery (its CRS</span>
+<a id="__codelineno-0-2420" name="__codelineno-0-2420"></a><span class="sd">            is honoured as in :func:`collection_from_earthengine`).</span>
+<a id="__codelineno-0-2421" name="__codelineno-0-2421"></a><span class="sd">        crs: The CRS ``bbox`` is expressed in. Defaults to ``"EPSG:4326"``.</span>
+<a id="__codelineno-0-2422" name="__codelineno-0-2422"></a><span class="sd">        credentials: Credentials authorising the catalog query (see</span>
+<a id="__codelineno-0-2423" name="__codelineno-0-2423"></a><span class="sd">            :func:`collection_from_earthengine`).</span>
+<a id="__codelineno-0-2424" name="__codelineno-0-2424"></a><span class="sd">        property_filter: Optional scene property filter (e.g. cloud cover), applied</span>
+<a id="__codelineno-0-2425" name="__codelineno-0-2425"></a><span class="sd">            client-side over the discovered page — the same selection a matching read</span>
+<a id="__codelineno-0-2426" name="__codelineno-0-2426"></a><span class="sd">            would see. Interpolated verbatim into the OGR filter and not</span>
+<a id="__codelineno-0-2427" name="__codelineno-0-2427"></a><span class="sd">            escaped/validated, so build it in code, never from untrusted input.</span>
+<a id="__codelineno-0-2428" name="__codelineno-0-2428"></a>
+<a id="__codelineno-0-2429" name="__codelineno-0-2429"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-2430" name="__codelineno-0-2430"></a><span class="sd">        A :class:`ReadCost` for the selected scenes.</span>
+<a id="__codelineno-0-2431" name="__codelineno-0-2431"></a>
+<a id="__codelineno-0-2432" name="__codelineno-0-2432"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-2433" name="__codelineno-0-2433"></a><span class="sd">        ValueError: Neither ``bbox`` nor ``geometry`` is given.</span>
+<a id="__codelineno-0-2434" name="__codelineno-0-2434"></a><span class="sd">        ReaderError: The catalog could not be opened, or the date range + AOI matched</span>
+<a id="__codelineno-0-2435" name="__codelineno-0-2435"></a><span class="sd">            no scenes.</span>
+<a id="__codelineno-0-2436" name="__codelineno-0-2436"></a>
+<a id="__codelineno-0-2437" name="__codelineno-0-2437"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-2438" name="__codelineno-0-2438"></a><span class="sd">        - Size a Sentinel-2 window before fetching any pixels (needs live credentials):</span>
+<a id="__codelineno-0-2439" name="__codelineno-0-2439"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-2440" name="__codelineno-0-2440"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import estimate_earthengine_cost</span>
+<a id="__codelineno-0-2441" name="__codelineno-0-2441"></a><span class="sd">            &gt;&gt;&gt; cost = estimate_earthengine_cost(  # doctest: +SKIP</span>
+<a id="__codelineno-0-2442" name="__codelineno-0-2442"></a><span class="sd">            ...     "COPERNICUS/S2_SR_HARMONIZED",</span>
+<a id="__codelineno-0-2443" name="__codelineno-0-2443"></a><span class="sd">            ...     start="2024-06-01",</span>
+<a id="__codelineno-0-2444" name="__codelineno-0-2444"></a><span class="sd">            ...     end="2024-06-30",</span>
+<a id="__codelineno-0-2445" name="__codelineno-0-2445"></a><span class="sd">            ...     bbox=(86.90, 27.90, 86.94, 27.94),</span>
+<a id="__codelineno-0-2446" name="__codelineno-0-2446"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-2447" name="__codelineno-0-2447"></a><span class="sd">            &gt;&gt;&gt; cost.scene_count, cost.max_band_count  # doctest: +SKIP</span>
+<a id="__codelineno-0-2448" name="__codelineno-0-2448"></a><span class="sd">            (6, 24)</span>
+<a id="__codelineno-0-2449" name="__codelineno-0-2449"></a>
+<a id="__codelineno-0-2450" name="__codelineno-0-2450"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-2451" name="__codelineno-0-2451"></a><span class="sd">        - Narrow the estimate to low-cloud scenes with a property filter:</span>
+<a id="__codelineno-0-2452" name="__codelineno-0-2452"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-2453" name="__codelineno-0-2453"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import estimate_earthengine_cost</span>
+<a id="__codelineno-0-2454" name="__codelineno-0-2454"></a><span class="sd">            &gt;&gt;&gt; clear = estimate_earthengine_cost(  # doctest: +SKIP</span>
+<a id="__codelineno-0-2455" name="__codelineno-0-2455"></a><span class="sd">            ...     "COPERNICUS/S2_SR_HARMONIZED",</span>
+<a id="__codelineno-0-2456" name="__codelineno-0-2456"></a><span class="sd">            ...     start="2024-06-01",</span>
+<a id="__codelineno-0-2457" name="__codelineno-0-2457"></a><span class="sd">            ...     end="2024-06-30",</span>
+<a id="__codelineno-0-2458" name="__codelineno-0-2458"></a><span class="sd">            ...     bbox=(86.90, 27.90, 86.94, 27.94),</span>
+<a id="__codelineno-0-2459" name="__codelineno-0-2459"></a><span class="sd">            ...     property_filter="CLOUDY_PIXEL_PERCENTAGE &lt; 20",</span>
+<a id="__codelineno-0-2460" name="__codelineno-0-2460"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-2461" name="__codelineno-0-2461"></a><span class="sd">            &gt;&gt;&gt; clear.scene_count &lt;= 6  # doctest: +SKIP</span>
+<a id="__codelineno-0-2462" name="__codelineno-0-2462"></a><span class="sd">            True</span>
+<a id="__codelineno-0-2463" name="__codelineno-0-2463"></a>
+<a id="__codelineno-0-2464" name="__codelineno-0-2464"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-2465" name="__codelineno-0-2465"></a>
+<a id="__codelineno-0-2466" name="__codelineno-0-2466"></a><span class="sd">    See Also:</span>
+<a id="__codelineno-0-2467" name="__codelineno-0-2467"></a><span class="sd">        collection_from_earthengine: Actually read the selected scenes into a</span>
+<a id="__codelineno-0-2468" name="__codelineno-0-2468"></a><span class="sd">            ``DatasetCollection``.</span>
+<a id="__codelineno-0-2469" name="__codelineno-0-2469"></a><span class="sd">    """</span>
+<a id="__codelineno-0-2470" name="__codelineno-0-2470"></a>    <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-2471" name="__codelineno-0-2471"></a>        <span class="n">geometry</span> <span class="o">=</span> <span class="n">_geometry_in_crs</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">crs</span><span class="p">)</span>
+<a id="__codelineno-0-2472" name="__codelineno-0-2472"></a>    <span class="k">if</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-2473" name="__codelineno-0-2473"></a>        <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-2474" name="__codelineno-0-2474"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Pass a 'bbox' or a 'geometry'."</span><span class="p">)</span>
+<a id="__codelineno-0-2475" name="__codelineno-0-2475"></a>        <span class="n">bbox</span> <span class="o">=</span> <span class="n">_geometry_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">)</span>
+<a id="__codelineno-0-2476" name="__codelineno-0-2476"></a>
+<a id="__codelineno-0-2477" name="__codelineno-0-2477"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
+<a id="__codelineno-0-2478" name="__codelineno-0-2478"></a>    <span class="n">scenes</span> <span class="o">=</span> <span class="n">_discover_scenes</span><span class="p">(</span>
+<a id="__codelineno-0-2479" name="__codelineno-0-2479"></a>        <span class="n">asset_id</span><span class="p">,</span>
+<a id="__codelineno-0-2480" name="__codelineno-0-2480"></a>        <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
+<a id="__codelineno-0-2481" name="__codelineno-0-2481"></a>        <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
+<a id="__codelineno-0-2482" name="__codelineno-0-2482"></a>        <span class="n">bbox_4326</span><span class="o">=</span><span class="n">_bbox_to_4326</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="n">crs</span><span class="p">),</span>
+<a id="__codelineno-0-2483" name="__codelineno-0-2483"></a>        <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
+<a id="__codelineno-0-2484" name="__codelineno-0-2484"></a>        <span class="n">property_filter</span><span class="o">=</span><span class="n">property_filter</span><span class="p">,</span>
+<a id="__codelineno-0-2485" name="__codelineno-0-2485"></a>    <span class="p">)</span>
+<a id="__codelineno-0-2486" name="__codelineno-0-2486"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">scenes</span><span class="p">:</span>
+<a id="__codelineno-0-2487" name="__codelineno-0-2487"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
+<a id="__codelineno-0-2488" name="__codelineno-0-2488"></a>            <span class="sa">f</span><span class="s2">"No Earth Engine scenes for </span><span class="si">{</span><span class="n">asset_id</span><span class="si">!r}</span><span class="s2"> in [</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">] over </span><span class="si">{</span><span class="n">bbox</span><span class="si">}</span><span class="s2">."</span>
+<a id="__codelineno-0-2489" name="__codelineno-0-2489"></a>        <span class="p">)</span>
+<a id="__codelineno-0-2490" name="__codelineno-0-2490"></a>    <span class="n">pixel_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">pixel_size</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scenes</span> <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">pixel_size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-0-2491" name="__codelineno-0-2491"></a>    <span class="k">return</span> <span class="n">ReadCost</span><span class="p">(</span>
+<a id="__codelineno-0-2492" name="__codelineno-0-2492"></a>        <span class="n">scene_count</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">scenes</span><span class="p">),</span>
+<a id="__codelineno-0-2493" name="__codelineno-0-2493"></a>        <span class="n">total_size_bytes</span><span class="o">=</span><span class="nb">sum</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">size_bytes</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">),</span>
+<a id="__codelineno-0-2494" name="__codelineno-0-2494"></a>        <span class="n">max_width</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">width</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">),</span>
+<a id="__codelineno-0-2495" name="__codelineno-0-2495"></a>        <span class="n">max_height</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">height</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">),</span>
+<a id="__codelineno-0-2496" name="__codelineno-0-2496"></a>        <span class="n">max_band_count</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">band_count</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scenes</span><span class="p">),</span>
+<a id="__codelineno-0-2497" name="__codelineno-0-2497"></a>        <span class="n">min_pixel_size</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="n">pixel_sizes</span><span class="p">)</span> <span class="k">if</span> <span class="n">pixel_sizes</span> <span class="k">else</span> <span class="mf">0.0</span><span class="p">,</span>
+<a id="__codelineno-0-2498" name="__codelineno-0-2498"></a>        <span class="n">scenes</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">scenes</span><span class="p">),</span>
+<a id="__codelineno-0-2499" name="__codelineno-0-2499"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -5807,8 +5686,7 @@ given without a <code>reducer</code> (use :func:<code>collection_from_earthengin
 a <code>DatasetCollection</code>); the composite mode is missing
 <code>start</code> / <code>end</code> / <code>bbox</code>; <code>path</code> is given without a
 <code>bbox</code> / <code>geometry</code>; or <code>tile_size</code> is invalid or set without its
-required <code>path</code> / <code>scale</code> or <code>shape</code> (or combined with a composite
-or a <code>geometry</code>).</p>
+required <code>path</code> / <code>scale</code> or <code>shape</code>.</p>
               </div>
             </td>
           </tr>
@@ -6157,8 +6035,7 @@ date range + AOI matched no scenes.</p>
 <span class="normal"><a href="#__codelineno-0-2205">2205</a></span>
 <span class="normal"><a href="#__codelineno-0-2206">2206</a></span>
 <span class="normal"><a href="#__codelineno-0-2207">2207</a></span>
-<span class="normal"><a href="#__codelineno-0-2208">2208</a></span>
-<span class="normal"><a href="#__codelineno-0-2209">2209</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1940" name="__codelineno-0-1940"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_earthengine</span><span class="p">(</span>
+<span class="normal"><a href="#__codelineno-0-2208">2208</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1940" name="__codelineno-0-1940"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_earthengine</span><span class="p">(</span>
 <a id="__codelineno-0-1941" name="__codelineno-0-1941"></a>    <span class="n">asset_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 <a id="__codelineno-0-1942" name="__codelineno-0-1942"></a>    <span class="o">*</span><span class="p">,</span>
 <a id="__codelineno-0-1943" name="__codelineno-0-1943"></a>    <span class="n">window</span><span class="p">:</span> <span class="n">Window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(),</span>
@@ -6307,127 +6184,126 @@ date range + AOI matched no scenes.</p>
 <a id="__codelineno-0-2086" name="__codelineno-0-2086"></a><span class="sd">            a ``DatasetCollection``); the composite mode is missing</span>
 <a id="__codelineno-0-2087" name="__codelineno-0-2087"></a><span class="sd">            ``start`` / ``end`` / ``bbox``; ``path`` is given without a</span>
 <a id="__codelineno-0-2088" name="__codelineno-0-2088"></a><span class="sd">            ``bbox`` / ``geometry``; or ``tile_size`` is invalid or set without its</span>
-<a id="__codelineno-0-2089" name="__codelineno-0-2089"></a><span class="sd">            required ``path`` / ``scale`` or ``shape`` (or combined with a composite</span>
-<a id="__codelineno-0-2090" name="__codelineno-0-2090"></a><span class="sd">            or a ``geometry``).</span>
-<a id="__codelineno-0-2091" name="__codelineno-0-2091"></a><span class="sd">        ReaderError: The asset could not be opened or windowed, or the composite</span>
-<a id="__codelineno-0-2092" name="__codelineno-0-2092"></a><span class="sd">            date range + AOI matched no scenes.</span>
-<a id="__codelineno-0-2093" name="__codelineno-0-2093"></a>
-<a id="__codelineno-0-2094" name="__codelineno-0-2094"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-2095" name="__codelineno-0-2095"></a><span class="sd">        - Read a small SRTM window (requires Earth Engine credentials, so skipped</span>
-<a id="__codelineno-0-2096" name="__codelineno-0-2096"></a><span class="sd">          offline):</span>
-<a id="__codelineno-0-2097" name="__codelineno-0-2097"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-2098" name="__codelineno-0-2098"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine, Window</span>
-<a id="__codelineno-0-2099" name="__codelineno-0-2099"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine(  # doctest: +SKIP</span>
-<a id="__codelineno-0-2100" name="__codelineno-0-2100"></a><span class="sd">            ...     "USGS/SRTMGL1_003",</span>
-<a id="__codelineno-0-2101" name="__codelineno-0-2101"></a><span class="sd">            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0)),</span>
-<a id="__codelineno-0-2102" name="__codelineno-0-2102"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-2103" name="__codelineno-0-2103"></a>
-<a id="__codelineno-0-2104" name="__codelineno-0-2104"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-2105" name="__codelineno-0-2105"></a><span class="sd">        - A median composite over an ``ImageCollection`` date range (skipped</span>
-<a id="__codelineno-0-2106" name="__codelineno-0-2106"></a><span class="sd">          offline):</span>
-<a id="__codelineno-0-2107" name="__codelineno-0-2107"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-2108" name="__codelineno-0-2108"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine, Window</span>
-<a id="__codelineno-0-2109" name="__codelineno-0-2109"></a><span class="sd">            &gt;&gt;&gt; composite = from_earthengine(  # doctest: +SKIP</span>
-<a id="__codelineno-0-2110" name="__codelineno-0-2110"></a><span class="sd">            ...     "COPERNICUS/S2_SR_HARMONIZED",</span>
-<a id="__codelineno-0-2111" name="__codelineno-0-2111"></a><span class="sd">            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0)),</span>
-<a id="__codelineno-0-2112" name="__codelineno-0-2112"></a><span class="sd">            ...     start="2024-06-01",</span>
-<a id="__codelineno-0-2113" name="__codelineno-0-2113"></a><span class="sd">            ...     end="2024-06-30",</span>
-<a id="__codelineno-0-2114" name="__codelineno-0-2114"></a><span class="sd">            ...     reducer="median",</span>
-<a id="__codelineno-0-2115" name="__codelineno-0-2115"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-2116" name="__codelineno-0-2116"></a>
-<a id="__codelineno-0-2117" name="__codelineno-0-2117"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-2118" name="__codelineno-0-2118"></a><span class="sd">        - Clip to a polygon AOI instead of a bbox (skipped offline):</span>
-<a id="__codelineno-0-2119" name="__codelineno-0-2119"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-2120" name="__codelineno-0-2120"></a><span class="sd">            &gt;&gt;&gt; import geopandas as gpd  # doctest: +SKIP</span>
-<a id="__codelineno-0-2121" name="__codelineno-0-2121"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
-<a id="__codelineno-0-2122" name="__codelineno-0-2122"></a><span class="sd">            &gt;&gt;&gt; aoi = gpd.read_file("basin.geojson")  # doctest: +SKIP</span>
-<a id="__codelineno-0-2123" name="__codelineno-0-2123"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine("USGS/SRTMGL1_003", geometry=aoi)  # doctest: +SKIP</span>
-<a id="__codelineno-0-2124" name="__codelineno-0-2124"></a>
-<a id="__codelineno-0-2125" name="__codelineno-0-2125"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-2126" name="__codelineno-0-2126"></a><span class="sd">        - Stream an oversize window to disk in 1024-px tiles (skipped offline):</span>
-<a id="__codelineno-0-2127" name="__codelineno-0-2127"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-2128" name="__codelineno-0-2128"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine, Window</span>
-<a id="__codelineno-0-2129" name="__codelineno-0-2129"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine(  # doctest: +SKIP</span>
-<a id="__codelineno-0-2130" name="__codelineno-0-2130"></a><span class="sd">            ...     "USGS/SRTMGL1_003",</span>
-<a id="__codelineno-0-2131" name="__codelineno-0-2131"></a><span class="sd">            ...     window=Window(bbox=(86.0, 27.0, 88.0, 29.0), scale=0.0003),</span>
-<a id="__codelineno-0-2132" name="__codelineno-0-2132"></a><span class="sd">            ...     tile_size=1024,</span>
-<a id="__codelineno-0-2133" name="__codelineno-0-2133"></a><span class="sd">            ...     path="srtm_big.tif",</span>
-<a id="__codelineno-0-2134" name="__codelineno-0-2134"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-2135" name="__codelineno-0-2135"></a>
-<a id="__codelineno-0-2136" name="__codelineno-0-2136"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-2137" name="__codelineno-0-2137"></a><span class="sd">        - ``tile_size`` without a ``path`` is rejected before any read:</span>
-<a id="__codelineno-0-2138" name="__codelineno-0-2138"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-2139" name="__codelineno-0-2139"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine, Window</span>
-<a id="__codelineno-0-2140" name="__codelineno-0-2140"></a><span class="sd">            &gt;&gt;&gt; from_earthengine(</span>
-<a id="__codelineno-0-2141" name="__codelineno-0-2141"></a><span class="sd">            ...     "USGS/SRTMGL1_003",</span>
-<a id="__codelineno-0-2142" name="__codelineno-0-2142"></a><span class="sd">            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0), shape=(4096, 4096)),</span>
-<a id="__codelineno-0-2143" name="__codelineno-0-2143"></a><span class="sd">            ...     tile_size=1024,</span>
-<a id="__codelineno-0-2144" name="__codelineno-0-2144"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-2145" name="__codelineno-0-2145"></a><span class="sd">            Traceback (most recent call last):</span>
-<a id="__codelineno-0-2146" name="__codelineno-0-2146"></a><span class="sd">                ...</span>
-<a id="__codelineno-0-2147" name="__codelineno-0-2147"></a><span class="sd">            ValueError: 'tile_size' needs 'path' to stream the mosaic to disk.</span>
-<a id="__codelineno-0-2148" name="__codelineno-0-2148"></a>
-<a id="__codelineno-0-2149" name="__codelineno-0-2149"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-2150" name="__codelineno-0-2150"></a><span class="sd">        - Passing both ``scale`` and ``shape`` is rejected before any read:</span>
-<a id="__codelineno-0-2151" name="__codelineno-0-2151"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-2152" name="__codelineno-0-2152"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine, Window</span>
-<a id="__codelineno-0-2153" name="__codelineno-0-2153"></a><span class="sd">            &gt;&gt;&gt; from_earthengine(</span>
-<a id="__codelineno-0-2154" name="__codelineno-0-2154"></a><span class="sd">            ...     "USGS/SRTMGL1_003",</span>
-<a id="__codelineno-0-2155" name="__codelineno-0-2155"></a><span class="sd">            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0), scale=0.01, shape=(5, 5)),</span>
-<a id="__codelineno-0-2156" name="__codelineno-0-2156"></a><span class="sd">            ... )</span>
-<a id="__codelineno-0-2157" name="__codelineno-0-2157"></a><span class="sd">            Traceback (most recent call last):</span>
-<a id="__codelineno-0-2158" name="__codelineno-0-2158"></a><span class="sd">                ...</span>
-<a id="__codelineno-0-2159" name="__codelineno-0-2159"></a><span class="sd">            ValueError: Pass at most one of 'scale' or 'shape', not both.</span>
-<a id="__codelineno-0-2160" name="__codelineno-0-2160"></a>
-<a id="__codelineno-0-2161" name="__codelineno-0-2161"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-2162" name="__codelineno-0-2162"></a><span class="sd">    """</span>
-<a id="__codelineno-0-2163" name="__codelineno-0-2163"></a>    <span class="n">_validate_read_request</span><span class="p">(</span>
-<a id="__codelineno-0-2164" name="__codelineno-0-2164"></a>        <span class="n">scale</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">scale</span><span class="p">,</span>
-<a id="__codelineno-0-2165" name="__codelineno-0-2165"></a>        <span class="n">shape</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
-<a id="__codelineno-0-2166" name="__codelineno-0-2166"></a>        <span class="n">resample</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">resample</span><span class="p">,</span>
-<a id="__codelineno-0-2167" name="__codelineno-0-2167"></a>        <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
-<a id="__codelineno-0-2168" name="__codelineno-0-2168"></a>        <span class="n">bbox</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">bbox</span><span class="p">,</span>
-<a id="__codelineno-0-2169" name="__codelineno-0-2169"></a>        <span class="n">geometry</span><span class="o">=</span><span class="n">geometry</span><span class="p">,</span>
-<a id="__codelineno-0-2170" name="__codelineno-0-2170"></a>        <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span><span class="p">,</span>
-<a id="__codelineno-0-2171" name="__codelineno-0-2171"></a>        <span class="n">reducer</span><span class="o">=</span><span class="n">reducer</span><span class="p">,</span>
-<a id="__codelineno-0-2172" name="__codelineno-0-2172"></a>        <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
-<a id="__codelineno-0-2173" name="__codelineno-0-2173"></a>        <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
-<a id="__codelineno-0-2174" name="__codelineno-0-2174"></a>        <span class="n">property_filter</span><span class="o">=</span><span class="n">property_filter</span><span class="p">,</span>
-<a id="__codelineno-0-2175" name="__codelineno-0-2175"></a>    <span class="p">)</span>
-<a id="__codelineno-0-2176" name="__codelineno-0-2176"></a>
-<a id="__codelineno-0-2177" name="__codelineno-0-2177"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
-<a id="__codelineno-0-2178" name="__codelineno-0-2178"></a>    <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-2179" name="__codelineno-0-2179"></a>        <span class="n">geometry</span> <span class="o">=</span> <span class="n">_geometry_in_crs</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">window</span><span class="o">.</span><span class="n">crs</span><span class="p">)</span>
-<a id="__codelineno-0-2180" name="__codelineno-0-2180"></a>        <span class="k">if</span> <span class="n">window</span><span class="o">.</span><span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-2181" name="__codelineno-0-2181"></a>            <span class="n">window</span> <span class="o">=</span> <span class="n">window</span><span class="o">.</span><span class="n">_replace</span><span class="p">(</span><span class="n">bbox</span><span class="o">=</span><span class="n">_geometry_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">))</span>
-<a id="__codelineno-0-2182" name="__codelineno-0-2182"></a>
-<a id="__codelineno-0-2183" name="__codelineno-0-2183"></a>    <span class="k">if</span> <span class="n">reducer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">end</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-2184" name="__codelineno-0-2184"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">_composite_read</span><span class="p">(</span>
-<a id="__codelineno-0-2185" name="__codelineno-0-2185"></a>            <span class="n">asset_id</span><span class="p">,</span>
-<a id="__codelineno-0-2186" name="__codelineno-0-2186"></a>            <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span>
-<a id="__codelineno-0-2187" name="__codelineno-0-2187"></a>            <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span>
-<a id="__codelineno-0-2188" name="__codelineno-0-2188"></a>            <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
-<a id="__codelineno-0-2189" name="__codelineno-0-2189"></a>            <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
-<a id="__codelineno-0-2190" name="__codelineno-0-2190"></a>            <span class="n">reducer</span><span class="o">=</span><span class="n">reducer</span><span class="p">,</span>
-<a id="__codelineno-0-2191" name="__codelineno-0-2191"></a>            <span class="n">geometry</span><span class="o">=</span><span class="n">geometry</span><span class="p">,</span>
-<a id="__codelineno-0-2192" name="__codelineno-0-2192"></a>            <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
-<a id="__codelineno-0-2193" name="__codelineno-0-2193"></a>            <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
-<a id="__codelineno-0-2194" name="__codelineno-0-2194"></a>            <span class="n">block_size</span><span class="o">=</span><span class="n">block_size</span><span class="p">,</span>
-<a id="__codelineno-0-2195" name="__codelineno-0-2195"></a>            <span class="n">property_filter</span><span class="o">=</span><span class="n">property_filter</span><span class="p">,</span>
-<a id="__codelineno-0-2196" name="__codelineno-0-2196"></a>            <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span><span class="p">,</span>
-<a id="__codelineno-0-2197" name="__codelineno-0-2197"></a>        <span class="p">)</span>
-<a id="__codelineno-0-2198" name="__codelineno-0-2198"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-2199" name="__codelineno-0-2199"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">_single_image_read</span><span class="p">(</span>
-<a id="__codelineno-0-2200" name="__codelineno-0-2200"></a>            <span class="n">asset_id</span><span class="p">,</span>
-<a id="__codelineno-0-2201" name="__codelineno-0-2201"></a>            <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span>
-<a id="__codelineno-0-2202" name="__codelineno-0-2202"></a>            <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span>
-<a id="__codelineno-0-2203" name="__codelineno-0-2203"></a>            <span class="n">geometry</span><span class="o">=</span><span class="n">geometry</span><span class="p">,</span>
-<a id="__codelineno-0-2204" name="__codelineno-0-2204"></a>            <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
-<a id="__codelineno-0-2205" name="__codelineno-0-2205"></a>            <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span><span class="p">,</span>
-<a id="__codelineno-0-2206" name="__codelineno-0-2206"></a>            <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
-<a id="__codelineno-0-2207" name="__codelineno-0-2207"></a>            <span class="n">block_size</span><span class="o">=</span><span class="n">block_size</span><span class="p">,</span>
-<a id="__codelineno-0-2208" name="__codelineno-0-2208"></a>        <span class="p">)</span>
-<a id="__codelineno-0-2209" name="__codelineno-0-2209"></a>    <span class="k">return</span> <span class="n">_apply_nodata</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">nodata</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">)</span>
+<a id="__codelineno-0-2089" name="__codelineno-0-2089"></a><span class="sd">            required ``path`` / ``scale`` or ``shape``.</span>
+<a id="__codelineno-0-2090" name="__codelineno-0-2090"></a><span class="sd">        ReaderError: The asset could not be opened or windowed, or the composite</span>
+<a id="__codelineno-0-2091" name="__codelineno-0-2091"></a><span class="sd">            date range + AOI matched no scenes.</span>
+<a id="__codelineno-0-2092" name="__codelineno-0-2092"></a>
+<a id="__codelineno-0-2093" name="__codelineno-0-2093"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-2094" name="__codelineno-0-2094"></a><span class="sd">        - Read a small SRTM window (requires Earth Engine credentials, so skipped</span>
+<a id="__codelineno-0-2095" name="__codelineno-0-2095"></a><span class="sd">          offline):</span>
+<a id="__codelineno-0-2096" name="__codelineno-0-2096"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-2097" name="__codelineno-0-2097"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine, Window</span>
+<a id="__codelineno-0-2098" name="__codelineno-0-2098"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine(  # doctest: +SKIP</span>
+<a id="__codelineno-0-2099" name="__codelineno-0-2099"></a><span class="sd">            ...     "USGS/SRTMGL1_003",</span>
+<a id="__codelineno-0-2100" name="__codelineno-0-2100"></a><span class="sd">            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0)),</span>
+<a id="__codelineno-0-2101" name="__codelineno-0-2101"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-2102" name="__codelineno-0-2102"></a>
+<a id="__codelineno-0-2103" name="__codelineno-0-2103"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-2104" name="__codelineno-0-2104"></a><span class="sd">        - A median composite over an ``ImageCollection`` date range (skipped</span>
+<a id="__codelineno-0-2105" name="__codelineno-0-2105"></a><span class="sd">          offline):</span>
+<a id="__codelineno-0-2106" name="__codelineno-0-2106"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-2107" name="__codelineno-0-2107"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine, Window</span>
+<a id="__codelineno-0-2108" name="__codelineno-0-2108"></a><span class="sd">            &gt;&gt;&gt; composite = from_earthengine(  # doctest: +SKIP</span>
+<a id="__codelineno-0-2109" name="__codelineno-0-2109"></a><span class="sd">            ...     "COPERNICUS/S2_SR_HARMONIZED",</span>
+<a id="__codelineno-0-2110" name="__codelineno-0-2110"></a><span class="sd">            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0)),</span>
+<a id="__codelineno-0-2111" name="__codelineno-0-2111"></a><span class="sd">            ...     start="2024-06-01",</span>
+<a id="__codelineno-0-2112" name="__codelineno-0-2112"></a><span class="sd">            ...     end="2024-06-30",</span>
+<a id="__codelineno-0-2113" name="__codelineno-0-2113"></a><span class="sd">            ...     reducer="median",</span>
+<a id="__codelineno-0-2114" name="__codelineno-0-2114"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-2115" name="__codelineno-0-2115"></a>
+<a id="__codelineno-0-2116" name="__codelineno-0-2116"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-2117" name="__codelineno-0-2117"></a><span class="sd">        - Clip to a polygon AOI instead of a bbox (skipped offline):</span>
+<a id="__codelineno-0-2118" name="__codelineno-0-2118"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-2119" name="__codelineno-0-2119"></a><span class="sd">            &gt;&gt;&gt; import geopandas as gpd  # doctest: +SKIP</span>
+<a id="__codelineno-0-2120" name="__codelineno-0-2120"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine</span>
+<a id="__codelineno-0-2121" name="__codelineno-0-2121"></a><span class="sd">            &gt;&gt;&gt; aoi = gpd.read_file("basin.geojson")  # doctest: +SKIP</span>
+<a id="__codelineno-0-2122" name="__codelineno-0-2122"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine("USGS/SRTMGL1_003", geometry=aoi)  # doctest: +SKIP</span>
+<a id="__codelineno-0-2123" name="__codelineno-0-2123"></a>
+<a id="__codelineno-0-2124" name="__codelineno-0-2124"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-2125" name="__codelineno-0-2125"></a><span class="sd">        - Stream an oversize window to disk in 1024-px tiles (skipped offline):</span>
+<a id="__codelineno-0-2126" name="__codelineno-0-2126"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-2127" name="__codelineno-0-2127"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine, Window</span>
+<a id="__codelineno-0-2128" name="__codelineno-0-2128"></a><span class="sd">            &gt;&gt;&gt; ds = from_earthengine(  # doctest: +SKIP</span>
+<a id="__codelineno-0-2129" name="__codelineno-0-2129"></a><span class="sd">            ...     "USGS/SRTMGL1_003",</span>
+<a id="__codelineno-0-2130" name="__codelineno-0-2130"></a><span class="sd">            ...     window=Window(bbox=(86.0, 27.0, 88.0, 29.0), scale=0.0003),</span>
+<a id="__codelineno-0-2131" name="__codelineno-0-2131"></a><span class="sd">            ...     tile_size=1024,</span>
+<a id="__codelineno-0-2132" name="__codelineno-0-2132"></a><span class="sd">            ...     path="srtm_big.tif",</span>
+<a id="__codelineno-0-2133" name="__codelineno-0-2133"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-2134" name="__codelineno-0-2134"></a>
+<a id="__codelineno-0-2135" name="__codelineno-0-2135"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-2136" name="__codelineno-0-2136"></a><span class="sd">        - ``tile_size`` without a ``path`` is rejected before any read:</span>
+<a id="__codelineno-0-2137" name="__codelineno-0-2137"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-2138" name="__codelineno-0-2138"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine, Window</span>
+<a id="__codelineno-0-2139" name="__codelineno-0-2139"></a><span class="sd">            &gt;&gt;&gt; from_earthengine(</span>
+<a id="__codelineno-0-2140" name="__codelineno-0-2140"></a><span class="sd">            ...     "USGS/SRTMGL1_003",</span>
+<a id="__codelineno-0-2141" name="__codelineno-0-2141"></a><span class="sd">            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0), shape=(4096, 4096)),</span>
+<a id="__codelineno-0-2142" name="__codelineno-0-2142"></a><span class="sd">            ...     tile_size=1024,</span>
+<a id="__codelineno-0-2143" name="__codelineno-0-2143"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-2144" name="__codelineno-0-2144"></a><span class="sd">            Traceback (most recent call last):</span>
+<a id="__codelineno-0-2145" name="__codelineno-0-2145"></a><span class="sd">                ...</span>
+<a id="__codelineno-0-2146" name="__codelineno-0-2146"></a><span class="sd">            ValueError: 'tile_size' needs 'path' to stream the mosaic to disk.</span>
+<a id="__codelineno-0-2147" name="__codelineno-0-2147"></a>
+<a id="__codelineno-0-2148" name="__codelineno-0-2148"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-2149" name="__codelineno-0-2149"></a><span class="sd">        - Passing both ``scale`` and ``shape`` is rejected before any read:</span>
+<a id="__codelineno-0-2150" name="__codelineno-0-2150"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-2151" name="__codelineno-0-2151"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo import from_earthengine, Window</span>
+<a id="__codelineno-0-2152" name="__codelineno-0-2152"></a><span class="sd">            &gt;&gt;&gt; from_earthengine(</span>
+<a id="__codelineno-0-2153" name="__codelineno-0-2153"></a><span class="sd">            ...     "USGS/SRTMGL1_003",</span>
+<a id="__codelineno-0-2154" name="__codelineno-0-2154"></a><span class="sd">            ...     window=Window(bbox=(86.9, 27.9, 87.0, 28.0), scale=0.01, shape=(5, 5)),</span>
+<a id="__codelineno-0-2155" name="__codelineno-0-2155"></a><span class="sd">            ... )</span>
+<a id="__codelineno-0-2156" name="__codelineno-0-2156"></a><span class="sd">            Traceback (most recent call last):</span>
+<a id="__codelineno-0-2157" name="__codelineno-0-2157"></a><span class="sd">                ...</span>
+<a id="__codelineno-0-2158" name="__codelineno-0-2158"></a><span class="sd">            ValueError: Pass at most one of 'scale' or 'shape', not both.</span>
+<a id="__codelineno-0-2159" name="__codelineno-0-2159"></a>
+<a id="__codelineno-0-2160" name="__codelineno-0-2160"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-2161" name="__codelineno-0-2161"></a><span class="sd">    """</span>
+<a id="__codelineno-0-2162" name="__codelineno-0-2162"></a>    <span class="n">_validate_read_request</span><span class="p">(</span>
+<a id="__codelineno-0-2163" name="__codelineno-0-2163"></a>        <span class="n">scale</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">scale</span><span class="p">,</span>
+<a id="__codelineno-0-2164" name="__codelineno-0-2164"></a>        <span class="n">shape</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+<a id="__codelineno-0-2165" name="__codelineno-0-2165"></a>        <span class="n">resample</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">resample</span><span class="p">,</span>
+<a id="__codelineno-0-2166" name="__codelineno-0-2166"></a>        <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
+<a id="__codelineno-0-2167" name="__codelineno-0-2167"></a>        <span class="n">bbox</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">bbox</span><span class="p">,</span>
+<a id="__codelineno-0-2168" name="__codelineno-0-2168"></a>        <span class="n">geometry</span><span class="o">=</span><span class="n">geometry</span><span class="p">,</span>
+<a id="__codelineno-0-2169" name="__codelineno-0-2169"></a>        <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span><span class="p">,</span>
+<a id="__codelineno-0-2170" name="__codelineno-0-2170"></a>        <span class="n">reducer</span><span class="o">=</span><span class="n">reducer</span><span class="p">,</span>
+<a id="__codelineno-0-2171" name="__codelineno-0-2171"></a>        <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
+<a id="__codelineno-0-2172" name="__codelineno-0-2172"></a>        <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
+<a id="__codelineno-0-2173" name="__codelineno-0-2173"></a>        <span class="n">property_filter</span><span class="o">=</span><span class="n">property_filter</span><span class="p">,</span>
+<a id="__codelineno-0-2174" name="__codelineno-0-2174"></a>    <span class="p">)</span>
+<a id="__codelineno-0-2175" name="__codelineno-0-2175"></a>
+<a id="__codelineno-0-2176" name="__codelineno-0-2176"></a>    <span class="n">creds</span> <span class="o">=</span> <span class="n">EarthEngineCredentials</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">credentials</span><span class="p">)</span>
+<a id="__codelineno-0-2177" name="__codelineno-0-2177"></a>    <span class="k">if</span> <span class="n">geometry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-2178" name="__codelineno-0-2178"></a>        <span class="n">geometry</span> <span class="o">=</span> <span class="n">_geometry_in_crs</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">window</span><span class="o">.</span><span class="n">crs</span><span class="p">)</span>
+<a id="__codelineno-0-2179" name="__codelineno-0-2179"></a>        <span class="k">if</span> <span class="n">window</span><span class="o">.</span><span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-2180" name="__codelineno-0-2180"></a>            <span class="n">window</span> <span class="o">=</span> <span class="n">window</span><span class="o">.</span><span class="n">_replace</span><span class="p">(</span><span class="n">bbox</span><span class="o">=</span><span class="n">_geometry_bounds</span><span class="p">(</span><span class="n">geometry</span><span class="p">))</span>
+<a id="__codelineno-0-2181" name="__codelineno-0-2181"></a>
+<a id="__codelineno-0-2182" name="__codelineno-0-2182"></a>    <span class="k">if</span> <span class="n">reducer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">end</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-2183" name="__codelineno-0-2183"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">_composite_read</span><span class="p">(</span>
+<a id="__codelineno-0-2184" name="__codelineno-0-2184"></a>            <span class="n">asset_id</span><span class="p">,</span>
+<a id="__codelineno-0-2185" name="__codelineno-0-2185"></a>            <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span>
+<a id="__codelineno-0-2186" name="__codelineno-0-2186"></a>            <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span>
+<a id="__codelineno-0-2187" name="__codelineno-0-2187"></a>            <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
+<a id="__codelineno-0-2188" name="__codelineno-0-2188"></a>            <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span>
+<a id="__codelineno-0-2189" name="__codelineno-0-2189"></a>            <span class="n">reducer</span><span class="o">=</span><span class="n">reducer</span><span class="p">,</span>
+<a id="__codelineno-0-2190" name="__codelineno-0-2190"></a>            <span class="n">geometry</span><span class="o">=</span><span class="n">geometry</span><span class="p">,</span>
+<a id="__codelineno-0-2191" name="__codelineno-0-2191"></a>            <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
+<a id="__codelineno-0-2192" name="__codelineno-0-2192"></a>            <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
+<a id="__codelineno-0-2193" name="__codelineno-0-2193"></a>            <span class="n">block_size</span><span class="o">=</span><span class="n">block_size</span><span class="p">,</span>
+<a id="__codelineno-0-2194" name="__codelineno-0-2194"></a>            <span class="n">property_filter</span><span class="o">=</span><span class="n">property_filter</span><span class="p">,</span>
+<a id="__codelineno-0-2195" name="__codelineno-0-2195"></a>            <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span><span class="p">,</span>
+<a id="__codelineno-0-2196" name="__codelineno-0-2196"></a>        <span class="p">)</span>
+<a id="__codelineno-0-2197" name="__codelineno-0-2197"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-2198" name="__codelineno-0-2198"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">_single_image_read</span><span class="p">(</span>
+<a id="__codelineno-0-2199" name="__codelineno-0-2199"></a>            <span class="n">asset_id</span><span class="p">,</span>
+<a id="__codelineno-0-2200" name="__codelineno-0-2200"></a>            <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">,</span>
+<a id="__codelineno-0-2201" name="__codelineno-0-2201"></a>            <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span>
+<a id="__codelineno-0-2202" name="__codelineno-0-2202"></a>            <span class="n">geometry</span><span class="o">=</span><span class="n">geometry</span><span class="p">,</span>
+<a id="__codelineno-0-2203" name="__codelineno-0-2203"></a>            <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">,</span>
+<a id="__codelineno-0-2204" name="__codelineno-0-2204"></a>            <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span><span class="p">,</span>
+<a id="__codelineno-0-2205" name="__codelineno-0-2205"></a>            <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
+<a id="__codelineno-0-2206" name="__codelineno-0-2206"></a>            <span class="n">block_size</span><span class="o">=</span><span class="n">block_size</span><span class="p">,</span>
+<a id="__codelineno-0-2207" name="__codelineno-0-2207"></a>        <span class="p">)</span>
+<a id="__codelineno-0-2208" name="__codelineno-0-2208"></a>    <span class="k">return</span> <span class="n">_apply_nodata</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">nodata</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
