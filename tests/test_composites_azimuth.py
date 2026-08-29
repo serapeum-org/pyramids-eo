@@ -22,12 +22,19 @@ class TestSolarZenithAzimuth:
     """`solar_zenith_azimuth` returns the NOAA (zenith, azimuth) pair."""
 
     def test_zenith_matches_solar_zenith_angle_exactly(self):
-        """The zenith is byte-identical to the standalone `solar_zenith_angle`."""
+        """The zenith equals `solar_zenith_angle` and an independent physical value."""
         lat = np.array([[-30.0, 0.0], [30.0, 60.0]])
         lon = np.array([[0.0, 45.0], [90.0, 135.0]])
         zen, _ = solar_zenith_azimuth(_EQUINOX_NOON, lat=lat, lon=lon)
         expected = solar_zenith_angle(_EQUINOX_NOON, lat=lat, lon=lon)
         assert np.array_equal(zen, expected), "zenith diverged from solar_zenith_angle"
+        # Anchor to a fact independent of the shared _solar_position math: at equinox
+        # local noon the Sun is over the equator, so the zenith at 45degN, lon 0 is
+        # about the latitude (45deg).
+        anchor, _ = solar_zenith_azimuth(_EQUINOX_NOON, lat=45.0, lon=0.0)
+        assert 43.0 < float(anchor) < 47.0, (
+            f"SZA at 45N equinox noon ~= 45, got {anchor}"
+        )
 
     def test_azimuth_in_0_360(self):
         """The azimuth stays within [0, 360)."""
