@@ -418,10 +418,7 @@ def _crop_to_bbox(dataset: Any, bbox: BBox) -> Any:
         epsg=dataset.epsg,
         no_data_value=0.0 if nodata is None else nodata,
     )
-    try:
-        out.band_names = list(dataset.band_names)
-    except (RuntimeError, ValueError, TypeError):
-        pass  # band names are display-only
+    out.band_names = list(dataset.band_names)
     return out
 
 
