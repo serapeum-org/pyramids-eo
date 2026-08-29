@@ -131,6 +131,22 @@ class TestCropToBbox:
         with pytest.raises(ProductError, match="north-up"):
             _reader._crop_to_bbox(_Rotated(), (0.0, 0.0, 10.0, 10.0))
 
+    def test_per_band_no_data_is_carried(self):
+        """Heterogeneous per-band no-data values survive the crop.
+
+        Test scenario:
+            A 2-band dataset with no-data `[0, 255]` keeps both after windowing;
+            collapsing to a scalar would overwrite band 1 with band 0's 0.
+        """
+        arr = np.stack([_band(nodata_last_col=False), _band(nodata_last_col=False)])
+        ds = Dataset.create_from_array(
+            arr=arr, geo=_GEO, epsg=4326, no_data_value=[0, 255]
+        )
+        out = _reader._crop_to_bbox(ds, (0.0, 0.0, 10.0, 10.0))
+        assert [float(v) for v in out.no_data_value] == [0.0, 255.0], (
+            f"per-band no-data not carried: {out.no_data_value}"
+        )
+
 
 class TestFromSentinel2Wiring:
     """`from_sentinel2` must window a bbox through `_crop_to_bbox` (guards #81)."""
@@ -152,4 +168,7 @@ class TestFromSentinel2Wiring:
         bb = from_sentinel2(_L2A, bands=["B04"]).bbox
         window = (bb[0], bb[1], (bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2)
         from_sentinel2(_L2A, bands=["B04"], bbox=window)
-        assert spy.called, "from_sentinel2 did not window the bbox via _crop_to_bbox"
+        assert spy.call_count == 1, (
+            f"expected one _crop_to_bbox call, got {spy.call_count}"
+        )
+        assert tuple(spy.call_args.args[1]) == window, "windowed with the wrong bbox"
