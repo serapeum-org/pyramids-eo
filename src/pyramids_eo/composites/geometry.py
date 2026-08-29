@@ -13,6 +13,12 @@ tapers the signal back down toward the terminator so deep shadow renders dark
 rather than as a washed-out floor. Together they mirror the `sunz_corrected` and
 `sunz_reduced` modifiers used on every solar prerequisite of a reference
 true-colour composite.
+
+For atmospheric corrections, `solar_zenith_azimuth` and `satellite_zenith_azimuth`
+add the viewing geometry — the Sun's and a geostationary satellite's zenith and
+azimuth per pixel — and `relative_azimuth` folds the two azimuths into the
+Sun-satellite difference every correction model expects. All azimuths use one
+convention: **degrees clockwise from north** (`[0, 360)`).
 """
 
 from __future__ import annotations
@@ -23,6 +29,10 @@ from typing import Any
 import numpy as np
 
 from pyramids_eo.composites._common import _as_array, _wrap_like
+
+#: Earth equatorial radius (km, WGS84) and geostationary orbital radius (km).
+_R_EARTH_KM = 6378.137
+_R_GEO_KM = 42164.0
 
 
 def _to_utc(time: _dt.datetime) -> _dt.datetime:
@@ -44,6 +54,111 @@ def _to_utc(time: _dt.datetime) -> _dt.datetime:
     if time.tzinfo is None:
         return time.replace(tzinfo=_dt.UTC)
     return time.astimezone(_dt.UTC)
+
+
+def _resolve_coords(lat: Any, lon: Any, grid: Any) -> tuple[np.ndarray, np.ndarray]:
+    """Resolve `(lon2d, lat2d)` degree meshes from a lat/lon pair or a grid.
+
+    Args:
+        lat: Latitude(s) in degrees north, paired with `lon`.
+        lon: Longitude(s) in degrees east, paired with `lat`.
+        grid: A pyramids `Dataset` (EPSG:4326), mutually exclusive with lat/lon.
+
+    Returns:
+        The broadcast `(lon2d, lat2d)` coordinate arrays in degrees.
+
+    Raises:
+        ValueError: When neither `grid` nor both `lat`/`lon` are given, both are
+            given, or `grid` is not geographic (EPSG:4326).
+    """
+    if grid is not None:
+        if lat is not None or lon is not None:
+            raise ValueError("pass either `grid` or (`lat`, `lon`), not both")
+        epsg = getattr(grid, "epsg", None)
+        if epsg is None or int(epsg) != 4326:
+            raise ValueError(
+                f"grid must be geographic (EPSG:4326); got EPSG:{epsg}. A grid "
+                "with no EPSG (e.g. geostationary) is not lon/lat — reproject it "
+                "with to_crs(4326) first."
+            )
+        return np.meshgrid(
+            np.asarray(grid.lon, dtype=float), np.asarray(grid.lat, dtype=float)
+        )
+    if lat is None or lon is None:
+        raise ValueError("provide `grid`, or both `lat` and `lon`")
+    lat2d, lon2d = np.broadcast_arrays(
+        np.asarray(lat, dtype=float), np.asarray(lon, dtype=float)
+    )
+    return lon2d, lat2d
+
+
+def _solar_position(
+    time: _dt.datetime, lat2d: np.ndarray, lon2d: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-pixel solar `(zenith, azimuth)` in degrees via the NOAA algorithm.
+
+    The NOAA declination / equation-of-time / hour-angle terms are computed once
+    and drive both outputs, so `solar_zenith_angle` and `solar_zenith_azimuth`
+    share this single implementation.
+
+    Args:
+        time: Observation time (converted to UTC).
+        lat2d: Latitudes in degrees north.
+        lon2d: Longitudes in degrees east.
+
+    Returns:
+        `(zenith_deg, azimuth_deg)` — zenith `0` (Sun overhead) .. `180`
+        (antisolar); azimuth in **degrees clockwise from north**, `[0, 360)`.
+    """
+    utc = _to_utc(time)
+    day_of_year = utc.timetuple().tm_yday
+    hour = utc.hour + utc.minute / 60 + utc.second / 3600 + utc.microsecond / 3.6e9
+
+    # NOAA fractional-year angle (radians) and its harmonics.
+    gamma = 2.0 * np.pi / 365.0 * (day_of_year - 1 + (hour - 12) / 24)
+    eqtime = 229.18 * (
+        0.000075
+        + 0.001868 * np.cos(gamma)
+        - 0.032077 * np.sin(gamma)
+        - 0.014615 * np.cos(2 * gamma)
+        - 0.040849 * np.sin(2 * gamma)
+    )
+    decl = (
+        0.006918
+        - 0.399912 * np.cos(gamma)
+        + 0.070257 * np.sin(gamma)
+        - 0.006758 * np.cos(2 * gamma)
+        + 0.000907 * np.sin(2 * gamma)
+        - 0.002697 * np.cos(3 * gamma)
+        + 0.00148 * np.sin(3 * gamma)
+    )
+    true_solar_time = hour * 60 + eqtime + 4.0 * lon2d
+    hour_angle = np.deg2rad(true_solar_time / 4.0 - 180.0)
+
+    lat_rad = np.deg2rad(lat2d)
+    cos_zenith = np.clip(
+        np.sin(lat_rad) * np.sin(decl)
+        + np.cos(lat_rad) * np.cos(decl) * np.cos(hour_angle),
+        -1.0,
+        1.0,
+    )
+    zenith = np.arccos(cos_zenith)
+
+    # NOAA azimuth, degrees clockwise from north (0=N, 90=E, 180=S, 270=W).
+    denom = np.cos(lat_rad) * np.sin(zenith)
+    cos_az = np.divide(
+        np.sin(lat_rad) * cos_zenith - np.sin(decl),
+        denom,
+        out=np.zeros_like(cos_zenith),
+        where=denom != 0,
+    )
+    az = np.degrees(np.arccos(np.clip(cos_az, -1.0, 1.0)))
+    azimuth = np.where(hour_angle > 0, (az + 180.0) % 360.0, (540.0 - az) % 360.0)
+
+    return (
+        np.asarray(np.degrees(zenith), dtype=float),
+        np.asarray(azimuth, dtype=float),
+    )
 
 
 def solar_zenith_angle(
@@ -99,62 +214,8 @@ def solar_zenith_angle(
 
             ```
     """
-    if grid is not None:
-        if lat is not None or lon is not None:
-            raise ValueError("pass either `grid` or (`lat`, `lon`), not both")
-        epsg = getattr(grid, "epsg", None)
-        if epsg is None or int(epsg) != 4326:
-            raise ValueError(
-                f"grid must be geographic (EPSG:4326); got EPSG:{epsg}. A grid "
-                "with no EPSG (e.g. geostationary) is not lon/lat — reproject it "
-                "with to_crs(4326) first."
-            )
-        lon2d, lat2d = np.meshgrid(
-            np.asarray(grid.lon, dtype=float), np.asarray(grid.lat, dtype=float)
-        )
-    else:
-        if lat is None or lon is None:
-            raise ValueError("provide `grid`, or both `lat` and `lon`")
-        lat2d, lon2d = np.broadcast_arrays(
-            np.asarray(lat, dtype=float), np.asarray(lon, dtype=float)
-        )
-
-    utc = _to_utc(time)
-    day_of_year = utc.timetuple().tm_yday
-    hour = utc.hour + utc.minute / 60 + utc.second / 3600 + utc.microsecond / 3.6e9
-
-    # NOAA fractional-year angle (radians) and its harmonics.
-    gamma = 2.0 * np.pi / 365.0 * (day_of_year - 1 + (hour - 12) / 24)
-    # Equation of time (minutes) and solar declination (radians).
-    eqtime = 229.18 * (
-        0.000075
-        + 0.001868 * np.cos(gamma)
-        - 0.032077 * np.sin(gamma)
-        - 0.014615 * np.cos(2 * gamma)
-        - 0.040849 * np.sin(2 * gamma)
-    )
-    decl = (
-        0.006918
-        - 0.399912 * np.cos(gamma)
-        + 0.070257 * np.sin(gamma)
-        - 0.006758 * np.cos(2 * gamma)
-        + 0.000907 * np.sin(2 * gamma)
-        - 0.002697 * np.cos(3 * gamma)
-        + 0.00148 * np.sin(3 * gamma)
-    )
-
-    # True solar time (minutes) per pixel: UTC clock time + equation of time +
-    # 4 min per degree of east longitude (timezone offset is 0 for UTC).
-    true_solar_time = hour * 60 + eqtime + 4.0 * lon2d
-    hour_angle = np.deg2rad(true_solar_time / 4.0 - 180.0)
-
-    lat_rad = np.deg2rad(lat2d)
-    cos_zenith = np.sin(lat_rad) * np.sin(decl) + np.cos(lat_rad) * np.cos(
-        decl
-    ) * np.cos(hour_angle)
-    return np.asarray(
-        np.rad2deg(np.arccos(np.clip(cos_zenith, -1.0, 1.0))), dtype=float
-    )
+    lon2d, lat2d = _resolve_coords(lat, lon, grid)
+    return _solar_position(time, lat2d, lon2d)[0]
 
 
 def cos_solar_zenith_angle(
@@ -182,6 +243,167 @@ def cos_solar_zenith_angle(
         The cosine of the solar zenith angle, same shape as the coordinates.
     """
     return np.cos(np.deg2rad(solar_zenith_angle(time, lat=lat, lon=lon, grid=grid)))
+
+
+def solar_zenith_azimuth(
+    time: _dt.datetime,
+    *,
+    lat: Any = None,
+    lon: Any = None,
+    grid: Any = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-pixel solar `(zenith, azimuth)` in degrees.
+
+    Same coordinate inputs as `solar_zenith_angle` (a `lat`/`lon` pair, or an
+    EPSG:4326 `grid`). The returned zenith is identical to `solar_zenith_angle`;
+    the azimuth is the NOAA solar azimuth in **degrees clockwise from north**
+    (`[0, 360)`: 0 = north, 90 = east, 180 = south, 270 = west) — the same
+    convention as `satellite_zenith_azimuth`, so the two feed `relative_azimuth`.
+
+    Args:
+        time: Observation time (a naive datetime is treated as UTC).
+        lat: Latitude(s) in degrees north, paired with `lon`.
+        lon: Longitude(s) in degrees east, paired with `lat`.
+        grid: A pyramids `Dataset` grid (EPSG:4326), mutually exclusive with
+            `lat` / `lon`.
+
+    Returns:
+        `(zenith, azimuth)` arrays in degrees.
+
+    Raises:
+        ValueError: Same coordinate-argument errors as `solar_zenith_angle`.
+
+    Examples:
+        - At equinox noon on the Greenwich meridian the Sun is due south:
+            ```python
+            >>> import datetime as dt
+            >>> from pyramids_eo.composites import solar_zenith_azimuth
+            >>> t = dt.datetime(2024, 3, 20, 12, 0, tzinfo=dt.timezone.utc)
+            >>> _, az = solar_zenith_azimuth(t, lat=45.0, lon=0.0)
+            >>> bool(170.0 < az < 190.0)
+            True
+
+            ```
+    """
+    lon2d, lat2d = _resolve_coords(lat, lon, grid)
+    return _solar_position(time, lat2d, lon2d)
+
+
+def satellite_zenith_azimuth(
+    *,
+    lat: Any = None,
+    lon: Any = None,
+    grid: Any = None,
+    sat_lon: float = 0.0,
+    sat_radius_km: float = _R_GEO_KM,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-pixel `(zenith, azimuth)` of a geostationary satellite, in degrees.
+
+    Closed-form and time-invariant (a geostationary satellite sits at a fixed
+    sub-satellite longitude). The zenith is `0` at the sub-satellite point and
+    rises toward `90` at the limb; the azimuth is in **degrees clockwise from
+    north** (`[0, 360)`), the same convention as `solar_zenith_azimuth`, so the
+    two feed `relative_azimuth`.
+
+    Args:
+        lat: Latitude(s) in degrees north, paired with `lon`.
+        lon: Longitude(s) in degrees east, paired with `lat`.
+        grid: A pyramids `Dataset` grid (EPSG:4326), mutually exclusive with
+            `lat` / `lon`.
+        sat_lon: Sub-satellite longitude in degrees east (default 0.0, Meteosat
+            prime).
+        sat_radius_km: Satellite orbital **radius from Earth's centre** in km
+            (default 42164, geostationary) — this is a radius, not an altitude.
+
+    Returns:
+        `(zenith, azimuth)` arrays in degrees. The zenith is NaN beyond the
+        geometric horizon (points that cannot see the satellite, e.g. the far
+        side of the Earth on a full global grid).
+
+    Raises:
+        ValueError: When `sat_radius_km` is not greater than Earth's radius (it is
+            an orbital radius, not an altitude), or on the same coordinate-argument
+            errors as `solar_zenith_angle`.
+
+    Examples:
+        - The sub-satellite point sees the satellite at the local zenith (0deg):
+            ```python
+            >>> from pyramids_eo.composites import satellite_zenith_azimuth
+            >>> vza, _ = satellite_zenith_azimuth(lat=0.0, lon=0.0, sat_lon=0.0)
+            >>> bool(vza < 0.01)
+            True
+
+            ```
+        - A point due north of the sub-point sees the satellite due south (~180deg):
+            ```python
+            >>> from pyramids_eo.composites import satellite_zenith_azimuth
+            >>> _, az = satellite_zenith_azimuth(lat=30.0, lon=0.0, sat_lon=0.0)
+            >>> bool(175.0 < az < 185.0)
+            True
+
+            ```
+    """
+    if sat_radius_km <= _R_EARTH_KM:
+        raise ValueError(
+            f"sat_radius_km must exceed Earth's radius ({_R_EARTH_KM} km); got "
+            f"{sat_radius_km}. Pass an orbital radius from Earth's centre, not an "
+            "altitude (geostationary is ~42164 km)."
+        )
+    lon2d, lat2d = _resolve_coords(lat, lon, grid)
+    la = np.deg2rad(lat2d)
+    dlon = np.deg2rad(lon2d - sat_lon)
+    cos_psi = np.clip(np.cos(la) * np.cos(dlon), -1.0, 1.0)
+    psi = np.arccos(cos_psi)
+    distance = np.sqrt(
+        _R_EARTH_KM**2 + sat_radius_km**2 - 2.0 * _R_EARTH_KM * sat_radius_km * cos_psi
+    )
+    zenith = np.degrees(
+        np.arcsin(np.clip(sat_radius_km * np.sin(psi) / distance, -1.0, 1.0))
+    )
+    # Beyond the geometric horizon (cos_psi < R_earth / R_sat) the satellite is
+    # below the local horizon and cannot be seen; flag those points not-viewable
+    # (NaN) rather than letting the arcsin clamp saturate them at a plausible 90.
+    zenith = np.where(cos_psi >= _R_EARTH_KM / sat_radius_km, zenith, np.nan)
+    azimuth = np.degrees(np.arctan2(np.sin(-dlon), -np.sin(la) * np.cos(dlon))) % 360.0
+    return np.asarray(zenith, dtype=float), np.asarray(azimuth, dtype=float)
+
+
+def relative_azimuth(sun_az: Any, sat_az: Any) -> np.ndarray:
+    """Sun-satellite azimuth difference, folded into `[0, 180]` degrees.
+
+    The absolute difference of two azimuths (each in `[0, 360)`, clockwise from
+    north) folded to `[0, 180]` — the relative-azimuth input every atmospheric
+    correction expects. Order-independent.
+
+    Args:
+        sun_az: Solar azimuth(s) in degrees (e.g. from `solar_zenith_azimuth`).
+        sat_az: Satellite azimuth(s) in degrees (e.g. from
+            `satellite_zenith_azimuth`).
+
+    Returns:
+        The relative azimuth in `[0, 180]` degrees, broadcast over the inputs.
+
+    Examples:
+        - Opposed azimuths (0deg and 180deg) give the maximum, 180deg:
+            ```python
+            >>> from pyramids_eo.composites import relative_azimuth
+            >>> float(relative_azimuth(10.0, 190.0))
+            180.0
+
+            ```
+        - Azimuths 350deg and 10deg are only 20deg apart (wrap-around):
+            ```python
+            >>> from pyramids_eo.composites import relative_azimuth
+            >>> float(relative_azimuth(350.0, 10.0))
+            20.0
+
+            ```
+    """
+    diff = (
+        np.abs(np.asarray(sun_az, dtype=float) - np.asarray(sat_az, dtype=float))
+        % 360.0
+    )
+    return np.asarray(np.where(diff > 180.0, 360.0 - diff, diff), dtype=float)
 
 
 def sunz_correct(
