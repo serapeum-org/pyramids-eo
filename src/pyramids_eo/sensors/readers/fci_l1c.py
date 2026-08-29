@@ -24,7 +24,12 @@ The granule stores the grid in geostationary *angular* (radian) coordinates with
 a metre geostationary CRS; the metre geotransform is reconstructed as
 `angular_geotransform * satellite_height` (from the CRS `+h`). This addresses the
 axis-unit mismatch behind pyramids #706 by keeping the CRS explicit rather than
-letting it be misread as lon/lat.
+letting it be misread as lon/lat. FCI's x is a scanning azimuth angle whose sign
+runs opposite to PROJ's geostationary x (which increases eastward), so the scaled
+x pixel width comes out negative with its origin on the eastern limb; the reader
+reconciles it to the CRS — re-anchoring the origin on the western limb with a
+positive x width, the array left untouched — so a warped scene is not mirrored
+east-west (issue #56).
 
 Validated against real MTI1/Meteosat-12 FDHSI chunks (see issue #40): `ir_105`
 stitches to brightness temperature in the expected range on the geostationary
@@ -439,21 +444,50 @@ def _satellite_height(crs_wkt: str) -> float:
     return height
 
 
+def _check_shared_grid(chunk: dict, first: dict, columns: int) -> None:
+    """Raise if `chunk` disagrees with `first` on the shared-grid properties.
+
+    Args:
+        chunk: A chunk record to compare.
+        first: The reference (northernmost) chunk record.
+        columns: The reference column count.
+
+    Raises:
+        ReaderError: On a mismatched CRS, cell size, x origin, column count, or
+            calibration coefficients — each of which would mis-stitch the scene.
+    """
+    if chunk["crs"] != first["crs"]:
+        raise ReaderError("read_fci_l1c: chunks have mixed CRS")
+    if not np.isclose(
+        chunk["geotransform"][1], first["geotransform"][1]
+    ) or not np.isclose(chunk["geotransform"][5], first["geotransform"][5]):
+        raise ReaderError("read_fci_l1c: chunks have mixed cell size")
+    # The assembled geotransform takes its x origin/width from the northernmost
+    # chunk alone, so a disagreement in x origin would mis-stitch the scene in x
+    # with no error. Real FCI chunks span the full disc width and share it.
+    if not np.isclose(chunk["geotransform"][0], first["geotransform"][0]):
+        raise ReaderError("read_fci_l1c: chunks have mixed x origin")
+    if chunk["radiance"].shape[1] != columns:
+        raise ReaderError("read_fci_l1c: chunks have mixed column count")
+    if chunk["coeffs"] != first["coeffs"]:
+        raise ReaderError("read_fci_l1c: chunks have mixed calibration coefficients")
+
+
 def _validate_chunks(chunks: list) -> None:
     """Check the ordered chunks form one consistent geostationary mosaic.
 
     The chunks must be pre-sorted north -> south by their geotransform Y origin.
-    Validates that they share a CRS, cell size and column count, and that each
-    chunk's bottom edge meets the next chunk's top edge (no vertical gap or
+    Validates that they share a CRS, cell size, x origin and column count, and that
+    each chunk's bottom edge meets the next chunk's top edge (no vertical gap or
     overlap) — so concatenating their arrays yields a correctly geolocated grid.
 
     Args:
         chunks: The chunk records, sorted by `geotransform[3]` descending.
 
     Raises:
-        ReaderError: On a non-north-up grid, mixed CRS / cell size / column count /
-            calibration coefficients, or a vertical gap / overlap between chunks
-            (which would silently mis-stitch the scene).
+        ReaderError: On a non-north-up grid, mixed CRS / cell size / x origin /
+            column count / calibration coefficients, or a vertical gap / overlap
+            between chunks (which would silently mis-stitch the scene).
     """
     first = chunks[0]
     # The sort-descending + top-down concatenation assumes a north-up grid; make
@@ -465,18 +499,7 @@ def _validate_chunks(chunks: list) -> None:
         )
     columns = first["radiance"].shape[1]
     for chunk in chunks[1:]:
-        if chunk["crs"] != first["crs"]:
-            raise ReaderError("read_fci_l1c: chunks have mixed CRS")
-        if not np.isclose(
-            chunk["geotransform"][1], first["geotransform"][1]
-        ) or not np.isclose(chunk["geotransform"][5], first["geotransform"][5]):
-            raise ReaderError("read_fci_l1c: chunks have mixed cell size")
-        if chunk["radiance"].shape[1] != columns:
-            raise ReaderError("read_fci_l1c: chunks have mixed column count")
-        if chunk["coeffs"] != first["coeffs"]:
-            raise ReaderError(
-                "read_fci_l1c: chunks have mixed calibration coefficients"
-            )
+        _check_shared_grid(chunk, first, columns)
 
     # Tolerance scaled to the (angular) row pixel, so it tracks the grid rather
     # than depending on the coordinate magnitude.
@@ -513,10 +536,17 @@ def _assemble_channel(
         cos_sza: Cosine of the solar zenith angle, or `None`.
 
     Returns:
-        A geolocated pyramids `Dataset` on the stitched geostationary grid.
+        A geolocated pyramids `Dataset` on the stitched geostationary grid, carrying
+        the northernmost chunk's CRS and a metre geotransform. The geotransform is
+        the granule's angular one scaled by the satellite height, with its x axis
+        reconciled to the geostationary CRS — a positive (east-increasing) pixel
+        width anchored on the western limb — so a warp is not mirrored east-west
+        (issue #56). The stitched array is returned unchanged.
 
     Raises:
-        ReaderError: When `records` is empty, or the chunks are inconsistent.
+        ReaderError: When `records` is empty, when the chunks are inconsistent (see
+            `_validate_chunks`), or when the assembled grid is unsupported — a
+            rotated (skewed) grid or a degenerate zero-width x geotransform.
     """
     if not records:
         raise ReaderError(f"read_fci_l1c: no chunk carries channel {channel!r}")
@@ -549,7 +579,32 @@ def _assemble_channel(
     height = _satellite_height(top["crs"])
     # The granule's geotransform is in geostationary radians; scale it by the
     # satellite height to get the metre grid the geostationary CRS expects.
-    geo = tuple(term * height for term in top["geotransform"])
+    origin_x, pixel_w, row_rot, origin_y, col_rot, pixel_h = tuple(
+        term * height for term in top["geotransform"]
+    )
+    # The reconciliation below adjusts only the x scale and origin, so a skewed grid
+    # (non-zero rotation terms) would be left geometrically inconsistent. FCI
+    # geostationary grids are always axis-aligned; guard rather than emit a silently
+    # wrong geotransform if that ever stops holding.
+    if not np.isclose(row_rot, 0.0) or not np.isclose(col_rot, 0.0):
+        raise ReaderError(
+            "read_fci_l1c: a rotated grid (non-zero geotransform rotation terms) "
+            "is not supported"
+        )
+    # FCI stores x as a scanning azimuth angle whose sign runs opposite to PROJ's
+    # geostationary x (which increases eastward), so the scaled x pixel width comes
+    # out negative with its origin on the eastern limb. Left as-is, any warp mirrors
+    # the scene east-west (issue #56). The pixels are already in west -> east column
+    # order — only their geolocation is mislabelled — so reconcile the geotransform
+    # to the CRS (re-anchor the origin on the western limb, emit a positive x width)
+    # and leave the array untouched. The y axis is guaranteed north-up (pixel_h < 0)
+    # upstream by `_validate_chunks`, so it is not reconciled here.
+    if pixel_w < 0:
+        origin_x += pixel_w * data.shape[1]
+        pixel_w = -pixel_w
+    if np.isclose(pixel_w, 0.0):
+        raise ReaderError("read_fci_l1c: a degenerate zero-width x geotransform")
+    geo = (origin_x, pixel_w, row_rot, origin_y, col_rot, pixel_h)
     dataset = Dataset.create_from_array(data, geo=geo, epsg=None, no_data_value=np.nan)
     dataset.crs = top["crs"]
     return dataset
@@ -574,7 +629,8 @@ def read_fci_l1c(
     it with the **per-granule** coefficients (reflectance for a solar channel,
     brightness temperature for a thermal one). Each result is a geolocated pyramids
     `Dataset` on the granule's geostationary grid (metre geotransform reconstructed
-    from the angular grid and the CRS satellite height).
+    from the angular grid and the CRS satellite height, with its x axis reconciled
+    to the CRS so a warp is not mirrored east-west — issue #56).
 
     Pass exactly one of `channel` (returns a `Dataset`) or `channels` (returns a
     `dict[str, Dataset]`); `read_fci_l1c(paths, "ir_105")` is unchanged.

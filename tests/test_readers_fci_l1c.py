@@ -464,10 +464,119 @@ class TestReadFciL1c:
         """The metre geotransform is the angular one times the satellite height."""
         self._patch(monkeypatch, {"a.nc": self._chunk(np.ones((2, 3)), 0.0)})
         out = read_fci_l1c(["a.nc"], "ir_105", calibrate=False)
-        assert out.geotransform[1] == pytest.approx(-1e-5 * 1.0e5), (
-            "px should be scaled"
+        # The y axis is not sign-normalised, so it shows the raw height scaling.
+        assert out.geotransform[5] == pytest.approx(-1e-5 * 1.0e5), (
+            "the y pixel height should be the angular one scaled by the height"
+        )
+        # The x pixel width is scaled by the same height, then normalised positive.
+        assert abs(out.geotransform[1]) == pytest.approx(1e-5 * 1.0e5), (
+            "the x pixel width magnitude should be the angular one scaled by height"
         )
         assert out.epsg is None, "a geostationary grid has no EPSG code"
+
+    def test_x_axis_normalised_to_positive_width(self, monkeypatch):
+        """A negative angular x width is reconciled to a positive, west-anchored one.
+
+        FCI's x is a scanning azimuth angle whose sign runs opposite to PROJ geos x,
+        so the scaled geotransform comes out with a negative x pixel width anchored
+        on the eastern limb. The reader must flip that to a positive width and
+        re-anchor the origin on the western limb, leaving the pixels untouched, so a
+        warp does not mirror the scene east-west (issue #56).
+        """
+        radiance = np.arange(6, dtype=float).reshape(2, 3)
+        self._patch(monkeypatch, {"a.nc": self._chunk(radiance, 0.0)})
+        out = read_fci_l1c(["a.nc"], "ir_105", calibrate=False)
+        geo = out.geotransform
+        # angular (0.1, -1e-5, 0, 0, 0, -1e-5) * height 1e5, width 3 -> re-anchored.
+        assert geo[1] > 0, f"x pixel width must be positive, got {geo[1]}"
+        assert geo[1] == pytest.approx(1.0), "x width is |−1e-5| * 1e5"
+        assert geo[0] == pytest.approx(0.1 * 1.0e5 + (-1.0) * 3), (
+            "origin re-anchored on the western limb: origin_x + pixel_w * ncols"
+        )
+        assert geo[5] < 0, "the y axis stays north-up (negative pixel height)"
+        assert np.array_equal(out.read_array(), radiance), (
+            "the array must be returned unchanged — only the geotransform is fixed"
+        )
+
+    def test_positive_x_width_passes_through(self, monkeypatch):
+        """A geotransform already east-increasing is scaled but not re-anchored."""
+        radiance = np.arange(6, dtype=float).reshape(2, 3)
+        record = {
+            "radiance": radiance,
+            "start_row": 1,
+            "end_row": 1,
+            "coeffs": _THERMAL,
+            "geotransform": (0.1, 1e-5, 0.0, 0.0, 0.0, -1e-5),  # positive x width
+            "crs": GEOS_WKT,
+        }
+        self._patch(monkeypatch, {"a.nc": record})
+        out = read_fci_l1c(["a.nc"], "ir_105", calibrate=False)
+        geo = out.geotransform
+        assert geo[1] == pytest.approx(1e-5 * 1.0e5), (
+            "positive x width is left positive"
+        )
+        assert geo[0] == pytest.approx(0.1 * 1.0e5), (
+            "an already-positive width is not re-anchored (origin is the scaled one)"
+        )
+        assert np.array_equal(out.read_array(), radiance), (
+            "the array is returned unchanged on the pass-through branch too"
+        )
+
+    def test_reanchor_uses_stitched_column_count(self, monkeypatch):
+        """The re-anchor uses the stitched array's column count, not its row count."""
+        mapping = {
+            "a.nc": self._chunk(np.ones((2, 3)), 0.0),  # north, 2 rows
+            "b.nc": self._chunk(np.full((2, 3), 2.0), -2e-5),  # south, contiguous
+        }
+        self._patch(monkeypatch, mapping)
+        out = read_fci_l1c(["a.nc", "b.nc"], "ir_105", calibrate=False)
+        assert out.read_array().shape == (4, 3), "two 2x3 chunks stitch to 4x3"
+        geo = out.geotransform
+        assert geo[1] == pytest.approx(1.0), "x width normalised positive"
+        assert geo[0] == pytest.approx(9997.0), (
+            "re-anchor uses the stitched column count (3), not the row count (4): "
+            "0.1 * 1e5 + (-1.0) * 3"
+        )
+
+    @pytest.mark.parametrize(
+        "geotransform",
+        [
+            pytest.param((0.1, -1e-5, 0.1, 0.0, 0.0, -1e-5), id="row_rot"),  # gt[2]
+            pytest.param((0.1, -1e-5, 0.0, 0.0, 0.1, -1e-5), id="col_rot"),  # gt[4]
+        ],
+    )
+    def test_rotated_grid_raises(self, monkeypatch, geotransform):
+        """A non-zero geotransform rotation term (either axis) is rejected.
+
+        Args:
+            geotransform: A grid with one non-zero rotation term (gt[2] or gt[4]),
+                covering both halves of the `row_rot or col_rot` guard.
+        """
+        record = {
+            "radiance": np.ones((2, 3)),
+            "start_row": 1,
+            "end_row": 1,
+            "coeffs": _THERMAL,
+            "geotransform": geotransform,
+            "crs": GEOS_WKT,
+        }
+        self._patch(monkeypatch, {"a.nc": record})
+        with pytest.raises(ReaderError, match="rotated grid"):
+            read_fci_l1c(["a.nc"], "ir_105", calibrate=False)
+
+    def test_zero_x_width_raises(self, monkeypatch):
+        """A degenerate zero-width x geotransform is rejected."""
+        record = {
+            "radiance": np.ones((2, 3)),
+            "start_row": 1,
+            "end_row": 1,
+            "coeffs": _THERMAL,
+            "geotransform": (0.1, 0.0, 0.0, 0.0, 0.0, -1e-5),  # zero x width
+            "crs": GEOS_WKT,
+        }
+        self._patch(monkeypatch, {"a.nc": record})
+        with pytest.raises(ReaderError, match="zero-width"):
+            read_fci_l1c(["a.nc"], "ir_105", calibrate=False)
 
     def test_mixed_column_count_raises(self, monkeypatch):
         """Chunks with different widths are rejected."""
@@ -486,6 +595,15 @@ class TestReadFciL1c:
         mapping = {"a.nc": self._chunk(np.ones((2, 3)), 0.0), "b.nc": other}
         self._patch(monkeypatch, mapping)
         with pytest.raises(ReaderError, match="mixed CRS"):
+            read_fci_l1c(["a.nc", "b.nc"], "ir_105")
+
+    def test_mixed_x_origin_raises(self, monkeypatch):
+        """Chunks that disagree on x origin are rejected (would mis-stitch in x)."""
+        other = self._chunk(np.ones((2, 3)), -2e-5)
+        other["geotransform"] = (0.5, -1e-5, 0.0, -2e-5, 0.0, -1e-5)  # x origin 0.5
+        mapping = {"a.nc": self._chunk(np.ones((2, 3)), 0.0), "b.nc": other}
+        self._patch(monkeypatch, mapping)
+        with pytest.raises(ReaderError, match="mixed x origin"):
             read_fci_l1c(["a.nc", "b.nc"], "ir_105")
 
     def test_mixed_cell_size_raises(self, monkeypatch):
@@ -757,11 +875,34 @@ def test_read_fci_l1c_real_granule():
     assert "Geostationary" in str(scene.crs), (
         "result should carry the geostationary CRS"
     )
-    assert abs(scene.geotransform[1]) == pytest.approx(2000.0, abs=1.0), (
-        "ir_105 is 2 km"
+    assert scene.geotransform[1] == pytest.approx(2000.0, abs=1.0), (
+        "ir_105 is 2 km, with a positive x pixel width (east-increasing, not "
+        "mirrored — issue #56)"
     )
     assert scene.geotransform[5] < 0, "the stitched grid must be north-up (gt[5] < 0)"
     assert np.isnan(scene.no_data_value[0]), "nodata should be NaN"
+
+    # Guard the un-mirror *direction*, not just the width sign: converting the grid's
+    # column centres (on a real on-disc row) to longitude, they must increase west ->
+    # east with column index. A mirrored (negative-width, east-anchored) geotransform
+    # — the issue #56 bug — makes them decrease. This is what actually pins the
+    # geolocation direction against real coordinates (issue #56).
+    from pyproj import CRS as _CRS
+    from pyproj import Transformer as _T
+
+    rows, cols = array.shape
+    gt = scene.geotransform
+    mid_y = gt[3] + (rows // 2 + 0.5) * gt[5]
+    xs = gt[0] + (np.arange(cols) + 0.5) * gt[1]
+    to_lonlat = _T.from_crs(
+        _CRS.from_wkt(str(scene.crs)), _CRS.from_epsg(4326), always_xy=True
+    )
+    lon, _lat = to_lonlat.transform(xs, np.full(cols, mid_y))
+    on_disc = lon[np.isfinite(lon)]
+    assert on_disc.size >= 2, "the mid row should cross the disc"
+    assert np.all(np.diff(on_disc) > 0), (
+        "longitude must increase west -> east across columns (not mirrored, issue #56)"
+    )
 
 
 @pytest.mark.live
