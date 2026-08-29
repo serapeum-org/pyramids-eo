@@ -119,6 +119,24 @@ class TestSunzCorrect:
             f"independent parity off: {out}"
         )
 
+    def test_taper_hardcoded_oracle_at_91(self):
+        """At SZA 91 the default-parameter factor is ~13.909 (fixed oracle)."""
+        out = sunz_correct(np.array([1.0]), np.array([91.0]))
+        assert out[0] == pytest.approx(13.909, abs=0.01), f"taper oracle off: {out}"
+
+    def test_scalar_input_returns_0d_array(self):
+        """A scalar band/sza yields a 0-d array (the documented contract)."""
+        out = sunz_correct(1.0, 60.0)
+        assert out.shape == (), f"scalar input should give a 0-d array: {out.shape}"
+        assert float(out) == pytest.approx(2.0), f"scalar value wrong: {out}"
+
+    def test_max_sza_none_with_nan_sza_is_zero(self):
+        """With max_sza=None a NaN SZA still yields a 0 factor (NaN override wins)."""
+        out = sunz_correct(np.array([1.0]), np.array([np.nan]), max_sza=None)
+        assert out[0] == pytest.approx(0.0), (
+            f"NaN under max_sza=None should be 0: {out}"
+        )
+
     def test_does_not_mutate_inputs(self):
         """The correction is pure — band and sza arrays are left unchanged."""
         band = np.array([1.0, 1.0])
@@ -135,6 +153,7 @@ class TestSunzCorrect:
         out = sunz_correct(ds, np.zeros((2, 2)))
         assert isinstance(out, Dataset), f"expected a Dataset, got {type(out)}"
         assert out.epsg == 4326, f"CRS not preserved, got {out.epsg}"
+        assert out.geotransform == ds.geotransform, "geotransform not preserved"
 
 
 class TestSunzReduce:
@@ -237,6 +256,7 @@ class TestSunzReduce:
         out = sunz_reduce(ds, np.full((2, 2), 70.0))
         assert isinstance(out, Dataset), f"expected a Dataset, got {type(out)}"
         assert out.epsg == 4326, f"CRS not preserved, got {out.epsg}"
+        assert out.geotransform == ds.geotransform, "geotransform not preserved"
 
 
 class TestSunzCompose:
