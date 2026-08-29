@@ -122,7 +122,7 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
     if mask_scl:
         dataset = _apply_scl_mask(dataset, product, target_res, epsg, mask_scl)
     if bbox is not None:
-        dataset = dataset.crop(bbox=list(bbox))
+        dataset = _crop_to_bbox(dataset, bbox)
     if crs is not None:
         dataset = dataset.to_crs(crs)
     if reflectance:
@@ -359,6 +359,70 @@ def _check_bands_present(subdataset: S2Subdataset, wanted: list[str]) -> None:
             f"bands {missing} not at {subdataset.resolution_m}m; "
             f"available there: {subdataset.bands}"
         )
+
+
+# -- crop ------------------------------------------------------------------
+
+
+def _crop_to_bbox(dataset: Any, bbox: BBox) -> Any:
+    """Window ``dataset`` to ``bbox`` (in its own CRS), keeping the full window.
+
+    ``Dataset.crop(bbox=)`` reads the bbox window and then trims all-no-data
+    border rows/columns — and for a multi-band array a row is trimmed only when
+    *every* band is no-data there, whereas a single band trims on that one band.
+    So the output grid shrinks by an amount that depends on how many bands are
+    read, and a single-band or masked read of the same ``bbox`` comes back on a
+    different, smaller grid than a multi-band read (see #81).
+
+    This reads exactly the bbox pixel window and rebuilds it **without** the
+    trim, so the returned grid (rows × cols and geotransform) is a deterministic
+    function of the ``bbox`` and the resolution — identical regardless of band
+    selection, masking, or whether the window straddles the granule's no-data
+    fill. The snapping matches pyramids' own windowed-crop path (floor the near
+    edges, ceil the far edges).
+
+    Args:
+        dataset: The dataset to window (its bands are read over the bbox).
+        bbox: ``(minx, miny, maxx, maxy)`` in ``dataset``'s CRS.
+
+    Returns:
+        A new pyramids ``Dataset`` covering exactly the bbox window.
+
+    Raises:
+        ProductError: The bbox does not overlap the dataset's extent.
+    """
+    import math
+
+    import numpy as np
+    from pyramids.dataset import Dataset
+
+    minx, miny, maxx, maxy = bbox
+    x0, dx, _, y0, _, dy = dataset.raster.GetGeoTransform()
+    cols, rows = dataset.raster.RasterXSize, dataset.raster.RasterYSize
+    eps = 1e-9
+    xoff = min(max(math.floor((minx - x0) / dx + eps), 0), cols)
+    x_far = min(max(math.ceil((maxx - x0) / dx - eps), 0), cols)
+    yoff = min(max(math.floor((y0 - maxy) / -dy + eps), 0), rows)
+    y_far = min(max(math.ceil((y0 - miny) / -dy - eps), 0), rows)
+    xsize, ysize = x_far - xoff, y_far - yoff
+    if xsize <= 0 or ysize <= 0:
+        raise ProductError(f"bbox {bbox} does not overlap the product extent")
+
+    array = np.asarray(dataset.read_array(window=[xoff, yoff, xsize, ysize]))
+    if array.ndim == 2:
+        array = array[np.newaxis, ...]
+    nodata = dataset.no_data_value[0]
+    out = Dataset.create_from_array(
+        arr=array,
+        geo=(x0 + xoff * dx, dx, 0.0, y0 + yoff * dy, 0.0, dy),
+        epsg=dataset.epsg,
+        no_data_value=0.0 if nodata is None else nodata,
+    )
+    try:
+        out.band_names = list(dataset.band_names)
+    except (RuntimeError, ValueError, TypeError):
+        pass  # band names are display-only
+    return out
 
 
 # -- reads -----------------------------------------------------------------

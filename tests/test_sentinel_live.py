@@ -269,3 +269,27 @@ def test_scl_masking_is_class_sensitive(scene):
     assert present_nodata > absent_nodata, (
         "masking a present class removed no more pixels than masking an absent one"
     )
+
+
+def test_grid_is_stable_across_band_selection(scene):
+    """The output grid is identical for one band, many bands, and a masked read.
+
+    A bbox read must return the same rows x cols regardless of how many bands are
+    requested or whether SCL masking is applied — the invariant #81 broke, where
+    a single-band or masked read shrank to the valid-data extent while a
+    multi-band read kept the full window.
+    """
+    from pyramids_eo.sentinel import from_sentinel2
+    from pyramids_eo.sentinel.s2.masks import SclClass
+
+    one = from_sentinel2(scene["path"], bands=["B04"], bbox=scene["bbox"])
+    many = from_sentinel2(scene["path"], bands=["B04", "SCL"], bbox=scene["bbox"])
+    masked = from_sentinel2(
+        scene["path"],
+        bands=["B04"],
+        bbox=scene["bbox"],
+        mask_scl=[SclClass.VEGETATION],
+    )
+    grid = one.shape[1:]
+    assert many.shape[1:] == grid, f"multi-band grid {many.shape[1:]} != {grid}"
+    assert masked.shape[1:] == grid, f"masked grid {masked.shape[1:]} != {grid}"
