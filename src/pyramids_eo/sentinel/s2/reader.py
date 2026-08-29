@@ -381,15 +381,23 @@ def _crop_to_bbox(dataset: Any, bbox: BBox) -> Any:
     fill. The snapping matches pyramids' own windowed-crop path (floor the near
     edges, ceil the far edges).
 
+    Contract: this runs only inside the Sentinel-2 read path, on a **north-up**
+    grid in its own (UTM) CRS, before any ``to_crs`` reprojection. It enforces
+    north-up (raising otherwise), preserves the per-band no-data values, and
+    carries the source EPSG — all lossless in that pipeline.
+
     Args:
         dataset: The dataset to window (its bands are read over the bbox).
         bbox: ``(minx, miny, maxx, maxy)`` in ``dataset``'s CRS.
 
     Returns:
-        A new pyramids ``Dataset`` covering exactly the bbox window.
+        A new pyramids ``Dataset`` covering the bbox window. A bbox that extends
+        beyond the raster is clipped to the dataset extent (no no-data fill is
+        added outside it).
 
     Raises:
-        ProductError: The bbox does not overlap the dataset's extent.
+        ProductError: The grid is not north-up, or the bbox does not overlap the
+            dataset's extent.
     """
     import math
 
@@ -397,7 +405,13 @@ def _crop_to_bbox(dataset: Any, bbox: BBox) -> Any:
     from pyramids.dataset import Dataset
 
     minx, miny, maxx, maxy = bbox
-    x0, dx, _, y0, _, dy = dataset.raster.GetGeoTransform()
+    gt = dataset.raster.GetGeoTransform()
+    x0, dx, row_skew, y0, col_skew, dy = gt
+    if row_skew or col_skew or dx <= 0 or dy >= 0:
+        raise ProductError(
+            "_crop_to_bbox requires a north-up grid (no rotation, dx > 0, "
+            f"dy < 0); got geotransform {gt}"
+        )
     cols, rows = dataset.raster.RasterXSize, dataset.raster.RasterYSize
     eps = 1e-9
     xoff = min(max(math.floor((minx - x0) / dx + eps), 0), cols)
@@ -411,12 +425,11 @@ def _crop_to_bbox(dataset: Any, bbox: BBox) -> Any:
     array = np.asarray(dataset.read_array(window=[xoff, yoff, xsize, ysize]))
     if array.ndim == 2:
         array = array[np.newaxis, ...]
-    nodata = dataset.no_data_value[0]
     out = Dataset.create_from_array(
         arr=array,
         geo=(x0 + xoff * dx, dx, 0.0, y0 + yoff * dy, 0.0, dy),
         epsg=dataset.epsg,
-        no_data_value=0.0 if nodata is None else nodata,
+        no_data_value=[0.0 if v is None else v for v in dataset.no_data_value],
     )
     out.band_names = list(dataset.band_names)
     return out
