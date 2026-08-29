@@ -222,7 +222,8 @@ def test_cross_resolution_harmonise_onto_finest_grid(scene):
     # The resampled 20 m band (B11) must carry real values, not an empty grid.
     b11 = np.asarray(ds.read_array())[1]
     valid = b11[b11 != ds.no_data_value[1]]
-    assert valid.size > 0 and np.any(valid > 0), "harmonised B11 has no real data"
+    assert valid.size > 0, "harmonised B11 is entirely no-data"
+    assert np.any(valid > 0), "harmonised B11 has no positive values"
 
 
 def test_scl_masking_is_class_sensitive(scene):
