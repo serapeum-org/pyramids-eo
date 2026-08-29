@@ -11,11 +11,12 @@ that band as `green=` and select `green_mode="native"` to use it directly, or
 over barren surfaces, less over vegetation) — the reference true-colour look.
 
 This is the **no-Rayleigh** variant (per the pyramids-eo compositing decision):
-by default it does the band combination only. Atmospheric / Rayleigh correction
-is intentionally out of scope of the base install to keep the dependency
-footprint small; the result is slightly flatter over ocean / haze than a
-Rayleigh-corrected image. A correction can be opted in per call via the
-`rayleigh=` callable, which is applied to each solar band before green synthesis.
+by default it does the band combination only, so the result is slightly flatter
+over ocean / haze than a Rayleigh-corrected image. Atmospheric / Rayleigh
+correction stays *opt-in* rather than automatic — pass a `rayleigh=` callable and
+it is applied to each solar band before green synthesis. The package ships a
+local, dependency-free correction (`rayleigh_correct`) for that hook, so opting in
+adds no third-party dependency.
 """
 
 from __future__ import annotations

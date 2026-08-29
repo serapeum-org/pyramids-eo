@@ -330,6 +330,14 @@ def satellite_zenith_azimuth(
             True
 
             ```
+        - A point due north of the sub-point sees the satellite due south (~180deg):
+            ```python
+            >>> from pyramids_eo.composites import satellite_zenith_azimuth
+            >>> _, az = satellite_zenith_azimuth(30.0, 0.0, sat_lon=0.0)
+            >>> bool(175.0 < az < 185.0)
+            True
+
+            ```
     """
     lon2d, lat2d = _resolve_coords(lat, lon, grid)
     la = np.deg2rad(lat2d)

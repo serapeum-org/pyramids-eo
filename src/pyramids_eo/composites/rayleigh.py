@@ -97,6 +97,30 @@ def rayleigh_reflectance(
     Returns:
         The per-pixel Rayleigh path reflectance in `[0, 1]`, `0` on the night side
         (`sza >= 90`) and NaN where a geometry input is NaN.
+
+    Raises:
+        ValueError: When `wavelength_um` or `pressure_hpa` is not positive (via
+            :func:`rayleigh_optical_depth`).
+
+    Examples:
+        - The path reflectance is a small positive fraction, larger for blue:
+            ```python
+            >>> from pyramids_eo.composites.rayleigh import rayleigh_reflectance
+            >>> blue = rayleigh_reflectance(0.444, sza=40.0, vza=30.0, azidiff=60.0)
+            >>> red = rayleigh_reflectance(0.640, sza=40.0, vza=30.0, azidiff=60.0)
+            >>> bool(0.0 < float(blue) < 0.3)
+            True
+            >>> bool(float(blue) > float(red))
+            True
+
+            ```
+        - There is no single-scatter path on the night side (`sza >= 90`):
+            ```python
+            >>> from pyramids_eo.composites.rayleigh import rayleigh_reflectance
+            >>> float(rayleigh_reflectance(0.444, sza=120.0, vza=30.0, azidiff=60.0))
+            0.0
+
+            ```
     """
     tau = rayleigh_optical_depth(wavelength_um, pressure_hpa)
     sza_r = np.deg2rad(_as_array(sza))
