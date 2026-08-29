@@ -82,8 +82,42 @@ class TestSunzCorrect:
         """max_sza not greater than correction_limit is rejected."""
         with pytest.raises(ValueError, match="max_sza"):
             sunz_correct(
-                np.array([1.0]), np.array([10.0]), correction_limit=90.0, max_sza=80.0
+                np.array([1.0]), np.array([10.0]), correction_limit=85.0, max_sza=80.0
             )
+
+    def test_correction_limit_at_or_beyond_90_raises(self):
+        """correction_limit >= 90 (cos <= 0, cap explodes) is rejected."""
+        with pytest.raises(ValueError, match="correction_limit"):
+            sunz_correct(np.array([1.0]), np.array([80.0]), correction_limit=90.0)
+
+    def test_negative_correction_limit_raises(self):
+        """A negative correction_limit is rejected."""
+        with pytest.raises(ValueError, match="correction_limit"):
+            sunz_correct(np.array([1.0]), np.array([0.0]), correction_limit=-1.0)
+
+    def test_nan_band_stays_nan(self):
+        """A NaN band value is preserved as NaN (0 * NaN), not blacked to 0."""
+        out = sunz_correct(np.array([np.nan]), np.array([120.0]))
+        assert np.isnan(out[0]), f"NaN band should stay NaN (nodata): {out}"
+
+    def test_multiband_broadcasts_over_bands(self):
+        """A (band, H, W) band applies the 2-D SZA factor to every band."""
+        band = np.ones((3, 1, 2))
+        sza = np.array([[0.0, 60.0]])
+        out = sunz_correct(band, sza)
+        assert out.shape == (3, 1, 2), f"band shape not preserved: {out.shape}"
+        assert np.allclose(out[:, 0, 0], 1.0), "overhead column wrong per band"
+        assert np.allclose(out[:, 0, 1], 2.0), "60deg column wrong per band"
+
+    def test_interior_taper_independent_parity(self):
+        """At SZA 91 the factor matches a log-base-change independent of np.log2."""
+        out = sunz_correct(np.array([1.0]), np.array([91.0]))
+        ramp = (91.0 - 88.0) / (95.0 - 88.0)
+        grad = 1.0 - np.log(ramp + 1.0) / np.log(2.0)
+        expected = grad / np.cos(np.deg2rad(88.0))
+        assert out[0] == pytest.approx(expected, rel=1e-9), (
+            f"independent parity off: {out}"
+        )
 
     def test_does_not_mutate_inputs(self):
         """The correction is pure — band and sza arrays are left unchanged."""
@@ -166,6 +200,26 @@ class TestSunzReduce:
         """A non-positive strength is rejected."""
         with pytest.raises(ValueError, match="strength"):
             sunz_reduce(np.array([1.0]), np.array([85.0]), strength=0.0)
+
+    def test_max_sza_none_raises(self):
+        """max_sza=None is rejected with a clear message (unlike sunz_correct)."""
+        with pytest.raises(ValueError, match="max_sza"):
+            sunz_reduce(np.array([1.0]), np.array([85.0]), max_sza=None)
+
+    def test_negative_correction_limit_raises(self):
+        """A negative correction_limit is rejected."""
+        with pytest.raises(ValueError, match="correction_limit"):
+            sunz_reduce(np.array([1.0]), np.array([85.0]), correction_limit=-1.0)
+
+    def test_nan_band_stays_nan(self):
+        """A NaN band value is preserved as NaN (0 * NaN), not blacked to 0."""
+        out = sunz_reduce(np.array([np.nan]), np.array([90.0]))
+        assert np.isnan(out[0]), f"NaN band should stay NaN (nodata): {out}"
+
+    def test_fractional_strength_softens_the_ramp(self):
+        """A strength < 1 keeps the factor in (0, 1) inside the band (softer curve)."""
+        out = sunz_reduce(np.array([1.0]), np.array([85.0]), strength=0.5)
+        assert 0.0 < out[0] < 1.0, f"fractional strength out of range: {out}"
 
     def test_does_not_mutate_inputs(self):
         """The reduction is pure — band and sza arrays are left unchanged."""
