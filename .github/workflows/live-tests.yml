@@ -5,9 +5,10 @@ permissions:
 
 # Live tests read a real Sentinel-2 granule from Copernicus (CDSE) over the
 # network, so they are kept out of the per-PR suite (which runs `-m "not live"`)
-# and run here instead: on any change to the Sentinel module (or the live test
-# itself) in a pull request, and on every merge to main. They authenticate with
-# the CDSE S3 keys, which must be set as repository secrets:
+# and run here instead: on any change to the Sentinel module or its shared
+# reader dependencies (or the live test itself) in a pull request, and on every
+# merge to main. They authenticate with the CDSE S3 keys, which must be set as
+# repository secrets:
 #   CDSE_S3_ACCESS_KEY / CDSE_S3_SECRET_KEY
 # (created at https://eodata-s3keysmanager.dataspace.copernicus.eu).
 on:
@@ -16,6 +17,7 @@ on:
   pull_request:
     paths:
       - "src/pyramids_eo/sentinel/**"
+      - "src/pyramids_eo/sensors/readers/**"
       - "tests/test_sentinel_live.py"
       - ".github/workflows/live-tests.yml"
   workflow_dispatch:
@@ -26,16 +28,14 @@ concurrency:
 
 jobs:
   live:
+    # Fork PRs cannot read the CDSE_S3_* secrets, so skip them rather than fail
+    # a check the contributor cannot fix; the push-to-main run is the backstop.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
         uses: serapeum-org/github-actions/actions/python-setup/pixi@38c111084f99d5ff5f4a1e63bedce48fe33a10c0  # pixi/v1.2.1
@@ -50,4 +50,4 @@ jobs:
         env:
           CDSE_S3_ACCESS_KEY: ${{ secrets.CDSE_S3_ACCESS_KEY }}
           CDSE_S3_SECRET_KEY: ${{ secrets.CDSE_S3_SECRET_KEY }}
-        run: pixi run -e py312 pytest -vvv -sv -m live tests/test_sentinel_live.py || [ $? -eq 5 ]
+        run: pixi run -e py312 live
