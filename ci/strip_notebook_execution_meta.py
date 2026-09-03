@@ -17,10 +17,34 @@ import sys
 from pathlib import Path
 
 
+def _resolve(name: str, root: Path) -> Path:
+    """Resolve `name` to a notebook inside `root`, or reject it.
+
+    pre-commit passes the staged file list, but the paths still arrive as plain
+    argv strings. Confining them to `root` and to a `.ipynb` suffix keeps the
+    rewrite below from ever touching a file outside the working tree.
+
+    Args:
+        name: A path as given on the command line.
+        root: The directory the path must live under.
+
+    Returns:
+        The resolved path.
+
+    Raises:
+        ValueError: The path escapes `root` or is not a notebook.
+    """
+    path = Path(name).resolve()
+    if path.suffix != ".ipynb":
+        raise ValueError(f"not a notebook: {name}")
+    if not path.is_relative_to(root):
+        raise ValueError(f"path escapes {root}: {name}")
+    return path
+
+
 def strip(path: Path) -> bool:
     """Remove `metadata.execution` from every cell; return True if changed."""
-    original = path.read_bytes()
-    notebook = json.loads(original.decode("utf-8"))
+    notebook = json.loads(path.read_bytes().decode("utf-8"))
     changed = False
     for cell in notebook.get("cells", []):
         if cell.get("metadata", {}).pop("execution", None) is not None:
@@ -32,9 +56,10 @@ def strip(path: Path) -> bool:
     return True
 
 
-def main(paths: list[str]) -> int:
+def main(names: list[str]) -> int:
     """Strip each notebook named on the command line."""
-    rewritten = [name for name in paths if strip(Path(name))]
+    root = Path.cwd().resolve()
+    rewritten = [name for name in names if strip(_resolve(name, root))]
     for name in rewritten:
         print(f"stripped execution metadata: {name}")
     return 1 if rewritten else 0
