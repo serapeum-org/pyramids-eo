@@ -50,11 +50,17 @@ def _wrap_like(out: np.ndarray, *candidates: Any) -> Any:
 
     # Composited data can legitimately hold NaN (masked terminator / gaps), so
     # declare NaN as the nodata value rather than the default -9999 sentinel.
-    return Dataset.from_array(
+    result = Dataset.from_array(
         out,
         geo_ref=GeoReference(geo=template.geotransform, epsg=template.epsg),
         no_data_value=np.nan,
     )
+    if template.epsg is None:
+        # A geostationary (or otherwise non-EPSG) grid reports epsg None; its
+        # projection lives on .crs and has to be carried across explicitly, the
+        # same way read_seviri / read_fci_l1c do.
+        result.crs = template.crs
+    return result
 
 
 def _coverage(value: Any) -> np.ndarray:

@@ -304,8 +304,13 @@ def _wrap(out: np.ndarray, template: Any, dtype: Any) -> Any:
     from pyramids.dataset import Dataset, GeoReference
 
     nodata: Any = 0 if np.issubdtype(np.dtype(dtype), np.integer) else np.nan
-    return Dataset.from_array(
+    result = Dataset.from_array(
         out,
         geo_ref=GeoReference(geo=template.geotransform, epsg=template.epsg),
         no_data_value=nodata,
     )
+    if template.epsg is None:
+        # A geostationary (or otherwise non-EPSG) grid reports epsg None; its
+        # projection lives on .crs and has to be carried across explicitly.
+        result.crs = template.crs
+    return result
