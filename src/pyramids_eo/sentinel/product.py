@@ -112,12 +112,13 @@ def _resolve_container_path(path: str | Path) -> str:
 def open_connection(connection: str) -> Dataset:
     """Open a GDAL driver connection string as a pyramids ``Dataset``.
 
-    Prefer ``Dataset.read_file``, but a connection string whose source is a
-    ``/vsizip/`` (or other ``/vsi``) path — e.g. a ``SubDataset.name`` from a
-    zipped product, ``SENTINEL2_L2A:/vsizip/…:60m:EPSG_32632`` — trips pyramids'
-    archive auto-detection: it sees the embedded ``.zip`` and re-wraps the whole
-    string in a second ``/vsizip/``, which then fails to open. Those are opened
-    through GDAL directly and wrapped, bypassing the re-sniff.
+    A ``SubDataset.name`` from a zipped product —
+    ``SENTINEL2_L2A:/vsizip/…:60m:EPSG_32632`` — used to trip pyramids' archive
+    auto-detection, which saw the embedded ``.zip`` and re-wrapped the whole
+    string in a second ``/vsizip/``. pyramids 0.57 fixed that (it no longer
+    re-wraps an already-resolved ``/vsi`` path), so every connection now goes
+    through ``Dataset.read_file`` — which also applies the cloud credentials and
+    open options that a bare ``gdal.Open`` skipped for remote products.
 
     Args:
         connection: A GDAL connection string / path.
@@ -128,17 +129,10 @@ def open_connection(connection: str) -> Dataset:
     Raises:
         ProductError: GDAL cannot open the connection.
     """
-    if "/vsi" in connection:
-        from osgeo import gdal
-
-        try:
-            handle = gdal.Open(connection)
-        except RuntimeError as exc:  # UseExceptions turns a bad open into a raise
-            raise ProductError(f"GDAL could not open {connection!r}: {exc}") from exc
-        if handle is None:
-            raise ProductError(f"GDAL could not open {connection!r}")
-        return Dataset(handle)
-    return Dataset.read_file(connection)
+    try:
+        return Dataset.read_file(connection)
+    except Exception as exc:  # noqa: BLE001 - re-raise as the package's error
+        raise ProductError(f"GDAL could not open {connection!r}: {exc}") from exc
 
 
 def _find_metadata_in_dir(directory: Path) -> str:
