@@ -33,6 +33,9 @@ and a custom `parse` callable can still be injected.
         show_source: true
         heading_level: 3
         members_order: source
+        members:
+          - read_fci_l1c
+          - available_channels
 
 ::: pyramids_eo.sensors.readers.fci
     options:
