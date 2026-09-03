@@ -297,7 +297,11 @@ def _wrap(out: np.ndarray, template: Any, dtype: Any) -> Any:
             for float).
 
     Returns:
-        A pyramids `Dataset` when `template` is given, otherwise `out`.
+        A pyramids `Dataset` carrying `template`'s geotransform and CRS when
+        `template` is given, otherwise `out`. A template whose CRS carries no
+        EPSG code — a geostationary grid, say — reports `epsg` as `None`, so its
+        projection is copied across from the template's `crs` instead and is not
+        lost.
     """
     if template is None:
         return out

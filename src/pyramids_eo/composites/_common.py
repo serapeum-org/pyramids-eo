@@ -32,7 +32,10 @@ def _wrap_like(out: np.ndarray, *candidates: Any) -> Any:
 
     Returns:
         A pyramids `Dataset` carrying the template's geotransform + CRS when a
-        candidate is a `Dataset`, otherwise `out` unchanged (an ndarray).
+        candidate is a `Dataset`, otherwise `out` unchanged (an ndarray). A
+        template whose CRS carries no EPSG code — a geostationary grid, say —
+        reports `epsg` as `None`, so its projection is copied across from the
+        template's `crs` instead and is not lost.
     """
     out = np.asarray(out, dtype=float)
     template = next(
