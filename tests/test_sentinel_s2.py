@@ -86,6 +86,23 @@ def test_open_product_reads_zip_in_place(l2a_zip):
     assert ds.band_count == 1
 
 
+def test_open_product_emits_no_container_warning():
+    """A product XML is a container by design, so opening one must not warn.
+
+    pyramids 0.57 warns when read_file opens a 0-band container. open_product
+    does that deliberately, and wraps the call in `except Exception`, so under
+    warnings-as-errors the warning would surface as a misleading ProductError
+    saying the product cannot be opened.
+    """
+    import warnings
+
+    for path in (_L1C, _L2A):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            product = open_product(path)
+        assert product is not None, f"open_product returned nothing for {path.name}"
+
+
 def test_open_product_l1c_level():
     product = open_product(_L1C)
     assert product.level is S2Level.L1C

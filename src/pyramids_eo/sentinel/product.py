@@ -218,7 +218,12 @@ def open_product(path: str | Path) -> SentinelProduct:
     """
     container_path = _resolve_container_path(path)
     try:
-        container = Dataset.read_file(container_path)
+        # A product metadata XML is a 0-band container by design -- that is what
+        # we want to open, and what .subdatasets is then read from. pyramids 0.57
+        # warns on such an open; silence it here so the warning does not fire on
+        # every open_product, and so a consumer running warnings as errors does
+        # not see it turn into the ProductError raised below.
+        container = Dataset.read_file(container_path, warn_on_container=False)
     except Exception as exc:  # noqa: BLE001 - re-raise as the package's error
         raise ProductError(f"cannot open product {path!r}: {exc}") from exc
 
