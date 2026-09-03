@@ -303,6 +303,7 @@ def _read_harmonised(
     from pyramids.dataset import Dataset, GeoReference
 
     from pyramids_eo.sensors.readers.harmonise import harmonise
+    from pyramids_eo.sentinel.s2.masks import _nodata_of
 
     native = [(b, _native_subdataset(product, b, epsg)) for b in wanted]
     target_res = min(sd.resolution_m for _, sd in native)
@@ -322,11 +323,15 @@ def _read_harmonised(
         )
         arrays.append(np.asarray(aligned.read_array(band=0)))
 
+    # Declare the nodata explicitly: the default -9999 sentinel is out of range
+    # for the uint16 S2 dtype, so pyramids would fall back to 65535 -- a legal
+    # DN value -- and _crop_to_bbox would then propagate that sentinel onward.
     combined = Dataset.from_array(
         arr=np.stack(arrays, axis=0),
         geo_ref=GeoReference(
             geo=reference.raster.GetGeoTransform(), epsg=reference.epsg
         ),
+        no_data_value=_nodata_of(reference),
     )
     combined.band_names = list(wanted)
     offsets = [off for _, _, _, off in per_band]
