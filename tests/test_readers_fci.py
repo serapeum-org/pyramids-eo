@@ -79,6 +79,24 @@ class TestReadFci:
         assert out.crs, "read_fci dropped the geostationary CRS"
         assert "Geostationary" in out.crs, "read_fci lost the geostationary WKT"
 
+    def test_chunks_from_different_satellite_positions_raise(self):
+        """Two geostationary chunks at different sub-satellite longitudes differ.
+
+        Both report epsg None, so the guard has to compare the resolved CRS --
+        an .epsg comparison is None != None and would stitch them silently.
+        """
+        top = _geos_chunk(np.full((2, 3), 5.0), tlc=(0.0, 4.0), lon=0)
+        bottom = _geos_chunk(np.full((2, 3), 9.0), tlc=(0.0, 2.0), lon=41.5)
+        with pytest.raises(ReaderError, match="mixed CRS"):
+            read_fci([top, bottom], "ir_105", calibrate=False)
+
+    def test_chunks_sharing_a_geostationary_crs_are_accepted(self):
+        """Matching geostationary chunks still stitch."""
+        top = _geos_chunk(np.full((2, 3), 5.0), tlc=(0.0, 4.0), lon=0)
+        bottom = _geos_chunk(np.full((2, 3), 9.0), tlc=(0.0, 2.0), lon=0)
+        out = read_fci([top, bottom], "ir_105", calibrate=False)
+        assert out.shape[-2:] == (4, 3), f"expected 4 stitched rows, got {out.shape}"
+
     def test_thermal_channel_calibrated_to_bt(self):
         """A thermal channel is calibrated to brightness temperature."""
         radiance = np.full((2, 2), 80.0)
