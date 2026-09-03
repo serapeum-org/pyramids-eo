@@ -6,7 +6,7 @@ import datetime as dt
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.composites import cos_solar_zenith_angle, solar_zenith_angle
 from pyramids_eo.composites.geometry import _to_utc
@@ -136,8 +136,9 @@ class TestCosSolarZenithAngle:
 
     def test_grid_path(self):
         """The grid path returns a (rows, columns) array."""
-        grid = Dataset.create_from_array(
-            np.zeros((2, 3)), top_left_corner=(0.0, 0.0), cell_size=1.0, epsg=4326
+        grid = Dataset.from_array(
+            np.zeros((2, 3)),
+            geo_ref=GeoReference(top_left_corner=(0.0, 0.0), cell_size=1.0, epsg=4326),
         )
         assert cos_solar_zenith_angle(_EQUINOX_NOON, grid=grid).shape == (2, 3)
 
@@ -186,8 +187,9 @@ class TestSolarZenithAngleGrid:
 
     @staticmethod
     def _grid(epsg: int = 4326) -> Dataset:
-        return Dataset.create_from_array(
-            np.zeros((2, 3)), top_left_corner=(0.0, 0.0), cell_size=1.0, epsg=epsg
+        return Dataset.from_array(
+            np.zeros((2, 3)),
+            geo_ref=GeoReference(top_left_corner=(0.0, 0.0), cell_size=1.0, epsg=epsg),
         )
 
     def test_grid_returns_row_col_shape(self):

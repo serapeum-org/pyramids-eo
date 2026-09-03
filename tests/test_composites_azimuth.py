@@ -6,7 +6,7 @@ import datetime as dt
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.composites import (
     relative_azimuth,
@@ -50,8 +50,9 @@ class TestSolarZenithAzimuth:
 
     def test_grid_signature(self):
         """A `grid=` Dataset (EPSG:4326) is accepted, like solar_zenith_angle."""
-        grid = Dataset.create_from_array(
-            np.zeros((2, 2)), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+        grid = Dataset.from_array(
+            np.zeros((2, 2)),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326),
         )
         zen, az = solar_zenith_azimuth(_EQUINOX_NOON, grid=grid)
         assert zen.shape == (2, 2), f"grid zenith shape wrong: {zen.shape}"
@@ -59,16 +60,18 @@ class TestSolarZenithAzimuth:
 
     def test_grid_and_latlon_together_raise(self):
         """Passing both a grid and lat/lon is rejected."""
-        grid = Dataset.create_from_array(
-            np.zeros((1, 1)), top_left_corner=(0.0, 1.0), cell_size=1.0, epsg=4326
+        grid = Dataset.from_array(
+            np.zeros((1, 1)),
+            geo_ref=GeoReference(top_left_corner=(0.0, 1.0), cell_size=1.0, epsg=4326),
         )
         with pytest.raises(ValueError, match="either"):
             solar_zenith_azimuth(_EQUINOX_NOON, lat=0.0, lon=0.0, grid=grid)
 
     def test_non_geographic_grid_raises(self):
         """A grid that is not EPSG:4326 is rejected."""
-        grid = Dataset.create_from_array(
-            np.zeros((1, 1)), top_left_corner=(0.0, 1.0), cell_size=1.0, epsg=3857
+        grid = Dataset.from_array(
+            np.zeros((1, 1)),
+            geo_ref=GeoReference(top_left_corner=(0.0, 1.0), cell_size=1.0, epsg=3857),
         )
         with pytest.raises(ValueError, match="EPSG:4326"):
             solar_zenith_azimuth(_EQUINOX_NOON, grid=grid)
@@ -117,8 +120,9 @@ class TestSatelliteZenithAzimuth:
 
     def test_grid_signature(self):
         """A `grid=` Dataset is accepted."""
-        grid = Dataset.create_from_array(
-            np.zeros((2, 2)), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+        grid = Dataset.from_array(
+            np.zeros((2, 2)),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326),
         )
         vza, az = satellite_zenith_azimuth(grid=grid, sat_lon=0.0)
         assert vza.shape == (2, 2), f"grid zenith shape wrong: {vza.shape}"

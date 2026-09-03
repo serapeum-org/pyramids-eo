@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.composites import (
     alpha_overlay,
@@ -45,8 +45,11 @@ class TestNightIr:
         """Dataset inputs yield a georeferenced Dataset."""
 
         def ds(v):
-            return Dataset.create_from_array(
-                np.full((2, 2), v), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+            return Dataset.from_array(
+                np.full((2, 2), v),
+                geo_ref=GeoReference(
+                    top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+                ),
             )
 
         out = night_ir(ds(0.1), ds(0.2), ds(0.3))
@@ -97,8 +100,11 @@ class TestTrueColorWithNightIr:
         """Dataset inputs flow through to a georeferenced Dataset result."""
 
         def ds(arr):
-            return Dataset.create_from_array(
-                arr, top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+            return Dataset.from_array(
+                arr,
+                geo_ref=GeoReference(
+                    top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+                ),
             )
 
         day = ds(np.ones((3, 2, 2)))
@@ -164,8 +170,11 @@ class TestTrueColorWithNightIrKeepAlpha:
         """keep_alpha with Dataset inputs still returns a georeferenced Dataset."""
 
         def ds(arr):
-            return Dataset.create_from_array(
-                arr, top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+            return Dataset.from_array(
+                arr,
+                geo_ref=GeoReference(
+                    top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+                ),
             )
 
         day = ds(np.ones((3, 2, 2)))

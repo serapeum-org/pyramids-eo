@@ -301,9 +301,11 @@ def _wrap(out: np.ndarray, template: Any, dtype: Any) -> Any:
     """
     if template is None:
         return out
-    from pyramids.dataset import Dataset
+    from pyramids.dataset import Dataset, GeoReference
 
     nodata: Any = 0 if np.issubdtype(np.dtype(dtype), np.integer) else np.nan
-    return Dataset.create_from_array(
-        out, geo=template.geotransform, epsg=template.epsg, no_data_value=nodata
+    return Dataset.from_array(
+        out,
+        geo_ref=GeoReference(geo=template.geotransform, epsg=template.epsg),
+        no_data_value=nodata,
     )

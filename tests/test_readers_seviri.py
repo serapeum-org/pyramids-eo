@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.errors import CalibrationError, ReaderError, UnknownSensorError
 from pyramids_eo.sensors.readers import read_seviri
@@ -38,7 +38,9 @@ _IR108_POSITION = 8
 
 def _ds(arr: np.ndarray, tlc=(0.0, 4.0)) -> Dataset:
     """A pyramids Dataset holding raw radiance (a geographic source)."""
-    return Dataset.create_from_array(arr, top_left_corner=tlc, cell_size=1.0, epsg=4326)
+    return Dataset.from_array(
+        arr, geo_ref=GeoReference(top_left_corner=tlc, cell_size=1.0, epsg=4326)
+    )
 
 
 def _pack_10bit(counts: np.ndarray) -> bytes:

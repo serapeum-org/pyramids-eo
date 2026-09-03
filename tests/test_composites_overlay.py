@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.composites import alpha_overlay
 
@@ -117,8 +117,9 @@ class TestAlphaOverlayDataset:
 
     @staticmethod
     def _ds(arr: np.ndarray) -> Dataset:
-        return Dataset.create_from_array(
-            arr, top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+        return Dataset.from_array(
+            arr,
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326),
         )
 
     def test_dataset_inputs_return_dataset_with_geo(self):

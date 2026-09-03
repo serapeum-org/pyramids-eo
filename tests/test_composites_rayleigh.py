@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.composites import rayleigh_correct
 from pyramids_eo.composites.rayleigh import (
@@ -171,8 +171,9 @@ class TestRayleighCorrect:
 
     def test_dataset_in_dataset_out(self):
         """A Dataset band yields a georeferenced Dataset."""
-        ds = Dataset.create_from_array(
-            np.full((2, 2), 0.5), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+        ds = Dataset.from_array(
+            np.full((2, 2), 0.5),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326),
         )
         out = rayleigh_correct(ds, wavelength_um=0.444, **_GEOM)
         assert isinstance(out, Dataset), f"expected a Dataset, got {type(out)}"

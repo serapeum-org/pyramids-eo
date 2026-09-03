@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.resample import _warp_nodata, to_area
 
@@ -14,8 +14,11 @@ def _gradient(bands: int = 1, rows: int = 8, cols: int = 8) -> Dataset:
     row = np.linspace(0.0, 1.0, cols, dtype="float64")
     base = np.tile(row, (rows, 1))
     arr = base if bands == 1 else np.stack([base * (i + 1) for i in range(bands)])
-    return Dataset.create_from_array(
-        arr, top_left_corner=(0.0, float(rows)), cell_size=1.0, epsg=4326
+    return Dataset.from_array(
+        arr,
+        geo_ref=GeoReference(
+            top_left_corner=(0.0, float(rows)), cell_size=1.0, epsg=4326
+        ),
     )
 
 
@@ -63,11 +66,9 @@ class TestToAreaBandsAndTypes:
 
     def test_source_without_nodata_warps(self):
         """A source with no nodata warps without passing srcNodata/dstNodata."""
-        ds = Dataset.create_from_array(
+        ds = Dataset.from_array(
             np.ones((8, 8)),
-            top_left_corner=(0.0, 8.0),
-            cell_size=1.0,
-            epsg=4326,
+            geo_ref=GeoReference(top_left_corner=(0.0, 8.0), cell_size=1.0, epsg=4326),
             no_data_value=None,
         )
         out = to_area(ds, 4326, (0.0, 0.0, 8.0, 8.0), 8, 8)
@@ -78,11 +79,9 @@ class TestToAreaBandsAndTypes:
         """A NaN nodata cell is not interpolated across (nearest keeps NaN)."""
         arr = np.tile(np.linspace(0.0, 1.0, 8), (8, 1))
         arr[0, 0] = np.nan
-        ds = Dataset.create_from_array(
+        ds = Dataset.from_array(
             arr,
-            top_left_corner=(0.0, 8.0),
-            cell_size=1.0,
-            epsg=4326,
+            geo_ref=GeoReference(top_left_corner=(0.0, 8.0), cell_size=1.0, epsg=4326),
             no_data_value=np.nan,
         )
         out = to_area(ds, 4326, (0.0, 0.0, 8.0, 8.0), 8, 8, method="nearest")

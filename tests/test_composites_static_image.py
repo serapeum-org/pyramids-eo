@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.composites import static_image
 from pyramids_eo.composites.background import _cache_path, _download, _resolve_source
@@ -19,7 +19,9 @@ from pyramids_eo.errors import EOError
 def _make_tif(path: Path, shape=(4, 4), epsg=4326, cell=1.0, tlc=(0.0, 4.0)) -> Path:
     """Write a small georeferenced GeoTIFF fixture and return its path."""
     arr = np.arange(shape[0] * shape[1], dtype=float).reshape(shape)
-    ds = Dataset.create_from_array(arr, top_left_corner=tlc, cell_size=cell, epsg=epsg)
+    ds = Dataset.from_array(
+        arr, geo_ref=GeoReference(top_left_corner=tlc, cell_size=cell, epsg=epsg)
+    )
     ds.to_file(str(path))
     return path
 
@@ -198,8 +200,9 @@ class TestStaticImage:
     def test_like_aligns_to_target_grid(self, tmp_path):
         """With `like`, the image is warped/cropped onto the target's grid."""
         src = _make_tif(tmp_path / "bm.tif", shape=(4, 4), cell=1.0, tlc=(0.0, 4.0))
-        like = Dataset.create_from_array(
-            np.zeros((2, 2)), top_left_corner=(1.0, 3.0), cell_size=1.0, epsg=4326
+        like = Dataset.from_array(
+            np.zeros((2, 2)),
+            geo_ref=GeoReference(top_left_corner=(1.0, 3.0), cell_size=1.0, epsg=4326),
         )
         out = static_image(src, like=like)
         assert (out.rows, out.columns) == (like.rows, like.columns), "not aligned"

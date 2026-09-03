@@ -573,7 +573,7 @@ def _assemble_channel(
         else radiance
     )
 
-    from pyramids.dataset import Dataset
+    from pyramids.dataset import Dataset, GeoReference
 
     top = ordered[0]
     height = _satellite_height(top["crs"])
@@ -605,7 +605,9 @@ def _assemble_channel(
     if np.isclose(pixel_w, 0.0):
         raise ReaderError("read_fci_l1c: a degenerate zero-width x geotransform")
     geo = (origin_x, pixel_w, row_rot, origin_y, col_rot, pixel_h)
-    dataset = Dataset.create_from_array(data, geo=geo, epsg=None, no_data_value=np.nan)
+    dataset = Dataset.from_array(
+        data, geo_ref=GeoReference(geo=geo, epsg=None), no_data_value=np.nan
+    )
     dataset.crs = top["crs"]
     return dataset
 

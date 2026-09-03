@@ -190,13 +190,12 @@ class TestOpenProduct:
             A raster whose driver is not SENTINEL2 / SAFE raises
             ``UnsupportedProductError``.
         """
-        from pyramids.dataset import Dataset
+        from pyramids.dataset import Dataset, GeoReference
 
         out = tmp_path / "plain.tif"
-        Dataset.create_from_array(
+        Dataset.from_array(
             arr=np.zeros((1, 4, 4), dtype="uint8"),
-            geo=(0, 1, 0, 4, 0, -1),
-            epsg=4326,
+            geo_ref=GeoReference(geo=(0, 1, 0, 4, 0, -1), epsg=4326),
         ).to_file(str(out))
         with pytest.raises(UnsupportedProductError, match="not a Sentinel"):
             open_product(out)
@@ -448,10 +447,12 @@ class TestSclMask:
             A one-band dataset masked by a hand-built SCL array where one pixel
             is WATER sets that pixel to the no-data value.
         """
-        from pyramids.dataset import Dataset
+        from pyramids.dataset import Dataset, GeoReference
 
         arr = np.arange(16, dtype="uint16").reshape(1, 4, 4)
-        ds = Dataset.create_from_array(arr=arr, geo=(0, 1, 0, 4, 0, -1), epsg=4326)
+        ds = Dataset.from_array(
+            arr=arr, geo_ref=GeoReference(geo=(0, 1, 0, 4, 0, -1), epsg=4326)
+        )
         ds.no_data_value = [0]
         scl = np.zeros((4, 4), dtype="uint8")
         scl[0, 0] = int(SclClass.WATER)
@@ -460,29 +461,26 @@ class TestSclMask:
 
     def test_scl_from_single_band_dataset(self):
         """An explicit single-band SCL ``Dataset`` is read via band 0."""
-        from pyramids.dataset import Dataset
+        from pyramids.dataset import Dataset, GeoReference
 
-        data = Dataset.create_from_array(
+        data = Dataset.from_array(
             arr=np.ones((1, 4, 4), dtype="uint16"),
-            geo=(0, 1, 0, 4, 0, -1),
-            epsg=4326,
+            geo_ref=GeoReference(geo=(0, 1, 0, 4, 0, -1), epsg=4326),
         )
-        scl_ds = Dataset.create_from_array(
+        scl_ds = Dataset.from_array(
             arr=np.full((1, 4, 4), int(SclClass.CLOUD_HIGH_PROBA), dtype="uint16"),
-            geo=(0, 1, 0, 4, 0, -1),
-            epsg=4326,
+            geo_ref=GeoReference(geo=(0, 1, 0, 4, 0, -1), epsg=4326),
         )
         masked = scl_mask(data, [SclClass.CLOUD_HIGH_PROBA], scl=scl_ds)
         assert masked.band_count == 1
 
     def test_shape_mismatch_raises(self):
         """An SCL grid that does not match the data grid raises ``ProductError``."""
-        from pyramids.dataset import Dataset
+        from pyramids.dataset import Dataset, GeoReference
 
-        ds = Dataset.create_from_array(
+        ds = Dataset.from_array(
             arr=np.ones((1, 4, 4), dtype="uint16"),
-            geo=(0, 1, 0, 4, 0, -1),
-            epsg=4326,
+            geo_ref=GeoReference(geo=(0, 1, 0, 4, 0, -1), epsg=4326),
         )
         wrong_grid = np.zeros((3, 3), dtype="uint8")
         with pytest.raises(ProductError, match="does not match"):
@@ -490,24 +488,22 @@ class TestSclMask:
 
     def test_no_scl_available_raises(self):
         """Masking a dataset with no SCL band and no ``scl=`` raises."""
-        from pyramids.dataset import Dataset
+        from pyramids.dataset import Dataset, GeoReference
 
-        ds = Dataset.create_from_array(
+        ds = Dataset.from_array(
             arr=np.ones((1, 4, 4), dtype="uint16"),
-            geo=(0, 1, 0, 4, 0, -1),
-            epsg=4326,
+            geo_ref=GeoReference(geo=(0, 1, 0, 4, 0, -1), epsg=4326),
         )
         with pytest.raises(ProductError, match="no SCL band"):
             scl_mask(ds, [SclClass.WATER])
 
     def test_masked_pixel_takes_resolved_nodata(self):
         """A masked pixel is set to the dataset's resolved no-data value."""
-        from pyramids.dataset import Dataset
+        from pyramids.dataset import Dataset, GeoReference
 
-        ds = Dataset.create_from_array(
+        ds = Dataset.from_array(
             arr=np.ones((1, 4, 4), dtype="uint16"),
-            geo=(0, 1, 0, 4, 0, -1),
-            epsg=4326,
+            geo_ref=GeoReference(geo=(0, 1, 0, 4, 0, -1), epsg=4326),
         )
         scl = np.zeros((4, 4), dtype="uint8")
         scl[1, 1] = int(SclClass.WATER)
@@ -708,13 +704,14 @@ class TestReaderHelpers:
 
     def test_set_nodata_reads_special_value(self):
         """`_set_nodata` applies the product's ``SPECIAL_VALUE_NODATA``."""
-        from pyramids.dataset import Dataset
+        from pyramids.dataset import Dataset, GeoReference
 
         from pyramids_eo.sentinel.s2 import reader as _reader
 
         product = open_product(_L2A)  # fixture carries SPECIAL_VALUE_NODATA=1
-        ds = Dataset.create_from_array(
-            arr=np.ones((1, 4, 4), dtype="uint16"), geo=(0, 1, 0, 4, 0, -1), epsg=4326
+        ds = Dataset.from_array(
+            arr=np.ones((1, 4, 4), dtype="uint16"),
+            geo_ref=GeoReference(geo=(0, 1, 0, 4, 0, -1), epsg=4326),
         )
         _reader._set_nodata(ds, product)
         assert ds.no_data_value[0] == float(product.metadata["SPECIAL_VALUE_NODATA"])
@@ -765,14 +762,15 @@ class TestCoverageGaps:
 
     def test_set_nodata_malformed_special_value_defaults_zero(self):
         """A non-numeric ``SPECIAL_VALUE_NODATA`` falls back to 0.0."""
-        from pyramids.dataset import Dataset
+        from pyramids.dataset import Dataset, GeoReference
 
         from pyramids_eo.sentinel.s2 import reader as _reader
 
         product = open_product(_L2A)
         product.metadata["SPECIAL_VALUE_NODATA"] = "not-a-number"
-        ds = Dataset.create_from_array(
-            arr=np.ones((1, 4, 4), dtype="uint16"), geo=(0, 1, 0, 4, 0, -1), epsg=4326
+        ds = Dataset.from_array(
+            arr=np.ones((1, 4, 4), dtype="uint16"),
+            geo_ref=GeoReference(geo=(0, 1, 0, 4, 0, -1), epsg=4326),
         )
         _reader._set_nodata(ds, product)
         assert ds.no_data_value[0] == 0.0

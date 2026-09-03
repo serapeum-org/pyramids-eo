@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.errors import CalibrationError, ReaderError, UnknownSensorError
 from pyramids_eo.sensors.readers import read_fci
@@ -20,7 +20,9 @@ from pyramids_eo.sensors.registry import sensors as _sensors
 
 def _chunk(arr: np.ndarray, tlc=(0.0, 4.0)) -> Dataset:
     """A pyramids Dataset chunk holding raw radiance."""
-    return Dataset.create_from_array(arr, top_left_corner=tlc, cell_size=1.0, epsg=4326)
+    return Dataset.from_array(
+        arr, geo_ref=GeoReference(top_left_corner=tlc, cell_size=1.0, epsg=4326)
+    )
 
 
 def _channel_opener(per_channel: dict[str, np.ndarray]):
@@ -164,8 +166,9 @@ class TestReadFci:
     def test_mixed_crs_chunks_raise(self):
         """Chunks with different CRS are rejected."""
         a = _chunk(np.ones((2, 2)), tlc=(0.0, 4.0))
-        b = Dataset.create_from_array(
-            np.ones((2, 2)), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=3857
+        b = Dataset.from_array(
+            np.ones((2, 2)),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=3857),
         )
         with pytest.raises(ReaderError, match="mixed CRS"):
             read_fci([a, b], "ir_105")
@@ -173,8 +176,9 @@ class TestReadFci:
     def test_mixed_cell_size_chunks_raise(self):
         """Chunks with different cell sizes are rejected."""
         a = _chunk(np.ones((2, 2)), tlc=(0.0, 4.0))
-        b = Dataset.create_from_array(
-            np.ones((2, 2)), top_left_corner=(0.0, 2.0), cell_size=2.0, epsg=4326
+        b = Dataset.from_array(
+            np.ones((2, 2)),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=2.0, epsg=4326),
         )
         with pytest.raises(ReaderError, match="cell size"):
             read_fci([a, b], "ir_105")

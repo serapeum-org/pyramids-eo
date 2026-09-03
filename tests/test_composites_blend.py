@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.composites import day_night_blend, day_weight
 from pyramids_eo.composites.blend import _as_array
@@ -209,8 +209,9 @@ class TestDayNightBlendDataset:
 
     @staticmethod
     def _ds(fill: float) -> Dataset:
-        return Dataset.create_from_array(
-            np.full((2, 2), fill), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+        return Dataset.from_array(
+            np.full((2, 2), fill),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326),
         )
 
     def test_dataset_inputs_return_dataset_with_geo(self):
@@ -326,7 +327,8 @@ class TestAsArray:
 
     def test_dataset_read_via_read_array(self):
         """A Dataset is read through read_array()."""
-        ds = Dataset.create_from_array(
-            np.full((2, 2), 7.0), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+        ds = Dataset.from_array(
+            np.full((2, 2), 7.0),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326),
         )
         assert np.allclose(_as_array(ds), 7.0), "Dataset values should be read"

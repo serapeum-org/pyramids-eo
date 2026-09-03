@@ -133,7 +133,7 @@ def scl_mask(
         ProductError: No SCL source is available, or its shape does not match
             ``dataset``.
     """
-    from pyramids.dataset import Dataset
+    from pyramids.dataset import Dataset, GeoReference
 
     codes = _resolve_classes(classes)
     scl_array = _scl_array(dataset, scl)
@@ -157,10 +157,9 @@ def scl_mask(
 
     # Pass no_data_value at creation so pyramids does not apply (and warn about)
     # its default -9999 sentinel, which is out of range for the uint16 dtype.
-    out = Dataset.create_from_array(
+    out = Dataset.from_array(
         arr=masked.astype(data.dtype, copy=False),
-        geo=dataset.raster.GetGeoTransform(),
-        epsg=dataset.epsg,
+        geo_ref=GeoReference(geo=dataset.raster.GetGeoTransform(), epsg=dataset.epsg),
         no_data_value=nodata,
     )
     _carry_band_state(dataset, out)

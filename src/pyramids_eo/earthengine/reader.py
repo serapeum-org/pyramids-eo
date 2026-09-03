@@ -34,7 +34,7 @@ from typing import NamedTuple
 
 import numpy as np
 from osgeo import gdal, osr
-from pyramids.dataset import Dataset, DatasetCollection
+from pyramids.dataset import Dataset, DatasetCollection, GeoReference
 from pyramids.dataset.merge import merge_rasters
 
 from pyramids_eo.earthengine.credentials import CredentialsLike, EarthEngineCredentials
@@ -315,8 +315,8 @@ def _materialize(ee: Dataset, bbox: BBox, crs: str) -> Dataset:
     # raster — no manual MEM driver or per-band juggling. The source projection is
     # passed through as WKT so a non-EPSG Earth Engine grid round-trips exactly, and
     # ``no_data_value=None`` leaves the bands without a nodata sentinel.
-    return Dataset.create_from_array(
-        data, geo=subwindow_geo, epsg=ee.crs, no_data_value=nodata
+    return Dataset.from_array(
+        data, geo_ref=GeoReference(geo=subwindow_geo, epsg=ee.crs), no_data_value=nodata
     )
 
 
@@ -547,10 +547,9 @@ def _read_mixed_resolution(
             )
     assert reference is not None  # bands is non-empty, so the loop ran at least once
     stacked = np.stack(layers, axis=0)
-    return Dataset.create_from_array(
+    return Dataset.from_array(
         stacked,
-        geo=reference.geotransform,
-        epsg=reference.crs,
+        geo_ref=GeoReference(geo=reference.geotransform, epsg=reference.crs),
         no_data_value=reference.no_data_value[0],
     )
 
@@ -1107,10 +1106,9 @@ def _composite(
     # Scenes of one ImageCollection share a per-band nodata, so collapse the list to
     # a single sentinel (or ``None`` for no nodata) and let pyramids build the raster.
     band_nodata = nodatas[0] if len(set(nodatas)) == 1 else nodatas
-    composite = Dataset.create_from_array(
+    composite = Dataset.from_array(
         reduced,
-        geo=template.geotransform,
-        epsg=template.epsg,
+        geo_ref=GeoReference(geo=template.geotransform, epsg=template.epsg),
         no_data_value=band_nodata,
     )
     return _apply_geometry(composite, geometry)
@@ -1638,7 +1636,9 @@ def _nodata_tile(
     fill = nodata if nodata is not None else 0
     array = np.full((source.band_count, rows, cols), fill, dtype=source.numpy_dtype[0])
     geo = (min_x, (max_x - min_x) / cols, 0.0, max_y, 0.0, -(max_y - min_y) / rows)
-    return Dataset.create_from_array(array, geo=geo, epsg=crs, no_data_value=nodata)
+    return Dataset.from_array(
+        array, geo_ref=GeoReference(geo=geo, epsg=crs), no_data_value=nodata
+    )
 
 
 def _tile_grid(
@@ -1791,8 +1791,10 @@ def _read_tile_with_halo(
         gt[4],
         gt[5],
     )
-    return Dataset.create_from_array(
-        core, geo=core_geo, epsg=grown.crs, no_data_value=grown.no_data_value[0]
+    return Dataset.from_array(
+        core,
+        geo_ref=GeoReference(geo=core_geo, epsg=grown.crs),
+        no_data_value=grown.no_data_value[0],
     )
 
 

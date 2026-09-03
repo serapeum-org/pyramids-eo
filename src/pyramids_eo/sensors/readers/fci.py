@@ -198,7 +198,7 @@ def read_fci(
         )
     opener = open_chunk or _default_open_chunk
 
-    from pyramids.dataset import Dataset
+    from pyramids.dataset import Dataset, GeoReference
 
     results = {}
     for name in requested:
@@ -224,8 +224,10 @@ def read_fci(
         north = ordered[0]
         # Calibration can produce NaN (terminator reflectance / non-positive
         # radiance), so declare NaN as nodata rather than the default -9999.
-        results[name] = Dataset.create_from_array(
-            data, geo=north.geotransform, epsg=north.epsg, no_data_value=np.nan
+        results[name] = Dataset.from_array(
+            data,
+            geo_ref=GeoReference(geo=north.geotransform, epsg=north.epsg),
+            no_data_value=np.nan,
         )
     return results[requested[0]] if single else results
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.composites import true_color
 from pyramids_eo.composites.true_color import _ndvi_hybrid_green, _rayleigh_wants_role
@@ -81,8 +81,11 @@ class TestTrueColor:
         """Dataset inputs yield a georeferenced Dataset."""
 
         def ds(v):
-            return Dataset.create_from_array(
-                np.full((2, 2), v), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+            return Dataset.from_array(
+                np.full((2, 2), v),
+                geo_ref=GeoReference(
+                    top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+                ),
             )
 
         out = true_color(ds(0.3), ds(0.7), ds(0.5))
