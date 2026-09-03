@@ -18,7 +18,7 @@ _GEOS_WKT = (
 )
 
 
-@pytest.fixture()
+@pytest.fixture
 def geostationary():
     """A 2x2 dataset whose CRS has no EPSG code."""
     ds = Dataset.from_array(
