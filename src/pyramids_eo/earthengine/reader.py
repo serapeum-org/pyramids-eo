@@ -34,6 +34,7 @@ from typing import NamedTuple
 
 import numpy as np
 from osgeo import gdal, osr
+from pyramids.base.crs import crs_spec
 from pyramids.dataset import Dataset, DatasetCollection, GeoReference
 from pyramids.dataset.merge import merge_rasters
 
@@ -1108,7 +1109,9 @@ def _composite(
     band_nodata = nodatas[0] if len(set(nodatas)) == 1 else nodatas
     composite = Dataset.from_array(
         reduced,
-        geo_ref=GeoReference(geo=template.geotransform, epsg=template.epsg),
+        geo_ref=GeoReference(
+            geo=template.geotransform, epsg=crs_spec(template.epsg, template.crs)
+        ),
         no_data_value=band_nodata,
     )
     return _apply_geometry(composite, geometry)

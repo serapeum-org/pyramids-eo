@@ -305,16 +305,17 @@ def _wrap(out: np.ndarray, template: Any, dtype: Any) -> Any:
     """
     if template is None:
         return out
+    from pyramids.base.crs import crs_spec
     from pyramids.dataset import Dataset, GeoReference
 
     nodata: Any = 0 if np.issubdtype(np.dtype(dtype), np.integer) else np.nan
-    result = Dataset.from_array(
+    # crs_spec falls back to the WKT for a CRS with no EPSG code, so a
+    # geostationary template keeps its projection.
+    return Dataset.from_array(
         out,
-        geo_ref=GeoReference(geo=template.geotransform, epsg=template.epsg),
+        geo_ref=GeoReference(
+            geo=template.geotransform,
+            epsg=crs_spec(template.epsg, getattr(template, "crs", None)),
+        ),
         no_data_value=nodata,
     )
-    if template.epsg is None:
-        # A geostationary (or otherwise non-EPSG) grid reports epsg None; its
-        # projection lives on .crs and has to be carried across explicitly.
-        result.crs = template.crs
-    return result

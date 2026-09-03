@@ -49,21 +49,23 @@ def _wrap_like(out: np.ndarray, *candidates: Any) -> Any:
     if template is None:
         return out
 
+    from pyramids.base.crs import crs_spec
     from pyramids.dataset import Dataset, GeoReference
 
     # Composited data can legitimately hold NaN (masked terminator / gaps), so
     # declare NaN as the nodata value rather than the default -9999 sentinel.
-    result = Dataset.from_array(
+    # crs_spec falls back to the WKT for a CRS the EPSG register does not name
+    # -- a geostationary grid -- so the projection survives construction instead
+    # of being patched on afterwards. getattr, because the template predicate above
+    # requires only read_array + geotransform, not crs.
+    return Dataset.from_array(
         out,
-        geo_ref=GeoReference(geo=template.geotransform, epsg=template.epsg),
+        geo_ref=GeoReference(
+            geo=template.geotransform,
+            epsg=crs_spec(template.epsg, getattr(template, "crs", None)),
+        ),
         no_data_value=np.nan,
     )
-    if template.epsg is None:
-        # A geostationary (or otherwise non-EPSG) grid reports epsg None; its
-        # projection lives on .crs and has to be carried across explicitly, the
-        # same way read_seviri / read_fci_l1c do.
-        result.crs = template.crs
-    return result
 
 
 def _coverage(value: Any) -> np.ndarray:

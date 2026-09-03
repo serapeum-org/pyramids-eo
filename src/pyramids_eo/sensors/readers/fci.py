@@ -198,6 +198,7 @@ def read_fci(
         )
     opener = open_chunk or _default_open_chunk
 
+    from pyramids.base.crs import crs_spec
     from pyramids.dataset import Dataset, GeoReference
 
     results = {}
@@ -226,7 +227,9 @@ def read_fci(
         # radiance), so declare NaN as nodata rather than the default -9999.
         results[name] = Dataset.from_array(
             data,
-            geo_ref=GeoReference(geo=north.geotransform, epsg=north.epsg),
+            geo_ref=GeoReference(
+                geo=north.geotransform, epsg=crs_spec(north.epsg, north.crs)
+            ),
             no_data_value=np.nan,
         )
     return results[requested[0]] if single else results
