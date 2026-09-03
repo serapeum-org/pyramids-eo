@@ -87,15 +87,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: strip-notebook-execution-meta
-        name: "[nb   - format] strip execution timestamps"
-        entry: python ci/strip_notebook_execution_meta.py
-        language: system
-        files: \.ipynb$
-        pass_filenames: false
-
-  - repo: local
-    hooks:
       - id: mypy
         name: "[py   -  type] mypy"
         entry: pixi run -e dev mypy
