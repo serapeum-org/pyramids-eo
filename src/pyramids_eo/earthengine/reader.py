@@ -1886,6 +1886,16 @@ def _tiled_windowed_read(
     return Dataset.read_file(str(path))
 
 
+#: Extensions GDAL can only write by copy, which `merge_rasters` (the tiled write
+#: path) refuses outright. `Dataset.to_file` (the un-tiled path) accepts them and
+#: narrows a float asset to Byte with only a warning, so accepting them would make
+#: the destination's legality depend on `tile_size`. Both paths take the stricter
+#: answer.
+_WRITE_BY_COPY_EXTENSIONS = frozenset(
+    {".png", ".jpg", ".jpeg", ".jp2", ".j2k", ".asc", ".vrt"}
+)
+
+
 def _validate_read_request(
     *,
     scale: float | None,
@@ -1937,6 +1947,14 @@ def _validate_read_request(
         raise ValueError(
             "'path' needs a 'bbox' or 'geometry'; the whole-asset read is lazy."
         )
+    if path is not None:
+        suffix = Path(path).suffix.lower()
+        if suffix in _WRITE_BY_COPY_EXTENSIONS:
+            raise ValueError(
+                f"'path' extension {suffix!r} names a format that cannot be written "
+                "by the tiled mosaic path, so the same call would succeed or fail "
+                "depending on 'tile_size'. Write a GeoTIFF ('.tif') and convert."
+            )
     if tile_size is None:
         return
     if tile_size <= 0:
