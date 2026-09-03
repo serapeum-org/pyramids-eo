@@ -1,4 +1,4 @@
-"""Strip per-cell ``metadata.execution`` timestamps from notebooks.
+"""Strip per-cell ``metadata.execution`` timestamps from the docs notebooks.
 
 `nbclient` stamps every executed cell with `iopub.execute_input`,
 `iopub.status.busy`, `iopub.status.idle` and `shell.execute_reply` wall-clock
@@ -8,6 +8,10 @@ when nothing about the content moved, burying the real diff.
 Baked **outputs** are deliberately kept: `mkdocs-jupyter` renders the notebooks
 with `execute: false`, so the saved outputs are what the docs site shows. This
 strips only the timing metadata, which nothing renders.
+
+The notebooks are discovered by globbing `NOTEBOOK_ROOT` rather than taken from
+the command line, so the paths written are ones this script constructed from a
+literal root. The pre-commit hook therefore runs with `pass_filenames: false`.
 """
 
 from __future__ import annotations
@@ -16,34 +20,19 @@ import json
 import sys
 from pathlib import Path
 
-
-def _resolve(name: str, root: Path) -> Path:
-    """Resolve `name` to a notebook inside `root`, or reject it.
-
-    pre-commit passes the staged file list, but the paths still arrive as plain
-    argv strings. Confining them to `root` and to a `.ipynb` suffix keeps the
-    rewrite below from ever touching a file outside the working tree.
-
-    Args:
-        name: A path as given on the command line.
-        root: The directory the path must live under.
-
-    Returns:
-        The resolved path.
-
-    Raises:
-        ValueError: The path escapes `root` or is not a notebook.
-    """
-    path = Path(name).resolve()
-    if path.suffix != ".ipynb":
-        raise ValueError(f"not a notebook: {name}")
-    if not path.is_relative_to(root):
-        raise ValueError(f"path escapes {root}: {name}")
-    return path
+#: Where the example notebooks live, relative to the repository root.
+NOTEBOOK_ROOT = Path("docs/examples")
 
 
 def strip(path: Path) -> bool:
-    """Remove `metadata.execution` from every cell; return True if changed."""
+    """Remove `metadata.execution` from every cell; return True if changed.
+
+    Args:
+        path: The notebook to rewrite.
+
+    Returns:
+        True when the notebook carried timing metadata and was rewritten.
+    """
     notebook = json.loads(path.read_bytes().decode("utf-8"))
     changed = False
     for cell in notebook.get("cells", []):
@@ -56,14 +45,13 @@ def strip(path: Path) -> bool:
     return True
 
 
-def main(names: list[str]) -> int:
-    """Strip each notebook named on the command line."""
-    root = Path.cwd().resolve()
-    rewritten = [name for name in names if strip(_resolve(name, root))]
-    for name in rewritten:
-        print(f"stripped execution metadata: {name}")
+def main() -> int:
+    """Strip every notebook under `NOTEBOOK_ROOT`; non-zero if any changed."""
+    rewritten = [path for path in sorted(NOTEBOOK_ROOT.rglob("*.ipynb")) if strip(path)]
+    for path in rewritten:
+        print(f"stripped execution metadata: {path.as_posix()}")
     return 1 if rewritten else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())
