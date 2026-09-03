@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.errors import ReaderError
 from pyramids_eo.sensors.readers import harmonise
@@ -12,8 +12,9 @@ from pyramids_eo.sensors.readers import harmonise
 
 def _grid(shape, cell=1.0, tlc=(0.0, 4.0)) -> Dataset:
     """A pyramids Dataset on a chosen grid."""
-    return Dataset.create_from_array(
-        np.ones(shape, dtype=float), top_left_corner=tlc, cell_size=cell, epsg=4326
+    return Dataset.from_array(
+        np.ones(shape, dtype=float),
+        geo_ref=GeoReference(top_left_corner=tlc, cell_size=cell, epsg=4326),
     )
 
 

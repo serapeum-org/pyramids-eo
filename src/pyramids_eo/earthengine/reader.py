@@ -34,7 +34,8 @@ from typing import NamedTuple
 
 import numpy as np
 from osgeo import gdal, osr
-from pyramids.dataset import Dataset, DatasetCollection
+from pyramids.base.crs import crs_spec
+from pyramids.dataset import Dataset, DatasetCollection, GeoReference
 from pyramids.dataset.merge import merge_rasters
 
 from pyramids_eo.earthengine.credentials import CredentialsLike, EarthEngineCredentials
@@ -315,8 +316,8 @@ def _materialize(ee: Dataset, bbox: BBox, crs: str) -> Dataset:
     # raster — no manual MEM driver or per-band juggling. The source projection is
     # passed through as WKT so a non-EPSG Earth Engine grid round-trips exactly, and
     # ``no_data_value=None`` leaves the bands without a nodata sentinel.
-    return Dataset.create_from_array(
-        data, geo=subwindow_geo, epsg=ee.crs, no_data_value=nodata
+    return Dataset.from_array(
+        data, geo_ref=GeoReference(geo=subwindow_geo, epsg=ee.crs), no_data_value=nodata
     )
 
 
@@ -547,10 +548,9 @@ def _read_mixed_resolution(
             )
     assert reference is not None  # bands is non-empty, so the loop ran at least once
     stacked = np.stack(layers, axis=0)
-    return Dataset.create_from_array(
+    return Dataset.from_array(
         stacked,
-        geo=reference.geotransform,
-        epsg=reference.crs,
+        geo_ref=GeoReference(geo=reference.geotransform, epsg=reference.crs),
         no_data_value=reference.no_data_value[0],
     )
 
@@ -1107,10 +1107,11 @@ def _composite(
     # Scenes of one ImageCollection share a per-band nodata, so collapse the list to
     # a single sentinel (or ``None`` for no nodata) and let pyramids build the raster.
     band_nodata = nodatas[0] if len(set(nodatas)) == 1 else nodatas
-    composite = Dataset.create_from_array(
+    composite = Dataset.from_array(
         reduced,
-        geo=template.geotransform,
-        epsg=template.epsg,
+        geo_ref=GeoReference(
+            geo=template.geotransform, epsg=crs_spec(template.epsg, template.crs)
+        ),
         no_data_value=band_nodata,
     )
     return _apply_geometry(composite, geometry)
@@ -1638,7 +1639,9 @@ def _nodata_tile(
     fill = nodata if nodata is not None else 0
     array = np.full((source.band_count, rows, cols), fill, dtype=source.numpy_dtype[0])
     geo = (min_x, (max_x - min_x) / cols, 0.0, max_y, 0.0, -(max_y - min_y) / rows)
-    return Dataset.create_from_array(array, geo=geo, epsg=crs, no_data_value=nodata)
+    return Dataset.from_array(
+        array, geo_ref=GeoReference(geo=geo, epsg=crs), no_data_value=nodata
+    )
 
 
 def _tile_grid(
@@ -1791,8 +1794,10 @@ def _read_tile_with_halo(
         gt[4],
         gt[5],
     )
-    return Dataset.create_from_array(
-        core, geo=core_geo, epsg=grown.crs, no_data_value=grown.no_data_value[0]
+    return Dataset.from_array(
+        core,
+        geo_ref=GeoReference(geo=core_geo, epsg=grown.crs),
+        no_data_value=grown.no_data_value[0],
     )
 
 
@@ -1881,6 +1886,16 @@ def _tiled_windowed_read(
     return Dataset.read_file(str(path))
 
 
+#: Extensions GDAL can only write by copy, which `merge_rasters` (the tiled write
+#: path) refuses outright. `Dataset.to_file` (the un-tiled path) accepts them and
+#: narrows a float asset to Byte with only a warning, so accepting them would make
+#: the destination's legality depend on `tile_size`. Both paths take the stricter
+#: answer.
+_WRITE_BY_COPY_EXTENSIONS = frozenset(
+    {".png", ".jpg", ".jpeg", ".jp2", ".j2k", ".asc", ".vrt"}
+)
+
+
 def _validate_read_request(
     *,
     scale: float | None,
@@ -1912,8 +1927,9 @@ def _validate_read_request(
             ``ImageCollection`` (composite) mode that discovers scenes.
 
     Raises:
-        ValueError: An incompatible or incomplete option combination (or an unknown
-            ``resample`` name).
+        ValueError: An incompatible or incomplete option combination, an unknown
+            ``resample`` name, or a ``path`` whose extension names a format the
+            tiled write path cannot produce.
     """
     if scale is not None and shape is not None:
         raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
@@ -1932,6 +1948,14 @@ def _validate_read_request(
         raise ValueError(
             "'path' needs a 'bbox' or 'geometry'; the whole-asset read is lazy."
         )
+    if path is not None:
+        suffix = Path(path).suffix.lower()
+        if suffix in _WRITE_BY_COPY_EXTENSIONS:
+            raise ValueError(
+                f"'path' extension {suffix!r} names a format that cannot be written "
+                "by the tiled mosaic path, so the same call would succeed or fail "
+                "depending on 'tile_size'. Write a GeoTIFF ('.tif') and convert."
+            )
     if tile_size is None:
         return
     if tile_size <= 0:
@@ -2043,7 +2067,11 @@ def from_earthengine(
             file-backed ``Dataset`` reading it is returned instead of an in-memory
             one; required when ``tile_size`` is set, and honoured for the single-image
             and composite paths alike. Needs a ``bbox`` or ``geometry`` (the
-            whole-asset read is lazy).
+            whole-asset read is lazy). Its extension names the format, and must be
+            one GDAL can create directly — a write-by-copy-only format (``.png``,
+            ``.jpg``, ``.jp2``, ``.asc``, ``.vrt``) is refused, because the tiled
+            mosaic path cannot produce it and the destination's legality would
+            otherwise depend on ``tile_size``.
         block_size: EEDAI transfer block size (pixels per side); ``None`` uses the
             conservative default (256). A larger block reads a window in fewer round
             trips; pixels are unchanged (verified byte-identical across sizes).

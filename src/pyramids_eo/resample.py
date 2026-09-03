@@ -67,10 +67,11 @@ def to_area(
         - Warp a small WGS84 raster onto an exact 4x4 grid:
             ```python
             >>> import numpy as np
-            >>> from pyramids.dataset import Dataset
+            >>> from pyramids.dataset import Dataset, GeoReference
             >>> from pyramids_eo.resample import to_area
-            >>> src = Dataset.create_from_array(
-            ...     np.ones((2, 2)), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+            >>> src = Dataset.from_array(
+            ...     np.ones((2, 2)),
+            ...     geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326),
             ... )
             >>> out = to_area(src, 4326, (0.0, 0.0, 2.0, 2.0), 4, 4)
             >>> out.read_array().shape

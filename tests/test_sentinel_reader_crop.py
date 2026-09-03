@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pyramids  # noqa: F401  (activates the bundled osgeo)
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.errors import ProductError
 from pyramids_eo.sentinel.s2 import reader as _reader
@@ -42,7 +42,9 @@ def _band(nodata_last_col: bool) -> np.ndarray:
 
 def _dataset(arr: np.ndarray) -> Dataset:
     """Build a MEM dataset from a (bands, rows, cols) array with no-data 0."""
-    return Dataset.create_from_array(arr=arr, geo=_GEO, epsg=4326, no_data_value=0)
+    return Dataset.from_array(
+        arr=arr, geo_ref=GeoReference(geo=_GEO, epsg=4326), no_data_value=0
+    )
 
 
 class TestCropToBbox:
@@ -140,8 +142,8 @@ class TestCropToBbox:
             collapsing to a scalar would overwrite band 1 with band 0's 0.
         """
         arr = np.stack([_band(nodata_last_col=False), _band(nodata_last_col=False)])
-        ds = Dataset.create_from_array(
-            arr=arr, geo=_GEO, epsg=4326, no_data_value=[0, 255]
+        ds = Dataset.from_array(
+            arr=arr, geo_ref=GeoReference(geo=_GEO, epsg=4326), no_data_value=[0, 255]
         )
         out = _reader._crop_to_bbox(ds, (0.0, 0.0, 10.0, 10.0))
         assert [float(v) for v in out.no_data_value] == [0.0, 255.0], (

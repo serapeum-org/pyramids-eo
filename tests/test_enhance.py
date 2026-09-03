@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.enhance import _CIRA_DENOM, _CIRA_LOG_ROOT, stretch
 
@@ -171,8 +171,9 @@ class TestReturnType:
 
     def test_dataset_in_dataset_out(self):
         """A Dataset input yields a georeferenced Dataset with the dtype."""
-        ds = Dataset.create_from_array(
-            np.full((2, 2), 0.5), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+        ds = Dataset.from_array(
+            np.full((2, 2), 0.5),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326),
         )
         out = stretch(ds, kind="crude", min_stretch=0.0, max_stretch=1.0)
         assert isinstance(out, Dataset), f"expected Dataset, got {type(out)}"
@@ -224,8 +225,9 @@ class TestPreserveAlpha:
         rgba = np.stack(
             [np.full((2, 2), 0.5)] * 3 + [np.array([[0.0, 1.0], [1.0, 0.0]])]
         )
-        ds = Dataset.create_from_array(
-            rgba, top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+        ds = Dataset.from_array(
+            rgba,
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326),
         )
         out = stretch(ds, kind="cira", preserve_alpha=True)
         assert isinstance(out, Dataset), f"expected a Dataset, got {type(out)}"

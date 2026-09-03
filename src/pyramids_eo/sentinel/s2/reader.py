@@ -300,9 +300,10 @@ def _read_harmonised(
     follows ``wanted``).
     """
     import numpy as np
-    from pyramids.dataset import Dataset
+    from pyramids.dataset import Dataset, GeoReference
 
     from pyramids_eo.sensors.readers.harmonise import harmonise
+    from pyramids_eo.sentinel.s2.masks import _nodata_of
 
     native = [(b, _native_subdataset(product, b, epsg)) for b in wanted]
     target_res = min(sd.resolution_m for _, sd in native)
@@ -322,10 +323,15 @@ def _read_harmonised(
         )
         arrays.append(np.asarray(aligned.read_array(band=0)))
 
-    combined = Dataset.create_from_array(
+    # Declare the nodata explicitly: the default -9999 sentinel is out of range
+    # for the uint16 S2 dtype, so pyramids would fall back to 65535 -- a legal
+    # DN value -- and _crop_to_bbox would then propagate that sentinel onward.
+    combined = Dataset.from_array(
         arr=np.stack(arrays, axis=0),
-        geo=reference.raster.GetGeoTransform(),
-        epsg=reference.epsg,
+        geo_ref=GeoReference(
+            geo=reference.raster.GetGeoTransform(), epsg=reference.epsg
+        ),
+        no_data_value=_nodata_of(reference),
     )
     combined.band_names = list(wanted)
     offsets = [off for _, _, _, off in per_band]
@@ -402,7 +408,7 @@ def _crop_to_bbox(dataset: Any, bbox: BBox) -> Any:
     import math
 
     import numpy as np
-    from pyramids.dataset import Dataset
+    from pyramids.dataset import Dataset, GeoReference
 
     minx, miny, maxx, maxy = bbox
     gt = dataset.raster.GetGeoTransform()
@@ -432,10 +438,11 @@ def _crop_to_bbox(dataset: Any, bbox: BBox) -> Any:
     array = np.asarray(dataset.read_array(window=[xoff, yoff, xsize, ysize]))
     if array.ndim == 2:
         array = array[np.newaxis, ...]
-    out = Dataset.create_from_array(
+    out = Dataset.from_array(
         arr=array,
-        geo=(x0 + xoff * dx, dx, 0.0, y0 + yoff * dy, 0.0, dy),
-        epsg=dataset.epsg,
+        geo_ref=GeoReference(
+            geo=(x0 + xoff * dx, dx, 0.0, y0 + yoff * dy, 0.0, dy), epsg=dataset.epsg
+        ),
         no_data_value=[0.0 if v is None else v for v in dataset.no_data_value],
     )
     out.band_names = list(dataset.band_names)

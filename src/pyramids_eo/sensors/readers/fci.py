@@ -198,7 +198,8 @@ def read_fci(
         )
     opener = open_chunk or _default_open_chunk
 
-    from pyramids.dataset import Dataset
+    from pyramids.base.crs import crs_spec
+    from pyramids.dataset import Dataset, GeoReference
 
     results = {}
     for name in requested:
@@ -224,8 +225,12 @@ def read_fci(
         north = ordered[0]
         # Calibration can produce NaN (terminator reflectance / non-positive
         # radiance), so declare NaN as nodata rather than the default -9999.
-        results[name] = Dataset.create_from_array(
-            data, geo=north.geotransform, epsg=north.epsg, no_data_value=np.nan
+        results[name] = Dataset.from_array(
+            data,
+            geo_ref=GeoReference(
+                geo=north.geotransform, epsg=crs_spec(north.epsg, north.crs)
+            ),
+            no_data_value=np.nan,
         )
     return results[requested[0]] if single else results
 
@@ -240,9 +245,16 @@ def _validate_chunk_grid(datasets: list) -> None:
         ReaderError: When the chunks have a mixed CRS, cell size or column count,
             or are not vertically contiguous once ordered north -> south.
     """
+    from pyramids.base.crs import crs_spec
+
     first = datasets[0]
+    # Compare the resolved CRS, not the EPSG code: a geostationary grid -- FCI's
+    # only real case -- reports epsg None, so an .epsg comparison is None != None
+    # for every chunk and would accept granules from different satellite
+    # positions.
+    first_crs = crs_spec(first.epsg, getattr(first, "crs", None))
     for ds in datasets[1:]:
-        if ds.epsg != first.epsg:
+        if crs_spec(ds.epsg, getattr(ds, "crs", None)) != first_crs:
             raise ReaderError("read_fci: chunks have mixed CRS")
         if not np.isclose(ds.geotransform[1], first.geotransform[1]) or (
             not np.isclose(ds.geotransform[5], first.geotransform[5])

@@ -297,13 +297,25 @@ def _wrap(out: np.ndarray, template: Any, dtype: Any) -> Any:
             for float).
 
     Returns:
-        A pyramids `Dataset` when `template` is given, otherwise `out`.
+        A pyramids `Dataset` carrying `template`'s geotransform and CRS when
+        `template` is given, otherwise `out`. A template whose CRS carries no
+        EPSG code — a geostationary grid, say — reports `epsg` as `None`, so its
+        projection is copied across from the template's `crs` instead and is not
+        lost.
     """
     if template is None:
         return out
-    from pyramids.dataset import Dataset
+    from pyramids.base.crs import crs_spec
+    from pyramids.dataset import Dataset, GeoReference
 
     nodata: Any = 0 if np.issubdtype(np.dtype(dtype), np.integer) else np.nan
-    return Dataset.create_from_array(
-        out, geo=template.geotransform, epsg=template.epsg, no_data_value=nodata
+    # crs_spec falls back to the WKT for a CRS with no EPSG code, so a
+    # geostationary template keeps its projection.
+    return Dataset.from_array(
+        out,
+        geo_ref=GeoReference(
+            geo=template.geotransform,
+            epsg=crs_spec(template.epsg, getattr(template, "crs", None)),
+        ),
+        no_data_value=nodata,
     )

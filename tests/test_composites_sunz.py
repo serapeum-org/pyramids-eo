@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.composites import sunz_correct, sunz_reduce
 
@@ -147,8 +147,9 @@ class TestSunzCorrect:
 
     def test_dataset_in_dataset_out(self):
         """A Dataset band yields a georeferenced Dataset."""
-        ds = Dataset.create_from_array(
-            np.full((2, 2), 1.0), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+        ds = Dataset.from_array(
+            np.full((2, 2), 1.0),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326),
         )
         out = sunz_correct(ds, np.zeros((2, 2)))
         assert isinstance(out, Dataset), f"expected a Dataset, got {type(out)}"
@@ -250,8 +251,9 @@ class TestSunzReduce:
 
     def test_dataset_in_dataset_out(self):
         """A Dataset band yields a georeferenced Dataset."""
-        ds = Dataset.create_from_array(
-            np.full((2, 2), 1.0), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326
+        ds = Dataset.from_array(
+            np.full((2, 2), 1.0),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=4326),
         )
         out = sunz_reduce(ds, np.full((2, 2), 70.0))
         assert isinstance(out, Dataset), f"expected a Dataset, got {type(out)}"

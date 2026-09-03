@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset
+from pyramids.dataset import Dataset, GeoReference
 
 from pyramids_eo.errors import CalibrationError, ReaderError, UnknownSensorError
 from pyramids_eo.sensors.readers import read_fci
@@ -20,7 +20,27 @@ from pyramids_eo.sensors.registry import sensors as _sensors
 
 def _chunk(arr: np.ndarray, tlc=(0.0, 4.0)) -> Dataset:
     """A pyramids Dataset chunk holding raw radiance."""
-    return Dataset.create_from_array(arr, top_left_corner=tlc, cell_size=1.0, epsg=4326)
+    return Dataset.from_array(
+        arr, geo_ref=GeoReference(top_left_corner=tlc, cell_size=1.0, epsg=4326)
+    )
+
+
+_GEOS_WKT = (
+    'PROJCS["geos",GEOGCS["sphere",DATUM["D",SPHEROID["S",6378169,295.488065897]],'
+    'PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],'
+    'PROJECTION["Geostationary_Satellite"],PARAMETER["central_meridian",{lon}],'
+    'PARAMETER["satellite_height",35785831],PARAMETER["false_easting",0],'
+    'PARAMETER["false_northing",0],UNIT["metre",1]]'
+)
+
+
+def _geos_chunk(arr: np.ndarray, tlc=(0.0, 4.0), lon=0) -> Dataset:
+    """A chunk on a geostationary grid: epsg is None, the projection is on crs."""
+    ds = Dataset.from_array(
+        arr, geo_ref=GeoReference(top_left_corner=tlc, cell_size=1.0, epsg=None)
+    )
+    ds.crs = _GEOS_WKT.format(lon=lon)
+    return ds
 
 
 def _channel_opener(per_channel: dict[str, np.ndarray]):
@@ -49,6 +69,33 @@ class TestReadFci:
         arr = out.read_array()
         assert np.allclose(arr[:2], 5.0), "top rows should be the first chunk"
         assert np.allclose(arr[2:], 9.0), "bottom rows should be the second chunk"
+
+    def test_geostationary_chunks_keep_their_crs(self):
+        """A geostationary chunk has no EPSG code; its projection must survive."""
+        top = _geos_chunk(np.full((2, 3), 5.0), tlc=(0.0, 4.0))
+        bottom = _geos_chunk(np.full((2, 3), 9.0), tlc=(0.0, 2.0))
+        assert top.epsg is None, "a geostationary chunk should report no EPSG code"
+        out = read_fci([top, bottom], "ir_105", calibrate=False)
+        assert out.crs, "read_fci dropped the geostationary CRS"
+        assert "Geostationary" in out.crs, "read_fci lost the geostationary WKT"
+
+    def test_chunks_from_different_satellite_positions_raise(self):
+        """Two geostationary chunks at different sub-satellite longitudes differ.
+
+        Both report epsg None, so the guard has to compare the resolved CRS --
+        an .epsg comparison is None != None and would stitch them silently.
+        """
+        top = _geos_chunk(np.full((2, 3), 5.0), tlc=(0.0, 4.0), lon=0)
+        bottom = _geos_chunk(np.full((2, 3), 9.0), tlc=(0.0, 2.0), lon=41.5)
+        with pytest.raises(ReaderError, match="mixed CRS"):
+            read_fci([top, bottom], "ir_105", calibrate=False)
+
+    def test_chunks_sharing_a_geostationary_crs_are_accepted(self):
+        """Matching geostationary chunks still stitch."""
+        top = _geos_chunk(np.full((2, 3), 5.0), tlc=(0.0, 4.0), lon=0)
+        bottom = _geos_chunk(np.full((2, 3), 9.0), tlc=(0.0, 2.0), lon=0)
+        out = read_fci([top, bottom], "ir_105", calibrate=False)
+        assert out.shape[-2:] == (4, 3), f"expected 4 stitched rows, got {out.shape}"
 
     def test_thermal_channel_calibrated_to_bt(self):
         """A thermal channel is calibrated to brightness temperature."""
@@ -164,8 +211,9 @@ class TestReadFci:
     def test_mixed_crs_chunks_raise(self):
         """Chunks with different CRS are rejected."""
         a = _chunk(np.ones((2, 2)), tlc=(0.0, 4.0))
-        b = Dataset.create_from_array(
-            np.ones((2, 2)), top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=3857
+        b = Dataset.from_array(
+            np.ones((2, 2)),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=1.0, epsg=3857),
         )
         with pytest.raises(ReaderError, match="mixed CRS"):
             read_fci([a, b], "ir_105")
@@ -173,8 +221,9 @@ class TestReadFci:
     def test_mixed_cell_size_chunks_raise(self):
         """Chunks with different cell sizes are rejected."""
         a = _chunk(np.ones((2, 2)), tlc=(0.0, 4.0))
-        b = Dataset.create_from_array(
-            np.ones((2, 2)), top_left_corner=(0.0, 2.0), cell_size=2.0, epsg=4326
+        b = Dataset.from_array(
+            np.ones((2, 2)),
+            geo_ref=GeoReference(top_left_corner=(0.0, 2.0), cell_size=2.0, epsg=4326),
         )
         with pytest.raises(ReaderError, match="cell size"):
             read_fci([a, b], "ir_105")

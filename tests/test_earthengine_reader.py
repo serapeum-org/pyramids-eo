@@ -3564,3 +3564,46 @@ class TestTiledLive:
         assert np.array_equal(tiled, untiled), (
             "tiled composite differs from the un-tiled composite"
         )
+
+
+def test_write_by_copy_path_extension_is_rejected():
+    """A .png destination cannot be written by the tiled path, so it is refused.
+
+    0.59 moved the two write paths apart: Dataset.to_file now accepts .png and
+    narrows a float asset to Byte with a warning, while merge_rasters refuses it.
+    Accepting it would make the same call succeed or fail on tile_size alone.
+    """
+    from pyramids_eo.earthengine.reader import _validate_read_request
+
+    for ext in (".png", ".jpg", ".jp2", ".asc", ".vrt"):
+        with pytest.raises(ValueError, match="cannot be written by the tiled"):
+            _validate_read_request(
+                scale=10,
+                shape=None,
+                resample="nearest",
+                path=f"out{ext}",
+                bbox=(0.0, 0.0, 1.0, 1.0),
+                geometry=None,
+                tile_size=None,
+                reducer=None,
+                start=None,
+                end=None,
+            )
+
+
+def test_geotiff_path_extension_is_accepted():
+    """A .tif destination stays valid on both write paths."""
+    from pyramids_eo.earthengine.reader import _validate_read_request
+
+    _validate_read_request(
+        scale=10,
+        shape=None,
+        resample="nearest",
+        path="out.tif",
+        bbox=(0.0, 0.0, 1.0, 1.0),
+        geometry=None,
+        tile_size=None,
+        reducer=None,
+        start=None,
+        end=None,
+    )

@@ -305,10 +305,10 @@ def parse_seviri_native(
     y_north_edge = (ssp_row + 0.5) * pixel_m
     geo = (x_west_edge, pixel_m, 0.0, y_north_edge, 0.0, -pixel_m)
 
-    from pyramids.dataset import Dataset
+    from pyramids.dataset import Dataset, GeoReference
 
-    dataset = Dataset.create_from_array(
-        radiance, geo=geo, epsg=None, no_data_value=np.nan
+    dataset = Dataset.from_array(
+        radiance, geo_ref=GeoReference(geo=geo, epsg=None), no_data_value=np.nan
     )
     dataset.crs = _geostationary_wkt(subsatellite_longitude)
     return dataset
@@ -383,13 +383,15 @@ def read_seviri(
         else radiance
     )
 
-    from pyramids.dataset import Dataset
+    from pyramids.dataset import Dataset, GeoReference
 
     # Calibration can produce NaN (terminator reflectance / non-positive
     # radiance), so declare NaN as nodata rather than the default -9999.
     epsg = dataset.epsg if dataset.epsg else None
-    result = Dataset.create_from_array(
-        data, geo=dataset.geotransform, epsg=epsg, no_data_value=np.nan
+    result = Dataset.from_array(
+        data,
+        geo_ref=GeoReference(geo=dataset.geotransform, epsg=epsg),
+        no_data_value=np.nan,
     )
     if epsg is None:
         # A non-EPSG CRS (e.g. the geostationary grid) must be carried explicitly.
