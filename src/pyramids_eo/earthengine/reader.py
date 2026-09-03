@@ -1927,8 +1927,9 @@ def _validate_read_request(
             ``ImageCollection`` (composite) mode that discovers scenes.
 
     Raises:
-        ValueError: An incompatible or incomplete option combination (or an unknown
-            ``resample`` name).
+        ValueError: An incompatible or incomplete option combination, an unknown
+            ``resample`` name, or a ``path`` whose extension names a format the
+            tiled write path cannot produce.
     """
     if scale is not None and shape is not None:
         raise ValueError("Pass at most one of 'scale' or 'shape', not both.")
@@ -2066,7 +2067,11 @@ def from_earthengine(
             file-backed ``Dataset`` reading it is returned instead of an in-memory
             one; required when ``tile_size`` is set, and honoured for the single-image
             and composite paths alike. Needs a ``bbox`` or ``geometry`` (the
-            whole-asset read is lazy).
+            whole-asset read is lazy). Its extension names the format, and must be
+            one GDAL can create directly — a write-by-copy-only format (``.png``,
+            ``.jpg``, ``.jp2``, ``.asc``, ``.vrt``) is refused, because the tiled
+            mosaic path cannot produce it and the destination's legality would
+            otherwise depend on ``tile_size``.
         block_size: EEDAI transfer block size (pixels per side); ``None`` uses the
             conservative default (256). A larger block reads a window in fewer round
             trips; pixels are unchanged (verified byte-identical across sizes).
