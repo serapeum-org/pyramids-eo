@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "pyramids-eo"
+abstract: "Remote-sensing / Earth-observation tier for the pyramids GIS stack"
+authors:
+  - family-names: Farrag
+    given-names: Mostafa
+    email: moah.farag@gmail.com
+version: "0.8.0"
+date-released: 2026-09-03
+license: GPL-3.0
+repository-code: "https://github.com/serapeum-org/pyramids-eo"
+keywords:
+  - "GIS"
+  - "remote sensing"
+  - "earth observation"
+  - "satellite"
+  - "pyramids"
