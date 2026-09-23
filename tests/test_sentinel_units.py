@@ -459,6 +459,45 @@ class TestSclMask:
         masked = scl_mask(ds, [SclClass.WATER], scl=scl)
         assert masked.read_array()[0, 0] == 0
 
+    def test_tagged_dataset_masks_in_the_dn_domain(self):
+        """A reflectance-tagged dataset is masked in DN, not in physical units.
+
+        Test scenario:
+            ``scl_mask`` writes the raw no-data into the array, casts back to the
+            source dtype and carries the scale/offset onto the result. pyramids
+            >=0.62 unpacks CF-packed data on a default read, so reading physical
+            units here would write a DN sentinel into reflectance and leave the
+            calibration to be applied a second time. The unmasked pixels must
+            therefore come back as their original DN, and the dtype must survive.
+        """
+        from pyramids.dataset import Dataset, GeoReference
+
+        arr = np.full((1, 4, 4), 5000, dtype="uint16")
+        ds = Dataset.from_array(
+            arr=arr, geo_ref=GeoReference(geo=(0, 1, 0, 4, 0, -1), epsg=4326)
+        )
+        ds.no_data_value = [0]
+        ds.scale = [1.0 / 10000.0]
+        ds.offset = [0.0]
+        assert ds.read_array()[0, 0] == pytest.approx(0.5), (
+            "precondition: a default read of a tagged dataset yields reflectance"
+        )
+
+        scl = np.zeros((4, 4), dtype="uint8")
+        scl[0, 0] = int(SclClass.WATER)
+        masked = scl_mask(ds, [SclClass.WATER], scl=scl)
+
+        raw = masked.read_array(unpack=False)
+        assert raw.dtype == arr.dtype, f"dtype changed to {raw.dtype}"
+        assert raw[0, 1] == 5000, f"unmasked DN altered: {raw[0, 1]}"
+        assert raw[0, 0] == 0, f"masked pixel should hold the raw no-data: {raw[0, 0]}"
+        assert masked.scale[0] == pytest.approx(1.0 / 10000.0), (
+            "the reflectance calibration must be carried onto the result"
+        )
+        assert masked.read_array()[0, 1] == pytest.approx(0.5), (
+            "a default read must apply the calibration exactly once"
+        )
+
     def test_scl_from_single_band_dataset(self):
         """An explicit single-band SCL ``Dataset`` is read via band 0."""
         from pyramids.dataset import Dataset, GeoReference

@@ -67,7 +67,7 @@ import pyramids_eo as eo
 from pyramids_eo import SclClass
 
 scene = eo.from_sentinel2("S2A_..._MSIL2A.SAFE", bands=["B04", "B08"])
-reflectance = scene.read_array(scaled=True)          # (DN + offset) / quantification
+reflectance = scene.read_array()                     # (DN + offset) / quantification
 
 # Mask clouds and cloud shadows out via the L2A scene-classification layer.
 clear = eo.from_sentinel2(
