@@ -142,7 +142,12 @@ def scl_mask(
     # many; normalise a single band to (1, rows, cols) so the mask indexing and
     # the shape check below are uniform. (np.atleast_3d would wrongly append the
     # band axis, giving (rows, cols, 1).)
-    data = np.asarray(dataset.read_array())
+    # Read the store, not physical units: this masks in the DN domain -- it
+    # writes the raw no-data into the array, casts back to the source dtype and
+    # carries the scale/offset onto the result. pyramids >=0.62 unpacks by
+    # default, so a caller masking an already-tagged dataset would otherwise get
+    # reflectance here and have the calibration applied a second time.
+    data = np.asarray(dataset.read_array(unpack=False))
     if data.ndim == 2:
         data = data[np.newaxis, ...]
     if scl_array.shape != data.shape[-2:]:
@@ -175,11 +180,11 @@ def _scl_array(dataset: Any, scl: Any) -> np.ndarray:
                 "no SCL band in the dataset and no `scl=` given; "
                 "read a subdataset that contains SCL (20 m / 60 m), or pass scl="
             )
-        return np.asarray(dataset.read_array(band=idx))
+        return np.asarray(dataset.read_array(band=idx, unpack=False))
     if isinstance(scl, np.ndarray):
         return scl
     # Assume a pyramids Dataset (single band).
-    return np.asarray(scl.read_array(band=0))
+    return np.asarray(scl.read_array(band=0, unpack=False))
 
 
 def _nodata_of(dataset: Any) -> float:
@@ -195,7 +200,7 @@ def _carry_band_state(source: Any, dest: Any) -> None:
 
     Band names are display-only, so a failure to copy them is swallowed. The
     scale/offset tags are the reflectance calibration, so their copy is **not**
-    swallowed — losing them would silently return raw DN from a scaled read
+    swallowed — losing them would silently return raw DN from a default read
     (a caller who masks an already-reflectance-tagged dataset relies on this).
     """
     try:

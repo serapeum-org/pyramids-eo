@@ -25,13 +25,13 @@ classifiers = [
 requires-python = ">= 3.11, <4"
 
 dependencies = [
-    "pyramids-gis >=0.59.0",
+    "pyramids-gis >=0.64.0",
     "numpy >=2.0.0",
     "pyyaml >=6.0",
 ]
 
 [project.optional-dependencies]
-viz = ["pyramids-gis[viz]>=0.59.0"]
+viz = ["pyramids-gis[viz]>=0.64.0"]
 
 [dependency-groups]
 dev = [
@@ -50,6 +50,9 @@ dev = [
     "jupyterlab",
     "notebook",
     "jupyter",
+    # Floor jupyter-server past CVE-2026-86049 (token leaked into 500 logs,
+    # fixed in 2.21.0); it arrives transitively via jupyterlab / notebook.
+    "jupyter-server >=2.21.0",
     "commitizen>=4.8.4",
     "mypy>=1.10.0",
     "types-PyYAML>=6.0.0",

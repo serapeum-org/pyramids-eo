@@ -7,11 +7,10 @@ converts DN → reflectance (as lazy scale/offset tags), masks cloud/shadow via
 the Scene-Classification band, and crops / reprojects — returning a plain
 pyramids ``Dataset`` with no Sentinel objects leaking out.
 
-Built entirely on pyramids-gis 0.56+ APIs: ``Dataset.subdatasets`` /
+Built entirely on pyramids-gis 0.64+ APIs: ``Dataset.subdatasets`` /
 ``open_subdataset`` for the catalog, ``Dataset.bands.select`` for band subsetting
-(1-based, or by name), ``Dataset.read_array(scaled=True)`` for the lazy
-reflectance read the scale/offset tags drive, and ``crop`` / ``to_crs`` for the
-spatial ops.
+(1-based, or by name), ``Dataset.read_array()`` for the lazy reflectance read the
+scale/offset tags drive, and ``crop`` / ``to_crs`` for the spatial ops.
 """
 
 from __future__ import annotations
@@ -67,9 +66,9 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
             native CRS (cropping happens before any ``crs`` reprojection).
         crs: Optional target CRS (an EPSG integer or a WKT string) to reproject to.
         reflectance: When ``True`` (default), tag the spectral bands so
-            ``read_array(scaled=True)`` yields reflectance
-            ``(DN + offset) / quantification`` (the baseline-≥04.00 offset is 0
-            on older products). The returned array stays DN until read scaled.
+            ``read_array()`` yields reflectance ``(DN + offset) / quantification``
+            (the baseline-≥04.00 offset is 0 on older products). The stored values
+            stay DN; ``read_array(unpack=False)`` returns them unconverted.
         mask_scl: L2A only — classes to mask out (see
             :class:`~pyramids_eo.sentinel.s2.masks.SclClass`); masked pixels
             become no-data.
@@ -80,13 +79,13 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
 
     Note:
         No-data is declared in the **DN domain** (the GDAL convention). Because
-        reflectance is applied as lazy ``scale`` / ``offset`` tags,
-        ``read_array(scaled=True)`` returns ``DN * scale + offset`` for *every*
-        pixel — so a DN no-data (and any SCL-masked pixel) reads back as the
-        *scaled* sentinel, not the declared ``no_data_value``. On a
-        baseline-≥04.00 product (offset ≈ −1000) a DN-0 no-data reads as
-        ≈ −0.1, not 0. Test for no-data against the raw value (or an unscaled
-        read), not against a scaled reflectance.
+        reflectance is applied as lazy ``scale`` / ``offset`` tags, the default
+        ``read_array()`` returns ``DN * scale + offset`` for *every* pixel — so a
+        DN no-data (and any SCL-masked pixel) reads back as the *scaled*
+        sentinel, not the declared ``no_data_value``. On a baseline-≥04.00
+        product (offset ≈ −1000) a DN-0 no-data reads as ≈ −0.1, not 0. Test for
+        no-data against a ``read_array(unpack=False)`` read, not against a
+        reflectance one.
 
     Raises:
         ProductError: The product is missing a requested band / resolution, or
@@ -98,7 +97,7 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
             >>> from pyramids_eo.sentinel import from_sentinel2  # doctest: +SKIP
             >>> ds = from_sentinel2("S2A_..._MSIL2A.SAFE",       # doctest: +SKIP
             ...                     bands=["B04", "B08"])        # doctest: +SKIP
-            >>> reflectance = ds.read_array(scaled=True)         # doctest: +SKIP
+            >>> reflectance = ds.read_array()                    # doctest: +SKIP
 
             ```
     """

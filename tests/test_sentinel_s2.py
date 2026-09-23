@@ -178,8 +178,8 @@ def test_reflectance_tags_and_scaled_read():
     quant = product.quantification
     assert ds.scale == pytest.approx([1.0 / quant, 1.0 / quant])
     assert ds.offset == pytest.approx([0.0, 0.0])
-    raw = ds.read_array()
-    scaled = ds.read_array(scaled=True)
+    raw = ds.read_array(unpack=False)
+    scaled = ds.read_array()
     assert np.allclose(scaled, raw / quant)
 
 
@@ -212,8 +212,8 @@ def test_baseline_509_offset_flows_to_scaled_read():
     product = open_product(_L1C_509)
     ds = from_sentinel2(product, bands=["B02"])
     assert ds.offset[0] == pytest.approx(-1000.0 / product.quantification)
-    raw = ds.read_array()
-    scaled = ds.read_array(scaled=True)
+    raw = ds.read_array(unpack=False)
+    scaled = ds.read_array()
     assert np.allclose(
         scaled, (raw.astype("float64") - 1000.0) / product.quantification
     )
