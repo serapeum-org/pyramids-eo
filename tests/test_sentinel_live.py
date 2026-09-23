@@ -220,7 +220,9 @@ def test_cross_resolution_harmonise_onto_finest_grid(scene):
     assert ds.band_count == 2
     assert ds.cell_size == 10.0
     # The resampled 20 m band (B11) must carry real values, not an empty grid.
-    b11 = np.asarray(ds.read_array())[1]
+    # Compare in the DN domain: ds is reflectance-tagged, so a default read
+    # unpacks to physical and would never equal the raw DN no-data value.
+    b11 = np.asarray(ds.read_array(unpack=False))[1]
     valid = b11[b11 != ds.no_data_value[1]]
     assert valid.size > 0, "harmonised B11 is entirely no-data"
     assert np.any(valid > 0), "harmonised B11 has no positive values"
@@ -256,14 +258,19 @@ def test_scl_masking_is_class_sensitive(scene):
     masked_absent = from_sentinel2(
         scene["path"], bands=["B04"], bbox=scene["bbox"], mask_scl=[absent]
     )
+    # Count no-data in the DN domain: the masked datasets are reflectance-tagged,
+    # so a default read unpacks and a DN-0 no-data pixel reads as (0 + offset) /
+    # quant (~ -0.1 on baseline >= 04.00), never equal to the raw no_data_value.
     present_nodata = int(
         np.count_nonzero(
-            np.asarray(masked_present.read_array()) == masked_present.no_data_value[0]
+            np.asarray(masked_present.read_array(unpack=False))
+            == masked_present.no_data_value[0]
         )
     )
     absent_nodata = int(
         np.count_nonzero(
-            np.asarray(masked_absent.read_array()) == masked_absent.no_data_value[0]
+            np.asarray(masked_absent.read_array(unpack=False))
+            == masked_absent.no_data_value[0]
         )
     )
     assert present_nodata > absent_nodata, (
