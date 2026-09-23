@@ -293,6 +293,15 @@ def _materialize(ee: Dataset, bbox: BBox, crs: str) -> Dataset:
     Returns:
         A pyramids ``Dataset`` in the source CRS covering ``bbox`` (padded one pixel
         for resampling), holding correct native-resolution pixels for every band.
+        The copy carries **no band scale/offset**: it is rebuilt from raw blocks via
+        :meth:`Dataset.from_array`, which declares no packing. Every downstream reader
+        of a :func:`_window` result (``_read_mixed_resolution``, ``_composite``,
+        ``_read_tile_with_halo``) therefore reads identity-scale data, so a plain
+        ``read_array()`` returns the raw store — the invariant those store-copies rely
+        on to re-declare the source's raw no-data. (The ``gdal.Warp`` in ``_window``
+        preserves band scale/offset; it is this ``from_array``, not the warp, that
+        drops it.) A change here that carried the source packing through would
+        silently make those reads return physical units.
     """
     geotransform = ee.geotransform
     x0, y0, x1, y1 = _native_pixel_window(ee, bbox, crs)
