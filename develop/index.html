@@ -62,7 +62,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -1686,7 +1686,7 @@ scene-classification masking (see <a href="reference/sentinel/">Sentinel</a>).</
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo</span><span class="w"> </span><span class="kn">import</span> <span class="n">SclClass</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">scene</span> <span class="o">=</span> <span class="n">eo</span><span class="o">.</span><span class="n">from_sentinel2</span><span class="p">(</span><span class="s2">"S2A_..._MSIL2A.SAFE"</span><span class="p">,</span> <span class="n">bands</span><span class="o">=</span><span class="p">[</span><span class="s2">"B04"</span><span class="p">,</span> <span class="s2">"B08"</span><span class="p">])</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">reflectance</span> <span class="o">=</span> <span class="n">scene</span><span class="o">.</span><span class="n">read_array</span><span class="p">(</span><span class="n">scaled</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>          <span class="c1"># (DN + offset) / quantification</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">reflectance</span> <span class="o">=</span> <span class="n">scene</span><span class="o">.</span><span class="n">read_array</span><span class="p">()</span>                     <span class="c1"># (DN + offset) / quantification</span>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Mask clouds and cloud shadows out via the L2A scene-classification layer.</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">clear</span> <span class="o">=</span> <span class="n">eo</span><span class="o">.</span><span class="n">from_sentinel2</span><span class="p">(</span>

@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -2646,7 +2646,7 @@ baseline:      05.11
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <h2 id="true-colour-reflectance">True-colour reflectance<a class="anchor-link" href="#true-colour-reflectance">¶</a></h2><p><code>from_sentinel2</code> selects bands by name and returns a <code>Dataset</code>. With <code>reflectance=True</code> (the default), the DN →
 reflectance conversion is recorded as <strong>lazy GDAL scale/offset tags</strong> rather than a materialised float array — the
-values become reflectance only when you read with <code>read_array(scaled=True)</code>, and the tags survive crop/reproject.</p>
+values become reflectance only when you read with <code>read_array()</code>, and the tags survive crop/reproject.</p>
 <p>Here: red/green/blue (B04/B03/B02, all 10 m) over the AOI, rendered with the <code>Dataset</code>'s built-in
 percentile-stretched RGB plot.</p>
 </div>
@@ -2747,7 +2747,7 @@ so it carries the −1000 radiometric offset: <code>reflectance = (DN − 1000) 
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="s2">"scale :"</span><span class="p">,</span> <span class="n">rgb</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="s2">"offset:"</span><span class="p">,</span> <span class="n">rgb</span><span class="o">.</span><span class="n">offset</span><span class="p">)</span>
-<span class="n">scaled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">rgb</span><span class="o">.</span><span class="n">read_array</span><span class="p">(</span><span class="n">scaled</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">"float64"</span><span class="p">)</span>
+<span class="n">scaled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">rgb</span><span class="o">.</span><span class="n">read_array</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">"float64"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span>
     <span class="s2">"reflectance min / mean / max:"</span><span class="p">,</span>
     <span class="nb">round</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmin</span><span class="p">(</span><span class="n">scaled</span><span class="p">)),</span> <span class="mi">3</span><span class="p">),</span>
@@ -2757,7 +2757,7 @@ so it carries the −1000 radiometric offset: <code>reflectance = (DN − 1000) 
 </pre></div>
 <div class="clipboard-copy-txt" id="cell-5">print("scale :", rgb.scale)
 print("offset:", rgb.offset)
-scaled = np.asarray(rgb.read_array(scaled=True), dtype="float64")
+scaled = np.asarray(rgb.read_array(), dtype="float64")
 print(
     "reflectance min / mean / max:",
     round(float(np.nanmin(scaled)), 3),
