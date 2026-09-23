@@ -434,11 +434,7 @@ def _crop_to_bbox(dataset: Any, bbox: BBox) -> Any:
     if xsize <= 0 or ysize <= 0:
         raise ProductError(f"bbox {bbox} does not overlap the product extent")
 
-    # Read the store: the crop relocates stored pixels and carries the source's
-    # raw no-data onto the result, which physical units would no longer match.
-    array = np.asarray(
-        dataset.read_array(window=[xoff, yoff, xsize, ysize], unpack=False)
-    )
+    array = np.asarray(dataset.read_array(window=[xoff, yoff, xsize, ysize]))
     if array.ndim == 2:
         array = array[np.newaxis, ...]
     out = Dataset.from_array(
