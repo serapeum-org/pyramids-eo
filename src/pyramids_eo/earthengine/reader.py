@@ -1690,7 +1690,7 @@ def _mosaic_tiles(tile_paths: list[str], path: str, nodata: float | None) -> Non
     Non-overlapping, grid-aligned tiles fully cover the window, so the merge is exact
     placement. The source nodata is carried through (treated as transparent and
     stamped on the output); when the source has none, it is unset on the mosaic
-    (``"none"``) to match the un-tiled read, with a 0 fill that never triggers GDAL's
+    (``no_data_value=None``) to match the un-tiled read, with a 0 fill that never triggers GDAL's
     "cannot represent nan" cast warning. A float source with a NaN nodata takes the
     same with-nodata branch (``n=init=no_data_value=nan``), relying on GDAL's
     NaN-aware nodata matching; EE assets are effectively always integer nodata.
