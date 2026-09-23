@@ -1701,9 +1701,7 @@ def _mosaic_tiles(tile_paths: list[str], path: str, nodata: float | None) -> Non
             method="first",
         )
     else:
-        merge_rasters(
-            tile_paths, path, no_data_value="none", n=0, init=0, method="first"
-        )
+        merge_rasters(tile_paths, path, no_data_value=None, n=0, init=0, method="first")
 
 
 def _resample_halo(resample: str) -> int:
@@ -1781,7 +1779,10 @@ def _read_tile_with_halo(
     )
     grown_shape = (tile_rows + top + bottom, tile_cols + left + right)
     grown = _window(source, tile._replace(bbox=grown_bbox, shape=grown_shape))
-    array = np.asarray(grown.read_array())
+    # A halo trim relocates stored pixels and re-declares the source's raw
+    # no-data, so read the store: pyramids >=0.62 unpacks CF-packed data by
+    # default, which would return physical units the raw sentinel no longer matches.
+    array = np.asarray(grown.read_array(unpack=False))
     if array.ndim == 2:
         array = array[None, :, :]
     core = array[:, top : top + tile_rows, left : left + tile_cols]

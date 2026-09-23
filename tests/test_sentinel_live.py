@@ -192,14 +192,14 @@ def test_open_product_reads_real_l2a_over_s3(scene):
 
 
 def test_reflectance_is_physical_with_baseline_offset(scene):
-    """A scaled read yields physical reflectance; the baseline offset is applied."""
+    """A default read yields physical reflectance; the baseline offset is applied."""
     from pyramids_eo.sentinel import from_sentinel2
 
     ds = from_sentinel2(scene["path"], bands=["B04", "B03", "B02"], bbox=scene["bbox"])
     assert ds.band_count == 3
     assert ds.cell_size == 10.0
 
-    reflectance = np.asarray(ds.read_array(scaled=True), dtype="float64")
+    reflectance = np.asarray(ds.read_array(), dtype="float64")
     finite = reflectance[np.isfinite(reflectance)]
     # Surface reflectance sits in [0, ~1.6]; a clear land scene is well inside it.
     assert finite.min() >= -0.2

@@ -9,14 +9,15 @@ radiometric offset that processing baselines ``>= 04.00`` introduced
 The GDAL ``SENTINEL2`` driver surfaces the offset in **per-band** metadata
 (``Dataset.band_meta_data[i]``), which is where :func:`_band_offset` reads it —
 verified end-to-end against a real baseline-05.09 product (offset ``-1000``
-flows into ``read_array(scaled=True)``; see ``test_baseline_509_*``), not just
+flows into ``read_array()``; see ``test_baseline_509_*``), not just
 the offset parser.
 
 Rather than materialise a float array, :func:`tag_reflectance` records the
 conversion on the dataset's GDAL scale/offset so it is applied lazily by
-``Dataset.read_array(scaled=True)``. The tags ride through ``to_crs`` and
-``to_file``, but pyramids-gis 0.56 ``crop`` **resets** them — so the reader
-applies :func:`tag_reflectance` as the *last* step, after any crop / reproject.
+``Dataset.read_array()``. The tags ride through ``to_crs`` and ``to_file``,
+but this reader's own ``_crop_to_bbox`` and the SCL mask both rebuild the raster
+through ``from_array``, which drops them — so the reader applies
+:func:`tag_reflectance` as the *last* step, after any crop / reproject / mask.
 In GDAL's ``real = DN * scale + offset`` terms:
 
     scale  = 1 / quantification
@@ -63,7 +64,7 @@ def tag_reflectance(
     Spectral bands get ``scale = 1/quantification`` and
     ``offset = band_offset/quantification``; every other band is left at
     ``scale=1, offset=0``. The reflectance is then obtained lazily with
-    ``dataset.read_array(scaled=True)``.
+    ``dataset.read_array()``; ``read_array(unpack=False)`` still returns DN.
 
     Args:
         dataset: A pyramids ``Dataset`` of Sentinel-2 bands (must be writable —
