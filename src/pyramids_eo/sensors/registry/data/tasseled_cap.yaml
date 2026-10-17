@@ -1,0 +1,72 @@
+# Tasseled-cap (Kauth-Thomas) coefficient tables, keyed by sensor.
+#
+# Each sensor block carries the linear coefficients that rotate a stack of
+# reflectance bands into the tasseled-cap components (brightness, greenness,
+# wetness). `bands` is the band order the coefficients were derived for, named by
+# their semantic role; `aliases` lists the band-name spellings a reader might use
+# for each role, so `tasseled_cap` can recognise a Dataset's bands and reorder
+# them to this order rather than trusting their position. `components` maps each
+# component to one coefficient per band, in `bands` order.
+#
+# PROVENANCE -- these are published scientific constants; verify them against the
+# cited paper before relying on them for a quantitative product (the same caveat
+# the channel tables carry). Each sensor's `reference` names the source, and
+# `domain` the reflectance domain the coefficients were derived for -- apply them
+# to bands in that same domain (a reflectance factor / TOA reflectance stack, not
+# raw DN).
+#
+# Sentinel-2 MSI is intentionally absent: its published tasseled-cap coefficients
+# have competing variants (e.g. Nedkov 2017 vs. applying the OLI coefficients to
+# the spectrally-matched S2 bands), so the choice of source is left to the
+# maintainer. Adding it is one more block below, same shape as the Landsat ones.
+
+landsat5_tm:
+  description: Landsat 4/5 Thematic Mapper, reflectance-factor tasseled cap.
+  reference: "Crist (1985), Remote Sensing of Environment 17(3):301-306."
+  domain: reflectance factor
+  bands: [blue, green, red, nir, swir1, swir2]
+  aliases:
+    blue: [B1, B01, TM1, SR_B1]
+    green: [B2, B02, TM2, SR_B2]
+    red: [B3, B03, TM3, SR_B3]
+    nir: [B4, B04, TM4, SR_B4]
+    swir1: [B5, B05, TM5, SR_B5]
+    swir2: [B7, B07, TM7, SR_B7]
+  components:
+    brightness: [0.2043, 0.4158, 0.5524, 0.5741, 0.3124, 0.2303]
+    greenness: [-0.1603, -0.2819, -0.4934, 0.7940, -0.0002, -0.1446]
+    wetness: [0.0315, 0.2021, 0.3102, 0.1594, -0.6806, -0.6109]
+
+landsat7_etm:
+  description: Landsat 7 ETM+, at-satellite (TOA) reflectance tasseled cap.
+  reference: "Huang et al. (2002), International Journal of Remote Sensing 23(8):1741-1748."
+  domain: at-satellite reflectance
+  bands: [blue, green, red, nir, swir1, swir2]
+  aliases:
+    blue: [B1, B01, SR_B1]
+    green: [B2, B02, SR_B2]
+    red: [B3, B03, SR_B3]
+    nir: [B4, B04, SR_B4]
+    swir1: [B5, B05, SR_B5]
+    swir2: [B7, B07, SR_B7]
+  components:
+    brightness: [0.3561, 0.3972, 0.3904, 0.6966, 0.2286, 0.1596]
+    greenness: [-0.3344, -0.3544, -0.4556, 0.6966, -0.0242, -0.2630]
+    wetness: [0.2626, 0.2141, 0.0926, 0.0656, -0.7629, -0.5388]
+
+landsat8_oli:
+  description: Landsat 8/9 OLI, at-satellite (TOA) reflectance tasseled cap.
+  reference: "Baig et al. (2014), Remote Sensing Letters 5(5):423-431."
+  domain: at-satellite reflectance
+  bands: [blue, green, red, nir, swir1, swir2]
+  aliases:
+    blue: [B2, B02, SR_B2]
+    green: [B3, B03, SR_B3]
+    red: [B4, B04, SR_B4]
+    nir: [B5, B05, SR_B5]
+    swir1: [B6, B06, SR_B6]
+    swir2: [B7, B07, SR_B7]
+  components:
+    brightness: [0.3029, 0.2786, 0.4733, 0.5599, 0.5080, 0.1872]
+    greenness: [-0.2941, -0.2430, -0.5424, 0.7276, 0.0713, -0.1608]
+    wetness: [0.1511, 0.1973, 0.3283, 0.3407, -0.7117, -0.4559]

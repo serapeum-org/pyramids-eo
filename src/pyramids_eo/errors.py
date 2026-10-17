@@ -23,6 +23,15 @@ class CalibrationError(EOError):
     """Raised when a requested calibration is unavailable for the input."""
 
 
+class TransformError(EOError):
+    """Raised when a spectral transform cannot be applied to the input.
+
+    Covers a requested component a sensor's table does not define, a band stack
+    whose band count or band order does not match the sensor the transform was
+    asked for, and an input that is not a band stack.
+    """
+
+
 class AuthenticationError(EOError):
     """Raised when provider credentials for a signed EO asset are missing or invalid."""
 
