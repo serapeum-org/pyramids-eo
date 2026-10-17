@@ -274,6 +274,23 @@ class TestTasseledCapTransform:
         assert np.isnan(out[:, 0, 1]).all(), "a non-finite input band masks the pixel"
         assert np.isfinite(out[:, 0, 0]).all(), "the finite pixel survives"
 
+    def test_warns_on_non_reflectance_magnitude(self):
+        """A scaled-integer / DN stack (values far above 1) warns about the domain."""
+        ds = _dataset(np.full((6, 1, 1), 8000.0), band_names=_ROLES)
+        with pytest.warns(UserWarning, match="reflectance"):
+            tasseled_cap(ds, sensor="landsat8_oli")
+
+    def test_no_warning_for_reflectance_magnitude(self, recwarn):
+        """A normal 0-1 reflectance stack emits no domain warning.
+
+        Args:
+            recwarn: pytest's recorded-warnings fixture.
+        """
+        ds = _dataset(np.full((6, 1, 1), 0.3), band_names=_ROLES)
+        tasseled_cap(ds, sensor="landsat8_oli")
+        domain_warnings = [w for w in recwarn.list if "reflectance" in str(w.message)]
+        assert not domain_warnings, f"0-1 data should not warn: {domain_warnings}"
+
     def test_subset_and_order_of_components(self):
         """`components` selects and orders the output bands."""
         ds = _dataset(np.ones((6, 1, 1)), band_names=_ROLES)

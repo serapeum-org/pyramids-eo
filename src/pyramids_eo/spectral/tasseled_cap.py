@@ -18,6 +18,7 @@ sensor's documented band order and only its band *count* is checked.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from typing import Any
 
@@ -31,6 +32,12 @@ from pyramids_eo.sensors.registry.tasseled_cap import (
 
 #: The three components of the classic tasseled-cap transform.
 _DEFAULT_COMPONENTS: tuple[str, ...] = ("brightness", "greenness", "wetness")
+
+#: A finite input value above this is implausible for reflectance (which is ~0-1,
+#: a little above 1 for bright TOA) and signals a scaled-integer / DN stack the
+#: coefficients were not derived for -- warned about, not rejected, since the
+#: caller owns the domain.
+_IMPLAUSIBLE_REFLECTANCE = 100.0
 
 
 def _resolve_band_order(
@@ -176,6 +183,8 @@ def tasseled_cap(
             f"{list(coeffs.bands)}, got {stack.shape[0]}"
         )
 
+    _warn_if_not_reflectance(stack, coeffs)
+
     order = _resolve_band_order(getattr(dataset, "band_names", None), coeffs)
     ordered = stack[order] if order is not None else stack
 
@@ -192,6 +201,32 @@ def tasseled_cap(
     # to NaN so the declared nodata is honest.
     out[:, _invalid_pixels(stack, dataset)] = np.nan
     return _wrap_components(out, dataset, requested)
+
+
+def _warn_if_not_reflectance(
+    stack: np.ndarray, coeffs: TasseledCapCoefficients
+) -> None:
+    """Warn when the stack's magnitude is implausible for reflectance.
+
+    The coefficients are tied to a reflectance domain (see `coeffs.domain`), so a
+    scaled-integer or DN stack (finite max far above 1) would yield a
+    wrong-magnitude raster. This warns rather than raises -- negative or slightly
+    above-1 reflectance is legitimate, and the caller owns the domain.
+
+    Args:
+        stack: The `(band, row, col)` input stack.
+        coeffs: The sensor's coefficient table (for its `domain` in the message).
+    """
+    finite = stack[np.isfinite(stack)]
+    if finite.size and float(finite.max()) > _IMPLAUSIBLE_REFLECTANCE:
+        warnings.warn(
+            f"tasseled_cap: input max {float(finite.max()):.4g} is far above the "
+            f"reflectance range the {coeffs.sensor} coefficients expect "
+            f"({coeffs.domain!r}); scale a DN / integer stack to reflectance first "
+            "or the components will be wrong-magnitude",
+            UserWarning,
+            stacklevel=3,
+        )
 
 
 def _invalid_pixels(stack: np.ndarray, dataset: Any) -> np.ndarray:
