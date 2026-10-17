@@ -274,6 +274,27 @@ class TestTasseledCapTransform:
         assert np.isnan(out[:, 0, 1]).all(), "a non-finite input band masks the pixel"
         assert np.isfinite(out[:, 0, 0]).all(), "the finite pixel survives"
 
+    def test_reorder_combined_with_nodata_masking(self):
+        """A fill pixel is masked to NaN even when the bands are reordered by name.
+
+        Test scenario:
+            The nodata mask is built from the original stack but applied to the
+            reordered output; with a genuine band permutation and a -9999 fill
+            pixel, that pixel must still be NaN in every component and the valid
+            pixel finite -- pinning that masking and reordering stay aligned.
+        """
+        stack = np.ones((6, 1, 2))
+        stack[:, 0, 1] = -9999.0
+        ds = Dataset.from_array(
+            np.asarray(stack),
+            geo_ref=GeoReference(geo=_GEO, epsg=4326),
+            no_data_value=-9999,
+        )
+        ds.band_names = ["red", "blue", "green", "swir1", "nir", "swir2"]
+        out = np.asarray(tasseled_cap(ds, sensor="landsat8_oli").read_array())
+        assert np.isnan(out[:, 0, 1]).all(), "fill pixel NaN even with a band reorder"
+        assert np.isfinite(out[:, 0, 0]).all(), "the valid pixel stays finite"
+
     def test_generic_bandN_names_fall_back_positionally(self):
         """A generic band1..band6 stack is positional, not a partial-match raise.
 
