@@ -1116,6 +1116,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../spectral/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spectral
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../stac/" class="md-nav__link">
         
   
@@ -1253,6 +1281,17 @@
     <span class="md-ellipsis">
       
         CalibrationError
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyramids_eo.errors.TransformError" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TransformError
       
     </span>
   </a>
@@ -1593,6 +1632,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pyramids_eo.errors.TransformError" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TransformError
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pyramids_eo.errors.AuthenticationError" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1857,6 +1907,57 @@ catch the whole family with a single <code>except EOError</code>.</p>
 
 
 
+<h4 id="pyramids_eo.errors.TransformError" class="doc doc-heading"><a href="#pyramids_eo.errors.TransformError" class="toclink">
+            <code>TransformError</code>
+
+
+</a><a href="#pyramids_eo.errors.TransformError" class="headerlink" title="Permanent link">#</a></h4>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code&gt;EOError&lt;/code&gt; (&lt;code&gt;pyramids_eo.errors.EOError&lt;/code&gt;)" href="#pyramids_eo.errors.EOError">EOError</a></code></p>
+
+
+
+        <p>Raised when a spectral transform cannot be applied to the input.</p>
+<p>Covers a requested component a sensor's table does not define, a band stack
+whose band count or band order does not match the sensor the transform was
+asked for, and an input that is not a band stack.</p>
+
+
+
+
+
+
+
+
+              <details class="mkdocstrings-source">
+                <summary>Source code in <code>src/pyramids_eo/errors.py</code></summary>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-26">26</a></span>
+<span class="normal"><a href="#__codelineno-0-27">27</a></span>
+<span class="normal"><a href="#__codelineno-0-28">28</a></span>
+<span class="normal"><a href="#__codelineno-0-29">29</a></span>
+<span class="normal"><a href="#__codelineno-0-30">30</a></span>
+<span class="normal"><a href="#__codelineno-0-31">31</a></span>
+<span class="normal"><a href="#__codelineno-0-32">32</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-26" name="__codelineno-0-26"></a><span class="k">class</span><span class="w"> </span><span class="nc">TransformError</span><span class="p">(</span><span class="n">EOError</span><span class="p">):</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27"></a><span class="w">    </span><span class="sd">"""Raised when a spectral transform cannot be applied to the input.</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28"></a>
+<a id="__codelineno-0-29" name="__codelineno-0-29"></a><span class="sd">    Covers a requested component a sensor's table does not define, a band stack</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="sd">    whose band count or band order does not match the sensor the transform was</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31"></a><span class="sd">    asked for, and an input that is not a band stack.</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32"></a><span class="sd">    """</span>
+</code></pre></div></td></tr></table></div>
+              </details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h4 id="pyramids_eo.errors.AuthenticationError" class="doc doc-heading"><a href="#pyramids_eo.errors.AuthenticationError" class="toclink">
             <code>AuthenticationError</code>
 
@@ -1881,9 +1982,9 @@ catch the whole family with a single <code>except EOError</code>.</p>
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pyramids_eo/errors.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-26">26</a></span>
-<span class="normal"><a href="#__codelineno-0-27">27</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-26" name="__codelineno-0-26"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthenticationError</span><span class="p">(</span><span class="n">EOError</span><span class="p">):</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27"></a><span class="w">    </span><span class="sd">"""Raised when provider credentials for a signed EO asset are missing or invalid."""</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-35">35</a></span>
+<span class="normal"><a href="#__codelineno-0-36">36</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthenticationError</span><span class="p">(</span><span class="n">EOError</span><span class="p">):</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="w">    </span><span class="sd">"""Raised when provider credentials for a signed EO asset are missing or invalid."""</span>
 </code></pre></div></td></tr></table></div>
               </details>
 
@@ -1922,19 +2023,19 @@ structural problem discovered while modelling the product.</p>
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pyramids_eo/errors.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-30">30</a></span>
-<span class="normal"><a href="#__codelineno-0-31">31</a></span>
-<span class="normal"><a href="#__codelineno-0-32">32</a></span>
-<span class="normal"><a href="#__codelineno-0-33">33</a></span>
-<span class="normal"><a href="#__codelineno-0-34">34</a></span>
-<span class="normal"><a href="#__codelineno-0-35">35</a></span>
-<span class="normal"><a href="#__codelineno-0-36">36</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="k">class</span><span class="w"> </span><span class="nc">ProductError</span><span class="p">(</span><span class="n">EOError</span><span class="p">):</span>
-<a id="__codelineno-0-31" name="__codelineno-0-31"></a><span class="w">    </span><span class="sd">"""Raised when a satellite product cannot be parsed or is malformed.</span>
-<a id="__codelineno-0-32" name="__codelineno-0-32"></a>
-<a id="__codelineno-0-33" name="__codelineno-0-33"></a><span class="sd">    Covers a container whose subdatasets / metadata cannot be read, a requested</span>
-<a id="__codelineno-0-34" name="__codelineno-0-34"></a><span class="sd">    band / resolution / tile that the product does not contain, and any other</span>
-<a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="sd">    structural problem discovered while modelling the product.</span>
-<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="sd">    """</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-39">39</a></span>
+<span class="normal"><a href="#__codelineno-0-40">40</a></span>
+<span class="normal"><a href="#__codelineno-0-41">41</a></span>
+<span class="normal"><a href="#__codelineno-0-42">42</a></span>
+<span class="normal"><a href="#__codelineno-0-43">43</a></span>
+<span class="normal"><a href="#__codelineno-0-44">44</a></span>
+<span class="normal"><a href="#__codelineno-0-45">45</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-39" name="__codelineno-0-39"></a><span class="k">class</span><span class="w"> </span><span class="nc">ProductError</span><span class="p">(</span><span class="n">EOError</span><span class="p">):</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="w">    </span><span class="sd">"""Raised when a satellite product cannot be parsed or is malformed.</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41"></a>
+<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">    Covers a container whose subdatasets / metadata cannot be read, a requested</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="sd">    band / resolution / tile that the product does not contain, and any other</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="sd">    structural problem discovered while modelling the product.</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45"></a><span class="sd">    """</span>
 </code></pre></div></td></tr></table></div>
               </details>
 
@@ -1972,17 +2073,17 @@ driver / product family is not one the Sentinel readers understand.</p>
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/pyramids_eo/errors.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-39">39</a></span>
-<span class="normal"><a href="#__codelineno-0-40">40</a></span>
-<span class="normal"><a href="#__codelineno-0-41">41</a></span>
-<span class="normal"><a href="#__codelineno-0-42">42</a></span>
-<span class="normal"><a href="#__codelineno-0-43">43</a></span>
-<span class="normal"><a href="#__codelineno-0-44">44</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-39" name="__codelineno-0-39"></a><span class="k">class</span><span class="w"> </span><span class="nc">UnsupportedProductError</span><span class="p">(</span><span class="n">ProductError</span><span class="p">):</span>
-<a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="w">    </span><span class="sd">"""Raised when a path is opened as a product type this package cannot model.</span>
-<a id="__codelineno-0-41" name="__codelineno-0-41"></a>
-<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">    Distinct from `ProductError`: the input is a valid raster, but its GDAL</span>
-<a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="sd">    driver / product family is not one the Sentinel readers understand.</span>
-<a id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="sd">    """</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#__codelineno-0-49">49</a></span>
+<span class="normal"><a href="#__codelineno-0-50">50</a></span>
+<span class="normal"><a href="#__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#__codelineno-0-53">53</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="k">class</span><span class="w"> </span><span class="nc">UnsupportedProductError</span><span class="p">(</span><span class="n">ProductError</span><span class="p">):</span>
+<a id="__codelineno-0-49" name="__codelineno-0-49"></a><span class="w">    </span><span class="sd">"""Raised when a path is opened as a product type this package cannot model.</span>
+<a id="__codelineno-0-50" name="__codelineno-0-50"></a>
+<a id="__codelineno-0-51" name="__codelineno-0-51"></a><span class="sd">    Distinct from `ProductError`: the input is a valid raster, but its GDAL</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52"></a><span class="sd">    driver / product family is not one the Sentinel readers understand.</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="sd">    """</span>
 </code></pre></div></td></tr></table></div>
               </details>
 
