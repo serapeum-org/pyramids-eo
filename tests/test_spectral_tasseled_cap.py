@@ -352,6 +352,24 @@ class TestTasseledCapTransform:
         domain_warnings = [w for w in recwarn.list if "reflectance" in str(w.message)]
         assert not domain_warnings, f"0-1 data should not warn: {domain_warnings}"
 
+    def test_band_mismatch_raises_before_reflectance_warning(self, recwarn):
+        """A band-name mismatch raises without first emitting a spurious warning.
+
+        Args:
+            recwarn: pytest's recorded-warnings fixture.
+
+        Test scenario:
+            An input that is both DN-magnitude (max >> 1) and carries a band name
+            that does not resolve must raise `TransformError` for the mismatch and
+            NOT emit the reflectance warning for a call that was going to fail.
+        """
+        names = ["blue", "green", "red", "nir", "swir1", "mystery"]
+        ds = _dataset(np.full((6, 1, 1), 8000.0), band_names=names)
+        with pytest.raises(TransformError, match="cannot match band"):
+            tasseled_cap(ds, sensor="landsat8_oli")
+        domain_warnings = [w for w in recwarn.list if "reflectance" in str(w.message)]
+        assert not domain_warnings, f"no warning before the raise: {domain_warnings}"
+
     def test_subset_and_order_of_components(self):
         """`components` selects and orders the output bands."""
         ds = _dataset(np.ones((6, 1, 1)), band_names=_ROLES)

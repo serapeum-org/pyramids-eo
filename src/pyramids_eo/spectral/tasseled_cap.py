@@ -190,10 +190,13 @@ def tasseled_cap(
             f"{list(coeffs.bands)}, got {stack.shape[0]}"
         )
 
-    _warn_if_not_reflectance(stack, coeffs)
-
+    # Resolve (and validate) the band order first, so a band-name mismatch raises
+    # before the reflectance-magnitude warning -- no spurious warning on a call
+    # that was going to fail anyway.
     order = _resolve_band_order(getattr(dataset, "band_names", None), coeffs)
     ordered = stack[order] if order is not None else stack
+
+    _warn_if_not_reflectance(stack, coeffs)
 
     out = np.stack(
         [
