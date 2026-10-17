@@ -4,7 +4,8 @@
 granules into calibrated, geolocated pyramids `Dataset`s:
 
 * `registry` — radiometric calibration (radiance -> reflectance / brightness
-  temperature) plus the bundled FCI/SEVIRI sensor and channel tables.
+  temperature), the bundled FCI/SEVIRI sensor and channel tables, and the
+  per-sensor tasseled-cap coefficient tables (`get_tasseled_cap`).
 * `readers` — `read_fci`, `read_seviri`, `harmonise`, and `open_fci_l1c_chunk`.
 
 These sit below `pyramids_eo.composites`, which consumes the calibrated bands
@@ -25,7 +26,10 @@ from pyramids_eo.sensors.readers import (
 from pyramids_eo.sensors.registry import (
     Channel,
     Sensor,
+    TasseledCapCoefficients,
+    available_tasseled_cap_sensors,
     get_sensor,
+    get_tasseled_cap,
     radiance_to_brightness_temperature,
     radiance_to_reflectance,
 )
@@ -33,8 +37,11 @@ from pyramids_eo.sensors.registry import (
 __all__ = [
     "Channel",
     "Sensor",
+    "TasseledCapCoefficients",
     "available_channels",
+    "available_tasseled_cap_sensors",
     "get_sensor",
+    "get_tasseled_cap",
     "harmonise",
     "open_fci_l1c_chunk",
     "parse_seviri_native",
