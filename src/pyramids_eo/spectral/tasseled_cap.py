@@ -100,10 +100,16 @@ def tasseled_cap(
     DN) and in the sensor's band order -- which is enforced by name when the bands
     are named and by count otherwise (see the module docstring).
 
+    The whole band stack is read into memory and processed at full resolution
+    (several float64 arrays at once: the input, and one per requested component);
+    there is no windowing, so a full scene is sized accordingly.
+
     Args:
         dataset: A pyramids `Dataset` whose bands are the sensor's reflectance
-            bands (a `(band, row, col)` stack). Must expose `read_array`,
-            `geotransform`, and `band_count`.
+            bands (a `(band, row, col)` stack). Read via `read_array`; its
+            `geotransform`, `epsg` (and `crs`, when it has no EPSG code) and
+            per-band `no_data_value` are carried onto / used for the result. Band
+            names, when present, drive band-order validation.
         sensor: The sensor whose coefficient table to use (e.g. `"landsat8_oli"`,
             `"landsat5_tm"`, `"landsat7_etm"`); case-insensitive.
         components: The components to compute, in output-band order. Defaults to
@@ -113,7 +119,8 @@ def tasseled_cap(
     Returns:
         A pyramids `Dataset` of shape `(len(components), row, col)` with the
         components as its band names, `dataset`'s geotransform / CRS, and NaN as
-        its nodata value.
+        its nodata value. A pixel that is the input's nodata, or non-finite in any
+        band, is NaN in every component.
 
     Raises:
         TransformError: When `components` is empty, names a component the sensor's
