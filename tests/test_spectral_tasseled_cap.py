@@ -198,6 +198,37 @@ class TestTasseledCapTransform:
         assert np.isnan(out.no_data_value[0]), "nodata should be NaN"
         assert out.read_array().shape == (3, 2, 3), "one band per component"
 
+    def test_input_nodata_is_masked_to_nan(self):
+        """A pixel equal to the input nodata comes out NaN in every component.
+
+        Test scenario:
+            A two-pixel stack whose second pixel is the declared -9999 fill must
+            emit NaN there (not a plausible finite value), while the valid pixel
+            stays finite -- the issue the output's NaN nodata must not lie about.
+        """
+        stack = np.ones((6, 1, 2))
+        stack[:, 0, 1] = -9999.0
+        ds = Dataset.from_array(
+            np.asarray(stack),
+            geo_ref=GeoReference(geo=_GEO, epsg=4326),
+            no_data_value=-9999,
+        )
+        ds.band_names = _ROLES
+        out = np.asarray(tasseled_cap(ds, sensor="landsat8_oli").read_array())
+        assert np.isnan(out[:, 0, 1]).all(), (
+            f"fill pixel must be NaN, got {out[:, 0, 1]}"
+        )
+        assert np.isfinite(out[:, 0, 0]).all(), "the valid pixel must stay finite"
+
+    def test_non_finite_input_is_masked(self):
+        """A non-finite value in any input band masks that whole pixel."""
+        stack = np.ones((6, 1, 2))
+        stack[3, 0, 1] = np.nan  # nir NaN at the second pixel
+        ds = _dataset(stack, band_names=_ROLES)
+        out = np.asarray(tasseled_cap(ds, sensor="landsat8_oli").read_array())
+        assert np.isnan(out[:, 0, 1]).all(), "a non-finite input band masks the pixel"
+        assert np.isfinite(out[:, 0, 0]).all(), "the finite pixel survives"
+
     def test_subset_and_order_of_components(self):
         """`components` selects and orders the output bands."""
         ds = _dataset(np.ones((6, 1, 1)), band_names=_ROLES)

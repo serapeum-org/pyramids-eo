@@ -186,7 +186,40 @@ def tasseled_cap(
         ],
         axis=0,
     )
+    # The linear combination turns an input fill value into a plausible finite
+    # number, so a pixel that is fill (or non-finite) in any band would otherwise
+    # be emitted unflagged while the output declares NaN nodata. Mask those pixels
+    # to NaN so the declared nodata is honest.
+    out[:, _invalid_pixels(stack, dataset)] = np.nan
     return _wrap_components(out, dataset, requested)
+
+
+def _invalid_pixels(stack: np.ndarray, dataset: Any) -> np.ndarray:
+    """Return a `(row, col)` mask, `True` where a pixel is fill or non-finite.
+
+    A pixel is invalid when any band is non-finite, or equals that band's declared
+    `no_data_value` -- so the component output over it can be set to NaN rather
+    than a plausible finite value.
+
+    Args:
+        stack: The `(band, row, col)` input stack (original band order).
+        dataset: The input `Dataset`, read for its per-band `no_data_value`.
+
+    Returns:
+        A boolean `(row, col)` array, `True` for an invalid pixel.
+    """
+    invalid = ~np.isfinite(stack).all(axis=0)
+    nodata = getattr(dataset, "no_data_value", None)
+    if nodata is not None:
+        values = (
+            nodata
+            if isinstance(nodata, (list, tuple, np.ndarray))
+            else [nodata] * stack.shape[0]
+        )
+        for band, value in zip(stack, values):
+            if value is not None and np.isfinite(value):
+                invalid |= band == value
+    return invalid
 
 
 def _wrap_components(out: np.ndarray, template: Any, component_names: list[str]) -> Any:
