@@ -26,12 +26,12 @@ landsat5_tm:
   domain: reflectance factor
   bands: [blue, green, red, nir, swir1, swir2]
   aliases:
-    blue: [B1, B01, TM1, SR_B1, band1]
-    green: [B2, B02, TM2, SR_B2, band2]
-    red: [B3, B03, TM3, SR_B3, band3]
-    nir: [B4, B04, TM4, SR_B4, band4]
-    swir1: [B5, B05, TM5, SR_B5, band5]
-    swir2: [B7, B07, TM7, SR_B7, band7]
+    blue: [B1, B01, TM1, SR_B1]
+    green: [B2, B02, TM2, SR_B2]
+    red: [B3, B03, TM3, SR_B3]
+    nir: [B4, B04, TM4, SR_B4]
+    swir1: [B5, B05, TM5, SR_B5]
+    swir2: [B7, B07, TM7, SR_B7]
   components:
     brightness: [0.2043, 0.4158, 0.5524, 0.5741, 0.3124, 0.2303]
     greenness: [-0.1603, -0.2819, -0.4934, 0.7940, -0.0002, -0.1446]
@@ -43,12 +43,12 @@ landsat7_etm:
   domain: at-satellite reflectance
   bands: [blue, green, red, nir, swir1, swir2]
   aliases:
-    blue: [B1, B01, SR_B1, band1]
-    green: [B2, B02, SR_B2, band2]
-    red: [B3, B03, SR_B3, band3]
-    nir: [B4, B04, SR_B4, band4]
-    swir1: [B5, B05, SR_B5, band5]
-    swir2: [B7, B07, SR_B7, band7]
+    blue: [B1, B01, SR_B1]
+    green: [B2, B02, SR_B2]
+    red: [B3, B03, SR_B3]
+    nir: [B4, B04, SR_B4]
+    swir1: [B5, B05, SR_B5]
+    swir2: [B7, B07, SR_B7]
   components:
     brightness: [0.3561, 0.3972, 0.3904, 0.6966, 0.2286, 0.1596]
     greenness: [-0.3344, -0.3544, -0.4556, 0.6966, -0.0242, -0.2630]
@@ -60,12 +60,12 @@ landsat8_oli:
   domain: at-satellite reflectance
   bands: [blue, green, red, nir, swir1, swir2]
   aliases:
-    blue: [B2, B02, SR_B2, band2]
-    green: [B3, B03, SR_B3, band3]
-    red: [B4, B04, SR_B4, band4]
-    nir: [B5, B05, SR_B5, band5]
-    swir1: [B6, B06, SR_B6, band6]
-    swir2: [B7, B07, SR_B7, band7]
+    blue: [B2, B02, SR_B2]
+    green: [B3, B03, SR_B3]
+    red: [B4, B04, SR_B4]
+    nir: [B5, B05, SR_B5]
+    swir1: [B6, B06, SR_B6]
+    swir2: [B7, B07, SR_B7]
   components:
     brightness: [0.3029, 0.2786, 0.4733, 0.5599, 0.5080, 0.1872]
     greenness: [-0.2941, -0.2430, -0.5424, 0.7276, 0.0713, -0.1608]

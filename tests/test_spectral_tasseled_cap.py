@@ -274,6 +274,46 @@ class TestTasseledCapTransform:
         assert np.isnan(out[:, 0, 1]).all(), "a non-finite input band masks the pixel"
         assert np.isfinite(out[:, 0, 0]).all(), "the finite pixel survives"
 
+    def test_generic_bandN_names_fall_back_positionally(self):
+        """A generic band1..band6 stack is positional, not a partial-match raise.
+
+        Test scenario:
+            With the bare `bandN` aliases dropped (issue #117 review L4), a
+            generically-numbered stack resolves no roles and is assumed already
+            in canonical order, matching the canonically-named result, rather
+            than partial-matching (band1 unknown for OLI) and raising.
+        """
+        stack = np.array([1, 2, 3, 4, 5, 6], dtype=float).reshape(6, 1, 1)
+        generic = _dataset(stack, [f"band{i}" for i in range(1, 7)])
+        out = np.asarray(tasseled_cap(generic, sensor="landsat8_oli").read_array())
+        by_role = np.asarray(
+            tasseled_cap(_dataset(stack, _ROLES), sensor="landsat8_oli").read_array()
+        )
+        assert np.allclose(out, by_role), "band1..band6 should fall back to positional"
+
+    def test_wkt_only_crs_round_trips(self):
+        """A non-EPSG (WKT-only) input CRS is carried onto the output.
+
+        Test scenario:
+            A geostationary grid reports `epsg is None` and a WKT `crs`; the
+            result must keep that WKT rather than dropping or mangling the CRS.
+        """
+        from osgeo import osr
+
+        srs = osr.SpatialReference()
+        srs.ImportFromProj4("+proj=geos +lon_0=0 +h=35785831 +ellps=WGS84 +units=m")
+        wkt = srs.ExportToWkt()
+        ds = Dataset.from_array(
+            np.ones((6, 1, 1)),
+            geo_ref=GeoReference(geo=_GEO, epsg=4326),
+            no_data_value=np.nan,
+        )
+        ds.crs = wkt
+        ds.band_names = _ROLES
+        out = tasseled_cap(ds, sensor="landsat8_oli")
+        assert out.epsg is None, f"a geostationary grid has no EPSG, got {out.epsg}"
+        assert "Geostationary" in out.crs, f"the WKT CRS must round-trip: {out.crs}"
+
     def test_warns_on_non_reflectance_magnitude(self):
         """A scaled-integer / DN stack (values far above 1) warns about the domain."""
         ds = _dataset(np.full((6, 1, 1), 8000.0), band_names=_ROLES)
