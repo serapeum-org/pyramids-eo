@@ -15,7 +15,7 @@ from pyramids_eo.sensors.registry import (
 from pyramids_eo.sensors.registry import tasseled_cap as _coeff_module
 from pyramids_eo.sensors.registry.tasseled_cap import _load
 from pyramids_eo.spectral import tasseled_cap
-from pyramids_eo.spectral.tasseled_cap import _resolve_band_order
+from pyramids_eo.spectral.tasseled_cap import _invalid_pixels, _resolve_band_order
 
 _GEO = (0.0, 10.0, 0.0, 0.0, 0.0, -10.0)
 #: The canonical six-band role order every bundled sensor table uses.
@@ -432,3 +432,18 @@ class TestResolveBandOrder:
         table = get_tasseled_cap("landsat8_oli")
         assert _resolve_band_order(None, table) is None, "None -> positional"
         assert _resolve_band_order([], table) is None, "empty -> positional"
+
+
+class TestInvalidPixels:
+    """`_invalid_pixels` flags fill and non-finite pixels."""
+
+    def test_without_nodata_only_non_finite_is_flagged(self):
+        """With no declared nodata, only non-finite pixels are masked."""
+
+        class _NoNodata:
+            no_data_value = None
+
+        stack = np.ones((6, 1, 2))
+        stack[0, 0, 1] = np.nan
+        mask = _invalid_pixels(stack, _NoNodata())
+        assert mask.tolist() == [[False, True]], f"only the NaN pixel flagged: {mask}"
