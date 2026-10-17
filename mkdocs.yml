@@ -120,6 +120,7 @@ nav:
       - Readers: reference/readers.md
       - Registry: reference/registry.md
     - Composites: reference/composites.md
+    - Spectral: reference/spectral.md
     - STAC signers: reference/stac.md
     - Errors: reference/errors.md
   - About:
