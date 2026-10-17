@@ -108,6 +108,51 @@ class TestGetTasseledCap:
             table.components["brightness"] = (0.0,) * 6
 
 
+#: Golden published coefficients, keyed by (sensor, component), pinned to the
+#: literals in the cited papers (Crist 1985 TM, Huang 2002 ETM+, Baig 2014 OLI).
+#: A YAML edit that changes the science must change these on purpose.
+_GOLDEN = {
+    ("landsat5_tm", "brightness"): (0.2043, 0.4158, 0.5524, 0.5741, 0.3124, 0.2303),
+    ("landsat5_tm", "greenness"): (-0.1603, -0.2819, -0.4934, 0.7940, -0.0002, -0.1446),
+    ("landsat5_tm", "wetness"): (0.0315, 0.2021, 0.3102, 0.1594, -0.6806, -0.6109),
+    ("landsat7_etm", "brightness"): (0.3561, 0.3972, 0.3904, 0.6966, 0.2286, 0.1596),
+    ("landsat7_etm", "greenness"): (
+        -0.3344,
+        -0.3544,
+        -0.4556,
+        0.6966,
+        -0.0242,
+        -0.2630,
+    ),
+    ("landsat7_etm", "wetness"): (0.2626, 0.2141, 0.0926, 0.0656, -0.7629, -0.5388),
+    ("landsat8_oli", "brightness"): (0.3029, 0.2786, 0.4733, 0.5599, 0.5080, 0.1872),
+    ("landsat8_oli", "greenness"): (-0.2941, -0.2430, -0.5424, 0.7276, 0.0713, -0.1608),
+    ("landsat8_oli", "wetness"): (0.1511, 0.1973, 0.3283, 0.3407, -0.7117, -0.4559),
+}
+
+
+class TestGoldenCoefficients:
+    """The bundled coefficients match the published literals, not just the wiring."""
+
+    @pytest.mark.parametrize(("sensor", "component"), list(_GOLDEN))
+    def test_coefficients_match_published_literals(self, sensor, component):
+        """Each sensor/component row equals its hand-checked published literal.
+
+        Args:
+            sensor: A bundled sensor identifier.
+            component: A tasseled-cap component name.
+
+        Test scenario:
+            The YAML row must equal the paper's coefficients exactly, so a
+            transcription typo (the PR's core risk) fails here rather than
+            silently shipping wrong science.
+        """
+        got = get_tasseled_cap(sensor).components[component]
+        assert got == _GOLDEN[(sensor, component)], (
+            f"{sensor}.{component} drifted from the published literal: {got}"
+        )
+
+
 class TestTasseledCapTransform:
     """`tasseled_cap` applies the coefficients to a reflectance band stack."""
 
