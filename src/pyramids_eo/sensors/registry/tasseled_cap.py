@@ -59,6 +59,15 @@ class TasseledCapCoefficients:
         Returns:
             The sorted component identifiers (e.g. `["brightness", "greenness",
             "wetness"]`).
+
+        Examples:
+            - The classic three components of a Landsat table, sorted:
+                ```python
+                >>> from pyramids_eo.sensors.registry import get_tasseled_cap
+                >>> get_tasseled_cap("landsat8_oli").component_names
+                ['brightness', 'greenness', 'wetness']
+
+                ```
         """
         return sorted(self.components)
 
@@ -74,6 +83,20 @@ class TasseledCapCoefficients:
         Returns:
             The canonical role (e.g. `"red"`), or `None` when `band_name`
             matches no role of this sensor.
+
+        Examples:
+            - A canonical role, an alias, and an unknown name:
+                ```python
+                >>> from pyramids_eo.sensors.registry import get_tasseled_cap
+                >>> oli = get_tasseled_cap("landsat8_oli")
+                >>> oli.role_of("red")
+                'red'
+                >>> oli.role_of("B5")
+                'nir'
+                >>> oli.role_of("thermal") is None
+                True
+
+                ```
         """
         key = band_name.strip().lower()
         for role in self.bands:
@@ -110,6 +133,28 @@ def get_tasseled_cap(sensor: str) -> TasseledCapCoefficients:
         UnknownSensorError: When no block exists for `sensor`.
         ValueError: When the bundled table is malformed -- a component row whose
             length does not match the number of bands.
+
+    Examples:
+        - Load a sensor and read its band order and a coefficient:
+            ```python
+            >>> from pyramids_eo.sensors.registry import get_tasseled_cap
+            >>> oli = get_tasseled_cap("landsat8_oli")
+            >>> oli.bands
+            ('blue', 'green', 'red', 'nir', 'swir1', 'swir2')
+            >>> oli.components["brightness"][0]
+            0.3029
+
+            ```
+        - The lookup is case-insensitive and cites its source:
+            ```python
+            >>> from pyramids_eo.sensors.registry import get_tasseled_cap
+            >>> tm = get_tasseled_cap("LANDSAT5_TM")
+            >>> tm.sensor
+            'landsat5_tm'
+            >>> tm.reference
+            'Crist (1985), Remote Sensing of Environment 17(3):301-306.'
+
+            ```
     """
     # Normalise before the cached lookup so different casings share one entry
     # (and return the same object) rather than caching a duplicate per spelling.
@@ -164,5 +209,14 @@ def available_tasseled_cap_sensors() -> list[str]:
     Returns:
         The sorted sensor keys from `tasseled_cap.yaml` (e.g. `["landsat5_tm",
         "landsat7_etm", "landsat8_oli"]`).
+
+    Examples:
+        - List the sensors that have a bundled tasseled-cap table:
+            ```python
+            >>> from pyramids_eo.sensors.registry import available_tasseled_cap_sensors
+            >>> available_tasseled_cap_sensors()
+            ['landsat5_tm', 'landsat7_etm', 'landsat8_oli']
+
+            ```
     """
     return sorted(_load())
