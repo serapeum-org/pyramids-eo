@@ -188,6 +188,10 @@ def _get_tasseled_cap(key: str) -> TasseledCapCoefficients:
     }
     for name, coeffs in components.items():
         if len(coeffs) != len(bands):
+            # Deliberately a bare ValueError, not an EOError: a row/band mismatch
+            # can only arise from corrupt *bundled* data (a packaging bug, not a
+            # user-recoverable condition), so it is signalled outside the
+            # user-facing EOError family rather than caught via `except EOError`.
             raise ValueError(
                 f"tasseled_cap[{key}]: component {name!r} has {len(coeffs)} "
                 f"coefficients but the sensor has {len(bands)} bands {bands}"
