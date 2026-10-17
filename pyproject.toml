@@ -47,12 +47,24 @@ dev = [
     "build>=1.0.0",
     "twine>=5.0.0",
     "pip",
-    "jupyterlab",
-    "notebook",
+    # Floor jupyterlab / notebook past PYSEC-2026-4055/4056/4057 +
+    # CVE-2026-102832 (jupyterlab) and PYSEC-2026-4112 (notebook), fixed in
+    # 4.6.4 and 7.6.3 respectively.
+    "jupyterlab >=4.6.4",
+    "notebook >=7.6.3",
     "jupyter",
     # Floor jupyter-server past CVE-2026-86049 (token leaked into 500 logs,
     # fixed in 2.21.0); it arrives transitively via jupyterlab / notebook.
     "jupyter-server >=2.21.0",
+    # Floor tornado past GHSA-chx6-46f5-w4vp / c2m8-h5v5-343r / 3hv7-mjh2-fv65
+    # (fixed in 6.5.9); it arrives transitively via the jupyter stack.
+    "tornado >=6.5.9",
+    # Floor urllib3 past PYSEC-2026-4175/4176/4177 (chunked-encoding memory
+    # DoS, fixed in 2.8.0); it arrives transitively via the jupyter / HTTP stack.
+    "urllib3 >=2.8.0",
+    # Floor virtualenv past PYSEC-2026-4011/4012/4013/4014 (fixed by 21.7.13);
+    # it arrives transitively via pre-commit.
+    "virtualenv >=21.7.13",
     "commitizen>=4.8.4",
     "mypy>=1.10.0",
     "types-PyYAML>=6.0.0",
