@@ -92,6 +92,14 @@ repository = "https://github.com/serapeum-org/pyramids-eo"
 documentation = "https://serapeum-org.github.io/pyramids-eo"
 Changelog = "https://github.com/serapeum-org/pyramids-eo/blob/main/docs/change-log.md"
 
+# Raster-reader plugins discovered by pyramids-gis 0.70's `pyramids.raster_drivers`
+# hook: installing this package lets `Dataset.read_file(<source>)` route into these.
+# Only readers that fit the single-source read_file model are registered (see
+# src/pyramids_eo/drivers/__init__.py); S2 and FCI stay facade-only.
+[project.entry-points."pyramids.raster_drivers"]
+earthengine = "pyramids_eo.drivers.earthengine:EarthEngineDriver"
+seviri = "pyramids_eo.drivers.seviri:SeviriDriver"
+
 
 [build-system]
 requires = ["setuptools>=80.0.0", "wheel"]

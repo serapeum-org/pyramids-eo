@@ -1,0 +1,78 @@
+"""Shared helpers for the ``pyramids.raster_drivers`` plugin drivers.
+
+Each driver in this package is a thin class over an existing pyramids-eo reader. It adds the
+two things :meth:`pyramids.dataset.Dataset.read_file` needs to route a source into the reader —
+a class-level claim set plus a ``can_open`` predicate — and maps the generic ``read`` arguments
+onto the reader's own keywords. The reader bodies are untouched; a driver only delegates.
+
+The contract version is declared as the literal ``1`` on each driver, matching pyramids' own
+"writing a raster driver" guidance (pyramids does not re-export ``RASTER_DRIVER_API_VERSION``
+publicly — it lives in the private ``pyramids.dataset._drivers`` — so importing the constant
+would couple to a private module). See ``planning/scope/raster-driver-plugin-plan.md`` for the
+note that this should become ``api_version = RASTER_DRIVER_API_VERSION`` once pyramids exposes
+the contract publicly.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+#: The driver-contract version every driver here declares. Must equal pyramids'
+#: ``RASTER_DRIVER_API_VERSION`` (currently 1); hard-coded because pyramids does not export it
+#: from a public module. A driver declaring a value pyramids no longer speaks is skipped at
+#: discovery with a warning, so keep this in step with the installed pyramids.
+RASTER_DRIVER_API_VERSION = 1
+
+
+def options_as_dict(options: Any) -> dict[str, Any]:
+    """Normalise ``read_file``'s ``open_options`` into a plain dict for a reader call.
+
+    ``Dataset.read_file`` hands a driver whatever the caller passed as ``open_options``,
+    uninterpreted — a dict, a GDAL-style ``["KEY=VALUE", ...]`` list/tuple, or ``None``. A
+    pyramids-eo reader takes Python keyword arguments, so coerce every spelling to one dict.
+
+    Args:
+        options: The caller's ``open_options`` — a ``dict``, a sequence of ``"KEY=VALUE"``
+            strings, or ``None``.
+
+    Returns:
+        A dict of the options, empty when ``options`` is ``None`` or empty.
+
+    Raises:
+        ValueError: A sequence item is not a ``"KEY=VALUE"`` string.
+
+    Examples:
+        - A dict is returned as a shallow copy, so the caller's object is not mutated:
+            ```python
+            >>> from pyramids_eo.drivers._base import options_as_dict
+            >>> src = {"channel": "IR_108"}
+            >>> options_as_dict(src)
+            {'channel': 'IR_108'}
+            >>> options_as_dict(src) is src
+            False
+
+            ```
+        - A GDAL-style KEY=VALUE list is parsed, and ``None`` becomes an empty dict:
+            ```python
+            >>> options_as_dict(["reducer=median", "tile_size=256"])
+            {'reducer': 'median', 'tile_size': '256'}
+            >>> options_as_dict(None)
+            {}
+
+            ```
+    """
+    if options is None:
+        return {}
+    if isinstance(options, dict):
+        return dict(options)
+    result: dict[str, Any] = {}
+    for item in options:
+        text = str(item)
+        if "=" not in text:
+            raise ValueError(
+                f"open_options item {item!r} is not a 'KEY=VALUE' string; pass a dict for "
+                "reader keywords."
+            )
+        key, value = text.split("=", 1)
+        result[key] = value
+    return result
