@@ -15,6 +15,7 @@ requires the channel to be named — via ``bands=["ir_105"]`` or ``open_options=
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from glob import glob
 from pathlib import Path
 from typing import Any
@@ -132,9 +133,10 @@ class FciDriver:
             requested.
 
         Raises:
-            ValueError: No channel was given (via ``bands`` or ``options``); both a single
-                ``channel`` and a ``channels`` list were given; ``bands`` is a bare string/bytes
-                instead of a list of channel names; or the source resolved to no chunk files.
+            ValueError: No channel was given (via ``bands`` or ``options``, counting an empty
+                ``channels`` list as none); both a single ``channel`` and a ``channels`` list were
+                given; ``bands`` is not a list of channel names (a string, bytes, mapping, or other
+                non-sequence); or the source resolved to no chunk files.
         """
         from pyramids_eo.sensors.readers import read_fci_l1c
 
@@ -146,16 +148,24 @@ class FciDriver:
                 "pass either a single channel or a channels list, not both."
             )
         if channel is None and channels is None and bands is not None:
-            if isinstance(bands, (str, bytes)):
+            if isinstance(bands, (str, bytes, Mapping)):
                 raise ValueError(
-                    f"bands must be a list of channel names, not a bare "
+                    f"bands must be a list of channel names, not a "
                     f"{type(bands).__name__} ({bands!r}); pass bands=['ir_105']."
                 )
-            bands = list(bands)
+            try:
+                bands = list(bands)
+            except TypeError as error:
+                raise ValueError(
+                    f"bands must be a list of channel names, not a "
+                    f"{type(bands).__name__} ({bands!r}); pass bands=['ir_105']."
+                ) from error
             if len(bands) == 1:
                 channel = bands[0]
             elif len(bands) > 1:
                 channels = bands
+        if isinstance(channels, (list, tuple)) and len(channels) == 0:
+            channels = None  # an empty channels list names no channel
         if channel is None and channels is None:
             raise ValueError(
                 "an FCI read needs a channel: pass bands=['ir_105'], "

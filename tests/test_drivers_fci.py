@@ -225,3 +225,20 @@ def test_read_rejects_both_channel_and_channels(tmp_path):
     driver = FciDriver()
     with pytest.raises(ValueError, match="not both"):
         driver.read(str(granule), options={"channel": "ir_105", "channels": ["vis_06"]})
+
+
+@pytest.mark.parametrize("bands", [42, np.array("ir_105"), {"ir_105": 1}])
+def test_read_rejects_non_sequence_bands(tmp_path, bands):
+    """A non-sequence bands (int, 0-d array, dict) gives the clear channel error, not a TypeError."""
+    granule, _ = _make_granule(tmp_path, ["c0.nc"])
+    driver = FciDriver()
+    with pytest.raises(ValueError, match="list of channel names"):
+        driver.read(str(granule), bands=bands)
+
+
+def test_read_empty_channels_list_needs_a_channel(tmp_path):
+    """An empty channels list in options is a clear channel error, symmetric with bands=[]."""
+    granule, _ = _make_granule(tmp_path, ["c0.nc"])
+    driver = FciDriver()
+    with pytest.raises(ValueError, match="needs a channel"):
+        driver.read(str(granule), options={"channels": []})
