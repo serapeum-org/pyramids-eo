@@ -110,11 +110,17 @@ def expand_sources(source: Any, *, pattern: str = "*") -> list[str]:
         A sorted list of path strings. Empty when a glob or directory matches nothing.
 
     Examples:
-        - A single file is returned as a one-element list:
+        - A single, non-existent plain path is returned as a one-element list:
             ```python
             >>> from pyramids_eo.drivers._base import expand_sources
             >>> expand_sources("granule/chunk_0.nc")
             ['granule/chunk_0.nc']
+
+            ```
+        - An empty source expands to nothing (it is not read as the current directory):
+            ```python
+            >>> expand_sources("")
+            []
 
             ```
     """

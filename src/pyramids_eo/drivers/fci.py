@@ -115,6 +115,21 @@ class FciDriver:
             cost, and a filesystem error (e.g. an unreadable directory) is swallowed to False so
             the method never raises. ``driver="fci"`` bypasses this, so a non-standard chunk set can
             still be read explicitly.
+
+        Examples:
+            - An ``fci://`` source is always claimed (a cheap string check):
+                ```python
+                >>> from pyramids_eo.drivers.fci import FciDriver
+                >>> FciDriver.can_open("fci://MTG_FCI_granule")
+                True
+
+                ```
+            - A non-string source is never claimed:
+                ```python
+                >>> FciDriver.can_open(42)
+                False
+
+                ```
         """
         if not isinstance(source, str) or not source:
             return False
