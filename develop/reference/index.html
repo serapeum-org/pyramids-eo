@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -1811,7 +1811,7 @@ entry points; the sensor readers, registry, composites, and STAC signers live un
     <div class="doc doc-contents first">
 
         <p>pyramids-eo — the Earth-observation layer of the pyramids stack.</p>
-<p><code>pyramids-eo</code> is built on top of :mod:<code>pyramids</code> (<code>pyramids-gis</code>, the generic
+<p><code>pyramids-eo</code> is built on top of :mod:<code>pyramids</code> (<code>pyramids-core</code>, the generic
 raster/vector engine) and adds the logic that is specific to
 <strong>Earth-observation data</strong>. Where pyramids knows how to <em>move rasters around</em>,
 pyramids-eo knows what a pixel <em>means</em> for a given instrument or provider: which
@@ -7129,7 +7129,7 @@ a multi-zone product is read without <code>epsg</code>.</p>
 <a id="__codelineno-0-113" name="__codelineno-0-113"></a>    <span class="n">_set_nodata</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">product</span><span class="p">)</span>
 <a id="__codelineno-0-114" name="__codelineno-0-114"></a>
 <a id="__codelineno-0-115" name="__codelineno-0-115"></a>    <span class="c1"># Do every DN-domain transform first (mask, crop, reproject), then tag</span>
-<a id="__codelineno-0-116" name="__codelineno-0-116"></a>    <span class="c1"># reflectance LAST. The mask's rebuild and pyramids-gis `crop` both reset</span>
+<a id="__codelineno-0-116" name="__codelineno-0-116"></a>    <span class="c1"># reflectance LAST. The mask's rebuild and pyramids `crop` both reset</span>
 <a id="__codelineno-0-117" name="__codelineno-0-117"></a>    <span class="c1"># per-band scale/offset (only `to_crs` / `to_file` preserve them), so tags</span>
 <a id="__codelineno-0-118" name="__codelineno-0-118"></a>    <span class="c1"># applied earlier would be silently dropped — tagging last guarantees the</span>
 <a id="__codelineno-0-119" name="__codelineno-0-119"></a>    <span class="c1"># returned dataset carries the calibration. `offsets` is captured from the</span>

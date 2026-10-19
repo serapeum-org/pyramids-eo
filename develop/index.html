@@ -62,7 +62,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -1666,7 +1666,7 @@
 <p><a href="https://www.gnu.org/licenses/gpl-3.0"><img alt="License: GPL v3" src="https://img.shields.io/badge/License-GPLv3-blue.svg" /></a>
 <a href="https://github.com/pre-commit/pre-commit"><img alt="pre-commit" src="https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&amp;logoColor=white" /></a></p>
 <p><strong>pyramids-eo</strong> is the <strong>Earth-observation layer</strong> of the pyramids GIS stack. It is built on top of
-<a href="https://github.com/serapeum-org/pyramids">pyramids</a> (<code>pyramids-gis</code> — the generic raster/vector engine) and
+<a href="https://github.com/serapeum-org/pyramids">pyramids</a> (<code>pyramids-core</code> — the generic raster/vector engine) and
 adds the logic that is specific to <strong>Earth-observation data</strong>.</p>
 <p>pyramids underneath knows only how to <em>move rasters around</em>. pyramids-eo knows what a pixel <em>means</em> for a given
 instrument or provider: which subdataset is which channel, how to calibrate it, how to composite it, how to
@@ -1679,7 +1679,7 @@ resample a swath — and how to reach signed EO cloud assets.</p>
 </code></pre></div>
 <h2 id="scope"><a class="toclink" href="#scope">Scope</a><a class="headerlink" href="#scope" title="Permanent link">#</a></h2>
 <p>pyramids-eo is scoped by <em>domain</em> — Earth-observation data — not by a restriction on what it may do. It covers
-the EO-specific functionality that sits above the generic raster/vector operations pyramids-gis provides:
+the EO-specific functionality that sits above the generic raster/vector operations pyramids provides:
 reading instrument L1/L2 formats, calibrating them, compositing them, resampling swaths, and reaching signed EO
 cloud assets (Google Earth Engine, STAC providers). Everything a reader returns is a plain pyramids
 <code>Dataset</code> / <code>DatasetCollection</code> — no engine-specific objects leak into the public types.</p>
@@ -1735,7 +1735,7 @@ scene-classification masking (see <a href="reference/sentinel/">Sentinel</a>).</
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">seviri</span> <span class="o">=</span> <span class="n">read_seviri</span><span class="p">(</span><span class="s2">"MSG4-...nat"</span><span class="p">,</span> <span class="s2">"IR_108"</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="compositing"><a class="toclink" href="#compositing">Compositing</a><a class="headerlink" href="#compositing" title="Permanent link">#</a></h3>
-<p>Assemble a true-colour composite over NumPy + pyramids-gis, then stretch it to a displayable frame (see
+<p>Assemble a true-colour composite over NumPy + pyramids, then stretch it to a displayable frame (see
 <a href="reference/composites/">Composites</a>).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.composites</span><span class="w"> </span><span class="kn">import</span> <span class="n">true_color</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.enhance</span><span class="w"> </span><span class="kn">import</span> <span class="n">stretch</span>
