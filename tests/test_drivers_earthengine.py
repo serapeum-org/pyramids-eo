@@ -218,6 +218,14 @@ def test_read_collection_without_dates_raises(monkeypatch):
         EarthEngineDriver().read_collection("ee://X")
 
 
+@pytest.mark.parametrize("time", [(None, "2024-02-01"), ("2024-01-01", None)])
+def test_read_collection_rejects_a_none_endpoint(monkeypatch, time):
+    """A pair with a None start or end is a clear date-range error, not forwarded as None."""
+    monkeypatch.setattr(pyramids_eo, "collection_from_earthengine", lambda *a, **k: "X")
+    with pytest.raises(ValueError, match="date range"):
+        EarthEngineDriver().read_collection("ee://X", time=time)
+
+
 def test_read_collection_maps_auth_to_credentials(monkeypatch):
     """`read_collection` remaps an `auth` kwarg to `credentials` for the facade."""
     captured = {}

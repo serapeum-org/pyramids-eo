@@ -162,8 +162,8 @@ class EarthEngineDriver:
             One aligned timestep per scene.
 
         Raises:
-            ValueError: ``time`` is not a two-element pair, or neither ``time`` nor both ``start``
-                and ``end`` were given.
+            ValueError: ``time`` is not a two-element pair, or the resolved ``start``/``end`` are
+                not both given and non-``None``.
         """
         from pyramids_eo import collection_from_earthengine
 
@@ -184,9 +184,9 @@ class EarthEngineDriver:
             settings.setdefault(
                 "credentials", auth
             )  # an explicit credentials= wins over auth
-        if "start" not in settings or "end" not in settings:
+        if settings.get("start") is None or settings.get("end") is None:
             raise ValueError(
                 "an Earth Engine collection read needs a date range: pass time=(start, end) "
-                "or start=… and end=…."
+                "or start=… and end=… (both non-None)."
             )
         return collection_from_earthengine(_strip_scheme(str(source)), **settings)
