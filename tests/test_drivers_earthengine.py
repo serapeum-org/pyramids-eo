@@ -34,11 +34,11 @@ def test_conforms_to_the_contract():
 
 
 def test_claims():
-    """The class-level claims are the Earth Engine ones."""
+    """The class-level claims are the Earth Engine ones; EE needs no optional backend extra."""
     assert EarthEngineDriver.name == "earthengine"
     assert EarthEngineDriver.suffixes == ()
     assert EarthEngineDriver.schemes == ("ee",)
-    assert EarthEngineDriver.extra == "ee"
+    assert EarthEngineDriver.extra is None
     assert {"read", "read_collection", "needs_auth"} <= EarthEngineDriver.capabilities
 
 

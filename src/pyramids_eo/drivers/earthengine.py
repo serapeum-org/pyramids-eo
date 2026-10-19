@@ -7,10 +7,12 @@ driver claims the ``ee://`` URL scheme rather than an extension; a bare asset id
 is ambiguous with a GDAL path and stays on the typed :func:`~pyramids_eo.from_earthengine`
 facade.
 
-The heavy ``earthengine-api`` backend (imported as ``ee``) is named in :attr:`extra`, so
-discovery skips this driver with a warning when it is not installed, and the backend is imported
-inside :meth:`read` — never at module load — so a bare pyramids-eo install discovers the driver
-without importing it.
+Earth Engine is reached through GDAL's EEDAI driver, which is bundled with pyramids' GDAL — not
+through the ``earthengine-api`` (``ee``) package, which pyramids-eo does not depend on. There is
+therefore no optional backend to gate on, so :attr:`extra` is ``None`` and the driver is always
+discovered; an EE read still needs credentials, which is what the ``needs_auth`` capability
+declares and :func:`pyramids_eo.from_earthengine` enforces at read time. The reader is imported
+inside :meth:`read` — never at module load — so discovery stays cheap.
 """
 
 from __future__ import annotations
@@ -41,7 +43,8 @@ class EarthEngineDriver:
         schemes: ``("ee",)`` — the driver claims ``ee://…`` sources.
         capabilities: ``read`` (single image), ``read_collection`` (temporal stack), and
             ``needs_auth`` (an Earth Engine read needs credentials).
-        extra: ``"ee"`` — the import name of the optional ``earthengine-api`` backend.
+        extra: ``None`` — EE is reached through pyramids' bundled GDAL EEDAI driver, so there is
+            no separate optional backend to gate discovery on.
     """
 
     name = "earthengine"
@@ -50,7 +53,7 @@ class EarthEngineDriver:
     suffixes: tuple[str, ...] = ()
     schemes: tuple[str, ...] = ("ee",)
     capabilities = frozenset({"read", "read_collection", "needs_auth"})
-    extra: str | None = "ee"
+    extra: str | None = None
 
     @classmethod
     def can_open(cls, source: Any) -> bool:
