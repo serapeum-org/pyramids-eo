@@ -67,23 +67,37 @@ def test_ee_source_routes_into_earthengine_via_open_options(monkeypatch):
 
     captured = {}
     monkeypatch.setattr(
-        pyramids_eo, "from_earthengine",
-        lambda asset_id, *, window, bands, credentials, **o: captured.update(
-            asset_id=asset_id, bbox=window.bbox, bands=bands, credentials=credentials
-        )
-        or Dataset.from_array(
-            np.zeros((1, 1)),
-            geo_ref=GeoReference(top_left_corner=(0.0, 1.0), cell_size=1.0, epsg=4326),
+        pyramids_eo,
+        "from_earthengine",
+        lambda asset_id, *, window, bands, credentials, **o: (
+            captured.update(
+                asset_id=asset_id,
+                bbox=window.bbox,
+                bands=bands,
+                credentials=credentials,
+            )
+            or Dataset.from_array(
+                np.zeros((1, 1)),
+                geo_ref=GeoReference(
+                    top_left_corner=(0.0, 1.0), cell_size=1.0, epsg=4326
+                ),
+            )
         ),
     )
     clear_driver_cache()
     out = Dataset.read_file(
         "ee://USGS/SRTMGL1_003",
-        open_options={"bbox": (0.0, 0.0, 1.0, 1.0), "bands": ["elevation"], "credentials": "C"},
+        open_options={
+            "bbox": (0.0, 0.0, 1.0, 1.0),
+            "bands": ["elevation"],
+            "credentials": "C",
+        },
     )
     clear_driver_cache()
     assert isinstance(out, Dataset)
-    assert captured["asset_id"] == "USGS/SRTMGL1_003", "scheme stripped and routed to EE driver"
+    assert captured["asset_id"] == "USGS/SRTMGL1_003", (
+        "scheme stripped and routed to EE driver"
+    )
     assert captured["bbox"] == (0.0, 0.0, 1.0, 1.0)
     assert captured["bands"] == ["elevation"]
     assert captured["credentials"] == "C"

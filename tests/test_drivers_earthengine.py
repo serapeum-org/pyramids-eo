@@ -113,14 +113,17 @@ def test_read_takes_window_bands_credentials_from_options(monkeypatch):
     assert captured["window"].crs == 4326
     assert captured["bands"] == ["B4"]
     assert captured["credentials"] == "CREDS"
-    assert captured["options"] == {"reducer": "median"}, "reserved keys must be consumed"
+    assert captured["options"] == {"reducer": "median"}, (
+        "reserved keys must be consumed"
+    )
 
 
 def test_explicit_kwarg_wins_over_option(monkeypatch):
     """An explicit read keyword takes precedence over the same key in options."""
     captured = {}
     monkeypatch.setattr(
-        pyramids_eo, "from_earthengine",
+        pyramids_eo,
+        "from_earthengine",
         lambda asset_id, *, window, bands, credentials, **o: captured.update(
             bbox=window.bbox, bands=bands, credentials=credentials
         ),
@@ -130,7 +133,11 @@ def test_explicit_kwarg_wins_over_option(monkeypatch):
         bbox=(9.0, 9.0, 9.0, 9.0),
         bands=["EXPLICIT"],
         auth="EXPLICIT_CREDS",
-        options={"bbox": (0.0, 0.0, 1.0, 1.0), "bands": ["OPT"], "credentials": "OPT_CREDS"},
+        options={
+            "bbox": (0.0, 0.0, 1.0, 1.0),
+            "bands": ["OPT"],
+            "credentials": "OPT_CREDS",
+        },
     )
     assert captured["bbox"] == (9.0, 9.0, 9.0, 9.0)
     assert captured["bands"] == ["EXPLICIT"]
@@ -140,7 +147,8 @@ def test_explicit_kwarg_wins_over_option(monkeypatch):
 def test_option_reserved_keys_do_not_collide(monkeypatch):
     """Reserved keys in options are consumed, not splatted into a duplicate keyword (no TypeError)."""
     monkeypatch.setattr(
-        pyramids_eo, "from_earthengine",
+        pyramids_eo,
+        "from_earthengine",
         lambda asset_id, *, window, bands, credentials, **o: "OK",
     )
     out = EarthEngineDriver().read(
@@ -155,8 +163,11 @@ def test_read_uses_a_prebuilt_window_from_options(monkeypatch):
 
     captured = {}
     monkeypatch.setattr(
-        pyramids_eo, "from_earthengine",
-        lambda asset_id, *, window, bands, credentials, **o: captured.update(window=window),
+        pyramids_eo,
+        "from_earthengine",
+        lambda asset_id, *, window, bands, credentials, **o: captured.update(
+            window=window
+        ),
     )
     prebuilt = Window(bbox=(5.0, 5.0, 6.0, 6.0), crs=3857)
     EarthEngineDriver().read("ee://X", options={"window": prebuilt})
@@ -192,12 +203,11 @@ def test_read_collection_explicit_start_wins_over_time(monkeypatch):
     """An explicit `start`/`end` keyword takes precedence over the `time` pair."""
     captured = {}
     monkeypatch.setattr(
-        pyramids_eo, "collection_from_earthengine",
+        pyramids_eo,
+        "collection_from_earthengine",
         lambda asset_id, **kwargs: captured.update(kwargs),
     )
-    EarthEngineDriver().read_collection(
-        "ee://X", start="EXPLICIT", time=("T0", "T1")
-    )
+    EarthEngineDriver().read_collection("ee://X", start="EXPLICIT", time=("T0", "T1"))
     assert captured["start"] == "EXPLICIT" and captured["end"] == "T1"
 
 
@@ -212,7 +222,8 @@ def test_read_collection_maps_auth_to_credentials(monkeypatch):
     """`read_collection` remaps an `auth` kwarg to `credentials` for the facade."""
     captured = {}
     monkeypatch.setattr(
-        pyramids_eo, "collection_from_earthengine",
+        pyramids_eo,
+        "collection_from_earthengine",
         lambda asset_id, **kwargs: captured.update(asset_id=asset_id, **kwargs),
     )
     EarthEngineDriver().read_collection(

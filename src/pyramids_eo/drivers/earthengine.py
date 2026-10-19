@@ -128,7 +128,9 @@ class EarthEngineDriver:
         window = opt_window
         if window is None:
             window = (
-                Window(bbox=bbox, crs=crs) if bbox is not None or crs is not None else Window()
+                Window(bbox=bbox, crs=crs)
+                if bbox is not None or crs is not None
+                else Window()
             )
         return from_earthengine(
             _strip_scheme(str(source)),
@@ -173,11 +175,15 @@ class EarthEngineDriver:
                     "sequence or start=… and end=… instead."
                 )
             start, end = time
-            settings.setdefault("start", start)  # an explicit start= keyword wins over time
+            settings.setdefault(
+                "start", start
+            )  # an explicit start= keyword wins over time
             settings.setdefault("end", end)
         auth = settings.pop("auth", None)
         if auth is not None:
-            settings.setdefault("credentials", auth)  # an explicit credentials= wins over auth
+            settings.setdefault(
+                "credentials", auth
+            )  # an explicit credentials= wins over auth
         if "start" not in settings or "end" not in settings:
             raise ValueError(
                 "an Earth Engine collection read needs a date range: pass time=(start, end) "
