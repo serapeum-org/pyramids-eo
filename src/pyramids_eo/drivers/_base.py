@@ -8,9 +8,8 @@ onto the reader's own keywords. The reader bodies are untouched; a driver only d
 The contract version is declared as the literal ``1`` on each driver, matching pyramids' own
 "writing a raster driver" guidance (pyramids does not re-export ``RASTER_DRIVER_API_VERSION``
 publicly — it lives in the private ``pyramids.dataset._drivers`` — so importing the constant
-would couple to a private module). See ``planning/scope/raster-driver-plugin-plan.md`` for the
-note that this should become ``api_version = RASTER_DRIVER_API_VERSION`` once pyramids exposes
-the contract publicly.
+would couple to a private module). This should become ``api_version = RASTER_DRIVER_API_VERSION``
+once pyramids exposes the contract version from a public module.
 """
 
 from __future__ import annotations

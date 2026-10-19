@@ -57,3 +57,43 @@ and a custom `parse` callable can still be injected.
         show_source: true
         heading_level: 3
         members_order: source
+
+## Raster-driver plugins
+
+The EO readers are also registered as `pyramids.raster_drivers` plugins (the hook
+pyramids-core 0.70 added), so `pyramids.dataset.Dataset.read_file(<source>)` can
+route a source straight into pyramids-eo — no import of this package needed at the
+call site. Installing pyramids-eo is the whole integration.
+
+| driver name | source | reader |
+| --- | --- | --- |
+| `earthengine` | `ee://<asset-id>` | `from_earthengine` |
+| `seviri` | a `.nat` granule | `read_seviri` |
+| `s2` | a `.SAFE` product (or `.SAFE.zip`) | `from_sentinel2` |
+| `fci` | an FCI L1C granule: a chunk **directory**, a **glob**, or an `fci://` path | `read_fci_l1c` |
+
+```python
+from pyramids.dataset import Dataset
+
+# auto-routed: GDAL cannot open these, so read_file falls through to the plugin
+nat = Dataset.read_file("MSG_SEVIRI.nat", open_options={"channel": "IR_108"})
+ee = Dataset.read_file("ee://USGS/SRTMGL1_003", open_options={"bbox": (0, 0, 1, 1)})
+fci = Dataset.read_file("/data/fci_granule", open_options={"channel": "ir_105"})
+fci2 = Dataset.read_file("fci:///data/fci_granule", open_options={"channel": "ir_105"})
+
+# Sentinel-2: GDAL opens a .SAFE itself, so ask for the pyramids-eo reader explicitly
+s2 = Dataset.read_file("S2A_MSIL2A.SAFE", driver="s2", open_options={"bands": ["B04", "B03", "B02"]})
+```
+
+`read_file` forwards only `open_options` to a driver, so reader keywords (channel,
+bbox, bands, credentials, …) are passed there; options needing a non-string type
+(e.g. S2 `resolution=10`) must be given in dict form, not a `KEY=VALUE` list. A
+bare `read_file("…SAFE")` without `driver="s2"` returns GDAL's container until the
+upstream suffix-pre-emption feature (serapeum-org/pyramids#1344) lands.
+
+::: pyramids_eo.drivers
+    options:
+        show_root_heading: true
+        show_source: true
+        heading_level: 3
+        members_order: source

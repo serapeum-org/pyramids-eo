@@ -15,12 +15,12 @@ enough for ``read_file`` to find these. Each driver is a thin wrapper over an ex
 (``from_earthengine`` / ``read_seviri`` / ``from_sentinel2`` / ``read_fci_l1c``), which stays the
 ergonomic public API.
 
-A single ``read_file`` source string can name a *set* of files — a directory or a glob — which is
-how a multi-chunk FCI granule is addressed (see
+A single ``read_file`` source string can name a *set* of files — a directory, a glob, or an
+``fci://`` path — which is how a multi-chunk FCI granule is addressed (see
 :func:`~pyramids_eo.drivers._base.expand_sources`). The one reader reachable only via an explicit
 ``driver="s2"`` is Sentinel-2: GDAL ships its own ``SENTINEL2`` driver and opens a ``.SAFE`` on the
-plain ``read_file`` path before any plugin, so a bare-path auto-route waits on
-serapeum-org/pyramids#1344. See ``planning/scope/raster-driver-plugin-plan.md``.
+plain ``read_file`` path before any plugin, so a bare-path auto-route waits on the upstream
+suffix-pre-emption feature requested in serapeum-org/pyramids#1344.
 """
 
 from __future__ import annotations

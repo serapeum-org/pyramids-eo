@@ -74,9 +74,11 @@ class FciDriver:
 
         Returns:
             True for an ``fci://`` source, a directory containing at least one ``*FDHSI*.nc``
-            chunk, or a glob whose matches include one. Cheap: at most a single directory listing /
-            glob, no file open, no network. ``driver="fci"`` bypasses this, so a non-standard chunk
-            set can still be read explicitly.
+            chunk, or a glob whose matches include one. It does a bounded, non-recursive directory
+            listing / glob (no file open, no network, never raises) — more than the string-only
+            ``can_open`` of the other drivers, but it runs only when GDAL has already failed to open
+            the source, and a very broad user glob (e.g. ``**``) is the caller's cost.
+            ``driver="fci"`` bypasses this, so a non-standard chunk set can still be read explicitly.
         """
         if not isinstance(source, str):
             return False
@@ -108,8 +110,10 @@ class FciDriver:
             source: A directory of FDHSI ``.nc`` chunks, a glob matching them, a single chunk, or
                 any of those prefixed ``fci://``.
             bands: The channel(s) to read — one name for a single-channel ``Dataset``, several for
-                a ``dict[str, Dataset]``; an alternative to ``options={"channel": …}`` /
-                ``options={"channels": [...]}``.
+                a ``dict[str, Dataset]``. A direct-call convenience only: ``Dataset.read_file``
+                forwards just ``options`` to a driver, so through ``read_file`` the channel must
+                come from ``options={"channel": …}`` / ``options={"channels": [...]}``, and a
+                ``channel``/``channels`` in ``options`` takes precedence over ``bands``.
             options: Extra :func:`~pyramids_eo.sensors.readers.read_fci_l1c` keywords — ``channel``
                 / ``channels``, ``calibrate``, ``sun_earth_distance``, ``cos_sza`` — as a dict or
                 ``KEY=VALUE`` list.
