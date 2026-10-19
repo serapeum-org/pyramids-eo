@@ -57,6 +57,14 @@ def test_can_open_glob_without_fdhsi_match(tmp_path):
     assert FciDriver.can_open(str(tmp_path / "*.nc")) is False
 
 
+def test_can_open_directory_name_with_glob_metachar(tmp_path):
+    """A real granule directory whose name contains a glob metachar is still claimed."""
+    granule = tmp_path / "granule[1]"
+    granule.mkdir()
+    (granule / "W_XX_FCI-1C-FDHSI_x.nc").write_bytes(b"")
+    assert FciDriver.can_open(str(granule)) is True
+
+
 def test_conforms_to_the_contract():
     """The driver satisfies pyramids' raster-driver conformance kit."""
     from pyramids.dataset.driver_conformance import assert_raster_driver_conforms

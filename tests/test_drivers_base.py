@@ -86,3 +86,18 @@ def test_expand_sources_glob_string_is_expanded(tmp_path):
 def test_expand_sources_empty_directory_is_empty(tmp_path):
     """A directory with no match expands to an empty list."""
     assert expand_sources(str(tmp_path), pattern="*.nc") == []
+
+
+def test_expand_sources_directory_name_with_glob_metachar(tmp_path):
+    """A real directory whose name contains a glob metachar is treated literally, not as a pattern."""
+    granule = tmp_path / "granule[1]"
+    granule.mkdir()
+    (granule / "c0.nc").write_bytes(b"")
+    assert expand_sources(str(granule), pattern="*.nc") == [str(granule / "c0.nc")]
+
+
+def test_expand_sources_existing_file_with_glob_metachar(tmp_path):
+    """A real file whose name contains a glob metachar is returned literally, not expanded."""
+    chunk = tmp_path / "a[1].nc"
+    chunk.write_bytes(b"")
+    assert expand_sources(str(chunk)) == [str(chunk)]

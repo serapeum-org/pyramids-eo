@@ -82,10 +82,17 @@ class FciDriver:
             return False
         if source.lower().startswith(_SCHEME):
             return True
+        # Resolve an existing path literally first, so a real granule directory whose own name
+        # contains a glob metacharacter (e.g. ``granule[1]``) is stat-checked, not treated as a
+        # pattern. Only a non-existent source is interpreted as a glob.
+        path = Path(source)
+        if path.is_dir():
+            return any(path.glob(_FDHSI_GLOB))
+        if path.exists():
+            return False
         if any(character in source for character in "*?["):
             return any("fdhsi" in Path(match).name.lower() for match in glob(source))
-        path = Path(source)
-        return path.is_dir() and any(path.glob(_FDHSI_GLOB))
+        return False
 
     def read(
         self,

@@ -118,9 +118,13 @@ def expand_sources(source: Any, *, pattern: str = "*") -> list[str]:
             ```
     """
     text = str(source)
-    if any(character in text for character in _GLOB_CHARS):
-        return sorted(_glob(text))
     path = Path(text)
+    # Resolve an existing path literally first, so a real directory or file whose own name contains
+    # a glob metacharacter (e.g. ``granule[1]``) is not mistaken for a pattern and lost.
     if path.is_dir():
         return sorted(str(entry) for entry in path.glob(pattern))
+    if path.exists():
+        return [text]
+    if any(character in text for character in _GLOB_CHARS):
+        return sorted(_glob(text))
     return [text]
