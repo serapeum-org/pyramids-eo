@@ -2,7 +2,11 @@
 
 import pytest
 
-from pyramids_eo.drivers._base import RASTER_DRIVER_API_VERSION, options_as_dict
+from pyramids_eo.drivers._base import (
+    RASTER_DRIVER_API_VERSION,
+    expand_sources,
+    options_as_dict,
+)
 
 
 def test_api_version_is_one():
@@ -56,3 +60,29 @@ def test_options_accepts_a_non_dict_mapping():
     out = options_as_dict(MappingProxyType({"channel": "IR_108"}))
     assert out == {"channel": "IR_108"}
     assert type(out) is dict
+
+
+def test_expand_sources_single_file_is_a_one_element_list():
+    """A plain path that is not a directory or glob is returned as a single-element list."""
+    assert expand_sources("granule/chunk_0.nc") == ["granule/chunk_0.nc"]
+
+
+def test_expand_sources_directory_globs_the_pattern(tmp_path):
+    """A directory source expands to its sorted entries matching the pattern."""
+    for name in ["c1.nc", "c0.nc", "note.txt"]:
+        (tmp_path / name).write_bytes(b"")
+    out = expand_sources(str(tmp_path), pattern="*.nc")
+    assert out == sorted([str(tmp_path / "c0.nc"), str(tmp_path / "c1.nc")])
+
+
+def test_expand_sources_glob_string_is_expanded(tmp_path):
+    """A glob string expands to its sorted matches, ignoring the directory pattern."""
+    for name in ["b.nc", "a.nc"]:
+        (tmp_path / name).write_bytes(b"")
+    out = expand_sources(str(tmp_path / "*.nc"))
+    assert out == sorted([str(tmp_path / "a.nc"), str(tmp_path / "b.nc")])
+
+
+def test_expand_sources_empty_directory_is_empty(tmp_path):
+    """A directory with no match expands to an empty list."""
+    assert expand_sources(str(tmp_path), pattern="*.nc") == []

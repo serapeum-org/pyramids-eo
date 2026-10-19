@@ -103,6 +103,59 @@ def test_ee_source_routes_into_earthengine_via_open_options(monkeypatch):
     assert captured["credentials"] == "C"
 
 
+def test_s2_explicit_driver_routes_into_sentinel2(monkeypatch):
+    """read_file(path, driver="s2") routes into Sentinel2Driver (GDAL bypassed)."""
+    captured = {}
+    monkeypatch.setattr(
+        pyramids_eo,
+        "from_sentinel2",
+        lambda path, *, bands, bbox, crs, **o: (
+            captured.update(path=path, bands=bands)
+            or Dataset.from_array(
+                np.zeros((1, 1)),
+                geo_ref=GeoReference(
+                    top_left_corner=(0.0, 1.0), cell_size=1.0, epsg=4326
+                ),
+            )
+        ),
+    )
+    out = Dataset.read_file("X.SAFE", driver="s2", open_options={"bands": ["B04"]})
+    assert isinstance(out, Dataset)
+    assert captured["path"] == "X.SAFE"
+    assert captured["bands"] == ["B04"]
+
+
+def test_fci_bare_directory_routes_into_fci(tmp_path, monkeypatch):
+    """A bare read_file(granule_dir) GDAL cannot open falls through to FciDriver."""
+    from pyramids.dataset._drivers import clear_driver_cache
+
+    import pyramids_eo.sensors.readers as readers
+
+    (tmp_path / "W_XX_FCI-1C-RRAD-FDHSI-FD--CHK-BODY--x.nc").write_bytes(b"")
+    captured = {}
+    monkeypatch.setattr(
+        readers,
+        "read_fci_l1c",
+        lambda paths, *, channel, channels, **o: (
+            captured.update(paths=paths, channel=channel)
+            or Dataset.from_array(
+                np.zeros((1, 1)),
+                geo_ref=GeoReference(
+                    top_left_corner=(0.0, 1.0), cell_size=1.0, epsg=4326
+                ),
+            )
+        ),
+    )
+    clear_driver_cache()
+    out = Dataset.read_file(str(tmp_path), open_options={"channel": "ir_105"})
+    clear_driver_cache()
+    assert isinstance(out, Dataset)
+    assert captured["channel"] == "ir_105"
+    assert captured["paths"] == [
+        str(tmp_path / "W_XX_FCI-1C-RRAD-FDHSI-FD--CHK-BODY--x.nc")
+    ]
+
+
 def test_unknown_driver_name_raises():
     """An explicit driver= that names no registered driver raises DriverNotExistError."""
     from pyramids.base._errors import DriverNotExistError

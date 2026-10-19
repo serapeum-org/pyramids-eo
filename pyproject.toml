@@ -99,6 +99,8 @@ Changelog = "https://github.com/serapeum-org/pyramids-eo/blob/main/docs/change-l
 [project.entry-points."pyramids.raster_drivers"]
 earthengine = "pyramids_eo.drivers.earthengine:EarthEngineDriver"
 seviri = "pyramids_eo.drivers.seviri:SeviriDriver"
+s2 = "pyramids_eo.drivers.sentinel2:Sentinel2Driver"
+fci = "pyramids_eo.drivers.fci:FciDriver"
 
 
 [build-system]

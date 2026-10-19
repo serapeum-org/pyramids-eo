@@ -19,6 +19,8 @@ from pyramids.dataset._drivers import (  # noqa: E402
 )
 
 from pyramids_eo.drivers.earthengine import EarthEngineDriver  # noqa: E402
+from pyramids_eo.drivers.fci import FciDriver  # noqa: E402
+from pyramids_eo.drivers.sentinel2 import Sentinel2Driver  # noqa: E402
 from pyramids_eo.drivers.seviri import SeviriDriver  # noqa: E402
 
 
@@ -30,14 +32,11 @@ def _fresh_driver_cache():
     clear_driver_cache()
 
 
-def test_both_drivers_are_discovered():
-    """Both pyramids-eo drivers are found by entry-point discovery (not skipped by a gate)."""
+def test_all_drivers_are_discovered():
+    """All four pyramids-eo drivers are found by entry-point discovery (none skipped by a gate)."""
     found = raster_drivers()
-    assert "seviri" in found, f"seviri missing from discovered drivers: {sorted(found)}"
-    assert "earthengine" in found, (
-        f"earthengine missing from discovered drivers: {sorted(found)} "
-        "(a stale backend gate would hide it)"
-    )
+    for name in ("earthengine", "seviri", "s2", "fci"):
+        assert name in found, f"{name} missing from discovered drivers: {sorted(found)}"
 
 
 def test_ee_scheme_selects_the_earthengine_driver():
@@ -50,7 +49,19 @@ def test_nat_suffix_selects_the_seviri_driver():
     assert select_driver("scene.nat") is SeviriDriver
 
 
+def test_safe_suffix_selects_the_sentinel2_driver():
+    """A `.SAFE` source resolves to Sentinel2Driver via can_open discovery."""
+    assert select_driver("S2A_MSIL2A.SAFE") is Sentinel2Driver
+
+
+def test_fci_scheme_selects_the_fci_driver():
+    """An `fci://` source resolves to FciDriver via can_open discovery."""
+    assert select_driver("fci://granule") is FciDriver
+
+
 def test_explicit_name_resolves_each_driver():
     """`driver="<name>"` resolves each pyramids-eo driver by its registry name."""
     assert select_driver("anything", "earthengine") is EarthEngineDriver
     assert select_driver("anything", "seviri") is SeviriDriver
+    assert select_driver("anything", "s2") is Sentinel2Driver
+    assert select_driver("anything", "fci") is FciDriver

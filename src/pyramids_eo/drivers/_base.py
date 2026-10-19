@@ -16,7 +16,11 @@ the contract publicly.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from glob import glob as _glob
+from pathlib import Path
 from typing import Any
+
+_GLOB_CHARS = "*?["
 
 #: The driver-contract version every driver here declares. Must equal pyramids'
 #: ``RASTER_DRIVER_API_VERSION`` (currently 1); hard-coded because pyramids does not export it
@@ -84,3 +88,39 @@ def options_as_dict(options: Any) -> dict[str, Any]:
         key, value = text.split("=", 1)
         result[key] = value
     return result
+
+
+def expand_sources(source: Any, *, pattern: str = "*") -> list[str]:
+    """Expand one ``read_file`` source string into the file list a multi-file reader needs.
+
+    ``Dataset.read_file`` hands a driver a single source string, but a granule split across many
+    files is named by one of three forms, each resolved here to a sorted list of path strings:
+
+    - a glob string (one containing ``*``, ``?`` or ``[``) → its sorted matches;
+    - a directory → its sorted entries matching ``pattern``;
+    - anything else → ``[source]`` (a single file).
+
+    Args:
+        source: The source handed by ``Dataset.read_file`` (stringified).
+        pattern: The glob applied inside a directory source (e.g. ``"*.nc"``); ignored for a glob
+            string (which already carries its own pattern) and for a single file.
+
+    Returns:
+        A sorted list of path strings. Empty when a glob or directory matches nothing.
+
+    Examples:
+        - A single file is returned as a one-element list:
+            ```python
+            >>> from pyramids_eo.drivers._base import expand_sources
+            >>> expand_sources("granule/chunk_0.nc")
+            ['granule/chunk_0.nc']
+
+            ```
+    """
+    text = str(source)
+    if any(character in text for character in _GLOB_CHARS):
+        return sorted(_glob(text))
+    path = Path(text)
+    if path.is_dir():
+        return sorted(str(entry) for entry in path.glob(pattern))
+    return [text]
