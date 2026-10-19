@@ -85,3 +85,30 @@ def test_read_rejects_multiple_bands():
         SeviriDriver().read(
             "scene.nat", bands=["IR_108", "IR_120"], options={"parse": _parser}
         )
+
+
+@pytest.mark.parametrize("bare", ["I", "IR_108", b"IR_108"])
+def test_read_rejects_bare_string_bands(bare):
+    """A bare str/bytes bands is rejected, so a 1-char string cannot smuggle a wrong channel."""
+    with pytest.raises(ValueError, match="list of channel names"):
+        SeviriDriver().read("scene.nat", bands=bare, options={"parse": _parser})
+
+
+def test_read_accepts_a_single_band_generator():
+    """A generator yielding exactly one channel is materialised and read (no TypeError)."""
+    out = SeviriDriver().read(
+        "scene.nat",
+        bands=(b for b in ["IR_108"]),
+        options={"calibrate": False, "parse": _parser},
+    )
+    assert np.allclose(out.read_array(), 7.0)
+
+
+def test_read_rejects_multi_band_generator():
+    """A generator yielding more than one channel is a clean ValueError, not a TypeError."""
+    with pytest.raises(ValueError, match="one channel"):
+        SeviriDriver().read(
+            "scene.nat",
+            bands=(b for b in ["IR_108", "IR_120"]),
+            options={"parse": _parser},
+        )

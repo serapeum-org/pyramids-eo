@@ -113,10 +113,16 @@ class SeviriDriver:
         settings = options_as_dict(options)
         channel = settings.pop("channel", None)
         if channel is None and bands:
+            if isinstance(bands, (str, bytes)):
+                raise ValueError(
+                    f"bands must be a list of channel names, not a bare "
+                    f"{type(bands).__name__} ({bands!r}); pass bands=['IR_108']."
+                )
+            bands = list(bands)  # materialise a generator/iterator so len() is safe
             if len(bands) != 1:
                 raise ValueError(
                     f"a SEVIRI read is one channel, but {len(bands)} bands were given "
-                    f"({list(bands)}); pass a single band or options={{'channel': 'IR_108'}}."
+                    f"({bands}); pass a single band or options={{'channel': 'IR_108'}}."
                 )
             channel = bands[0]
         if channel is None:
