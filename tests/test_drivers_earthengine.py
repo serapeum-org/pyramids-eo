@@ -149,6 +149,20 @@ def test_option_reserved_keys_do_not_collide(monkeypatch):
     assert out == "OK"
 
 
+def test_read_uses_a_prebuilt_window_from_options(monkeypatch):
+    """A `window` supplied in options is passed through as-is (bbox/crs are not re-derived)."""
+    from pyramids_eo import Window
+
+    captured = {}
+    monkeypatch.setattr(
+        pyramids_eo, "from_earthengine",
+        lambda asset_id, *, window, bands, credentials, **o: captured.update(window=window),
+    )
+    prebuilt = Window(bbox=(5.0, 5.0, 6.0, 6.0), crs=3857)
+    EarthEngineDriver().read("ee://X", options={"window": prebuilt})
+    assert captured["window"] is prebuilt
+
+
 def test_read_collection_maps_time_tuple(monkeypatch):
     """`read_collection` accepts a ``time=(start, end)`` pair and strips the scheme."""
     captured = {}
