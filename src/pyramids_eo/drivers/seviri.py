@@ -9,6 +9,14 @@ the driver requires the channel to be named — via ``bands=["IR_108"]`` or
 ``open_options={"channel": "IR_108"}`` — and passes any remaining options (``parse``,
 ``calibrate``, ``coeffs``, …) straight through. The read covers the whole granule, so ``bbox`` /
 ``crs`` do not apply and are ignored.
+
+``.nat`` is the EUMETSAT Native format, shared across instruments (MSG SEVIRI, MFG MVIRI, …), so
+``can_open`` cannot tell a SEVIRI granule from another native file by extension alone — and it
+must not try, since the contract requires it to be cheap, open nothing, and answer for a path
+that does not exist (the ``read_file`` fallback). This driver is pyramids-eo's only ``.nat``
+reader and is deliberately scoped to SEVIRI: a non-SEVIRI ``.nat`` routed here (by an explicit
+``driver="seviri"`` or the bare-``read_file`` fallback) is read by ``read_seviri`` and fails
+there with a clear decode error, never silently mis-interpreted.
 """
 
 from __future__ import annotations
@@ -52,7 +60,9 @@ class SeviriDriver:
 
         Returns:
             True for a string ending ``.nat`` (case-insensitive), else False. Cheap: no import,
-            no network.
+            no network, no file access — ``.nat`` is the shared EUMETSAT Native extension, so a
+            non-SEVIRI native file also answers True and fails later in ``read_seviri`` (see the
+            module docstring), which is preferred over opening the file here.
 
         Examples:
             - A ``.nat`` granule is claimed; other suffixes are not:
