@@ -19,7 +19,8 @@ def test_options_dict_is_copied():
     """A dict is returned as a shallow copy, leaving the caller's object untouched."""
     src = {"channel": "IR_108"}
     out = options_as_dict(src)
-    assert out == src and out is not src
+    assert out == src
+    assert out is not src
 
 
 def test_options_key_value_list_parsed():
@@ -53,4 +54,5 @@ def test_options_accepts_a_non_dict_mapping():
     from types import MappingProxyType
 
     out = options_as_dict(MappingProxyType({"channel": "IR_108"}))
-    assert out == {"channel": "IR_108"} and type(out) is dict
+    assert out == {"channel": "IR_108"}
+    assert type(out) is dict

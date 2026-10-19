@@ -104,6 +104,8 @@ def test_ee_source_routes_into_earthengine_via_open_options(monkeypatch):
 
 
 def test_unknown_driver_name_raises():
-    """An explicit driver= that names no registered driver raises."""
-    with pytest.raises(Exception):  # DriverNotExistError from pyramids
+    """An explicit driver= that names no registered driver raises DriverNotExistError."""
+    from pyramids.base._errors import DriverNotExistError
+
+    with pytest.raises(DriverNotExistError):
         Dataset.read_file("scene.nat", driver="not_a_driver")

@@ -188,15 +188,17 @@ def test_read_collection_maps_time_tuple(monkeypatch):
     )
     assert out == "COLLECTION"
     assert captured["asset_id"] == "COPERNICUS/S2_SR_HARMONIZED"
-    assert captured["start"] == "2024-01-01" and captured["end"] == "2024-02-01"
+    assert captured["start"] == "2024-01-01"
+    assert captured["end"] == "2024-02-01"
 
 
 @pytest.mark.parametrize("bad_time", ["2024", ("only-one",), ("a", "b", "c"), 2024])
 def test_read_collection_rejects_a_non_pair_time(monkeypatch, bad_time):
     """`time` that is not a two-element (start, end) pair is a clear ValueError."""
     monkeypatch.setattr(pyramids_eo, "collection_from_earthengine", lambda *a, **k: "X")
+    driver = EarthEngineDriver()
     with pytest.raises(ValueError, match="pair"):
-        EarthEngineDriver().read_collection("ee://X", time=bad_time)
+        driver.read_collection("ee://X", time=bad_time)
 
 
 def test_read_collection_explicit_start_wins_over_time(monkeypatch):
@@ -208,22 +210,25 @@ def test_read_collection_explicit_start_wins_over_time(monkeypatch):
         lambda asset_id, **kwargs: captured.update(kwargs),
     )
     EarthEngineDriver().read_collection("ee://X", start="EXPLICIT", time=("T0", "T1"))
-    assert captured["start"] == "EXPLICIT" and captured["end"] == "T1"
+    assert captured["start"] == "EXPLICIT"
+    assert captured["end"] == "T1"
 
 
 def test_read_collection_without_dates_raises(monkeypatch):
     """A collection read needs a date range, by `time` or by `start`/`end`."""
     monkeypatch.setattr(pyramids_eo, "collection_from_earthengine", lambda *a, **k: "X")
+    driver = EarthEngineDriver()
     with pytest.raises(ValueError, match="date range"):
-        EarthEngineDriver().read_collection("ee://X")
+        driver.read_collection("ee://X")
 
 
 @pytest.mark.parametrize("time", [(None, "2024-02-01"), ("2024-01-01", None)])
 def test_read_collection_rejects_a_none_endpoint(monkeypatch, time):
     """A pair with a None start or end is a clear date-range error, not forwarded as None."""
     monkeypatch.setattr(pyramids_eo, "collection_from_earthengine", lambda *a, **k: "X")
+    driver = EarthEngineDriver()
     with pytest.raises(ValueError, match="date range"):
-        EarthEngineDriver().read_collection("ee://X", time=time)
+        driver.read_collection("ee://X", time=time)
 
 
 def test_read_collection_maps_auth_to_credentials(monkeypatch):

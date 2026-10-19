@@ -75,23 +75,24 @@ def test_read_channel_from_bands():
 
 def test_read_without_channel_raises():
     """A SEVIRI read needs a channel, via bands or options."""
+    driver = SeviriDriver()
     with pytest.raises(ValueError, match="channel"):
-        SeviriDriver().read("scene.nat", options={"parse": _parser})
+        driver.read("scene.nat", options={"parse": _parser})
 
 
 def test_read_rejects_multiple_bands():
     """More than one band is rejected, not silently truncated to the first channel."""
+    driver = SeviriDriver()
     with pytest.raises(ValueError, match="one channel"):
-        SeviriDriver().read(
-            "scene.nat", bands=["IR_108", "IR_120"], options={"parse": _parser}
-        )
+        driver.read("scene.nat", bands=["IR_108", "IR_120"], options={"parse": _parser})
 
 
 @pytest.mark.parametrize("bare", ["I", "IR_108", b"IR_108"])
 def test_read_rejects_bare_string_bands(bare):
     """A bare str/bytes bands is rejected, so a 1-char string cannot smuggle a wrong channel."""
+    driver = SeviriDriver()
     with pytest.raises(ValueError, match="list of channel names"):
-        SeviriDriver().read("scene.nat", bands=bare, options={"parse": _parser})
+        driver.read("scene.nat", bands=bare, options={"parse": _parser})
 
 
 def test_read_accepts_a_single_band_generator():
@@ -106,8 +107,9 @@ def test_read_accepts_a_single_band_generator():
 
 def test_read_rejects_multi_band_generator():
     """A generator yielding more than one channel is a clean ValueError, not a TypeError."""
+    driver = SeviriDriver()
     with pytest.raises(ValueError, match="one channel"):
-        SeviriDriver().read(
+        driver.read(
             "scene.nat",
             bands=(b for b in ["IR_108", "IR_120"]),
             options={"parse": _parser},
