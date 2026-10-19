@@ -40,6 +40,16 @@ def test_options_value_with_equals_keeps_the_rest():
     assert options_as_dict(["expr=a=b"]) == {"expr": "a=b"}
 
 
+def test_options_item_with_empty_value():
+    """A ``KEY=`` item parses to a key mapped to the empty string."""
+    assert options_as_dict(["channel="]) == {"channel": ""}
+
+
+def test_options_accepts_a_tuple_sequence():
+    """A tuple of ``KEY=VALUE`` strings parses the same as a list."""
+    assert options_as_dict(("a=1", "b=2")) == {"a": "1", "b": "2"}
+
+
 def test_options_item_without_equals_raises():
     """A sequence item that is not ``KEY=VALUE`` is a ValueError naming the item."""
     with pytest.raises(ValueError, match="channel"):
@@ -81,6 +91,11 @@ def test_expand_sources_glob_string_is_expanded(tmp_path):
         (tmp_path / name).write_bytes(b"")
     out = expand_sources(str(tmp_path / "*.nc"))
     assert out == sorted([str(tmp_path / "a.nc"), str(tmp_path / "b.nc")])
+
+
+def test_expand_sources_glob_matching_nothing_is_empty(tmp_path):
+    """A glob string that matches no file expands to an empty list."""
+    assert expand_sources(str(tmp_path / "*.zzz")) == []
 
 
 def test_expand_sources_empty_directory_is_empty(tmp_path):

@@ -74,6 +74,20 @@ def test_read_maps_scheme_window_bands_and_auth(monkeypatch):
     assert captured["options"] == {"reducer": "median"}
 
 
+def test_read_strips_an_uppercase_scheme(monkeypatch):
+    """`read` strips the scheme case-insensitively, so ``EE://`` yields the bare asset id."""
+    captured = {}
+    monkeypatch.setattr(
+        pyramids_eo,
+        "from_earthengine",
+        lambda asset_id, *, window, bands, credentials, **o: captured.update(
+            asset_id=asset_id
+        ),
+    )
+    EarthEngineDriver().read("EE://USGS/SRTMGL1_003", auth=None)
+    assert captured["asset_id"] == "USGS/SRTMGL1_003"
+
+
 def test_read_without_bbox_uses_a_default_window(monkeypatch):
     """With no bbox/crs the driver passes a default (whole-asset) Window."""
     captured = {}
