@@ -1,7 +1,7 @@
 # composites
 
 Day/night compositing for EO imagery — the pyramids-eo `true_color_with_night_ir`
-chain, over NumPy + pyramids-gis with no third-party compositing dependency.
+chain, over NumPy + pyramids with no third-party compositing dependency.
 Covers the solar and viewing geometry (`solar_zenith_angle`,
 `cos_solar_zenith_angle`, `solar_zenith_azimuth`, `satellite_zenith_azimuth`,
 `relative_azimuth`), the solar-zenith correction / reduction

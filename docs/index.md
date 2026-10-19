@@ -4,7 +4,7 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
 **pyramids-eo** is the **Earth-observation layer** of the pyramids GIS stack. It is built on top of
-[pyramids](https://github.com/serapeum-org/pyramids) (`pyramids-gis` — the generic raster/vector engine) and
+[pyramids](https://github.com/serapeum-org/pyramids) (`pyramids-core` — the generic raster/vector engine) and
 adds the logic that is specific to **Earth-observation data**.
 
 pyramids underneath knows only how to *move rasters around*. pyramids-eo knows what a pixel *means* for a given
@@ -22,7 +22,7 @@ pyramids           (generic raster / vector engine)
 ## Scope
 
 pyramids-eo is scoped by *domain* — Earth-observation data — not by a restriction on what it may do. It covers
-the EO-specific functionality that sits above the generic raster/vector operations pyramids-gis provides:
+the EO-specific functionality that sits above the generic raster/vector operations pyramids provides:
 reading instrument L1/L2 formats, calibrating them, compositing them, resampling swaths, and reaching signed EO
 cloud assets (Google Earth Engine, STAC providers). Everything a reader returns is a plain pyramids
 `Dataset` / `DatasetCollection` — no engine-specific objects leak into the public types.
@@ -92,9 +92,35 @@ fci = read_fci_l1c(["chunk_01.nc", "chunk_02.nc"], "ir_105")
 seviri = read_seviri("MSG4-...nat", "IR_108")
 ```
 
+### Through `Dataset.read_file` (the pyramids facade)
+
+Every reader above is also registered as a `pyramids.raster_drivers` plugin, so an EO source can be
+opened straight through pyramids' own `Dataset.read_file` — no pyramids-eo import at the call site;
+installing the package is the whole integration. The typed facades stay the ergonomic API; this is
+the zero-coupling route for code that already speaks pyramids (see
+[Readers → Raster-driver plugins](reference/readers.md#raster-driver-plugins)).
+
+```python
+from pyramids.dataset import Dataset
+
+# GDAL cannot open these, so read_file falls through to the pyramids-eo plugin automatically:
+ee = Dataset.read_file("ee://USGS/SRTMGL1_003", open_options={"bbox": (86.9, 27.9, 87.0, 28.0)})
+seviri = Dataset.read_file("MSG4-...nat", open_options={"channel": "IR_108"})
+fci = Dataset.read_file("/data/fci_granule", open_options={"channel": "ir_105"})  # a chunk directory
+
+# Sentinel-2: GDAL opens a .SAFE itself, so ask for the pyramids-eo reader explicitly.
+scene = Dataset.read_file(
+    "S2A_..._MSIL2A.SAFE", driver="s2", open_options={"bands": ["B04", "B03", "B02"]}
+)
+```
+
+`read_file` forwards only `open_options` to a driver, so reader keywords (channel, bbox, bands,
+credentials, …) go there — and an option needing a non-string type (e.g. S2 `resolution=10`) must be
+passed in dict form, not a `KEY=VALUE` list.
+
 ### Compositing
 
-Assemble a true-colour composite over NumPy + pyramids-gis, then stretch it to a displayable frame (see
+Assemble a true-colour composite over NumPy + pyramids, then stretch it to a displayable frame (see
 [Composites](reference/composites.md)).
 
 ```python

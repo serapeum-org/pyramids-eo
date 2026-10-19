@@ -7,7 +7,7 @@ converts DN → reflectance (as lazy scale/offset tags), masks cloud/shadow via
 the Scene-Classification band, and crops / reprojects — returning a plain
 pyramids ``Dataset`` with no Sentinel objects leaking out.
 
-Built entirely on pyramids-gis 0.64+ APIs: ``Dataset.subdatasets`` /
+Built entirely on pyramids 0.64+ APIs: ``Dataset.subdatasets`` /
 ``open_subdataset`` for the catalog, ``Dataset.bands.select`` for band subsetting
 (1-based, or by name), ``Dataset.read_array()`` for the lazy reflectance read the
 scale/offset tags drive, and ``crop`` / ``to_crs`` for the spatial ops.
@@ -113,7 +113,7 @@ def from_sentinel2(  # NOSONAR(S107) - flat keyword reader API mirroring from_ea
     _set_nodata(dataset, product)
 
     # Do every DN-domain transform first (mask, crop, reproject), then tag
-    # reflectance LAST. The mask's rebuild and pyramids-gis `crop` both reset
+    # reflectance LAST. The mask's rebuild and pyramids `crop` both reset
     # per-band scale/offset (only `to_crs` / `to_file` preserve them), so tags
     # applied earlier would be silently dropped — tagging last guarantees the
     # returned dataset carries the calibration. `offsets` is captured from the

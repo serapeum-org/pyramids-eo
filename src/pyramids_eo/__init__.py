@@ -1,6 +1,6 @@
 """pyramids-eo — the Earth-observation layer of the pyramids stack.
 
-``pyramids-eo`` is built on top of :mod:`pyramids` (``pyramids-gis``, the generic
+``pyramids-eo`` is built on top of :mod:`pyramids` (``pyramids-core``, the generic
 raster/vector engine) and adds the logic that is specific to
 **Earth-observation data**. Where pyramids knows how to *move rasters around*,
 pyramids-eo knows what a pixel *means* for a given instrument or provider: which

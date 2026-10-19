@@ -7,7 +7,7 @@ typed enum so a mask reads ``[SclClass.CLOUD_HIGH_PROBA, SclClass.CLOUD_SHADOW]`
 rather than ``[9, 3]``.
 
 :func:`scl_mask` sets the masked-out pixels to the dataset's no-data value.
-Because category names survive reprojection since pyramids-gis #1024, masking
+Because category names survive reprojection since pyramids #1024, masking
 may run before or after a warp — order is a convenience, not a correctness rule.
 """
 
