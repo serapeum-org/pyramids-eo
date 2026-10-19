@@ -77,3 +77,11 @@ def test_read_without_channel_raises():
     """A SEVIRI read needs a channel, via bands or options."""
     with pytest.raises(ValueError, match="channel"):
         SeviriDriver().read("scene.nat", options={"parse": _parser})
+
+
+def test_read_rejects_multiple_bands():
+    """More than one band is rejected, not silently truncated to the first channel."""
+    with pytest.raises(ValueError, match="one channel"):
+        SeviriDriver().read(
+            "scene.nat", bands=["IR_108", "IR_120"], options={"parse": _parser}
+        )

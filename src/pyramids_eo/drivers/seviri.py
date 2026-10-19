@@ -83,7 +83,8 @@ class SeviriDriver:
             source: Path to a SEVIRI native ``.nat`` granule.
             bbox: Ignored — ``read_seviri`` reads the whole granule.
             bands: The channel to read, as a one-element list (e.g. ``["IR_108"]``); an
-                alternative to ``options={"channel": …}``.
+                alternative to ``options={"channel": …}``. A SEVIRI read is a single channel, so
+                more than one band is rejected rather than silently truncated.
             crs: Ignored — the granule carries its own geostationary CRS.
             options: Extra :func:`~pyramids_eo.sensors.readers.read_seviri` keywords —
                 ``channel``, ``parse`` (the ``.nat`` decoder), ``calibrate``, ``coeffs``, … — as
@@ -94,13 +95,19 @@ class SeviriDriver:
             The calibrated, geolocated channel.
 
         Raises:
-            ValueError: No channel was given, via ``bands`` or ``options``.
+            ValueError: No channel was given (via ``bands`` or ``options``), or more than one
+                band was given.
         """
         from pyramids_eo.sensors.readers import read_seviri
 
         settings = options_as_dict(options)
         channel = settings.pop("channel", None)
         if channel is None and bands:
+            if len(bands) != 1:
+                raise ValueError(
+                    f"a SEVIRI read is one channel, but {len(bands)} bands were given "
+                    f"({list(bands)}); pass a single band or options={{'channel': 'IR_108'}}."
+                )
             channel = bands[0]
         if channel is None:
             raise ValueError(
