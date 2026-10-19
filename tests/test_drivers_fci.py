@@ -66,6 +66,13 @@ def test_can_open_directory_name_with_glob_metachar(tmp_path):
     assert FciDriver.can_open(str(granule)) is True
 
 
+def test_can_open_existing_single_file_is_false(tmp_path):
+    """An existing single file (not a granule directory) is not claimed."""
+    chunk = tmp_path / "W_XX_FCI-1C-FDHSI_x.nc"
+    chunk.write_bytes(b"")
+    assert FciDriver.can_open(str(chunk)) is False
+
+
 def test_conforms_to_the_contract():
     """The driver satisfies pyramids' raster-driver conformance kit."""
     from pyramids.dataset.driver_conformance import assert_raster_driver_conforms
@@ -153,6 +160,14 @@ def test_read_without_channel_raises(tmp_path):
     driver = FciDriver()
     with pytest.raises(ValueError, match="needs a channel"):
         driver.read(str(granule))
+
+
+def test_read_empty_bands_list_needs_a_channel(tmp_path):
+    """An empty bands list names no channel, so the clear channel error is raised."""
+    granule, _ = _make_granule(tmp_path, ["c0.nc"])
+    driver = FciDriver()
+    with pytest.raises(ValueError, match="needs a channel"):
+        driver.read(str(granule), bands=[])
 
 
 def test_read_rejects_bare_string_bands(tmp_path):
