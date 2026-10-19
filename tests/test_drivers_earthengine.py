@@ -110,3 +110,17 @@ def test_read_collection_without_dates_raises(monkeypatch):
     monkeypatch.setattr(pyramids_eo, "collection_from_earthengine", lambda *a, **k: "X")
     with pytest.raises(ValueError, match="date range"):
         EarthEngineDriver().read_collection("ee://X")
+
+
+def test_read_collection_maps_auth_to_credentials(monkeypatch):
+    """`read_collection` remaps an `auth` kwarg to `credentials` for the facade."""
+    captured = {}
+    monkeypatch.setattr(
+        pyramids_eo, "collection_from_earthengine",
+        lambda asset_id, **kwargs: captured.update(asset_id=asset_id, **kwargs),
+    )
+    EarthEngineDriver().read_collection(
+        "ee://X", start="2024-01-01", end="2024-02-01", auth="CREDS"
+    )
+    assert captured["credentials"] == "CREDS", "auth should map to credentials"
+    assert "auth" not in captured, "the auth key should be consumed, not forwarded"
