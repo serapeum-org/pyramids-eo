@@ -732,15 +732,33 @@ class TestOpenEedai:
             f"Error should name the asset, got: {exc_info.value}"
         )
 
-    def test_raises_reader_error_on_unparsed_crs(self, monkeypatch) -> None:
+    @pytest.mark.parametrize(
+        ("driver_msg", "expected_detail"),
+        [
+            (
+                "Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/",
+                "Unrecognized crs",
+            ),
+            ("", "no detail"),
+        ],
+    )
+    def test_raises_reader_error_on_unparsed_crs(
+        self, monkeypatch, driver_msg, expected_detail
+    ) -> None:
         """An opened source with no parseable CRS raises ``ReaderError`` (#108).
+
+        Args:
+            driver_msg: The last GDAL error text the driver reports (the
+                ``Unrecognized crs`` warning, or empty when it reports nothing).
+            expected_detail: The substring the raised message must carry — the warning
+                itself, or the ``no detail`` fallback when the driver is silent.
 
         Test scenario:
             The EEDAI driver only warns and leaves the projection empty for a CRS it
             cannot resolve (e.g. MODIS' sinusoidal grid, served as a spatialreference.org
             URL). ``_open_eedai`` catches that empty CRS and raises a ``ReaderError``
-            naming the asset and the driver warning, instead of letting the empty string
-            reach ``osr.ImportFromWkt`` downstream and die with a bare
+            naming the asset and surfacing the driver message, instead of letting the
+            empty string reach ``osr.ImportFromWkt`` downstream and die with a bare
             ``RuntimeError: OGR Error: Corrupt data``.
         """
         from osgeo import gdal as _real_gdal
@@ -750,8 +768,7 @@ class TestOpenEedai:
         )
         no_crs.SetGeoTransform((0.0, 10.0, 0.0, 1_000_000.0, 0.0, -10.0))
         # Deliberately no SetProjection -> GetProjectionRef() == "", the MODIS case.
-        warning = "Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/"
-        fake = _FakeGdal(no_crs, last_error=warning)
+        fake = _FakeGdal(no_crs, last_error=driver_msg)
         monkeypatch.setattr(ee_reader, "gdal", fake)
         creds = EarthEngineCredentials.application_default()
         with pytest.raises(ReaderError, match="no CRS") as exc_info:
@@ -762,7 +779,7 @@ class TestOpenEedai:
             )
         msg = str(exc_info.value)
         assert "MODIS/061/MOD09GA/2020_06_15" in msg, f"should name the asset: {msg}"
-        assert "Unrecognized crs" in msg, f"should surface the driver warning: {msg}"
+        assert expected_detail in msg, f"should surface the driver detail: {msg}"
 
 
 class TestWindow:
