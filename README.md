@@ -4,7 +4,7 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
 **pyramids-eo** is the **Earth-observation layer** of the pyramids GIS stack. It is built on top of
-[pyramids](https://github.com/serapeum-org/pyramids) (`pyramids-gis`, the generic raster/vector
+[pyramids](https://github.com/serapeum-org/pyramids) (`pyramids-core`, the generic raster/vector
 engine) and adds the logic that is specific to **Earth-observation data**.
 
 pyramids underneath knows only how to *move rasters around*. pyramids-eo knows what a pixel *means* for a
@@ -22,12 +22,12 @@ pyramids           (generic raster / vector engine)
 ## Scope
 
 pyramids-eo is scoped by *domain* — Earth-observation data — not by a restriction on what it may do. It
-covers the EO-specific functionality that sits above the generic raster/vector operations pyramids-gis
+covers the EO-specific functionality that sits above the generic raster/vector operations pyramids
 provides.
 
 ## Installation
 
-pyramids-eo is pure Python; its native stack is provided transitively by the `pyramids-gis` platform
+pyramids-eo is pure Python; its native stack is provided transitively by the `pyramids-core` platform
 wheels, so no system GDAL is required.
 
 ```console

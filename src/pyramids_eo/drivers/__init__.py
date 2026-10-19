@@ -1,6 +1,6 @@
 """Raster-reader drivers for the ``pyramids.raster_drivers`` plugin hook.
 
-pyramids-gis 0.70 added a ``pyramids.raster_drivers`` entry-point group: a third-party package
+pyramids-core 0.70 added a ``pyramids.raster_drivers`` entry-point group: a third-party package
 registers a driver class there, and ``Dataset.read_file(<source>)`` routes a source GDAL cannot
 open into that driver with no import coupling. This subpackage registers pyramids-eo's readers
 that fit the single-source model:

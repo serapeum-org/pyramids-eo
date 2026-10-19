@@ -25,7 +25,7 @@ If applicable, add screenshots to help explain your problem.
 
 **Environment (please complete the following information):**
 - pyramids-eo version:
-- pyramids-gis version:
+- pyramids-core version:
 - Python version:
 - Operating System:
 

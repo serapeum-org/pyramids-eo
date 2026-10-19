@@ -1,7 +1,7 @@
 """Day/night compositing for EO imagery.
 
 The pyramids-eo day/night composite chain (the `true_color_with_night_ir`
-look), implemented over NumPy + pyramids-gis with no third-party compositing
+look), implemented over NumPy + pyramids with no third-party compositing
 dependency. So far:
 
 * `solar_zenith_angle` / `cos_solar_zenith_angle` — per-pixel solar zenith angle

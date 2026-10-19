@@ -4,7 +4,7 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
 **pyramids-eo** is the **Earth-observation layer** of the pyramids GIS stack. It is built on top of
-[pyramids](https://github.com/serapeum-org/pyramids) (`pyramids-gis` — the generic raster/vector engine) and
+[pyramids](https://github.com/serapeum-org/pyramids) (`pyramids-core` — the generic raster/vector engine) and
 adds the logic that is specific to **Earth-observation data**.
 
 pyramids underneath knows only how to *move rasters around*. pyramids-eo knows what a pixel *means* for a given
@@ -22,7 +22,7 @@ pyramids           (generic raster / vector engine)
 ## Scope
 
 pyramids-eo is scoped by *domain* — Earth-observation data — not by a restriction on what it may do. It covers
-the EO-specific functionality that sits above the generic raster/vector operations pyramids-gis provides:
+the EO-specific functionality that sits above the generic raster/vector operations pyramids provides:
 reading instrument L1/L2 formats, calibrating them, compositing them, resampling swaths, and reaching signed EO
 cloud assets (Google Earth Engine, STAC providers). Everything a reader returns is a plain pyramids
 `Dataset` / `DatasetCollection` — no engine-specific objects leak into the public types.
@@ -94,7 +94,7 @@ seviri = read_seviri("MSG4-...nat", "IR_108")
 
 ### Compositing
 
-Assemble a true-colour composite over NumPy + pyramids-gis, then stretch it to a displayable frame (see
+Assemble a true-colour composite over NumPy + pyramids, then stretch it to a displayable frame (see
 [Composites](reference/composites.md)).
 
 ```python

@@ -1,7 +1,7 @@
 # Installation
 
 pyramids-eo is **pure Python**. Its native GIS stack is provided transitively by
-[`pyramids-gis`](https://pypi.org/project/pyramids-gis/), whose self-contained platform wheels vendor
+[`pyramids-core`](https://pypi.org/project/pyramids-core/), whose self-contained platform wheels vendor
 those libraries — so `pip install pyramids-eo` works out of the box on Linux, macOS, and Windows with
 **no system GDAL** installation required.
 
@@ -17,7 +17,7 @@ pip install pyramids-eo
 
 ### Optional extras
 
-- `viz`: installs `pyramids-gis[viz]` (plotting and quick-look composites via cleopatra).
+- `viz`: installs `pyramids-core[viz]` (plotting and quick-look composites via cleopatra).
 
 ```console
 pip install "pyramids-eo[viz]"

@@ -1,7 +1,7 @@
 """Sentinel product readers built on GDAL's ``SENTINEL2`` / ``SAFE`` drivers.
 
 The earth-observation reader family for ESA's Sentinel missions, layered on
-pyramids-gis the same way :mod:`pyramids_eo.earthengine` layers on the EEDAI
+pyramids the same way :mod:`pyramids_eo.earthengine` layers on the EEDAI
 driver: GDAL parses the product structure, pyramids does the raster ops, and
 this package adds the instrument semantics — which subdataset is which band, how
 to turn DN into reflectance, how to read the scene-classification mask.
