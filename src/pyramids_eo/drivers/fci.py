@@ -40,6 +40,39 @@ def _strip_scheme(source: str) -> str:
     return source[len(_SCHEME) :] if source.lower().startswith(_SCHEME) else source
 
 
+def _bands_to_channels(bands: Any) -> tuple[Any, Any]:
+    """Map a ``bands`` argument to ``(channel, channels)`` for :func:`read_fci_l1c`.
+
+    Args:
+        bands: A list of channel names (one for a single channel, several for a set).
+
+    Returns:
+        ``(name, None)`` for a single band, ``(None, [names])`` for several, and ``(None, None)``
+        for an empty list (which names no channel).
+
+    Raises:
+        ValueError: ``bands`` is not a list of channel names — a string, bytes, mapping, or other
+            non-sequence.
+    """
+    if isinstance(bands, (str, bytes, Mapping)):
+        raise ValueError(
+            f"bands must be a list of channel names, not a "
+            f"{type(bands).__name__} ({bands!r}); pass bands=['ir_105']."
+        )
+    try:
+        names = list(bands)
+    except TypeError as error:
+        raise ValueError(
+            f"bands must be a list of channel names, not a "
+            f"{type(bands).__name__} ({bands!r}); pass bands=['ir_105']."
+        ) from error
+    if len(names) == 1:
+        return names[0], None
+    if len(names) > 1:
+        return None, names
+    return None, None
+
+
 class FciDriver:
     """Read one or more MTG-FCI L1C FDHSI channels from a granule's chunk set.
 
@@ -98,7 +131,9 @@ class FciDriver:
             if path.exists():
                 return False
             if any(character in source for character in "*?["):
-                return any("fdhsi" in Path(match).name.lower() for match in glob(source))
+                return any(
+                    "fdhsi" in Path(match).name.lower() for match in glob(source)
+                )
         except (OSError, ValueError):
             return False
         return False
@@ -148,22 +183,7 @@ class FciDriver:
                 "pass either a single channel or a channels list, not both."
             )
         if channel is None and channels is None and bands is not None:
-            if isinstance(bands, (str, bytes, Mapping)):
-                raise ValueError(
-                    f"bands must be a list of channel names, not a "
-                    f"{type(bands).__name__} ({bands!r}); pass bands=['ir_105']."
-                )
-            try:
-                bands = list(bands)
-            except TypeError as error:
-                raise ValueError(
-                    f"bands must be a list of channel names, not a "
-                    f"{type(bands).__name__} ({bands!r}); pass bands=['ir_105']."
-                ) from error
-            if len(bands) == 1:
-                channel = bands[0]
-            elif len(bands) > 1:
-                channels = bands
+            channel, channels = _bands_to_channels(bands)
         if isinstance(channels, (list, tuple)) and len(channels) == 0:
             channels = None  # an empty channels list names no channel
         if channel is None and channels is None:

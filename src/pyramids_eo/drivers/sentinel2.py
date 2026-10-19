@@ -74,7 +74,7 @@ class Sentinel2Driver:
         if not isinstance(source, str):
             return False
         lowered = source.rstrip("/\\").lower()
-        return lowered.endswith(".safe") or lowered.endswith(".safe.zip")
+        return lowered.endswith((".safe", ".safe.zip"))
 
     def read(
         self,
