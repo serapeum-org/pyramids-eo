@@ -25,13 +25,13 @@ classifiers = [
 requires-python = ">= 3.11, <4"
 
 dependencies = [
-    "pyramids-gis >=0.69.0",
+    "pyramids-core >=0.70.0",
     "numpy >=2.0.0",
     "pyyaml >=6.0",
 ]
 
 [project.optional-dependencies]
-viz = ["pyramids-gis[viz]>=0.69.0"]
+viz = ["pyramids-core[viz]>=0.70.0"]
 
 [dependency-groups]
 dev = [
