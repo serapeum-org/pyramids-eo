@@ -102,8 +102,11 @@ class EarthEngineDriver:
                 ``start``, ``end``, ``tile_size``, ``path``) as a dict or ``KEY=VALUE`` list.
                 Because ``Dataset.read_file`` forwards only ``options`` to a driver, the window,
                 band, and credential inputs may also be given here as ``bbox``/``crs``/``window``,
-                ``bands``, and ``credentials`` (or ``auth``) keys; an explicit keyword below wins
-                over the same key in ``options``, and each is consumed so it cannot collide.
+                ``bands``, and ``credentials`` (or ``auth``) keys; a *non-``None``* explicit
+                keyword below wins over the same key in ``options`` (an explicit ``None`` is
+                indistinguishable from "not given" and so does not override), and each is consumed
+                so it cannot collide. A ``window`` key in ``options`` is used as-is and takes
+                precedence over any ``bbox``/``crs``.
             auth: Credentials for the Earth Engine read, passed as ``credentials=``.
 
         Returns:
