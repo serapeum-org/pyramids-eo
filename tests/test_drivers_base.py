@@ -39,3 +39,10 @@ def test_options_item_without_equals_raises():
     """A sequence item that is not ``KEY=VALUE`` is a ValueError naming the item."""
     with pytest.raises(ValueError, match="channel"):
         options_as_dict(["channel"])
+
+
+@pytest.mark.parametrize("bare", ["channel=IR_108", b"channel=IR_108"])
+def test_options_bare_string_rejected(bare):
+    """A bare str/bytes is rejected outright, not iterated character by character."""
+    with pytest.raises(ValueError, match="bare"):
+        options_as_dict(bare)

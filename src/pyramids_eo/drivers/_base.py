@@ -39,7 +39,8 @@ def options_as_dict(options: Any) -> dict[str, Any]:
         A dict of the options, empty when ``options`` is ``None`` or empty.
 
     Raises:
-        ValueError: A sequence item is not a ``"KEY=VALUE"`` string.
+        ValueError: ``options`` is a bare ``str``/``bytes``, or a sequence item is not a
+            ``"KEY=VALUE"`` string.
 
     Examples:
         - A dict is returned as a shallow copy, so the caller's object is not mutated:
@@ -65,6 +66,12 @@ def options_as_dict(options: Any) -> dict[str, Any]:
         return {}
     if isinstance(options, dict):
         return dict(options)
+    if isinstance(options, (str, bytes)):
+        raise ValueError(
+            f"open_options must be a dict or a list of 'KEY=VALUE' strings, not a bare "
+            f"{type(options).__name__} ({options!r}); a bare string would be read one "
+            "character at a time."
+        )
     result: dict[str, Any] = {}
     for item in options:
         text = str(item)
