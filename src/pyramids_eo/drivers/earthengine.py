@@ -143,27 +143,41 @@ class EarthEngineDriver:
     ) -> DatasetCollection:
         """Read an Earth Engine ``ImageCollection`` into a temporal ``DatasetCollection``.
 
+        pyramids 0.70's :meth:`Dataset.read_file` dispatches only :meth:`read` (single image) —
+        it has no collection path — so this method is reached by a direct call, and is here for
+        that use and for forward-compatibility if pyramids adds collection dispatch.
+
         Args:
             source: An ``ee://<asset-id>`` string.
             time: Optional ``(start, end)`` date pair; an alternative to passing ``start`` and
-                ``end`` in ``kwargs``.
+                ``end`` in ``kwargs``. Must be a two-element sequence.
             **kwargs: :func:`~pyramids_eo.collection_from_earthengine` keywords — ``start``,
                 ``end`` (both required), ``window``, ``bands``, and ``credentials`` (or ``auth``).
+                An explicit ``start``/``end`` keyword takes precedence over the matching element
+                of ``time``, and an explicit ``credentials`` takes precedence over ``auth``.
 
         Returns:
             One aligned timestep per scene.
 
         Raises:
-            ValueError: Neither ``time`` nor both ``start`` and ``end`` were given.
+            ValueError: ``time`` is not a two-element pair, or neither ``time`` nor both ``start``
+                and ``end`` were given.
         """
         from pyramids_eo import collection_from_earthengine
 
         settings = dict(kwargs)
         if time is not None:
-            settings.setdefault("start", time[0])
-            settings.setdefault("end", time[1])
-        if "auth" in settings:
-            settings.setdefault("credentials", settings.pop("auth"))
+            if not isinstance(time, (tuple, list)) or len(time) != 2:
+                raise ValueError(
+                    f"time must be a (start, end) pair, got {time!r}; pass a two-element "
+                    "sequence or start=… and end=… instead."
+                )
+            start, end = time
+            settings.setdefault("start", start)  # an explicit start= keyword wins over time
+            settings.setdefault("end", end)
+        auth = settings.pop("auth", None)
+        if auth is not None:
+            settings.setdefault("credentials", auth)  # an explicit credentials= wins over auth
         if "start" not in settings or "end" not in settings:
             raise ValueError(
                 "an Earth Engine collection read needs a date range: pass time=(start, end) "
