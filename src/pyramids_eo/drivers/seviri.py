@@ -81,25 +81,23 @@ class SeviriDriver:
         self,
         source: Any,
         *,
-        bbox: Any = None,
         bands: Any = None,
-        crs: Any = None,
         options: Any = None,
-        auth: Any = None,
+        **_ignored: Any,
     ) -> Dataset:
         """Read one SEVIRI channel into a :class:`~pyramids.dataset.Dataset`.
 
         Args:
             source: Path to a SEVIRI native ``.nat`` granule.
-            bbox: Ignored — ``read_seviri`` reads the whole granule.
             bands: The channel to read, as a one-element list (e.g. ``["IR_108"]``); an
                 alternative to ``options={"channel": …}``. A SEVIRI read is a single channel, so
                 more than one band is rejected rather than silently truncated.
-            crs: Ignored — the granule carries its own geostationary CRS.
             options: Extra :func:`~pyramids_eo.sensors.readers.read_seviri` keywords —
                 ``channel``, ``parse`` (the ``.nat`` decoder), ``calibrate``, ``coeffs``, … — as
                 a dict or ``KEY=VALUE`` list.
-            auth: Ignored — a local granule needs no credentials.
+            **_ignored: The generic driver-read parameters a SEVIRI read does not use — ``bbox``,
+                ``crs``, ``auth`` and any future one — are accepted and ignored: a granule is read
+                whole, carries its own geostationary CRS, and needs no credentials.
 
         Returns:
             The calibrated, geolocated channel.
