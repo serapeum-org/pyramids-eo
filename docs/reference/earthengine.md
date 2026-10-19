@@ -6,6 +6,9 @@ GDAL `EEDAI` (raster) and `EEDA` (catalog) drivers, with auth carried by
 [`EarthEngineCredentials`](#pyramids_eo.earthengine.credentials.EarthEngineCredentials) over Application
 Default Credentials.
 
+An `ee://<asset-id>` source also opens straight through pyramids' `Dataset.read_file` — see
+[Readers → Raster-driver plugins](readers.md#raster-driver-plugins).
+
 - `from_earthengine` — read a single EE `Image` asset into a `Dataset`; or, given `start` / `end` + `reducer`,
   reduce an `ImageCollection` **client-side** to a single composite `Dataset` (server-side EE reducers are out of
   scope — compositing happens on the client over the fetched scene stack).
