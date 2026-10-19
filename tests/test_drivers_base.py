@@ -46,3 +46,11 @@ def test_options_bare_string_rejected(bare):
     """A bare str/bytes is rejected outright, not iterated character by character."""
     with pytest.raises(ValueError, match="bare"):
         options_as_dict(bare)
+
+
+def test_options_accepts_a_non_dict_mapping():
+    """Any Mapping, not only an exact dict, is coerced to a plain dict (not iterated as keys)."""
+    from types import MappingProxyType
+
+    out = options_as_dict(MappingProxyType({"channel": "IR_108"}))
+    assert out == {"channel": "IR_108"} and type(out) is dict

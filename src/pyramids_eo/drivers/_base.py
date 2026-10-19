@@ -15,6 +15,7 @@ the contract publicly.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 #: The driver-contract version every driver here declares. Must equal pyramids'
@@ -32,8 +33,8 @@ def options_as_dict(options: Any) -> dict[str, Any]:
     pyramids-eo reader takes Python keyword arguments, so coerce every spelling to one dict.
 
     Args:
-        options: The caller's ``open_options`` — a ``dict``, a sequence of ``"KEY=VALUE"``
-            strings, or ``None``.
+        options: The caller's ``open_options`` — a mapping (any ``collections.abc.Mapping``, not
+            only an exact ``dict``), a sequence of ``"KEY=VALUE"`` strings, or ``None``.
 
     Returns:
         A dict of the options, empty when ``options`` is ``None`` or empty.
@@ -64,7 +65,7 @@ def options_as_dict(options: Any) -> dict[str, Any]:
     """
     if options is None:
         return {}
-    if isinstance(options, dict):
+    if isinstance(options, Mapping):
         return dict(options)
     if isinstance(options, (str, bytes)):
         raise ValueError(
