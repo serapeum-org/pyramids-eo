@@ -122,15 +122,20 @@ class FciDriver:
             requested.
 
         Raises:
-            ValueError: No channel was given (via ``bands`` or ``options``), or ``bands`` is a
-                bare string/bytes instead of a list of channel names.
+            ValueError: No channel was given (via ``bands`` or ``options``); both a single
+                ``channel`` and a ``channels`` list were given; ``bands`` is a bare string/bytes
+                instead of a list of channel names; or the source resolved to no chunk files.
         """
         from pyramids_eo.sensors.readers import read_fci_l1c
 
         settings = options_as_dict(options)
         channel = settings.pop("channel", None)
         channels = settings.pop("channels", None)
-        if channel is None and channels is None and bands:
+        if channel is not None and channels is not None:
+            raise ValueError(
+                "pass either a single channel or a channels list, not both."
+            )
+        if channel is None and channels is None and bands is not None:
             if isinstance(bands, (str, bytes)):
                 raise ValueError(
                     f"bands must be a list of channel names, not a bare "
@@ -139,7 +144,7 @@ class FciDriver:
             bands = list(bands)
             if len(bands) == 1:
                 channel = bands[0]
-            else:
+            elif len(bands) > 1:
                 channels = bands
         if channel is None and channels is None:
             raise ValueError(
@@ -147,4 +152,9 @@ class FciDriver:
                 "open_options={'channel': 'ir_105'}, or open_options={'channels': [...]}."
             )
         paths = expand_sources(_strip_scheme(str(source)), pattern="*.nc")
+        if not paths:
+            raise ValueError(
+                f"no chunk files found for FCI source {source!r}; expected a directory, glob, or "
+                "fci:// path resolving to one or more .nc chunks."
+            )
         return read_fci_l1c(paths, channel=channel, channels=channels, **settings)

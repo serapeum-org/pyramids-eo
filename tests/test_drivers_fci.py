@@ -5,6 +5,7 @@ tests pin the source expansion (directory/glob/fci:// → sorted chunk list) and
 without decoding real NetCDF chunks.
 """
 
+import numpy as np
 import pytest
 
 import pyramids_eo.sensors.readers as readers
@@ -160,3 +161,36 @@ def test_read_rejects_bare_string_bands(tmp_path):
     driver = FciDriver()
     with pytest.raises(ValueError, match="list of channel names"):
         driver.read(str(granule), bands="ir_105")
+
+
+def test_read_bands_as_numpy_array_maps_to_channels(tmp_path, monkeypatch):
+    """A numpy-array bands maps to the channels set, not an 'ambiguous truth value' error."""
+    granule, _ = _make_granule(tmp_path, ["c0.nc"])
+    captured = {}
+    monkeypatch.setattr(
+        readers,
+        "read_fci_l1c",
+        lambda p, *, channel, channels, **o: captured.update(
+            channel=channel, channels=channels
+        ),
+    )
+    FciDriver().read(str(granule), bands=np.array(["ir_105", "vis_06"]))
+    assert captured["channel"] is None
+    assert list(captured["channels"]) == ["ir_105", "vis_06"]
+
+
+def test_read_empty_source_raises_a_clear_error(tmp_path):
+    """A source that expands to no chunk files is a clear error, not a channel-coverage one."""
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    driver = FciDriver()
+    with pytest.raises(ValueError, match="no chunk files"):
+        driver.read(str(empty), options={"channel": "ir_105"})
+
+
+def test_read_rejects_both_channel_and_channels(tmp_path):
+    """Giving both channel and channels in options is rejected at the driver boundary."""
+    granule, _ = _make_granule(tmp_path, ["c0.nc"])
+    driver = FciDriver()
+    with pytest.raises(ValueError, match="not both"):
+        driver.read(str(granule), options={"channel": "ir_105", "channels": ["vis_06"]})
