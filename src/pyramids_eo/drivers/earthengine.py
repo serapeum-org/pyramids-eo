@@ -100,6 +100,10 @@ class EarthEngineDriver:
             crs: Optional target CRS for the output window.
             options: Extra :func:`~pyramids_eo.from_earthengine` keywords (e.g. ``reducer``,
                 ``start``, ``end``, ``tile_size``, ``path``) as a dict or ``KEY=VALUE`` list.
+                Because ``Dataset.read_file`` forwards only ``options`` to a driver, the window,
+                band, and credential inputs may also be given here as ``bbox``/``crs``/``window``,
+                ``bands``, and ``credentials`` (or ``auth``) keys; an explicit keyword below wins
+                over the same key in ``options``, and each is consumed so it cannot collide.
             auth: Credentials for the Earth Engine read, passed as ``credentials=``.
 
         Returns:
@@ -107,18 +111,31 @@ class EarthEngineDriver:
         """
         from pyramids_eo import Window, from_earthengine
 
-        window_kwargs: dict[str, Any] = {}
-        if bbox is not None:
-            window_kwargs["bbox"] = bbox
-        if crs is not None:
-            window_kwargs["crs"] = crs
-        window = Window(**window_kwargs)
+        settings = options_as_dict(options)
+        # Pop every reserved key unconditionally so a leftover can never collide with the matching
+        # from_earthengine keyword below; then let an explicit read keyword win over the option.
+        opt_bbox = settings.pop("bbox", None)
+        opt_crs = settings.pop("crs", None)
+        opt_bands = settings.pop("bands", None)
+        opt_window = settings.pop("window", None)
+        opt_cred = settings.pop("credentials", None)
+        opt_auth = settings.pop("auth", None)
+        bbox = bbox if bbox is not None else opt_bbox
+        crs = crs if crs is not None else opt_crs
+        bands = bands if bands is not None else opt_bands
+        if auth is None:
+            auth = opt_cred if opt_cred is not None else opt_auth
+        window = opt_window
+        if window is None:
+            window = (
+                Window(bbox=bbox, crs=crs) if bbox is not None or crs is not None else Window()
+            )
         return from_earthengine(
             _strip_scheme(str(source)),
             window=window,
             bands=bands,
             credentials=auth,
-            **options_as_dict(options),
+            **settings,
         )
 
     def read_collection(

@@ -88,6 +88,67 @@ def test_read_without_bbox_uses_a_default_window(monkeypatch):
     assert captured["window"].bbox is None, "default window should have no bbox"
 
 
+def test_read_takes_window_bands_credentials_from_options(monkeypatch):
+    """Because read_file forwards only options, window/bands/credentials may arrive there."""
+    captured = {}
+
+    def _fake(asset_id, *, window, bands, credentials, **options):
+        captured.update(
+            window=window, bands=bands, credentials=credentials, options=options
+        )
+        return "DATASET"
+
+    monkeypatch.setattr(pyramids_eo, "from_earthengine", _fake)
+    EarthEngineDriver().read(
+        "ee://X",
+        options={
+            "bbox": (0.0, 0.0, 1.0, 1.0),
+            "crs": 4326,
+            "bands": ["B4"],
+            "credentials": "CREDS",
+            "reducer": "median",
+        },
+    )
+    assert captured["window"].bbox == (0.0, 0.0, 1.0, 1.0)
+    assert captured["window"].crs == 4326
+    assert captured["bands"] == ["B4"]
+    assert captured["credentials"] == "CREDS"
+    assert captured["options"] == {"reducer": "median"}, "reserved keys must be consumed"
+
+
+def test_explicit_kwarg_wins_over_option(monkeypatch):
+    """An explicit read keyword takes precedence over the same key in options."""
+    captured = {}
+    monkeypatch.setattr(
+        pyramids_eo, "from_earthengine",
+        lambda asset_id, *, window, bands, credentials, **o: captured.update(
+            bbox=window.bbox, bands=bands, credentials=credentials
+        ),
+    )
+    EarthEngineDriver().read(
+        "ee://X",
+        bbox=(9.0, 9.0, 9.0, 9.0),
+        bands=["EXPLICIT"],
+        auth="EXPLICIT_CREDS",
+        options={"bbox": (0.0, 0.0, 1.0, 1.0), "bands": ["OPT"], "credentials": "OPT_CREDS"},
+    )
+    assert captured["bbox"] == (9.0, 9.0, 9.0, 9.0)
+    assert captured["bands"] == ["EXPLICIT"]
+    assert captured["credentials"] == "EXPLICIT_CREDS"
+
+
+def test_option_reserved_keys_do_not_collide(monkeypatch):
+    """Reserved keys in options are consumed, not splatted into a duplicate keyword (no TypeError)."""
+    monkeypatch.setattr(
+        pyramids_eo, "from_earthengine",
+        lambda asset_id, *, window, bands, credentials, **o: "OK",
+    )
+    out = EarthEngineDriver().read(
+        "ee://X", options={"bands": ["B4"], "credentials": "C", "window": None}
+    )
+    assert out == "OK"
+
+
 def test_read_collection_maps_time_tuple(monkeypatch):
     """`read_collection` accepts a ``time=(start, end)`` pair and strips the scheme."""
     captured = {}
