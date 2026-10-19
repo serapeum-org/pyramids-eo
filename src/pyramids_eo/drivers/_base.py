@@ -95,9 +95,11 @@ def expand_sources(source: Any, *, pattern: str = "*") -> list[str]:
     ``Dataset.read_file`` hands a driver a single source string, but a granule split across many
     files is named by one of three forms, each resolved here to a sorted list of path strings:
 
+    - an empty string → ``[]`` (``Path("")`` is ``.``, which must not list the whole CWD);
+    - an existing directory → its sorted *files* matching ``pattern`` (subdirectories excluded);
+    - an existing file → ``[source]`` (even if its name contains a glob metacharacter);
     - a glob string (one containing ``*``, ``?`` or ``[``) → its sorted matches;
-    - a directory → its sorted entries matching ``pattern``;
-    - anything else → ``[source]`` (a single file).
+    - anything else → ``[source]`` (a single, possibly not-yet-existing path).
 
     Args:
         source: The source handed by ``Dataset.read_file`` (stringified).
@@ -117,11 +119,14 @@ def expand_sources(source: Any, *, pattern: str = "*") -> list[str]:
             ```
     """
     text = str(source)
+    if not text:
+        # Guard the empty string: Path("") is ".", which would list the current directory.
+        return []
     path = Path(text)
     # Resolve an existing path literally first, so a real directory or file whose own name contains
     # a glob metacharacter (e.g. ``granule[1]``) is not mistaken for a pattern and lost.
     if path.is_dir():
-        return sorted(str(entry) for entry in path.glob(pattern))
+        return sorted(str(entry) for entry in path.glob(pattern) if entry.is_file())
     if path.exists():
         return [text]
     if any(character in text for character in _GLOB_CHARS):

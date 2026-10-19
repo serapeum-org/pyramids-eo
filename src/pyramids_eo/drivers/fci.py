@@ -74,26 +74,32 @@ class FciDriver:
 
         Returns:
             True for an ``fci://`` source, a directory containing at least one ``*FDHSI*.nc``
-            chunk, or a glob whose matches include one. It does a bounded, non-recursive directory
-            listing / glob (no file open, no network, never raises) — more than the string-only
-            ``can_open`` of the other drivers, but it runs only when GDAL has already failed to open
-            the source, and a very broad user glob (e.g. ``**``) is the caller's cost.
-            ``driver="fci"`` bypasses this, so a non-standard chunk set can still be read explicitly.
+            chunk, or a glob whose matches include one; False for an empty source. It does a
+            bounded, non-recursive directory listing / glob (no file open, no network) — more than
+            the string-only ``can_open`` of the other drivers, but it runs only when GDAL has
+            already failed to open the source, a very broad user glob (e.g. ``**``) is the caller's
+            cost, and a filesystem error (e.g. an unreadable directory) is swallowed to False so
+            the method never raises. ``driver="fci"`` bypasses this, so a non-standard chunk set can
+            still be read explicitly.
         """
-        if not isinstance(source, str):
+        if not isinstance(source, str) or not source:
             return False
         if source.lower().startswith(_SCHEME):
             return True
         # Resolve an existing path literally first, so a real granule directory whose own name
         # contains a glob metacharacter (e.g. ``granule[1]``) is stat-checked, not treated as a
-        # pattern. Only a non-existent source is interpreted as a glob.
-        path = Path(source)
-        if path.is_dir():
-            return any(path.glob(_FDHSI_GLOB))
-        if path.exists():
+        # pattern. Only a non-existent source is interpreted as a glob. The filesystem probes are
+        # wrapped so can_open honours its contract of never raising (an unreadable dir -> False).
+        try:
+            path = Path(source)
+            if path.is_dir():
+                return any(path.glob(_FDHSI_GLOB))
+            if path.exists():
+                return False
+            if any(character in source for character in "*?["):
+                return any("fdhsi" in Path(match).name.lower() for match in glob(source))
+        except (OSError, ValueError):
             return False
-        if any(character in source for character in "*?["):
-            return any("fdhsi" in Path(match).name.lower() for match in glob(source))
         return False
 
     def read(

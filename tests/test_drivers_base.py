@@ -88,6 +88,22 @@ def test_expand_sources_empty_directory_is_empty(tmp_path):
     assert expand_sources(str(tmp_path), pattern="*.nc") == []
 
 
+def test_expand_sources_empty_string_is_empty():
+    """An empty source expands to [], not the current working directory's contents.
+
+    Uses the default ``*`` pattern: without the guard, ``Path("")`` is ``.`` and would list the
+    CWD's files, so an empty result proves the empty-string short-circuit (not an empty CWD).
+    """
+    assert expand_sources("") == []
+
+
+def test_expand_sources_directory_excludes_subdirectories(tmp_path):
+    """The directory branch returns files only, not a subdirectory that matches the pattern."""
+    (tmp_path / "c0.nc").write_bytes(b"")
+    (tmp_path / "sub.nc").mkdir()
+    assert expand_sources(str(tmp_path), pattern="*.nc") == [str(tmp_path / "c0.nc")]
+
+
 def test_expand_sources_directory_name_with_glob_metachar(tmp_path):
     """A real directory whose name contains a glob metachar is treated literally, not as a pattern."""
     granule = tmp_path / "granule[1]"

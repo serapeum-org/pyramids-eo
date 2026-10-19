@@ -73,6 +73,22 @@ def test_can_open_existing_single_file_is_false(tmp_path):
     assert FciDriver.can_open(str(chunk)) is False
 
 
+def test_can_open_empty_string_is_false():
+    """An empty source is not claimed (and does not probe the current directory)."""
+    assert FciDriver.can_open("") is False
+
+
+def test_can_open_never_raises_on_a_filesystem_error(tmp_path, monkeypatch):
+    """A directory whose glob raises OSError yields False, never an exception (contract)."""
+    from pathlib import Path
+
+    def _boom(self, pattern):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "glob", _boom)
+    assert FciDriver.can_open(str(tmp_path)) is False
+
+
 def test_conforms_to_the_contract():
     """The driver satisfies pyramids' raster-driver conformance kit."""
     from pyramids.dataset.driver_conformance import assert_raster_driver_conforms
