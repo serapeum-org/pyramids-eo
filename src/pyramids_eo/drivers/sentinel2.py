@@ -30,7 +30,8 @@ class Sentinel2Driver:
         long_name: Human-readable source name for ``describe_drivers``.
         api_version: The driver-contract version (see
             :data:`~pyramids_eo.drivers._base.RASTER_DRIVER_API_VERSION`).
-        suffixes: ``(".safe",)`` — the driver claims a Sentinel-2 product directory.
+        suffixes: ``(".safe", ".safe.zip")`` — the driver claims a Sentinel-2 product directory or
+            a zipped product.
         schemes: Empty — a ``.SAFE`` is a local product.
         capabilities: ``read`` only (one product is one timestep; a time series goes through
             :func:`pyramids_eo.collection_from_sentinel2`).
@@ -41,7 +42,7 @@ class Sentinel2Driver:
     name = "s2"
     long_name = "Sentinel-2 (.SAFE)"
     api_version = RASTER_DRIVER_API_VERSION
-    suffixes: tuple[str, ...] = (".safe",)
+    suffixes: tuple[str, ...] = (".safe", ".safe.zip")
     schemes: tuple[str, ...] = ()
     capabilities = frozenset({"read"})
     extra: str | None = None
@@ -54,23 +55,26 @@ class Sentinel2Driver:
             source: The source handed by ``Dataset.read_file`` (stringified).
 
         Returns:
-            True for a string ending ``.SAFE`` (case-insensitive, trailing slash tolerated), else
-            False. Cheap: no import, no file access, no network.
+            True for a string ending ``.SAFE`` or ``.SAFE.zip`` (case-insensitive, trailing slash
+            tolerated), else False. Cheap: no import, no file access, no network.
 
         Examples:
-            - A ``.SAFE`` product is claimed; a plain raster is not:
+            - A ``.SAFE`` product (zipped or not) is claimed; a plain raster or bare zip is not:
                 ```python
                 >>> from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
                 >>> Sentinel2Driver.can_open("S2A_MSIL2A.SAFE")
+                True
+                >>> Sentinel2Driver.can_open("S2A_MSIL2A.SAFE.zip")
                 True
                 >>> Sentinel2Driver.can_open("scene.tif")
                 False
 
                 ```
         """
-        return isinstance(source, str) and source.rstrip("/\\").lower().endswith(
-            ".safe"
-        )
+        if not isinstance(source, str):
+            return False
+        lowered = source.rstrip("/\\").lower()
+        return lowered.endswith(".safe") or lowered.endswith(".safe.zip")
 
     def read(
         self,
@@ -95,7 +99,9 @@ class Sentinel2Driver:
                 list. Because ``Dataset.read_file`` forwards only ``options`` to a driver,
                 ``bbox`` / ``bands`` / ``crs`` may also be given here; a non-``None`` explicit
                 keyword wins over the same key in ``options``, and each is consumed so it cannot
-                collide.
+                collide. A ``KEY=VALUE`` list keeps every value a **string**, so an option that the
+                reader needs typed — ``resolution`` / ``epsg`` as ``int`` — must be passed in the
+                dict form (``{"resolution": 10}``), not as ``["resolution=10"]``.
             auth: Ignored — a local ``.SAFE`` needs no credentials.
             **_ignored: Any other generic driver-read parameter, accepted and ignored.
 

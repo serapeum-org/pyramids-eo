@@ -17,13 +17,15 @@ from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
         ("S2A_MSIL2A.SAFE", True),
         ("S2A_MSIL2A.safe", True),
         ("S2A_MSIL2A.SAFE/", True),
+        ("S2A_MSIL2A.SAFE.zip", True),
         ("scene.tif", False),
+        ("archive.zip", False),
         ("ee://x", False),
         (42, False),
     ],
 )
 def test_can_open(source, expected):
-    """`can_open` claims only `.SAFE` string sources, case-insensitively, trailing slash OK."""
+    """`can_open` claims `.SAFE` (and zipped `.SAFE.zip`) sources, case-insensitively."""
     assert Sentinel2Driver.can_open(source) is expected
 
 
@@ -37,7 +39,7 @@ def test_conforms_to_the_contract():
 def test_claims():
     """The class-level claims are the Sentinel-2 ones (no backend extra)."""
     assert Sentinel2Driver.name == "s2"
-    assert Sentinel2Driver.suffixes == (".safe",)
+    assert Sentinel2Driver.suffixes == (".safe", ".safe.zip")
     assert Sentinel2Driver.schemes == ()
     assert Sentinel2Driver.extra is None
     assert Sentinel2Driver.capabilities == frozenset({"read"})
