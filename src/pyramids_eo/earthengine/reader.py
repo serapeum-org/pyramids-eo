@@ -220,7 +220,8 @@ def _open_eedai(
         carrying the credential ``gdal_env`` for any deferred read.
 
     Raises:
-        ReaderError: The driver could not open the asset.
+        ReaderError: The driver could not open the asset, or opened it with no CRS it
+            could parse (so the read could not be georeferenced).
     """
     if block_size is not None and block_size <= 0:
         raise ValueError("'block_size' must be a positive number of pixels.")
@@ -257,6 +258,23 @@ def _open_eedai(
         raise ReaderError(
             f"Earth Engine asset {asset_or_connection!r} could not be opened via "
             f"EEDAI: {gdal.GetLastErrorMsg() or 'no detail'}"
+        )
+    # The EEDAI driver only *warns* (it does not fail) when it cannot parse an asset's
+    # CRS — e.g. MODIS' sinusoidal grid, which Earth Engine hands over as a
+    # spatialreference.org URL the driver cannot resolve — and carries on with an empty
+    # projection. Downstream, `_native_pixel_window` feeds that "" to
+    # ``osr.ImportFromWkt`` and dies with a bare ``RuntimeError: OGR Error: Corrupt
+    # data`` that names neither the asset nor the driver warning. Catch it here, where
+    # the asset id and the driver's own message are both in hand, and fail with a
+    # ``ReaderError`` that explains it (#108).
+    if not src.GetProjectionRef():
+        detail = gdal.GetLastErrorMsg() or "no detail"
+        raise ReaderError(
+            f"Earth Engine asset {asset_or_connection!r} opened with no CRS the EEDAI "
+            f"driver could parse, so the read cannot be georeferenced. The driver "
+            f"reported: {detail}. Assets whose projection is not a plain EPSG code — "
+            f"e.g. MODIS' sinusoidal grid, served as a spatialreference.org URL — are "
+            f"the usual cause."
         )
     return Dataset(src, gdal_env=credentials.gdal_env())
 
