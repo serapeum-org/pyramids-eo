@@ -527,6 +527,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#through-datasetread_file-the-pyramids-facade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Through Dataset.read_file (the pyramids facade)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#compositing" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1603,6 +1614,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#through-datasetread_file-the-pyramids-facade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Through Dataset.read_file (the pyramids facade)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#compositing" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1666,7 +1688,7 @@
 <p><a href="https://www.gnu.org/licenses/gpl-3.0"><img alt="License: GPL v3" src="https://img.shields.io/badge/License-GPLv3-blue.svg" /></a>
 <a href="https://github.com/pre-commit/pre-commit"><img alt="pre-commit" src="https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&amp;logoColor=white" /></a></p>
 <p><strong>pyramids-eo</strong> is the <strong>Earth-observation layer</strong> of the pyramids GIS stack. It is built on top of
-<a href="https://github.com/serapeum-org/pyramids">pyramids</a> (<code>pyramids-gis</code> — the generic raster/vector engine) and
+<a href="https://github.com/serapeum-org/pyramids">pyramids</a> (<code>pyramids-core</code> — the generic raster/vector engine) and
 adds the logic that is specific to <strong>Earth-observation data</strong>.</p>
 <p>pyramids underneath knows only how to <em>move rasters around</em>. pyramids-eo knows what a pixel <em>means</em> for a given
 instrument or provider: which subdataset is which channel, how to calibrate it, how to composite it, how to
@@ -1679,7 +1701,7 @@ resample a swath — and how to reach signed EO cloud assets.</p>
 </code></pre></div>
 <h2 id="scope"><a class="toclink" href="#scope">Scope</a><a class="headerlink" href="#scope" title="Permanent link">#</a></h2>
 <p>pyramids-eo is scoped by <em>domain</em> — Earth-observation data — not by a restriction on what it may do. It covers
-the EO-specific functionality that sits above the generic raster/vector operations pyramids-gis provides:
+the EO-specific functionality that sits above the generic raster/vector operations pyramids provides:
 reading instrument L1/L2 formats, calibrating them, compositing them, resampling swaths, and reaching signed EO
 cloud assets (Google Earth Engine, STAC providers). Everything a reader returns is a plain pyramids
 <code>Dataset</code> / <code>DatasetCollection</code> — no engine-specific objects leak into the public types.</p>
@@ -1734,14 +1756,35 @@ scene-classification masking (see <a href="reference/sentinel/">Sentinel</a>).</
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># MSG-SEVIRI Level-1.5 native (.nat): decode + calibrate + geolocate one channel.</span>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">seviri</span> <span class="o">=</span> <span class="n">read_seviri</span><span class="p">(</span><span class="s2">"MSG4-...nat"</span><span class="p">,</span> <span class="s2">"IR_108"</span><span class="p">)</span>
 </code></pre></div>
+<h3 id="through-datasetread_file-the-pyramids-facade"><a class="toclink" href="#through-datasetread_file-the-pyramids-facade">Through <code>Dataset.read_file</code> (the pyramids facade)</a><a class="headerlink" href="#through-datasetread_file-the-pyramids-facade" title="Permanent link">#</a></h3>
+<p>Every reader above is also registered as a <code>pyramids.raster_drivers</code> plugin, so an EO source can be
+opened straight through pyramids' own <code>Dataset.read_file</code> — no pyramids-eo import at the call site;
+installing the package is the whole integration. The typed facades stay the ergonomic API; this is
+the zero-coupling route for code that already speaks pyramids (see
+<a href="reference/readers/#raster-driver-plugins">Readers → Raster-driver plugins</a>).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1"># GDAL cannot open these, so read_file falls through to the pyramids-eo plugin automatically:</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">ee</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"ee://USGS/SRTMGL1_003"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bbox"</span><span class="p">:</span> <span class="p">(</span><span class="mf">86.9</span><span class="p">,</span> <span class="mf">27.9</span><span class="p">,</span> <span class="mf">87.0</span><span class="p">,</span> <span class="mf">28.0</span><span class="p">)})</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">seviri</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"MSG4-...nat"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"IR_108"</span><span class="p">})</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">fci</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"/data/fci_granule"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"ir_105"</span><span class="p">})</span>  <span class="c1"># a chunk directory</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="c1"># Sentinel-2: GDAL opens a .SAFE itself, so ask for the pyramids-eo reader explicitly.</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="n">scene</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="s2">"S2A_..._MSIL2A.SAFE"</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s2">"s2"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bands"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"B04"</span><span class="p">,</span> <span class="s2">"B03"</span><span class="p">,</span> <span class="s2">"B02"</span><span class="p">]}</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="p">)</span>
+</code></pre></div>
+<p><code>read_file</code> forwards only <code>open_options</code> to a driver, so reader keywords (channel, bbox, bands,
+credentials, …) go there — and an option needing a non-string type (e.g. S2 <code>resolution=10</code>) must be
+passed in dict form, not a <code>KEY=VALUE</code> list.</p>
 <h3 id="compositing"><a class="toclink" href="#compositing">Compositing</a><a class="headerlink" href="#compositing" title="Permanent link">#</a></h3>
-<p>Assemble a true-colour composite over NumPy + pyramids-gis, then stretch it to a displayable frame (see
+<p>Assemble a true-colour composite over NumPy + pyramids, then stretch it to a displayable frame (see
 <a href="reference/composites/">Composites</a>).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.composites</span><span class="w"> </span><span class="kn">import</span> <span class="n">true_color</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.enhance</span><span class="w"> </span><span class="kn">import</span> <span class="n">stretch</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">rgb</span> <span class="o">=</span> <span class="n">true_color</span><span class="p">(</span><span class="n">red</span><span class="p">,</span> <span class="n">green</span><span class="p">,</span> <span class="n">blue</span><span class="p">)</span>                   <span class="c1"># physical reflectance in ~[0, 1]</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">frame</span> <span class="o">=</span> <span class="n">stretch</span><span class="p">(</span><span class="n">rgb</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s2">"cira"</span><span class="p">)</span>                    <span class="c1"># → displayable uint8</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.composites</span><span class="w"> </span><span class="kn">import</span> <span class="n">true_color</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids_eo.enhance</span><span class="w"> </span><span class="kn">import</span> <span class="n">stretch</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">rgb</span> <span class="o">=</span> <span class="n">true_color</span><span class="p">(</span><span class="n">red</span><span class="p">,</span> <span class="n">green</span><span class="p">,</span> <span class="n">blue</span><span class="p">)</span>                   <span class="c1"># physical reflectance in ~[0, 1]</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">frame</span> <span class="o">=</span> <span class="n">stretch</span><span class="p">(</span><span class="n">rgb</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s2">"cira"</span><span class="p">)</span>                    <span class="c1"># → displayable uint8</span>
 </code></pre></div>
 <h2 id="next-steps"><a class="toclink" href="#next-steps">Next steps</a><a class="headerlink" href="#next-steps" title="Permanent link">#</a></h2>
 <ul>

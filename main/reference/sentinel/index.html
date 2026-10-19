@@ -2175,6 +2175,8 @@
 <p>The reader family for ESA's Sentinel missions, built on GDAL's <code>SENTINEL2</code> / <code>SAFE</code> drivers: GDAL parses the
 product structure, pyramids does the raster ops, and this package adds the instrument semantics — which
 subdataset is which band, how to turn DN into reflectance, how to read the scene-classification mask.</p>
+<p>A <code>.SAFE</code> product also opens through pyramids' <code>Dataset.read_file(path, driver="s2")</code> — see
+<a href="../readers/#raster-driver-plugins">Readers → Raster-driver plugins</a>.</p>
 <p>A Sentinel product is a <em>catalog of rasters</em>, not a raster, so it gets its own small model:</p>
 <ul>
 <li><code>open_product</code> — sniff the GDAL driver behind a path (<code>.SAFE</code> / <code>MTD_*.xml</code> / <code>.zip</code>) and return the right
@@ -2202,7 +2204,7 @@ subdataset is which band, how to turn DN into reflectance, how to read the scene
 
         <p>Sentinel product readers built on GDAL's <code>SENTINEL2</code> / <code>SAFE</code> drivers.</p>
 <p>The earth-observation reader family for ESA's Sentinel missions, layered on
-pyramids-gis the same way :mod:<code>pyramids_eo.earthengine</code> layers on the EEDAI
+pyramids the same way :mod:<code>pyramids_eo.earthengine</code> layers on the EEDAI
 driver: GDAL parses the product structure, pyramids does the raster ops, and
 this package adds the instrument semantics — which subdataset is which band, how
 to turn DN into reflectance, how to read the scene-classification mask.</p>
@@ -3519,7 +3521,7 @@ a multi-zone product is read without <code>epsg</code>.</p>
 <a id="__codelineno-0-113" name="__codelineno-0-113"></a>    <span class="n">_set_nodata</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">product</span><span class="p">)</span>
 <a id="__codelineno-0-114" name="__codelineno-0-114"></a>
 <a id="__codelineno-0-115" name="__codelineno-0-115"></a>    <span class="c1"># Do every DN-domain transform first (mask, crop, reproject), then tag</span>
-<a id="__codelineno-0-116" name="__codelineno-0-116"></a>    <span class="c1"># reflectance LAST. The mask's rebuild and pyramids-gis `crop` both reset</span>
+<a id="__codelineno-0-116" name="__codelineno-0-116"></a>    <span class="c1"># reflectance LAST. The mask's rebuild and pyramids `crop` both reset</span>
 <a id="__codelineno-0-117" name="__codelineno-0-117"></a>    <span class="c1"># per-band scale/offset (only `to_crs` / `to_file` preserve them), so tags</span>
 <a id="__codelineno-0-118" name="__codelineno-0-118"></a>    <span class="c1"># applied earlier would be silently dropped — tagging last guarantees the</span>
 <a id="__codelineno-0-119" name="__codelineno-0-119"></a>    <span class="c1"># returned dataset carries the calibration. `offsets` is captured from the</span>
@@ -4533,7 +4535,7 @@ Sentinel-2 product, picks the requested bands at a resolution, optionally
 converts DN → reflectance (as lazy scale/offset tags), masks cloud/shadow via
 the Scene-Classification band, and crops / reprojects — returning a plain
 pyramids <code>Dataset</code> with no Sentinel objects leaking out.</p>
-<p>Built entirely on pyramids-gis 0.64+ APIs: <code>Dataset.subdatasets</code> /
+<p>Built entirely on pyramids 0.64+ APIs: <code>Dataset.subdatasets</code> /
 <code>open_subdataset</code> for the catalog, <code>Dataset.bands.select</code> for band subsetting
 (1-based, or by name), <code>Dataset.read_array()</code> for the lazy reflectance read the
 scale/offset tags drive, and <code>crop</code> / <code>to_crs</code> for the spatial ops.</p>
@@ -4980,7 +4982,7 @@ a multi-zone product is read without <code>epsg</code>.</p>
 <a id="__codelineno-0-113" name="__codelineno-0-113"></a>    <span class="n">_set_nodata</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">product</span><span class="p">)</span>
 <a id="__codelineno-0-114" name="__codelineno-0-114"></a>
 <a id="__codelineno-0-115" name="__codelineno-0-115"></a>    <span class="c1"># Do every DN-domain transform first (mask, crop, reproject), then tag</span>
-<a id="__codelineno-0-116" name="__codelineno-0-116"></a>    <span class="c1"># reflectance LAST. The mask's rebuild and pyramids-gis `crop` both reset</span>
+<a id="__codelineno-0-116" name="__codelineno-0-116"></a>    <span class="c1"># reflectance LAST. The mask's rebuild and pyramids `crop` both reset</span>
 <a id="__codelineno-0-117" name="__codelineno-0-117"></a>    <span class="c1"># per-band scale/offset (only `to_crs` / `to_file` preserve them), so tags</span>
 <a id="__codelineno-0-118" name="__codelineno-0-118"></a>    <span class="c1"># applied earlier would be silently dropped — tagging last guarantees the</span>
 <a id="__codelineno-0-119" name="__codelineno-0-119"></a>    <span class="c1"># returned dataset carries the calibration. `offsets` is captured from the</span>
@@ -6695,7 +6697,7 @@ the class names as band category names; :class:<code>SclClass</code> mirrors the
 typed enum so a mask reads <code>[SclClass.CLOUD_HIGH_PROBA, SclClass.CLOUD_SHADOW]</code>
 rather than <code>[9, 3]</code>.</p>
 <p>:func:<code>scl_mask</code> sets the masked-out pixels to the dataset's no-data value.
-Because category names survive reprojection since pyramids-gis #1024, masking
+Because category names survive reprojection since pyramids #1024, masking
 may run before or after a warp — order is a convenience, not a correctness rule.</p>
 
 
