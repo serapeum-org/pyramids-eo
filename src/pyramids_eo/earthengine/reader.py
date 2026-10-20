@@ -2176,7 +2176,12 @@ def from_earthengine(
             single-resolution band set is read in one pass, unchanged.
         window: The output window — a :class:`Window` grouping the AOI ``bbox`` with the
             ``crs`` / ``scale`` / ``shape`` / ``resample`` grid spec. ``Window()`` (the
-            default) reads the whole asset lazily. The AOI's coordinates are read in the
+            default) reads the whole asset lazily. For an asset whose CRS the EEDAI
+            driver cannot parse (e.g. MODIS' sinusoidal grid served as a
+            spatialreference.org URL, #108), a *windowed* read recovers and applies the
+            CRS, but the whole-asset lazy read returns the raw, un-georeferenced pixels
+            (``crs == ""``) — pass a ``bbox`` to obtain the recovered CRS. The AOI's
+            coordinates are read in the
             window's ``crs`` — degrees under the default ``"EPSG:4326"``, the
             projection's metres under a projected ``crs`` (e.g. ``"EPSG:32645"``); the
             box is reprojected to EPSG:4326 to bound the source and the pixels warped
