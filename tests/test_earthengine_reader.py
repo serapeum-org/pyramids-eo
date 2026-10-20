@@ -130,11 +130,13 @@ class _FakeGdal:
         last_error: str = "",
         open_warnings: tuple[str, ...] = (),
         raise_on_open: str | None = None,
+        emit_on_raise: bool = True,
     ) -> None:
         self._open_result = open_result
         self._last_error = last_error
         self._open_warnings = list(open_warnings)
         self._raise_on_open = raise_on_open
+        self._emit_on_raise = emit_on_raise
         self._handlers: list = []
         self.calls: list[tuple[str, list[str]]] = []
         self.config: dict[str, str | None] = {}
@@ -152,7 +154,10 @@ class _FakeGdal:
             for handler in self._handlers:
                 handler(2, 1, message)  # (CE_Warning, CPLE_AppDefined, msg)
         if self._raise_on_open is not None:  # GDAL raises on failure under UseExceptions
-            raise RuntimeError(self._raise_on_open)
+            if self._emit_on_raise:  # some GDAL paths call the handler, then raise...
+                for handler in self._handlers:
+                    handler(3, 4, self._raise_on_open)  # (CE_Failure, CPLE_OpenFailed, msg)
+            raise RuntimeError(self._raise_on_open)  # ...others raise directly
         return self._open_result
 
     def GetLastErrorMsg(self):  # noqa: N802
@@ -776,22 +781,36 @@ class TestOpenEedai:
             f"Error should name the asset, got: {exc_info.value}"
         )
 
-    def test_open_failure_via_exception_raises_reader_error(self, monkeypatch) -> None:
-        """A GDAL exception on open surfaces as ``ReaderError`` with the detail.
+    @pytest.mark.parametrize("emit_on_raise", [True, False])
+    def test_open_failure_via_exception_raises_reader_error(
+        self, monkeypatch, emit_on_raise
+    ) -> None:
+        """A GDAL exception on open surfaces as ``ReaderError``, detail not duplicated.
+
+        Args:
+            emit_on_raise: Whether the driver calls the pushed error handler with the
+                failure message before raising (some GDAL paths do, some raise
+                directly). Either way the message must appear exactly once.
 
         Test scenario:
             With ``gdal.UseExceptions()`` active (pyramids enables it) a failed open
-            raises ``RuntimeError``; ``_open_eedai`` catches it under its pushed error
-            handler and raises a ``ReaderError`` naming the asset and the captured
-            detail, rather than letting the raw ``RuntimeError`` escape.
+            raises ``RuntimeError``; ``_open_eedai`` catches it under its pushed handler
+            and raises a ``ReaderError`` naming the asset and the detail — once, whether
+            or not the handler already captured the same text.
         """
-        fake = _FakeGdal(None, raise_on_open="HTTP response code: 403 forbidden")
+        fake = _FakeGdal(
+            None,
+            raise_on_open="HTTP response code: 403 forbidden",
+            emit_on_raise=emit_on_raise,
+        )
         monkeypatch.setattr(ee_reader, "gdal", fake)
         creds = EarthEngineCredentials.application_default()
         with pytest.raises(ReaderError, match="forbidden") as exc_info:
             ee_reader._open_eedai("USGS/SRTMGL1_003", bands=None, credentials=creds)
-        assert "USGS/SRTMGL1_003" in str(exc_info.value), (
-            f"Error should name the asset, got: {exc_info.value}"
+        msg = str(exc_info.value)
+        assert "USGS/SRTMGL1_003" in msg, f"Error should name the asset, got: {msg}"
+        assert msg.count("forbidden") == 1, (
+            f"detail should carry the GDAL message exactly once: {msg}"
         )
 
     def test_recovers_known_crs_from_driver_warning(self, monkeypatch) -> None:

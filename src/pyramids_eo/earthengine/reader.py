@@ -276,7 +276,11 @@ def _open_eedai(
                 open_options=open_options,
             )
     except RuntimeError as exc:  # GDAL exceptions are enabled; a failed open raises
-        warnings.append(redact_credentials(str(exc)))
+        # GDAL calls the pushed handler with the failure message *and then* raises it,
+        # so it may already be in ``warnings``; only add it if the handler did not.
+        redacted = redact_credentials(str(exc))
+        if redacted not in warnings:
+            warnings.append(redacted)
         src = None
     finally:
         gdal.PopErrorHandler()
