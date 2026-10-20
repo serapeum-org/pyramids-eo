@@ -888,6 +888,25 @@ class TestWindow:
         )
         assert x1 > x0 and y1 > y0, f"expected a non-empty window, got {(x0, y0, x1, y1)}"
 
+    def test_materialize_georeferences_with_recovered_crs(self) -> None:
+        """``_materialize`` builds the native window in the recovered CRS (#108).
+
+        Test scenario:
+            With MODIS' sinusoidal CRS recovered onto a CRS-less source, materialising a
+            lon/lat AOI yields a native-resolution ``Dataset`` carrying that sinusoidal
+            CRS — locking the ``_materialize`` recovered branch offline (otherwise only
+            the live MODIS test exercises it end-to-end).
+        """
+        source = Dataset(_source_without_crs())
+        source._eo_source_crs = ee_reader._recover_source_crs(
+            ["Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/"]
+        )
+        materialised = ee_reader._materialize(source, (-0.1, -0.1, 0.1, 0.1), "EPSG:4326")
+        assert "Sinusoidal" in materialised.crs, (
+            f"materialised result should carry the recovered sinusoidal CRS; "
+            f"got {materialised.crs[:60]!r}"
+        )
+
     def test_reader_error_when_warp_returns_none(self, monkeypatch) -> None:
         """A failed warp (``None``) raises ``ReaderError``.
 
