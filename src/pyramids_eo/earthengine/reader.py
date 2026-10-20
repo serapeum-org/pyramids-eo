@@ -849,16 +849,10 @@ def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
             f"Bbox {bbox} is outside the projection domain of {crs!r}; "
             f"back-transform to EPSG:4326 produced a not-finite envelope."
         )
-    # ``TransformBounds`` signals an antimeridian wrap by returning ``west > east``,
-    # but ``_discover_scenes`` feeds this to OGR's ``SetSpatialFilterRect``, which
-    # normalises to ``[min(w, e), max(w, e)]`` — the *wrong* half of the globe, so a
-    # dateline-crossing projected AOI (UTM-1N, PDC Mercator, …) would silently drop
-    # every scene inside the user's AOI. Collapse the wrap to the full longitude span
-    # so the catalog filter still contains the real AOI (over-selects by the dateline
-    # strip, as the pre-densify four-corner code did; the per-scene window read then
-    # clips back).
-    if west > east:
-        west, east = -180.0, 180.0
+    # ``TransformBounds`` signals an antimeridian wrap by returning ``west > east``.
+    # Carry that signal through unchanged; :func:`_discover_scenes` detects it and
+    # splits the EEDA spatial filter into east and west halves — tighter than widening
+    # to ``(-180, 180)`` here would be for a narrow dateline-crossing AOI (#97).
     return (west, south, east, north)
 
 
@@ -1111,15 +1105,37 @@ def _discover_scenes(
     )
     layer.SetAttributeFilter(attribute_filter)
     min_x, min_y, max_x, max_y = bbox_4326
-    layer.SetSpatialFilterRect(min_x, min_y, max_x, max_y)
+    # :func:`_bbox_to_4326` reports an antimeridian-crossing AOI by returning
+    # ``west > east`` — OGR's ``SetSpatialFilterRect`` would normalise that to
+    # ``[min(w, e), max(w, e)]`` (the wrong half of the globe), so split into the
+    # east and west halves and run two filter+scan passes. For a non-wrapping AOI
+    # the single-pass shape is preserved. Scenes whose geometry falls on the
+    # dateline would be returned by both passes, so dedupe by
+    # ``(startTime, connection)`` (#97).
+    if min_x > max_x:
+        rects = [
+            (-180.0, min_y, max_x, max_y),
+            (min_x, min_y, 180.0, max_y),
+        ]
+    else:
+        rects = [(min_x, min_y, max_x, max_y)]
     scenes: list[_Scene] = []
-    for feature in layer:
-        connection = feature.GetFieldAsString("gdal_dataset")
-        if connection:
+    seen: set[tuple[str, str]] = set()
+    for rect in rects:
+        layer.SetSpatialFilterRect(*rect)
+        for feature in layer:
+            connection = feature.GetFieldAsString("gdal_dataset")
+            if not connection:
+                continue
+            start_time = feature.GetFieldAsString("startTime")
+            key = (start_time, connection)
+            if key in seen:
+                continue
+            seen.add(key)
             scenes.append(
                 _Scene(
                     connection=connection,
-                    time=feature.GetFieldAsString("startTime"),
+                    time=start_time,
                     band_count=_field_int(feature, "band_count"),
                     width=_field_int(feature, "band_max_width"),
                     height=_field_int(feature, "band_max_height"),

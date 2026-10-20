@@ -978,31 +978,50 @@ class TestWindow:
 
 
 class _FakeFeature:
-    """Minimal OGR feature stand-in exposing ``GetFieldAsString``."""
+    """Minimal OGR feature stand-in exposing ``GetFieldAsString``.
 
-    def __init__(self, fields: dict[str, str]) -> None:
+    Carries an optional ``lon`` to let the layer fake filter by the current
+    spatial rect — the dateline split test needs that so dedupe is observable.
+    """
+
+    def __init__(self, fields: dict[str, str], lon: float | None = None) -> None:
         self._fields = fields
+        self.lon = lon
 
     def GetFieldAsString(self, key):  # noqa: N802
         return self._fields.get(key, "")
 
 
 class _FakeLayer:
-    """Minimal OGR layer stand-in that records the filters it was given."""
+    """Minimal OGR layer stand-in that records the filters it was given.
+
+    ``spatial_rect`` remains last-wins for the existing single-filter tests;
+    ``spatial_rects`` accumulates every call so the dateline-split test can
+    assert both halves ran. When a feature carries ``lon``, iteration filters it
+    by the current rect's ``[min_x, max_x]`` — otherwise every feature is yielded,
+    which keeps existing tests unchanged.
+    """
 
     def __init__(self, features: list[_FakeFeature]) -> None:
         self._features = features
         self.attribute_filter: str | None = None
         self.spatial_rect: tuple | None = None
+        self.spatial_rects: list[tuple] = []
 
     def SetAttributeFilter(self, expr):  # noqa: N802
         self.attribute_filter = expr
 
     def SetSpatialFilterRect(self, *rect):  # noqa: N802
         self.spatial_rect = rect
+        self.spatial_rects.append(rect)
 
     def __iter__(self):
-        return iter(self._features)
+        rect = self.spatial_rect
+        for feature in self._features:
+            if feature.lon is None or rect is None:
+                yield feature
+            elif rect[0] <= feature.lon <= rect[2]:
+                yield feature
 
 
 class _FakeEeda:
@@ -1462,6 +1481,61 @@ class TestDiscoverScenes:
             f"Unexpected spatial filter: {layer.spatial_rect}"
         )
 
+    def test_antimeridian_wrap_splits_filter_and_dedupes(self, monkeypatch) -> None:
+        """A dateline-crossing bbox issues two spatial filters and dedupes scenes (#97/L4).
+
+        Test scenario:
+            ``_bbox_to_4326`` signals an antimeridian wrap by returning
+            ``west > east``. ``_discover_scenes`` must split that into two
+            ``SetSpatialFilterRect`` calls — the east half ``(-180, s, east, n)`` and
+            the west half ``(west, s, 180, n)`` — rather than widen to ``(-180, 180)``
+            (which would scan the whole globe for a narrow dateline strip). A scene
+            whose geometry falls on the dateline is returned by both passes, so the
+            result must be de-duplicated by ``(startTime, connection)``.
+        """
+        features = [
+            _FakeFeature(
+                {"gdal_dataset": "EEDAI:east", "startTime": "2024-06-01T00:00:00"},
+                lon=179.5,
+            ),
+            _FakeFeature(
+                {"gdal_dataset": "EEDAI:west", "startTime": "2024-06-02T00:00:00"},
+                lon=-179.5,
+            ),
+            _FakeFeature(
+                {"gdal_dataset": "EEDAI:far", "startTime": "2024-06-03T00:00:00"},
+                lon=0.0,
+            ),
+            # Geometry spans the dateline (``lon=None`` → the fake yields it for
+            # every filter rect), so both halves return it and dedupe is required.
+            _FakeFeature(
+                {"gdal_dataset": "EEDAI:dup", "startTime": "2024-06-04T00:00:00"},
+            ),
+        ]
+        layer = _FakeLayer(features)
+        monkeypatch.setattr(ee_reader, "gdal", _FakeEeda(layer))
+        scenes = ee_reader._discover_scenes(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox_4326=(179.0, -1.0, -179.0, 1.0),  # wrap: west > east
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        assert len(layer.spatial_rects) == 2, (
+            f"wrap should issue two filter rects, got {layer.spatial_rects}"
+        )
+        assert set(layer.spatial_rects) == {
+            (-180.0, -1.0, -179.0, 1.0),
+            (179.0, -1.0, 180.0, 1.0),
+        }, f"wrong split halves: {layer.spatial_rects}"
+        connections = [s.connection for s in scenes]
+        assert "EEDAI:east" in connections, "east-of-dateline scene missing"
+        assert "EEDAI:west" in connections, "west-of-dateline scene missing"
+        assert "EEDAI:far" not in connections, "scene outside the AOI was returned"
+        assert connections.count("EEDAI:dup") == 1, (
+            f"dateline-boundary scene must be deduped: got {connections}"
+        )
+
     def test_reader_error_when_catalog_open_fails(self, monkeypatch) -> None:
         """A ``None`` catalog open raises ``ReaderError``.
 
@@ -1815,22 +1889,22 @@ class TestHelpers:
         assert 0.0 <= west <= 10.0, f"west edge: {west}"
         assert 0.0 <= south <= 10.0, f"south edge: {south}"
 
-    def test_bbox_to_4326_covers_antimeridian_crossing(self) -> None:
-        """A projected AOI crossing the antimeridian back-transforms to a usable envelope (#97).
+    def test_bbox_to_4326_signals_antimeridian_wrap_as_west_gt_east(self) -> None:
+        """A projected AOI crossing the antimeridian reports the wrap as west > east (#97).
 
         Test scenario:
             Densified ``TransformBounds`` signals a dateline wrap by returning
             ``west > east`` (e.g. EPSG:32601 UTM-1N → ``(179.845, …, -173.845, …)``).
-            OGR's ``SetSpatialFilterRect`` would normalise that to ``[min, max]`` — the
-            wrong half of the globe, silently dropping the user's AOI. ``_bbox_to_4326``
-            must collapse the wrap to ``(-180, s, 180, n)`` so the catalog filter still
-            contains the real AOI (west ≤ -179 ≤ 179 ≤ east, N/S preserved).
+            ``_bbox_to_4326`` carries that signal through unchanged so
+            ``_discover_scenes`` can split the catalog filter into east and west
+            halves — collapsing to ``(-180, 180)`` here would scan the whole globe for
+            a narrow dateline AOI (see TestDiscoverScenes).
         """
         utm1n = (166_000.0, 1_000_000.0, 834_000.0, 2_000_000.0)
         west, south, east, north = ee_reader._bbox_to_4326(utm1n, "EPSG:32601")
-        assert west <= east, f"wrap not collapsed: west={west} > east={east}"
-        assert west <= -179.0, f"west must span the dateline, got {west}"
-        assert east >= 179.0, f"east must span the dateline, got {east}"
+        assert west > east, f"antimeridian wrap signal lost: west={west} east={east}"
+        assert west > 170.0, f"east-of-dateline edge in the wrong half: west={west}"
+        assert east < -170.0, f"west-of-dateline edge in the wrong half: east={east}"
         assert 9.0 <= south <= 10.0, f"south edge drifted: {south:.3f}"
         assert 17.0 <= north <= 19.0, f"north edge drifted: {north:.3f}"
 
