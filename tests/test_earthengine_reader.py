@@ -1827,7 +1827,9 @@ class TestHelpers:
         """
         utm = (-4963.0, 2764948.0, 1004963.0, 3884484.0)
         west, south, east, north = ee_reader._bbox_to_4326(utm, "EPSG:32636")
-        assert north >= 35.0, f"north edge {north:.3f} must cover the requested 35.0 N (#97)"
+        assert north >= 35.0, (
+            f"north edge {north:.3f} must cover the requested 35.0 N (#97)"
+        )
         assert south <= 25.0, f"south edge {south:.3f} must cover the requested 25.0 N"
         assert west == pytest.approx(27.471, abs=0.01), f"west edge drifted: {west}"
         assert east == pytest.approx(38.529, abs=0.01), f"east edge drifted: {east}"
@@ -1866,7 +1868,9 @@ class TestHelpers:
             ``ReaderError`` naming the ``bbox`` and ``crs``, rather than smuggling
             infinities into ``SetSpatialFilterRect`` downstream.
         """
-        with pytest.raises(ReaderError, match="projection domain|out-of-domain|not finite"):
+        with pytest.raises(
+            ReaderError, match="projection domain|out-of-domain|not finite"
+        ):
             ee_reader._bbox_to_4326((1e10, 1e10, 2e10, 2e10), "EPSG:32636")
 
     def test_bbox_to_4326_falls_through_when_resolver_cannot_identify_crs(self) -> None:
@@ -1880,9 +1884,7 @@ class TestHelpers:
             lon/lat envelope rather than crashing.
         """
         sinusoidal_box = (0.0, 0.0, 500_000.0, 500_000.0)
-        west, south, east, north = ee_reader._bbox_to_4326(
-            sinusoidal_box, "ESRI:54008"
-        )
+        west, south, east, north = ee_reader._bbox_to_4326(sinusoidal_box, "ESRI:54008")
         assert (west, south, east, north) != sinusoidal_box, (
             "non-4326 input must be transformed, not passed through"
         )
@@ -1919,7 +1921,9 @@ class TestHelpers:
         """
         polar = (-1_000_000.0, -1_000_000.0, 1_000_000.0, 1_000_000.0)
         west, south, east, north = ee_reader._bbox_to_4326(polar, "EPSG:3413")
-        assert north == pytest.approx(90.0, abs=0.01), f"north edge should reach the pole, got {north}"
+        assert north == pytest.approx(90.0, abs=0.01), (
+            f"north edge should reach the pole, got {north}"
+        )
         assert south == pytest.approx(77.0, abs=0.1), (
             f"south edge of the 2000-km polar box should be ~77 N, got {south}"
         )
