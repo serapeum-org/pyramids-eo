@@ -361,7 +361,10 @@ def _normalise_crs_identifier(identifier: str) -> str:
 #: in a future GDAL still recovers. Verified against GDAL 3.13.3 (bundled in pyramids-gis
 #: 0.69), whose MODIS warning is ``Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/``.
 _CRS_IDENTIFIER_RE = re.compile(
-    r"(?:spatialreference\.org/ref/)?([A-Za-z][A-Za-z0-9-]*[:/]\d+)", re.IGNORECASE
+    # Possessive ``*+`` (no backtracking) and a single-case class under ``IGNORECASE``
+    # keep the pattern provably linear and free of redundant ranges.
+    r"(?:spatialreference\.org/ref/)?([a-z][a-z0-9-]*+[:/]\d+)",
+    re.IGNORECASE,
 )
 
 
