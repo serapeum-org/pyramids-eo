@@ -291,22 +291,7 @@ def _open_eedai(
             f"EEDAI: {detail}"
         )
     dataset = Dataset(src, gdal_env=credentials.gdal_env())
-    # When the driver left the projection empty, recover the CRS from its warning for
-    # the identifiers the recovery table knows (e.g. MODIS' sinusoidal grid, served as
-    # a spatialreference.org URL) and stash it for the read path (:func:`_source_crs`);
-    # EEDAI datasets are read-only, so the CRS cannot be set on the source itself. An
-    # identifier we cannot resolve is left unrecovered: a windowed read then fails with
-    # a clear ``ReaderError`` (:func:`_native_pixel_window`) instead of the bare
-    # ``OGR Error: Corrupt data`` the empty string used to cause, while a whole-asset
-    # lazy read still returns the raw (ungeoreferenced) pixels as before (#108).
-    if not dataset.crs:
-        recovered = _recover_source_crs(warnings)
-        if recovered:  # truthy: a non-empty WKT; else keep the detail for the fallback
-            dataset._eo_source_crs = recovered  # type: ignore[attr-defined]
-        else:
-            dataset._eo_crs_detail = (  # type: ignore[attr-defined]
-                "; ".join(warnings) or "the driver reported no CRS"
-            )
+    _stash_recovered_crs(dataset, warnings)
     return dataset
 
 
@@ -354,18 +339,16 @@ def _normalise_crs_identifier(identifier: str) -> str:
     return f"{match.group(1)}:{match.group(2)}" if match is not None else token
 
 
-#: Matches the CRS identifier the driver names — a ``spatialreference.org`` URL
-#: (``.../ref/sr-org/6974/``) or a bare authority token (``SR-ORG:6974``) — anywhere in a
-#: warning. Recovery keys off this (stable) identifier rather than the EEDAI driver's
-#: *undocumented, version-dependent* warning wording, so a reworded or re-cased message
-#: in a future GDAL still recovers. Verified against GDAL 3.13.3 (bundled in pyramids-gis
-#: 0.69), whose MODIS warning is ``Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/``.
-_CRS_IDENTIFIER_RE = re.compile(
-    # Possessive ``*+`` (no backtracking) and a single-case class under ``IGNORECASE``
-    # keep the pattern provably linear and free of redundant ranges.
-    r"(?:spatialreference\.org/ref/)?([a-z][a-z0-9-]*+[:/]\d+)",
-    re.IGNORECASE,
-)
+#: Matches an ``<authority>:<code>`` / ``<authority>/<code>`` CRS identifier anywhere in
+#: a warning — e.g. ``sr-org/6974`` inside ``http://spatialreference.org/ref/sr-org/6974/``
+#: or a bare ``SR-ORG:6974``. Recovery keys off this (stable) identifier rather than the
+#: EEDAI driver's *undocumented, version-dependent* warning wording, so a reworded or
+#: re-cased message in a future GDAL still recovers. Verified against GDAL 3.13.3 (bundled
+#: in pyramids-gis 0.69), whose MODIS warning is
+#: ``Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/``. The recovery table
+#: (not the pattern) is what filters to a known identifier, so no tighter anchor is
+#: needed; a single possessive class before a disjoint separator keeps matching linear.
+_CRS_IDENTIFIER_RE = re.compile(r"([a-z0-9-]++[:/]\d+)", re.IGNORECASE)
 
 
 def _recover_source_crs(warnings: list[str]) -> str | None:
@@ -390,6 +373,33 @@ def _recover_source_crs(warnings: list[str]) -> str | None:
                 # Build the SRS through pyramids' CRS layer rather than raw ``osr``.
                 return create_sr_from_proj(proj, string_type="PROJ4").ExportToWkt()
     return None
+
+
+def _stash_recovered_crs(dataset: Dataset, warnings: list[str]) -> None:
+    """Recover and stash the source CRS for an asset the driver left unprojected.
+
+    EEDAI datasets are read-only, so a recovered CRS cannot be set on ``dataset``
+    itself; stash it (``_eo_source_crs``) for :func:`_source_crs` to apply on the
+    windowed read, or stash the driver detail (``_eo_crs_detail``) when the CRS is one
+    the recovery table does not know — a windowed read then fails with a clear
+    ``ReaderError`` (:func:`_native_pixel_window`) instead of the bare
+    ``OGR Error: Corrupt data`` the empty string used to cause, while a whole-asset lazy
+    read still returns the raw (ungeoreferenced) pixels as before (#108). A dataset that
+    already carries a CRS is left untouched.
+
+    Args:
+        dataset: The freshly opened EEDAI source.
+        warnings: The driver messages captured during the open.
+    """
+    if dataset.crs:
+        return
+    recovered = _recover_source_crs(warnings)
+    if recovered:  # truthy: a non-empty WKT; else keep the detail for the fallback
+        dataset._eo_source_crs = recovered  # type: ignore[attr-defined]
+    else:
+        dataset._eo_crs_detail = (  # type: ignore[attr-defined]
+            "; ".join(warnings) or "the driver reported no CRS"
+        )
 
 
 def _source_crs(ee: Dataset) -> str:
