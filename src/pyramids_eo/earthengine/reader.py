@@ -821,15 +821,21 @@ def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
     transform = osr.CoordinateTransformation(source, target)
     min_x, min_y, max_x, max_y = bbox
     # Densify each edge (not just the four corners) so an edge that bows outward under
-    # the projection is fully captured. A four-corner transform under-estimates the reach
-    # of a bowed edge — for a large projected AOI it loses a poleward strip of the
-    # requested ground (and adds unrequested ground on the sides), so the EEDA catalog
-    # filter would under-cover the request. ``TransformBounds`` walks each edge with
-    # ``_BBOX_DENSIFY_POINTS`` samples and returns the true envelope, making this the
-    # inverse of a densified forward projection (#97).
+    # the projection is fully captured. ``TransformBounds`` walks each edge with
+    # ``_BBOX_DENSIFY_POINTS`` samples and returns the true envelope (#97).
     west, south, east, north = transform.TransformBounds(
         min_x, min_y, max_x, max_y, _BBOX_DENSIFY_POINTS
     )
+    # ``TransformBounds`` signals an antimeridian wrap by returning ``west > east``,
+    # but ``_discover_scenes`` feeds this to OGR's ``SetSpatialFilterRect``, which
+    # normalises to ``[min(w, e), max(w, e)]`` — the *wrong* half of the globe, so a
+    # dateline-crossing projected AOI (UTM-1N, PDC Mercator, …) would silently drop
+    # every scene inside the user's AOI. Collapse the wrap to the full longitude span
+    # so the catalog filter still contains the real AOI (over-selects by the dateline
+    # strip, as the pre-densify four-corner code did; the per-scene window read then
+    # clips back).
+    if west > east:
+        west, east = -180.0, 180.0
     return (west, south, east, north)
 
 

@@ -1758,6 +1758,42 @@ class TestHelpers:
         assert west == pytest.approx(27.471, abs=0.01), f"west edge drifted: {west}"
         assert east == pytest.approx(38.529, abs=0.01), f"east edge drifted: {east}"
 
+    def test_bbox_to_4326_covers_antimeridian_crossing(self) -> None:
+        """A projected AOI crossing the antimeridian back-transforms to a usable envelope (#97).
+
+        Test scenario:
+            Densified ``TransformBounds`` signals a dateline wrap by returning
+            ``west > east`` (e.g. EPSG:32601 UTM-1N → ``(179.845, …, -173.845, …)``).
+            OGR's ``SetSpatialFilterRect`` would normalise that to ``[min, max]`` — the
+            wrong half of the globe, silently dropping the user's AOI. ``_bbox_to_4326``
+            must collapse the wrap to ``(-180, s, 180, n)`` so the catalog filter still
+            contains the real AOI (west ≤ -179 ≤ 179 ≤ east, N/S preserved).
+        """
+        utm1n = (166_000.0, 1_000_000.0, 834_000.0, 2_000_000.0)
+        west, south, east, north = ee_reader._bbox_to_4326(utm1n, "EPSG:32601")
+        assert west <= east, f"wrap not collapsed: west={west} > east={east}"
+        assert west <= -179.0, f"west must span the dateline, got {west}"
+        assert east >= 179.0, f"east must span the dateline, got {east}"
+        assert 9.0 <= south <= 10.0, f"south edge drifted: {south:.3f}"
+        assert 17.0 <= north <= 19.0, f"north edge drifted: {north:.3f}"
+
+    def test_bbox_to_4326_covers_pole(self) -> None:
+        """A pole-containing projected AOI back-transforms to a non-degenerate envelope (#97).
+
+        Test scenario:
+            An EPSG:3413 (NSIDC polar stereographic north) box around the pole: the
+            old four-corner code returned a degenerate ``south == north`` line (all
+            corners at the same latitude), losing every scene north of that line.
+            The densified transform must return the pole and a full-longitude envelope.
+        """
+        polar = (-1_000_000.0, -1_000_000.0, 1_000_000.0, 1_000_000.0)
+        west, south, east, north = ee_reader._bbox_to_4326(polar, "EPSG:3413")
+        assert north == pytest.approx(90.0, abs=0.01), f"north edge should reach the pole, got {north}"
+        assert south < north, f"envelope collapsed to a line: south={south} north={north}"
+        assert west <= -179.0 and east >= 179.0, (
+            f"pole-containing AOI needs full longitude envelope: west={west} east={east}"
+        )
+
     def test_reduce_unknown_reducer_raises(self) -> None:
         """An unknown reducer name is rejected.
 
