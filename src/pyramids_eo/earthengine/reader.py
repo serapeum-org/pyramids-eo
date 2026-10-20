@@ -36,6 +36,7 @@ from typing import NamedTuple
 import numpy as np
 from osgeo import gdal, osr
 from pyramids.base.crs import create_sr_from_proj, crs_spec
+from pyramids.base.remote import redact_credentials
 from pyramids.dataset import Dataset, DatasetCollection, GeoReference
 from pyramids.dataset.merge import merge_rasters
 
@@ -259,7 +260,14 @@ def _open_eedai(
     # empty for such assets). ``GetLastErrorMsg`` is unreliable here — later driver
     # messages overwrite it — so capture every message via an error handler (#108).
     warnings: list[str] = []
-    gdal.PushErrorHandler(lambda _class, _number, message: warnings.append(message))
+
+    def _collect(_class, _number, message):
+        # Redact before storing, as pyramids' own handlers do: a captured message is
+        # surfaced in the ReaderError / _eo_crs_detail, and a credentialed source could
+        # otherwise leak a token there.
+        warnings.append(redact_credentials(message) if isinstance(message, str) else message)
+
+    gdal.PushErrorHandler(_collect)
     try:
         with credentials.activate():
             src = gdal.OpenEx(
