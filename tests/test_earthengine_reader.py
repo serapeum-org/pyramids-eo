@@ -153,10 +153,14 @@ class _FakeGdal:
         for message in self._open_warnings:
             for handler in self._handlers:
                 handler(2, 1, message)  # (CE_Warning, CPLE_AppDefined, msg)
-        if self._raise_on_open is not None:  # GDAL raises on failure under UseExceptions
+        if (
+            self._raise_on_open is not None
+        ):  # GDAL raises on failure under UseExceptions
             if self._emit_on_raise:  # some GDAL paths call the handler, then raise...
                 for handler in self._handlers:
-                    handler(3, 4, self._raise_on_open)  # (CE_Failure, CPLE_OpenFailed, msg)
+                    handler(
+                        3, 4, self._raise_on_open
+                    )  # (CE_Failure, CPLE_OpenFailed, msg)
             raise RuntimeError(self._raise_on_open)  # ...others raise directly
         return self._open_result
 
@@ -837,8 +841,12 @@ class TestOpenEedai:
         )
         recovered = ee_reader._source_crs(ds)
         assert recovered, "the sinusoidal CRS should have been recovered and stashed"
-        assert "Sinusoidal" in recovered, f"expected a sinusoidal CRS, got: {recovered[:80]}"
-        assert "6371007" in recovered, "must be MODIS' sphere (R=6371007.181), not ESRI:54008"
+        assert "Sinusoidal" in recovered, (
+            f"expected a sinusoidal CRS, got: {recovered[:80]}"
+        )
+        assert "6371007" in recovered, (
+            "must be MODIS' sphere (R=6371007.181), not ESRI:54008"
+        )
 
     @pytest.mark.parametrize(
         "warning",
@@ -848,7 +856,9 @@ class TestOpenEedai:
             "Unknown projection SR-ORG:6974 could not be resolved",
         ],
     )
-    def test_recovers_across_driver_wording_variants(self, monkeypatch, warning) -> None:
+    def test_recovers_across_driver_wording_variants(
+        self, monkeypatch, warning
+    ) -> None:
         """Recovery keys off the CRS identifier, not the exact driver wording (#108).
 
         Args:
@@ -894,7 +904,9 @@ class TestOpenEedai:
             bands=None,
             credentials=EarthEngineCredentials.application_default(),
         )
-        assert ee_reader._source_crs(ds) == "", "an unknown identifier must not be recovered"
+        assert ee_reader._source_crs(ds) == "", (
+            "an unknown identifier must not be recovered"
+        )
 
 
 class TestWindow:
@@ -943,7 +955,9 @@ class TestWindow:
         source._eo_source_crs = ee_reader._recover_source_crs(
             ["Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/"]
         )
-        materialised = ee_reader._materialize(source, (-0.1, -0.1, 0.1, 0.1), "EPSG:4326")
+        materialised = ee_reader._materialize(
+            source, (-0.1, -0.1, 0.1, 0.1), "EPSG:4326"
+        )
         assert "Sinusoidal" in materialised.crs, (
             f"materialised result should carry the recovered sinusoidal CRS; "
             f"got {materialised.crs[:60]!r}"

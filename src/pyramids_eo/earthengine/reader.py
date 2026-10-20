@@ -265,7 +265,9 @@ def _open_eedai(
         # Redact before storing, as pyramids' own handlers do: a captured message is
         # surfaced in the ReaderError / _eo_crs_detail, and a credentialed source could
         # otherwise leak a token there.
-        warnings.append(redact_credentials(message) if isinstance(message, str) else message)
+        warnings.append(
+            redact_credentials(message) if isinstance(message, str) else message
+        )
 
     gdal.PushErrorHandler(_collect)
     try:
@@ -368,8 +370,9 @@ def _recover_source_crs(warnings: list[str]) -> str | None:
         for candidate in _CRS_IDENTIFIER_RE.findall(message):
             proj = _EE_CRS_RECOVERY.get(_normalise_crs_identifier(candidate))
             if proj is not None:
-                # Build the SRS through pyramids' CRS layer rather than raw ``osr``.
-                return create_sr_from_proj(proj, string_type="PROJ4").ExportToWkt()
+                # Build the SRS through pyramids' CRS layer rather than raw ``osr``;
+                # ``str(...)`` pins the return to ``str`` (osgeo's bindings are untyped).
+                return str(create_sr_from_proj(proj, string_type="PROJ4").ExportToWkt())
     return None
 
 
