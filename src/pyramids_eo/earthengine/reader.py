@@ -35,7 +35,7 @@ from typing import NamedTuple
 
 import numpy as np
 from osgeo import gdal, osr
-from pyramids.base.crs import create_sr_from_proj, crs_spec
+from pyramids.base.crs import create_sr_from_proj, crs_spec, epsg_from_user_input
 from pyramids.base.remote import redact_credentials
 from pyramids.dataset import Dataset, DatasetCollection, GeoReference
 from pyramids.dataset.merge import merge_rasters
@@ -53,8 +53,9 @@ _EEDA_PREFIX = "EEDA:"
 _DEFAULT_CRS = "EPSG:4326"
 
 #: Samples per edge when densifying a projected bbox back to EPSG:4326
-#: (:func:`_bbox_to_4326`); matches pyproj's ``transform_bounds`` default so a bowed edge
-#: is captured rather than under-covered by a four-corner transform (#97).
+#: (:func:`_bbox_to_4326`); matches both GDAL's ``OCTTransformBounds`` recommendation
+#: and pyproj's ``transform_bounds`` default, so a bowed edge is captured rather than
+#: under-covered by a four-corner transform (#97).
 _BBOX_DENSIFY_POINTS = 21
 
 #: Statistical client-side reducers for the ``ImageCollection`` → composite path.
@@ -810,8 +811,17 @@ def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
     Returns:
         The AOI's envelope in EPSG:4326 lon/lat.
     """
-    if crs.upper() in (_DEFAULT_CRS, "WGS84"):
-        return bbox
+    # Short-circuit any EPSG:4326 alias — ``"EPSG:4326"``, ``"WGS84"``, ``"WGS 84"``
+    # (the form ``osr.SpatialReference.GetName()`` emits, which ``SetFromUserInput``
+    # rejects with ``OGR Error: Corrupt data`` for the whitespace), WKT, URN forms —
+    # by resolving through pyramids' CRS layer rather than string-matching a handful of
+    # spellings. An input the resolver cannot read falls through to the full transform
+    # path where ``SetFromUserInput`` will raise if it is genuinely invalid.
+    try:
+        if epsg_from_user_input(crs) == 4326:
+            return bbox
+    except Exception:  # noqa: BLE001 — any resolver failure falls through
+        pass
     source = osr.SpatialReference()
     source.SetFromUserInput(crs)
     source.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
