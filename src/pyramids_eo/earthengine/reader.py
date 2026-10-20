@@ -36,7 +36,12 @@ from typing import NamedTuple
 
 import numpy as np
 from osgeo import gdal, osr
-from pyramids.base.crs import CRSError, create_sr_from_proj, crs_spec, epsg_from_user_input
+from pyramids.base.crs import (
+    CRSError,
+    create_sr_from_proj,
+    crs_spec,
+    epsg_from_user_input,
+)
 from pyramids.base.remote import redact_credentials
 from pyramids.dataset import Dataset, DatasetCollection, GeoReference
 from pyramids.dataset.merge import merge_rasters
