@@ -25,6 +25,7 @@ import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osg
 
 import gc
 import os
+import re
 import shutil
 import tempfile
 from collections.abc import Iterator
@@ -34,7 +35,7 @@ from typing import NamedTuple
 
 import numpy as np
 from osgeo import gdal, osr
-from pyramids.base.crs import crs_spec
+from pyramids.base.crs import create_sr_from_proj, crs_spec
 from pyramids.dataset import Dataset, DatasetCollection, GeoReference
 from pyramids.dataset.merge import merge_rasters
 
@@ -217,11 +218,14 @@ def _open_eedai(
 
     Returns:
         The opened whole-asset pyramids ``Dataset`` (window/reproject happens later),
-        carrying the credential ``gdal_env`` for any deferred read.
+        carrying the credential ``gdal_env`` for any deferred read. When the driver
+        left the projection empty but the CRS is one the recovery table resolves, the
+        recovered WKT is stashed on the returned dataset for :func:`_source_crs` (#108).
 
     Raises:
-        ReaderError: The driver could not open the asset, or opened it with no CRS it
-            could parse (so the read could not be georeferenced).
+        ReaderError: The driver could not open the asset. (An asset opened with an
+            unparseable CRS does **not** raise here: the CRS is recovered where known,
+            else a windowed read fails later in :func:`_native_pixel_window`.)
     """
     if block_size is not None and block_size <= 0:
         raise ValueError("'block_size' must be a positive number of pixels.")
@@ -248,35 +252,50 @@ def _open_eedai(
     ]
     if bands:
         open_options.append("BANDS=" + ",".join(bands))
-    with credentials.activate():
-        src = gdal.OpenEx(
-            connection,
-            gdal.OF_RASTER | gdal.OF_VERBOSE_ERROR,
-            open_options=open_options,
-        )
+    # Collect the driver's warnings during the open. The EEDAI driver only *warns*
+    # (it does not fail) when it cannot parse an asset's CRS and then opens it with an
+    # empty projection; that ``Unrecognized crs: <id>`` warning is the only place the
+    # real CRS identifier appears (EEDA's ``band_crs`` and the raster metadata are both
+    # empty for such assets). ``GetLastErrorMsg`` is unreliable here — later driver
+    # messages overwrite it — so capture every message via an error handler (#108).
+    warnings: list[str] = []
+    gdal.PushErrorHandler(lambda _class, _number, message: warnings.append(message))
+    try:
+        with credentials.activate():
+            src = gdal.OpenEx(
+                connection,
+                gdal.OF_RASTER | gdal.OF_VERBOSE_ERROR,
+                open_options=open_options,
+            )
+    except RuntimeError as exc:  # GDAL exceptions are enabled; a failed open raises
+        warnings.append(str(exc))
+        src = None
+    finally:
+        gdal.PopErrorHandler()
     if src is None:
+        detail = "; ".join(warnings) or gdal.GetLastErrorMsg() or "no detail"
         raise ReaderError(
             f"Earth Engine asset {asset_or_connection!r} could not be opened via "
-            f"EEDAI: {gdal.GetLastErrorMsg() or 'no detail'}"
+            f"EEDAI: {detail}"
         )
-    # The EEDAI driver only *warns* (it does not fail) when it cannot parse an asset's
-    # CRS — e.g. MODIS' sinusoidal grid, which Earth Engine hands over as a
-    # spatialreference.org URL the driver cannot resolve — and carries on with an empty
-    # projection. Downstream, `_native_pixel_window` feeds that "" to
-    # ``osr.ImportFromWkt`` and dies with a bare ``RuntimeError: OGR Error: Corrupt
-    # data`` that names neither the asset nor the driver warning. Catch it here, where
-    # the asset id and the driver's own message are both in hand, and fail with a
-    # ``ReaderError`` that explains it (#108).
-    if not src.GetProjectionRef():
-        detail = gdal.GetLastErrorMsg() or "no detail"
-        raise ReaderError(
-            f"Earth Engine asset {asset_or_connection!r} opened with no CRS the EEDAI "
-            f"driver could parse, so the read cannot be georeferenced. The driver "
-            f"reported: {detail}. Assets whose projection is not a plain EPSG code — "
-            f"e.g. MODIS' sinusoidal grid, served as a spatialreference.org URL — are "
-            f"the usual cause."
-        )
-    return Dataset(src, gdal_env=credentials.gdal_env())
+    dataset = Dataset(src, gdal_env=credentials.gdal_env())
+    # When the driver left the projection empty, recover the CRS from its warning for
+    # the identifiers the recovery table knows (e.g. MODIS' sinusoidal grid, served as
+    # a spatialreference.org URL) and stash it for the read path (:func:`_source_crs`);
+    # EEDAI datasets are read-only, so the CRS cannot be set on the source itself. An
+    # identifier we cannot resolve is left unrecovered: a windowed read then fails with
+    # a clear ``ReaderError`` (:func:`_native_pixel_window`) instead of the bare
+    # ``OGR Error: Corrupt data`` the empty string used to cause, while a whole-asset
+    # lazy read still returns the raw (ungeoreferenced) pixels as before (#108).
+    if not dataset.crs:
+        recovered = _recover_source_crs(warnings)
+        if recovered is not None:
+            dataset._eo_source_crs = recovered  # type: ignore[attr-defined]
+        else:
+            dataset._eo_crs_detail = (  # type: ignore[attr-defined]
+                "; ".join(warnings) or "the driver reported no CRS"
+            )
+    return dataset
 
 
 #: EEDAI serves the raster in 256-pixel blocks. Reading strictly within one block
@@ -290,6 +309,81 @@ _EEDAI_BLOCK = 256
 #: default silently picks a lossy image codec for multi-band Byte reads; ``GEO_TIFF``
 #: is lossless for every dtype (verified byte-identical to ``NPY``).
 _EEDAI_PIXEL_ENCODING = "GEO_TIFF"
+
+#: Earth Engine serves some assets' CRS as a ``spatialreference.org`` / ``SR-ORG``
+#: identifier that GDAL's EEDAI driver (and ``osr``) cannot resolve, so it opens them
+#: with an *empty* projection — neither the raster metadata nor EEDA's ``band_crs``
+#: carries it, only a one-off driver warning does (#108). Map the known identifiers to
+#: an ``osr``-resolvable definition the reader injects so the read is georeferenced
+#: instead of failing. MODIS' sinusoidal grid is the common case; it is **sphere**-based
+#: (``R=6371007.181``), not the WGS84-ellipsoid ``ESRI:54008``, so the exact PROJ string
+#: is required for correct georeferencing.
+_EE_CRS_RECOVERY: dict[str, str] = {
+    "sr-org:6974": "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs",
+}
+
+
+def _normalise_crs_identifier(identifier: str) -> str:
+    """Normalise an EE / GDAL CRS identifier to the ``<authority>:<code>`` map key.
+
+    The EEDAI driver reports the unresolvable CRS either as a ``spatialreference.org``
+    URL (``http://spatialreference.org/ref/sr-org/6974/``) or as an authority token
+    (``SR-ORG:6974``); both normalise to ``sr-org:6974``.
+
+    Args:
+        identifier: The raw CRS identifier from the driver warning.
+
+    Returns:
+        The lower-cased ``authority:code`` key, or the lower-cased token unchanged when
+        it carries no recognisable ``authority``/``code`` pair.
+    """
+    token = identifier.strip().strip("/").lower()
+    match = re.search(r"([a-z0-9-]+)[/:](\d+)$", token)
+    return f"{match.group(1)}:{match.group(2)}" if match is not None else token
+
+
+def _recover_source_crs(warnings: list[str]) -> str | None:
+    """Recover an injectable WKT for a CRS the EEDAI driver left unparsed.
+
+    Scans the driver ``warnings`` captured during the open for the
+    ``Unrecognized crs: <identifier>`` line and maps the identifier, via
+    :data:`_EE_CRS_RECOVERY`, to a known ``osr``-resolvable definition.
+
+    Args:
+        warnings: The driver messages collected while opening the asset.
+
+    Returns:
+        The recovered CRS as WKT, or ``None`` when no warning names a CRS the recovery
+        table knows how to resolve.
+    """
+    for message in warnings:
+        match = re.search(r"Unrecognized crs:\s*(\S+)", message)
+        if match is None:
+            continue
+        proj = _EE_CRS_RECOVERY.get(_normalise_crs_identifier(match.group(1)))
+        if proj is None:
+            continue
+        # Build the SRS through pyramids' CRS layer rather than raw ``osr``.
+        return create_sr_from_proj(proj, string_type="PROJ4").ExportToWkt()
+    return None
+
+
+def _source_crs(ee: Dataset) -> str:
+    """The CRS to read the source with: the recovered one if injected, else the driver's.
+
+    :func:`_open_eedai` stashes a recovered WKT on ``ee`` when the EEDAI driver left the
+    projection empty but the CRS is one the recovery table resolves (#108). EEDAI
+    datasets are read-only, so the CRS cannot be set on the source itself; every read of
+    the source CRS goes through here so the stashed value is honoured.
+
+    Args:
+        ee: The opened EEDAI source wrapped as a pyramids ``Dataset``.
+
+    Returns:
+        The recovered WKT when one was stashed, otherwise the driver's own projection
+        (which is ``""`` for an asset whose CRS could not be recovered).
+    """
+    return getattr(ee, "_eo_source_crs", "") or ee.crs
 
 
 def _materialize(ee: Dataset, bbox: BBox, crs: str) -> Dataset:
@@ -341,10 +435,14 @@ def _materialize(ee: Dataset, bbox: BBox, crs: str) -> Dataset:
     data = _read_native_blocks(ee.raster, x0, y0, x1, y1)
     # Hand the block-stitched native pixels to pyramids to build the georeferenced
     # raster — no manual MEM driver or per-band juggling. The source projection is
-    # passed through as WKT so a non-EPSG Earth Engine grid round-trips exactly, and
-    # ``no_data_value=None`` leaves the bands without a nodata sentinel.
+    # passed through as WKT so a non-EPSG Earth Engine grid round-trips exactly
+    # (``_source_crs`` supplies a recovered CRS when the driver left the source's own
+    # empty, #108), and ``no_data_value=None`` leaves the bands without a nodata
+    # sentinel.
     return Dataset.from_array(
-        data, geo_ref=GeoReference(geo=subwindow_geo, epsg=ee.crs), no_data_value=nodata
+        data,
+        geo_ref=GeoReference(geo=subwindow_geo, epsg=_source_crs(ee)),
+        no_data_value=nodata,
     )
 
 
@@ -368,7 +466,9 @@ def _native_pixel_window(
         exclusive.
 
     Raises:
-        ReaderError: The geotransform is non-invertible, or the AOI misses the asset.
+        ReaderError: The geotransform is non-invertible; the source has no usable CRS
+            (none set, or one the driver could not parse and the reader cannot
+            recover); or the AOI misses the asset.
     """
     geotransform = ee.geotransform
     # A zero affine determinant means the grid cannot be inverted to pixel indices.
@@ -377,8 +477,25 @@ def _native_pixel_window(
         < 1e-15
     ):
         raise ReaderError("Earth Engine asset has a non-invertible geotransform.")
+    # Resolve the source CRS, honouring a recovered one stashed by `_open_eedai`. An
+    # empty result means the EEDAI driver parsed no CRS and the reader could not recover
+    # it; fail with a clear ReaderError here — where the bare ``OGR Error: Corrupt
+    # data`` from feeding "" to ``ImportFromWkt`` used to surface — naming the asset and
+    # the driver detail (#108), rather than that opaque message.
+    source_wkt = _source_crs(ee)
+    if not source_wkt:
+        asset = ee.file_name or "the Earth Engine asset"
+        detail = getattr(ee, "_eo_crs_detail", "") or "the driver reported no CRS"
+        raise ReaderError(
+            f"{asset} opened with no usable CRS (none set, or one the EEDAI driver "
+            f"could not parse), so a windowed read cannot be georeferenced. The driver "
+            f"reported: {detail}. Assets whose projection is not a plain EPSG code — "
+            f"e.g. MODIS' sinusoidal grid, served as a spatialreference.org URL — are "
+            f"the usual cause; a recoverable one can be added to the reader's CRS "
+            f"recovery table."
+        )
     source_srs = osr.SpatialReference()
-    source_srs.ImportFromWkt(ee.crs)
+    source_srs.ImportFromWkt(source_wkt)
     source_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
     target_srs = osr.SpatialReference()
     target_srs.SetFromUserInput(crs)
