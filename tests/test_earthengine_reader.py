@@ -1758,6 +1758,48 @@ class TestHelpers:
         assert west == pytest.approx(27.471, abs=0.01), f"west edge drifted: {west}"
         assert east == pytest.approx(38.529, abs=0.01), f"east edge drifted: {east}"
 
+    @pytest.mark.parametrize("alias", ["EPSG:4326", "epsg:4326", "WGS84", "WGS 84"])
+    def test_bbox_to_4326_passthrough_recognises_common_4326_aliases(
+        self, alias
+    ) -> None:
+        """Common EPSG:4326 aliases skip the transform and pass the bbox through.
+
+        Args:
+            alias: An alias that resolves to EPSG:4326 — the uppercase code, lowercase
+                code, bare ``WGS84`` (no space), and the space-separated ``WGS 84`` that
+                GDAL itself emits via ``osr.SpatialReference.GetName()``.
+
+        Test scenario:
+            ``WGS 84`` with a space is the exact form ``GetName()`` emits for 4326, and
+            it previously fell into the transform path where ``SetFromUserInput``
+            rejected it with ``OGR Error: Corrupt data``. Every 4326 alias should take
+            the no-op fast path and return the input bbox unchanged.
+        """
+        bbox = (10.0, 20.0, 11.0, 21.0)
+        assert ee_reader._bbox_to_4326(bbox, alias) == bbox, (
+            f"{alias!r} should pass through unchanged"
+        )
+
+    def test_bbox_to_4326_falls_through_when_resolver_cannot_identify_crs(self) -> None:
+        """A CRS the EPSG resolver cannot identify still back-transforms via the full path.
+
+        Test scenario:
+            ESRI:54008 (World Sinusoidal) has no EPSG code — pyramids'
+            ``epsg_from_user_input`` raises on it — but ``SetFromUserInput`` reads it,
+            so the shortcut's resolver-failure fallback must route through the full
+            densified transform and return a plausible (non-trivial, non-passthrough)
+            lon/lat envelope rather than crashing.
+        """
+        sinusoidal_box = (0.0, 0.0, 500_000.0, 500_000.0)
+        west, south, east, north = ee_reader._bbox_to_4326(
+            sinusoidal_box, "ESRI:54008"
+        )
+        assert (west, south, east, north) != sinusoidal_box, (
+            "non-4326 input must be transformed, not passed through"
+        )
+        assert 0.0 <= west <= 10.0, f"west edge: {west}"
+        assert 0.0 <= south <= 10.0, f"south edge: {south}"
+
     def test_bbox_to_4326_covers_antimeridian_crossing(self) -> None:
         """A projected AOI crossing the antimeridian back-transforms to a usable envelope (#97).
 
