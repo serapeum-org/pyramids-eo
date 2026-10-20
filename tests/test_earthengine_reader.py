@@ -1846,10 +1846,11 @@ class TestHelpers:
         polar = (-1_000_000.0, -1_000_000.0, 1_000_000.0, 1_000_000.0)
         west, south, east, north = ee_reader._bbox_to_4326(polar, "EPSG:3413")
         assert north == pytest.approx(90.0, abs=0.01), f"north edge should reach the pole, got {north}"
-        assert south < north, f"envelope collapsed to a line: south={south} north={north}"
-        assert west <= -179.0 and east >= 179.0, (
-            f"pole-containing AOI needs full longitude envelope: west={west} east={east}"
+        assert south == pytest.approx(77.0, abs=0.1), (
+            f"south edge of the 2000-km polar box should be ~77 N, got {south}"
         )
+        assert west <= -179.0, f"west must span the longitude envelope, got {west}"
+        assert east >= 179.0, f"east must span the longitude envelope, got {east}"
 
     def test_reduce_unknown_reducer_raises(self) -> None:
         """An unknown reducer name is rejected.
