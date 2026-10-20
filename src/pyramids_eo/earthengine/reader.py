@@ -52,6 +52,11 @@ _EEDA_PREFIX = "EEDA:"
 #: Default output CRS when the caller does not specify one.
 _DEFAULT_CRS = "EPSG:4326"
 
+#: Samples per edge when densifying a projected bbox back to EPSG:4326
+#: (:func:`_bbox_to_4326`); matches pyproj's ``transform_bounds`` default so a bowed edge
+#: is captured rather than under-covered by a four-corner transform (#97).
+_BBOX_DENSIFY_POINTS = 21
+
 #: Statistical client-side reducers for the ``ImageCollection`` → composite path.
 #: Each maps to a nodata-aware (masked) and a plain NumPy reduction over the scene
 #: axis.
@@ -815,13 +820,17 @@ def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
     target.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
     transform = osr.CoordinateTransformation(source, target)
     min_x, min_y, max_x, max_y = bbox
-    corners = [(min_x, min_y), (min_x, max_y), (max_x, min_y), (max_x, max_y)]
-    xs, ys = [], []
-    for x, y in corners:
-        lon, lat, *_ = transform.TransformPoint(x, y)
-        xs.append(lon)
-        ys.append(lat)
-    return (min(xs), min(ys), max(xs), max(ys))
+    # Densify each edge (not just the four corners) so an edge that bows outward under
+    # the projection is fully captured. A four-corner transform under-estimates the reach
+    # of a bowed edge — for a large projected AOI it loses a poleward strip of the
+    # requested ground (and adds unrequested ground on the sides), so the EEDA catalog
+    # filter would under-cover the request. ``TransformBounds`` walks each edge with
+    # ``_BBOX_DENSIFY_POINTS`` samples and returns the true envelope, making this the
+    # inverse of a densified forward projection (#97).
+    west, south, east, north = transform.TransformBounds(
+        min_x, min_y, max_x, max_y, _BBOX_DENSIFY_POINTS
+    )
+    return (west, south, east, north)
 
 
 def _geometry_bounds(geometry: object) -> BBox:

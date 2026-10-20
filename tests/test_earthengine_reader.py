@@ -1741,6 +1741,23 @@ class TestHelpers:
             f"max lon should be ~1, got {out[2]}"
         )
 
+    def test_bbox_to_4326_densifies_bowed_edge(self) -> None:
+        """A bowed projected edge is fully covered, not under-cut by the corners (#97).
+
+        Test scenario:
+            The UTM-36N envelope of the lon/lat AOI ``(28, 25, 38, 35)`` has a top edge
+            that bows polewards of its corners. A four-corner back-transform returned
+            34.977 N for a box reaching 35.0 N (losing a strip); the densified transform
+            returns the true envelope (>= 35.0 N), so a projected catalog filter no
+            longer under-covers the requested north edge.
+        """
+        utm = (-4963.0, 2764948.0, 1004963.0, 3884484.0)
+        west, south, east, north = ee_reader._bbox_to_4326(utm, "EPSG:32636")
+        assert north >= 35.0, f"north edge {north:.3f} must cover the requested 35.0 N (#97)"
+        assert south <= 25.0, f"south edge {south:.3f} must cover the requested 25.0 N"
+        assert west == pytest.approx(27.471, abs=0.01), f"west edge drifted: {west}"
+        assert east == pytest.approx(38.529, abs=0.01), f"east edge drifted: {east}"
+
     def test_reduce_unknown_reducer_raises(self) -> None:
         """An unknown reducer name is rejected.
 
