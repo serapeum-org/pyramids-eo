@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyramids.dataset import Dataset, DatasetCollection
+from pyramids.dataset import Dataset, DatasetCollection, GeoReference
 
 import pyramids_eo.earthengine.reader as ee_reader
 from pyramids_eo import (
@@ -73,6 +73,28 @@ def _synthetic_srtm(fill: int = 42):
     return src
 
 
+def _source_without_crs(size: int = 20):
+    """A raw EEDAI-style source with a valid geotransform but no projection.
+
+    Built through pyramids (``epsg=None`` leaves the CRS empty) and handed back as the
+    underlying GDAL dataset, standing in for what the EEDAI driver returns for an asset
+    whose CRS it could not parse (``GetProjectionRef() == ""``). The grid is in
+    sinusoidal metres around the origin so a lon/lat AOI near (0, 0) maps into it.
+
+    Args:
+        size: Side length in pixels of the square raster.
+
+    Returns:
+        The underlying GDAL dataset of a CRS-less pyramids ``Dataset``.
+    """
+    sinusoidal_grid = (-50_000.0, 5_000.0, 0.0, 50_000.0, 0.0, -5_000.0)
+    return Dataset.from_array(
+        np.zeros((size, size), dtype="int16"),
+        geo_ref=GeoReference(geo=sinusoidal_grid, epsg=None),
+        no_data_value=-32768,
+    ).raster
+
+
 @pytest.fixture
 def patched_eedai(monkeypatch):
     """Replace the EEDAI open seam with the synthetic raster.
@@ -101,14 +123,45 @@ class _FakeGdal:
     OF_RASTER = 0x02
     OF_VERBOSE_ERROR = 0x40
 
-    def __init__(self, open_result: object, *, last_error: str = "") -> None:
+    def __init__(
+        self,
+        open_result: object,
+        *,
+        last_error: str = "",
+        open_warnings: tuple[str, ...] = (),
+        raise_on_open: str | None = None,
+        emit_on_raise: bool = True,
+    ) -> None:
         self._open_result = open_result
         self._last_error = last_error
+        self._open_warnings = list(open_warnings)
+        self._raise_on_open = raise_on_open
+        self._emit_on_raise = emit_on_raise
+        self._handlers: list = []
         self.calls: list[tuple[str, list[str]]] = []
         self.config: dict[str, str | None] = {}
 
+    def PushErrorHandler(self, handler):  # noqa: N802
+        self._handlers.append(handler)
+
+    def PopErrorHandler(self):  # noqa: N802
+        if self._handlers:
+            self._handlers.pop()
+
     def OpenEx(self, conn, flags, open_options):  # noqa: N802, ARG002
         self.calls.append((conn, list(open_options)))
+        for message in self._open_warnings:
+            for handler in self._handlers:
+                handler(2, 1, message)  # (CE_Warning, CPLE_AppDefined, msg)
+        if (
+            self._raise_on_open is not None
+        ):  # GDAL raises on failure under UseExceptions
+            if self._emit_on_raise:  # some GDAL paths call the handler, then raise...
+                for handler in self._handlers:
+                    handler(
+                        3, 4, self._raise_on_open
+                    )  # (CE_Failure, CPLE_OpenFailed, msg)
+            raise RuntimeError(self._raise_on_open)  # ...others raise directly
         return self._open_result
 
     def GetLastErrorMsg(self):  # noqa: N802
@@ -732,9 +785,183 @@ class TestOpenEedai:
             f"Error should name the asset, got: {exc_info.value}"
         )
 
+    @pytest.mark.parametrize("emit_on_raise", [True, False])
+    def test_open_failure_via_exception_raises_reader_error(
+        self, monkeypatch, emit_on_raise
+    ) -> None:
+        """A GDAL exception on open surfaces as ``ReaderError``, detail not duplicated.
+
+        Args:
+            emit_on_raise: Whether the driver calls the pushed error handler with the
+                failure message before raising (some GDAL paths do, some raise
+                directly). Either way the message must appear exactly once.
+
+        Test scenario:
+            With ``gdal.UseExceptions()`` active (pyramids enables it) a failed open
+            raises ``RuntimeError``; ``_open_eedai`` catches it under its pushed handler
+            and raises a ``ReaderError`` naming the asset and the detail — once, whether
+            or not the handler already captured the same text.
+        """
+        fake = _FakeGdal(
+            None,
+            raise_on_open="HTTP response code: 403 forbidden",
+            emit_on_raise=emit_on_raise,
+        )
+        monkeypatch.setattr(ee_reader, "gdal", fake)
+        creds = EarthEngineCredentials.application_default()
+        with pytest.raises(ReaderError, match="forbidden") as exc_info:
+            ee_reader._open_eedai("USGS/SRTMGL1_003", bands=None, credentials=creds)
+        msg = str(exc_info.value)
+        assert "USGS/SRTMGL1_003" in msg, f"Error should name the asset, got: {msg}"
+        assert msg.count("forbidden") == 1, (
+            f"detail should carry the GDAL message exactly once: {msg}"
+        )
+
+    def test_recovers_known_crs_from_driver_warning(self, monkeypatch) -> None:
+        """A known unparseable CRS is recovered from the driver warning and stashed (#108).
+
+        Test scenario:
+            The EEDAI driver opens MODIS with an empty projection and warns
+            ``Unrecognized crs: .../sr-org/6974/``. ``_open_eedai`` captures the warning,
+            maps the identifier to MODIS' sinusoidal PROJ, and stashes the resolved WKT
+            for the read path — so a windowed read is georeferenced instead of reaching
+            the empty CRS downstream.
+        """
+        fake = _FakeGdal(
+            _source_without_crs(),
+            open_warnings=(
+                "Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/",
+            ),
+        )
+        monkeypatch.setattr(ee_reader, "gdal", fake)
+        ds = ee_reader._open_eedai(
+            "MODIS/061/MOD09GA/2020_06_15",
+            bands=["sur_refl_b01"],
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        recovered = ee_reader._source_crs(ds)
+        assert recovered, "the sinusoidal CRS should have been recovered and stashed"
+        assert "Sinusoidal" in recovered, (
+            f"expected a sinusoidal CRS, got: {recovered[:80]}"
+        )
+        assert "6371007" in recovered, (
+            "must be MODIS' sphere (R=6371007.181), not ESRI:54008"
+        )
+
+    @pytest.mark.parametrize(
+        "warning",
+        [
+            "Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/",
+            "Unrecognised CRS: http://spatialreference.org/ref/SR-ORG/6974/",
+            "Unknown projection SR-ORG:6974 could not be resolved",
+        ],
+    )
+    def test_recovers_across_driver_wording_variants(
+        self, monkeypatch, warning
+    ) -> None:
+        """Recovery keys off the CRS identifier, not the exact driver wording (#108).
+
+        Args:
+            warning: A driver warning carrying the MODIS identifier — the canonical
+                phrasing, a reworded/British-spelled/upper-cased variant, and one with
+                no ``Unrecognized crs:`` prefix at all.
+
+        Test scenario:
+            The EEDAI driver's warning text is undocumented and version-dependent, so
+            recovery must anchor on the ``sr-org:6974`` identifier rather than a literal
+            prefix; every variant still resolves to MODIS' sinusoidal CRS.
+        """
+        fake = _FakeGdal(_source_without_crs(), open_warnings=(warning,))
+        monkeypatch.setattr(ee_reader, "gdal", fake)
+        ds = ee_reader._open_eedai(
+            "MODIS/061/MOD09GA/2020_06_15",
+            bands=None,
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        recovered = ee_reader._source_crs(ds)
+        assert "Sinusoidal" in recovered, (
+            f"wording variant {warning!r} should still recover; got {recovered[:60]!r}"
+        )
+
+    def test_leaves_unknown_crs_unrecovered(self, monkeypatch) -> None:
+        """An unrecognised CRS identifier is left unrecovered rather than guessed (#108).
+
+        Test scenario:
+            A warning naming an identifier absent from the recovery table leaves the
+            source CRS empty (``_source_crs`` returns ``""``); a later windowed read then
+            fails with a clear ``ReaderError`` (see ``TestWindow``), while a whole-asset
+            read still returns the raw pixels.
+        """
+        fake = _FakeGdal(
+            _source_without_crs(),
+            open_warnings=(
+                "Unrecognized crs: http://spatialreference.org/ref/sr-org/99999/",
+            ),
+        )
+        monkeypatch.setattr(ee_reader, "gdal", fake)
+        ds = ee_reader._open_eedai(
+            "SOME/ODDBALL/ASSET",
+            bands=None,
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        assert ee_reader._source_crs(ds) == "", (
+            "an unknown identifier must not be recovered"
+        )
+
 
 class TestWindow:
     """Tests for the private windowing helper :func:`_window`."""
+
+    def test_native_pixel_window_raises_clear_error_without_crs(self) -> None:
+        """A source with no usable CRS raises a clear ``ReaderError``, not Corrupt data (#108).
+
+        Test scenario:
+            When neither the driver nor recovery supplied a CRS, ``_native_pixel_window``
+            fails with a ``ReaderError`` naming the missing CRS instead of feeding ``""``
+            to the reprojection and dying with ``OGR Error: Corrupt data``.
+        """
+        source = Dataset(_source_without_crs())
+        with pytest.raises(ReaderError, match="no usable CRS"):
+            ee_reader._native_pixel_window(source, (-0.1, -0.1, 0.1, 0.1), "EPSG:4326")
+
+    def test_native_pixel_window_uses_recovered_crs(self) -> None:
+        """A recovered (stashed) CRS lets the window map without error (#108).
+
+        Test scenario:
+            With MODIS' sinusoidal CRS recovered onto a CRS-less source, a lon/lat AOI
+            near the origin reprojects into the source grid and yields a valid pixel
+            window — proving the recovered CRS flows through the read path.
+        """
+        source = Dataset(_source_without_crs())
+        source._eo_source_crs = ee_reader._recover_source_crs(
+            ["Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/"]
+        )
+        x0, y0, x1, y1 = ee_reader._native_pixel_window(
+            source, (-0.1, -0.1, 0.1, 0.1), "EPSG:4326"
+        )
+        assert x1 > x0, f"expected a non-empty column span, got {(x0, x1)}"
+        assert y1 > y0, f"expected a non-empty row span, got {(y0, y1)}"
+
+    def test_materialize_georeferences_with_recovered_crs(self) -> None:
+        """``_materialize`` builds the native window in the recovered CRS (#108).
+
+        Test scenario:
+            With MODIS' sinusoidal CRS recovered onto a CRS-less source, materialising a
+            lon/lat AOI yields a native-resolution ``Dataset`` carrying that sinusoidal
+            CRS — locking the ``_materialize`` recovered branch offline (otherwise only
+            the live MODIS test exercises it end-to-end).
+        """
+        source = Dataset(_source_without_crs())
+        source._eo_source_crs = ee_reader._recover_source_crs(
+            ["Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/"]
+        )
+        materialised = ee_reader._materialize(
+            source, (-0.1, -0.1, 0.1, 0.1), "EPSG:4326"
+        )
+        assert "Sinusoidal" in materialised.crs, (
+            f"materialised result should carry the recovered sinusoidal CRS; "
+            f"got {materialised.crs[:60]!r}"
+        )
 
     def test_reader_error_when_warp_returns_none(self, monkeypatch) -> None:
         """A failed warp (``None``) raises ``ReaderError``.
@@ -2252,6 +2479,35 @@ class TestMaterialize:
 
 class TestLivePixelCorrectness:
     """Live safety net: EEDAI reads must return correct, deterministic pixels."""
+
+    @pytest.mark.live
+    def test_modis_unparsed_crs_is_recovered_and_reads(self) -> None:
+        """A live MODIS read recovers the sinusoidal CRS and returns pixels (#108).
+
+        Test scenario:
+            MODIS' CRS is served as a spatialreference.org URL the EEDAI driver cannot
+            parse, so the asset opens with an empty projection. The reader recovers the
+            sinusoidal CRS and the windowed read succeeds with plausible, non-negative
+            surface reflectance — where before it died with ``OGR Error: Corrupt data``.
+        """
+        import os
+
+        key = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        if not key:  # pragma: no cover - live env is expected to provide the key
+            pytest.fail("live test needs GOOGLE_APPLICATION_CREDENTIALS")
+        creds = EarthEngineCredentials.from_service_account(key)
+        ds = from_earthengine(
+            "MODIS/061/MOD09GA/2020_06_15",
+            window=Window(bbox=(31.2, 29.9, 31.3, 30.0), shape=(16, 16)),
+            bands=["sur_refl_b01"],
+            credentials=creds,
+        )
+        assert ds.shape == (1, 16, 16), f"expected a 16x16 single band, got {ds.shape}"
+        values = np.asarray(ds.read_array())
+        assert (values >= 0).all(), "recovered MODIS read has negative (garbage) pixels"
+        assert int(values.max()) < 16000, (
+            f"MODIS surface reflectance implausibly large: {values.max()}"
+        )
 
     @pytest.mark.live
     def test_mixed_resolution_bands_read_live(self) -> None:
