@@ -799,6 +799,39 @@ class TestOpenEedai:
         assert "Sinusoidal" in recovered, f"expected a sinusoidal CRS, got: {recovered[:80]}"
         assert "6371007" in recovered, "must be MODIS' sphere (R=6371007.181), not ESRI:54008"
 
+    @pytest.mark.parametrize(
+        "warning",
+        [
+            "Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/",
+            "Unrecognised CRS: http://spatialreference.org/ref/SR-ORG/6974/",
+            "Unknown projection SR-ORG:6974 could not be resolved",
+        ],
+    )
+    def test_recovers_across_driver_wording_variants(self, monkeypatch, warning) -> None:
+        """Recovery keys off the CRS identifier, not the exact driver wording (#108).
+
+        Args:
+            warning: A driver warning carrying the MODIS identifier — the canonical
+                phrasing, a reworded/British-spelled/upper-cased variant, and one with
+                no ``Unrecognized crs:`` prefix at all.
+
+        Test scenario:
+            The EEDAI driver's warning text is undocumented and version-dependent, so
+            recovery must anchor on the ``sr-org:6974`` identifier rather than a literal
+            prefix; every variant still resolves to MODIS' sinusoidal CRS.
+        """
+        fake = _FakeGdal(_source_without_crs(), open_warnings=(warning,))
+        monkeypatch.setattr(ee_reader, "gdal", fake)
+        ds = ee_reader._open_eedai(
+            "MODIS/061/MOD09GA/2020_06_15",
+            bands=None,
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        recovered = ee_reader._source_crs(ds)
+        assert "Sinusoidal" in recovered, (
+            f"wording variant {warning!r} should still recover; got {recovered[:60]!r}"
+        )
+
     def test_leaves_unknown_crs_unrecovered(self, monkeypatch) -> None:
         """An unrecognised CRS identifier is left unrecovered rather than guessed (#108).
 

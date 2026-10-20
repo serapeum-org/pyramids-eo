@@ -289,7 +289,7 @@ def _open_eedai(
     # lazy read still returns the raw (ungeoreferenced) pixels as before (#108).
     if not dataset.crs:
         recovered = _recover_source_crs(warnings)
-        if recovered is not None:
+        if recovered:  # truthy: a non-empty WKT; else keep the detail for the fallback
             dataset._eo_source_crs = recovered  # type: ignore[attr-defined]
         else:
             dataset._eo_crs_detail = (  # type: ignore[attr-defined]
@@ -342,12 +342,24 @@ def _normalise_crs_identifier(identifier: str) -> str:
     return f"{match.group(1)}:{match.group(2)}" if match is not None else token
 
 
+#: Matches the CRS identifier the driver names — a ``spatialreference.org`` URL
+#: (``.../ref/sr-org/6974/``) or a bare authority token (``SR-ORG:6974``) — anywhere in a
+#: warning. Recovery keys off this (stable) identifier rather than the EEDAI driver's
+#: *undocumented, version-dependent* warning wording, so a reworded or re-cased message
+#: in a future GDAL still recovers. Verified against GDAL 3.13.3 (bundled in pyramids-gis
+#: 0.69), whose MODIS warning is ``Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/``.
+_CRS_IDENTIFIER_RE = re.compile(
+    r"(?:spatialreference\.org/ref/)?([A-Za-z][A-Za-z0-9-]*[:/]\d+)", re.IGNORECASE
+)
+
+
 def _recover_source_crs(warnings: list[str]) -> str | None:
     """Recover an injectable WKT for a CRS the EEDAI driver left unparsed.
 
-    Scans the driver ``warnings`` captured during the open for the
-    ``Unrecognized crs: <identifier>`` line and maps the identifier, via
-    :data:`_EE_CRS_RECOVERY`, to a known ``osr``-resolvable definition.
+    Scans the driver ``warnings`` captured during the open for a CRS identifier
+    (:data:`_CRS_IDENTIFIER_RE` — a ``spatialreference.org`` URL or an authority token,
+    matched case-insensitively and independently of the driver's warning phrasing) and
+    maps it, via :data:`_EE_CRS_RECOVERY`, to a known ``osr``-resolvable definition.
 
     Args:
         warnings: The driver messages collected while opening the asset.
@@ -357,14 +369,11 @@ def _recover_source_crs(warnings: list[str]) -> str | None:
         table knows how to resolve.
     """
     for message in warnings:
-        match = re.search(r"Unrecognized crs:\s*(\S+)", message)
-        if match is None:
-            continue
-        proj = _EE_CRS_RECOVERY.get(_normalise_crs_identifier(match.group(1)))
-        if proj is None:
-            continue
-        # Build the SRS through pyramids' CRS layer rather than raw ``osr``.
-        return create_sr_from_proj(proj, string_type="PROJ4").ExportToWkt()
+        for candidate in _CRS_IDENTIFIER_RE.findall(message):
+            proj = _EE_CRS_RECOVERY.get(_normalise_crs_identifier(candidate))
+            if proj is not None:
+                # Build the SRS through pyramids' CRS layer rather than raw ``osr``.
+                return create_sr_from_proj(proj, string_type="PROJ4").ExportToWkt()
     return None
 
 
