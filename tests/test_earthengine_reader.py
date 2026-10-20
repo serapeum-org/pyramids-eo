@@ -927,7 +927,8 @@ class TestWindow:
         x0, y0, x1, y1 = ee_reader._native_pixel_window(
             source, (-0.1, -0.1, 0.1, 0.1), "EPSG:4326"
         )
-        assert x1 > x0 and y1 > y0, f"expected a non-empty window, got {(x0, y0, x1, y1)}"
+        assert x1 > x0, f"expected a non-empty column span, got {(x0, x1)}"
+        assert y1 > y0, f"expected a non-empty row span, got {(y0, y1)}"
 
     def test_materialize_georeferences_with_recovered_crs(self) -> None:
         """``_materialize`` builds the native window in the recovered CRS (#108).
