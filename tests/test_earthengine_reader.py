@@ -1780,6 +1780,21 @@ class TestHelpers:
             f"{alias!r} should pass through unchanged"
         )
 
+    def test_bbox_to_4326_raises_on_out_of_domain_bbox(self) -> None:
+        """An out-of-domain projected bbox fails loudly, not with silent infinities (#97).
+
+        Test scenario:
+            ``TransformBounds`` returns ``(inf, inf, inf, inf)`` for a bbox outside the
+            projection domain (e.g. UTM coordinates at 1e10 metres). The pre-densify
+            four-corner path raised ``RuntimeError('Point outside of projection
+            domain')`` — a clear, actionable error. ``_bbox_to_4326`` must preserve the
+            fail-loud guarantee by catching the non-finite envelope and raising
+            ``ReaderError`` naming the ``bbox`` and ``crs``, rather than smuggling
+            infinities into ``SetSpatialFilterRect`` downstream.
+        """
+        with pytest.raises(ReaderError, match="projection domain|out-of-domain|not finite"):
+            ee_reader._bbox_to_4326((1e10, 1e10, 2e10, 2e10), "EPSG:32636")
+
     def test_bbox_to_4326_falls_through_when_resolver_cannot_identify_crs(self) -> None:
         """A CRS the EPSG resolver cannot identify still back-transforms via the full path.
 

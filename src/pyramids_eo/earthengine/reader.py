@@ -24,6 +24,7 @@ import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osg
 # isort: on
 
 import gc
+import math
 import os
 import re
 import shutil
@@ -836,6 +837,15 @@ def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
     west, south, east, north = transform.TransformBounds(
         min_x, min_y, max_x, max_y, _BBOX_DENSIFY_POINTS
     )
+    # ``TransformBounds`` returns ``(inf, inf, inf, inf)`` for a bbox outside the
+    # projection domain, where the pre-densify four-corner path would raise
+    # ``Point outside of projection domain``. Preserve that fail-loud guarantee rather
+    # than smuggle infinities into ``SetSpatialFilterRect`` downstream (#97).
+    if not all(math.isfinite(v) for v in (west, south, east, north)):
+        raise ReaderError(
+            f"Bbox {bbox} is outside the projection domain of {crs!r}; "
+            f"back-transform to EPSG:4326 produced a not-finite envelope."
+        )
     # ``TransformBounds`` signals an antimeridian wrap by returning ``west > east``,
     # but ``_discover_scenes`` feeds this to OGR's ``SetSpatialFilterRect``, which
     # normalises to ``[min(w, e), max(w, e)]`` — the *wrong* half of the globe, so a
