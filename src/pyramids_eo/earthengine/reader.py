@@ -321,22 +321,19 @@ _EE_CRS_RECOVERY: dict[str, str] = {
 
 
 def _normalise_crs_identifier(identifier: str) -> str:
-    """Normalise an EE / GDAL CRS identifier to the ``<authority>:<code>`` map key.
+    """Normalise a ``<authority><sep><code>`` CRS identifier to the map key.
 
-    The EEDAI driver reports the unresolvable CRS either as a ``spatialreference.org``
-    URL (``http://spatialreference.org/ref/sr-org/6974/``) or as an authority token
-    (``SR-ORG:6974``); both normalise to ``sr-org:6974``.
+    :data:`_CRS_IDENTIFIER_RE` captures an ``<authority>:<code>`` or ``<authority>/<code>``
+    token (e.g. ``sr-org/6974`` from the spatialreference.org URL, or ``SR-ORG:6974``);
+    both normalise to the lower-cased, colon-separated map key ``sr-org:6974``.
 
     Args:
-        identifier: The raw CRS identifier from the driver warning.
+        identifier: A CRS identifier token captured by :data:`_CRS_IDENTIFIER_RE`.
 
     Returns:
-        The lower-cased ``authority:code`` key, or the lower-cased token unchanged when
-        it carries no recognisable ``authority``/``code`` pair.
+        The lower-cased ``authority:code`` map key.
     """
-    token = identifier.strip().strip("/").lower()
-    match = re.search(r"([a-z0-9-]+)[/:](\d+)$", token)
-    return f"{match.group(1)}:{match.group(2)}" if match is not None else token
+    return identifier.strip().strip("/").lower().replace("/", ":")
 
 
 #: Matches an ``<authority>:<code>`` / ``<authority>/<code>`` CRS identifier anywhere in
@@ -347,8 +344,9 @@ def _normalise_crs_identifier(identifier: str) -> str:
 #: in pyramids-gis 0.69), whose MODIS warning is
 #: ``Unrecognized crs: http://spatialreference.org/ref/sr-org/6974/``. The recovery table
 #: (not the pattern) is what filters to a known identifier, so no tighter anchor is
-#: needed; a single possessive class before a disjoint separator keeps matching linear.
-_CRS_IDENTIFIER_RE = re.compile(r"([a-z0-9-]++[:/]\d+)", re.IGNORECASE)
+#: needed. The authority class carries no digits, so it cannot overlap the trailing
+#: ``\d+`` code, and each class abuts a disjoint one — matching is linear.
+_CRS_IDENTIFIER_RE = re.compile(r"([a-z][a-z-]*[:/]\d+)", re.IGNORECASE)
 
 
 def _recover_source_crs(warnings: list[str]) -> str | None:
