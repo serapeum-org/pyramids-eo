@@ -36,7 +36,7 @@ from typing import NamedTuple
 
 import numpy as np
 from osgeo import gdal, osr
-from pyramids.base.crs import create_sr_from_proj, crs_spec, epsg_from_user_input
+from pyramids.base.crs import CRSError, create_sr_from_proj, crs_spec, epsg_from_user_input
 from pyramids.base.remote import redact_credentials
 from pyramids.dataset import Dataset, DatasetCollection, GeoReference
 from pyramids.dataset.merge import merge_rasters
@@ -812,16 +812,19 @@ def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
     Returns:
         The AOI's envelope in EPSG:4326 lon/lat.
     """
-    # Short-circuit any EPSG:4326 alias — ``"EPSG:4326"``, ``"WGS84"``, ``"WGS 84"``
-    # (the form ``osr.SpatialReference.GetName()`` emits, which ``SetFromUserInput``
-    # rejects with ``OGR Error: Corrupt data`` for the whitespace), WKT, URN forms —
-    # by resolving through pyramids' CRS layer rather than string-matching a handful of
-    # spellings. An input the resolver cannot read falls through to the full transform
-    # path where ``SetFromUserInput`` will raise if it is genuinely invalid.
+    # Short-circuit any CRS pyramids' resolver identifies as EPSG:4326 — the uppercase
+    # and lowercase codes, ``"WGS84"`` and the whitespace-separated ``"WGS 84"`` (the
+    # form ``osr.SpatialReference.GetName()`` emits, which ``SetFromUserInput`` rejects
+    # with ``OGR Error: Corrupt data``), WKT whose datum is WGS84, and the
+    # ``urn:ogc:def:crs:EPSG::4326`` form. Inputs the resolver cannot identify as a
+    # specific EPSG code (e.g. ``OGC:CRS84``, plain-CRS84 URNs, projected CRSes without
+    # an EPSG) still work — they just take the full transform path below, where
+    # ``SetFromUserInput`` handles them (``OGC:CRS84`` round-trips as identity under
+    # ``OAMS_TRADITIONAL_GIS_ORDER``) or raises if genuinely invalid.
     try:
         if epsg_from_user_input(crs) == 4326:
             return bbox
-    except Exception:  # noqa: BLE001 — any resolver failure falls through
+    except CRSError:  # resolver cannot identify the CRS; try the transform path
         pass
     source = osr.SpatialReference()
     source.SetFromUserInput(crs)
