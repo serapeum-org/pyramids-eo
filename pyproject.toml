@@ -25,14 +25,14 @@ classifiers = [
 requires-python = ">= 3.11, <4"
 
 dependencies = [
-    "pyramids-core >=0.70.0",
+    "pyramids-core >=0.71.0",
     "numpy >=2.0.0",
     "pyyaml >=6.0",
 ]
 
 [project.optional-dependencies]
 viz = [
-    "pyramids-core[viz]>=0.70.0",
+    "pyramids-core[viz]>=0.71.0",
     # CVE-2026-112395/112397/112400/112404/112895/112896/112897/112899: eight
     # vulnerabilities in Pillow < 13.0.0, fixed in 13.0.0. Pillow arrives *only* via
     # the viz stack (pyramids-core[viz] → matplotlib → pillow), so the floor belongs
