@@ -978,31 +978,50 @@ class TestWindow:
 
 
 class _FakeFeature:
-    """Minimal OGR feature stand-in exposing ``GetFieldAsString``."""
+    """Minimal OGR feature stand-in exposing ``GetFieldAsString``.
 
-    def __init__(self, fields: dict[str, str]) -> None:
+    Carries an optional ``lon`` to let the layer fake filter by the current
+    spatial rect — the dateline split test needs that so dedupe is observable.
+    """
+
+    def __init__(self, fields: dict[str, str], lon: float | None = None) -> None:
         self._fields = fields
+        self.lon = lon
 
     def GetFieldAsString(self, key):  # noqa: N802
         return self._fields.get(key, "")
 
 
 class _FakeLayer:
-    """Minimal OGR layer stand-in that records the filters it was given."""
+    """Minimal OGR layer stand-in that records the filters it was given.
+
+    ``spatial_rect`` remains last-wins for the existing single-filter tests;
+    ``spatial_rects`` accumulates every call so the dateline-split test can
+    assert both halves ran. When a feature carries ``lon``, iteration filters it
+    by the current rect's ``[min_x, max_x]`` — otherwise every feature is yielded,
+    which keeps existing tests unchanged.
+    """
 
     def __init__(self, features: list[_FakeFeature]) -> None:
         self._features = features
         self.attribute_filter: str | None = None
         self.spatial_rect: tuple | None = None
+        self.spatial_rects: list[tuple] = []
 
     def SetAttributeFilter(self, expr):  # noqa: N802
         self.attribute_filter = expr
 
     def SetSpatialFilterRect(self, *rect):  # noqa: N802
         self.spatial_rect = rect
+        self.spatial_rects.append(rect)
 
     def __iter__(self):
-        return iter(self._features)
+        rect = self.spatial_rect
+        for feature in self._features:
+            if feature.lon is None or rect is None:
+                yield feature
+            elif rect[0] <= feature.lon <= rect[2]:
+                yield feature
 
 
 class _FakeEeda:
@@ -1462,6 +1481,61 @@ class TestDiscoverScenes:
             f"Unexpected spatial filter: {layer.spatial_rect}"
         )
 
+    def test_antimeridian_wrap_splits_filter_and_dedupes(self, monkeypatch) -> None:
+        """A dateline-crossing bbox issues two spatial filters and dedupes scenes (#97/L4).
+
+        Test scenario:
+            ``_bbox_to_4326`` signals an antimeridian wrap by returning
+            ``west > east``. ``_discover_scenes`` must split that into two
+            ``SetSpatialFilterRect`` calls — the east half ``(-180, s, east, n)`` and
+            the west half ``(west, s, 180, n)`` — rather than widen to ``(-180, 180)``
+            (which would scan the whole globe for a narrow dateline strip). A scene
+            whose geometry falls on the dateline is returned by both passes, so the
+            result must be de-duplicated by ``(startTime, connection)``.
+        """
+        features = [
+            _FakeFeature(
+                {"gdal_dataset": "EEDAI:east", "startTime": "2024-06-01T00:00:00"},
+                lon=179.5,
+            ),
+            _FakeFeature(
+                {"gdal_dataset": "EEDAI:west", "startTime": "2024-06-02T00:00:00"},
+                lon=-179.5,
+            ),
+            _FakeFeature(
+                {"gdal_dataset": "EEDAI:far", "startTime": "2024-06-03T00:00:00"},
+                lon=0.0,
+            ),
+            # Geometry spans the dateline (``lon=None`` → the fake yields it for
+            # every filter rect), so both halves return it and dedupe is required.
+            _FakeFeature(
+                {"gdal_dataset": "EEDAI:dup", "startTime": "2024-06-04T00:00:00"},
+            ),
+        ]
+        layer = _FakeLayer(features)
+        monkeypatch.setattr(ee_reader, "gdal", _FakeEeda(layer))
+        scenes = ee_reader._discover_scenes(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            start="2024-06-01",
+            end="2024-06-30",
+            bbox_4326=(179.0, -1.0, -179.0, 1.0),  # wrap: west > east
+            credentials=EarthEngineCredentials.application_default(),
+        )
+        assert len(layer.spatial_rects) == 2, (
+            f"wrap should issue two filter rects, got {layer.spatial_rects}"
+        )
+        assert set(layer.spatial_rects) == {
+            (-180.0, -1.0, -179.0, 1.0),
+            (179.0, -1.0, 180.0, 1.0),
+        }, f"wrong split halves: {layer.spatial_rects}"
+        connections = [s.connection for s in scenes]
+        assert "EEDAI:east" in connections, "east-of-dateline scene missing"
+        assert "EEDAI:west" in connections, "west-of-dateline scene missing"
+        assert "EEDAI:far" not in connections, "scene outside the AOI was returned"
+        assert connections.count("EEDAI:dup") == 1, (
+            f"dateline-boundary scene must be deduped: got {connections}"
+        )
+
     def test_reader_error_when_catalog_open_fails(self, monkeypatch) -> None:
         """A ``None`` catalog open raises ``ReaderError``.
 
@@ -1740,6 +1814,121 @@ class TestHelpers:
         assert out[2] == pytest.approx(1.0, abs=1e-3), (
             f"max lon should be ~1, got {out[2]}"
         )
+
+    def test_bbox_to_4326_densifies_bowed_edge(self) -> None:
+        """A bowed projected edge is fully covered, not under-cut by the corners (#97).
+
+        Test scenario:
+            The UTM-36N envelope of the lon/lat AOI ``(28, 25, 38, 35)`` has a top edge
+            that bows polewards of its corners. A four-corner back-transform returned
+            34.977 N for a box reaching 35.0 N (losing a strip); the densified transform
+            returns the true envelope (>= 35.0 N), so a projected catalog filter no
+            longer under-covers the requested north edge.
+        """
+        utm = (-4963.0, 2764948.0, 1004963.0, 3884484.0)
+        west, south, east, north = ee_reader._bbox_to_4326(utm, "EPSG:32636")
+        assert north >= 35.0, (
+            f"north edge {north:.3f} must cover the requested 35.0 N (#97)"
+        )
+        assert south <= 25.0, f"south edge {south:.3f} must cover the requested 25.0 N"
+        assert west == pytest.approx(27.471, abs=0.01), f"west edge drifted: {west}"
+        assert east == pytest.approx(38.529, abs=0.01), f"east edge drifted: {east}"
+
+    @pytest.mark.parametrize("alias", ["EPSG:4326", "epsg:4326", "WGS84", "WGS 84"])
+    def test_bbox_to_4326_passthrough_recognises_common_4326_aliases(
+        self, alias
+    ) -> None:
+        """Common EPSG:4326 aliases skip the transform and pass the bbox through.
+
+        Args:
+            alias: An alias that resolves to EPSG:4326 — the uppercase code, lowercase
+                code, bare ``WGS84`` (no space), and the space-separated ``WGS 84`` that
+                GDAL itself emits via ``osr.SpatialReference.GetName()``.
+
+        Test scenario:
+            ``WGS 84`` with a space is the exact form ``GetName()`` emits for 4326, and
+            it previously fell into the transform path where ``SetFromUserInput``
+            rejected it with ``OGR Error: Corrupt data``. Every 4326 alias should take
+            the no-op fast path and return the input bbox unchanged.
+        """
+        bbox = (10.0, 20.0, 11.0, 21.0)
+        assert ee_reader._bbox_to_4326(bbox, alias) == bbox, (
+            f"{alias!r} should pass through unchanged"
+        )
+
+    def test_bbox_to_4326_raises_on_out_of_domain_bbox(self) -> None:
+        """An out-of-domain projected bbox fails loudly, not with silent infinities (#97).
+
+        Test scenario:
+            ``TransformBounds`` returns ``(inf, inf, inf, inf)`` for a bbox outside the
+            projection domain (e.g. UTM coordinates at 1e10 metres). The pre-densify
+            four-corner path raised ``RuntimeError('Point outside of projection
+            domain')`` — a clear, actionable error. ``_bbox_to_4326`` must preserve the
+            fail-loud guarantee by catching the non-finite envelope and raising
+            ``ReaderError`` naming the ``bbox`` and ``crs``, rather than smuggling
+            infinities into ``SetSpatialFilterRect`` downstream.
+        """
+        with pytest.raises(
+            ReaderError, match="projection domain|out-of-domain|not finite"
+        ):
+            ee_reader._bbox_to_4326((1e10, 1e10, 2e10, 2e10), "EPSG:32636")
+
+    def test_bbox_to_4326_falls_through_when_resolver_cannot_identify_crs(self) -> None:
+        """A CRS the EPSG resolver cannot identify still back-transforms via the full path.
+
+        Test scenario:
+            ESRI:54008 (World Sinusoidal) has no EPSG code — pyramids'
+            ``epsg_from_user_input`` raises on it — but ``SetFromUserInput`` reads it,
+            so the shortcut's resolver-failure fallback must route through the full
+            densified transform and return a plausible (non-trivial, non-passthrough)
+            lon/lat envelope rather than crashing.
+        """
+        sinusoidal_box = (0.0, 0.0, 500_000.0, 500_000.0)
+        west, south, east, north = ee_reader._bbox_to_4326(sinusoidal_box, "ESRI:54008")
+        assert (west, south, east, north) != sinusoidal_box, (
+            "non-4326 input must be transformed, not passed through"
+        )
+        assert 0.0 <= west <= 10.0, f"west edge: {west}"
+        assert 0.0 <= south <= 10.0, f"south edge: {south}"
+
+    def test_bbox_to_4326_signals_antimeridian_wrap_as_west_gt_east(self) -> None:
+        """A projected AOI crossing the antimeridian reports the wrap as west > east (#97).
+
+        Test scenario:
+            Densified ``TransformBounds`` signals a dateline wrap by returning
+            ``west > east`` (e.g. EPSG:32601 UTM-1N → ``(179.845, …, -173.845, …)``).
+            ``_bbox_to_4326`` carries that signal through unchanged so
+            ``_discover_scenes`` can split the catalog filter into east and west
+            halves — collapsing to ``(-180, 180)`` here would scan the whole globe for
+            a narrow dateline AOI (see TestDiscoverScenes).
+        """
+        utm1n = (166_000.0, 1_000_000.0, 834_000.0, 2_000_000.0)
+        west, south, east, north = ee_reader._bbox_to_4326(utm1n, "EPSG:32601")
+        assert west > east, f"antimeridian wrap signal lost: west={west} east={east}"
+        assert west > 170.0, f"east-of-dateline edge in the wrong half: west={west}"
+        assert east < -170.0, f"west-of-dateline edge in the wrong half: east={east}"
+        assert 9.0 <= south <= 10.0, f"south edge drifted: {south:.3f}"
+        assert 17.0 <= north <= 19.0, f"north edge drifted: {north:.3f}"
+
+    def test_bbox_to_4326_covers_pole(self) -> None:
+        """A pole-containing projected AOI back-transforms to a non-degenerate envelope (#97).
+
+        Test scenario:
+            An EPSG:3413 (NSIDC polar stereographic north) box around the pole: the
+            old four-corner code returned a degenerate ``south == north`` line (all
+            corners at the same latitude), losing every scene north of that line.
+            The densified transform must return the pole and a full-longitude envelope.
+        """
+        polar = (-1_000_000.0, -1_000_000.0, 1_000_000.0, 1_000_000.0)
+        west, south, east, north = ee_reader._bbox_to_4326(polar, "EPSG:3413")
+        assert north == pytest.approx(90.0, abs=0.01), (
+            f"north edge should reach the pole, got {north}"
+        )
+        assert south == pytest.approx(77.0, abs=0.1), (
+            f"south edge of the 2000-km polar box should be ~77 N, got {south}"
+        )
+        assert west <= -179.0, f"west must span the longitude envelope, got {west}"
+        assert east >= 179.0, f"east must span the longitude envelope, got {east}"
 
     def test_reduce_unknown_reducer_raises(self) -> None:
         """An unknown reducer name is rejected.
