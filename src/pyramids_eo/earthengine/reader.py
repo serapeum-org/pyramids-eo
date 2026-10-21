@@ -24,6 +24,7 @@ import pyramids as _pyramids_bootstrap  # noqa: F401  (activates the bundled osg
 # isort: on
 
 import gc
+import math
 import os
 import re
 import shutil
@@ -35,7 +36,12 @@ from typing import NamedTuple
 
 import numpy as np
 from osgeo import gdal, osr
-from pyramids.base.crs import create_sr_from_proj, crs_spec
+from pyramids.base.crs import (
+    CRSError,
+    create_sr_from_proj,
+    crs_spec,
+    epsg_from_user_input,
+)
 from pyramids.base.remote import redact_credentials
 from pyramids.dataset import Dataset, DatasetCollection, GeoReference
 from pyramids.dataset.merge import merge_rasters
@@ -51,6 +57,12 @@ _EEDA_PREFIX = "EEDA:"
 
 #: Default output CRS when the caller does not specify one.
 _DEFAULT_CRS = "EPSG:4326"
+
+#: Samples per edge when densifying a projected bbox back to EPSG:4326
+#: (:func:`_bbox_to_4326`); matches both GDAL's ``OCTTransformBounds`` recommendation
+#: and pyproj's ``transform_bounds`` default, so a bowed edge is captured rather than
+#: under-covered by a four-corner transform (#97).
+_BBOX_DENSIFY_POINTS = 21
 
 #: Statistical client-side reducers for the ``ImageCollection`` → composite path.
 #: Each maps to a nodata-aware (masked) and a plain NumPy reduction over the scene
@@ -805,8 +817,20 @@ def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
     Returns:
         The AOI's envelope in EPSG:4326 lon/lat.
     """
-    if crs.upper() in (_DEFAULT_CRS, "WGS84"):
-        return bbox
+    # Short-circuit any CRS pyramids' resolver identifies as EPSG:4326 — the uppercase
+    # and lowercase codes, ``"WGS84"`` and the whitespace-separated ``"WGS 84"`` (the
+    # form ``osr.SpatialReference.GetName()`` emits, which ``SetFromUserInput`` rejects
+    # with ``OGR Error: Corrupt data``), WKT whose datum is WGS84, and the
+    # ``urn:ogc:def:crs:EPSG::4326`` form. Inputs the resolver cannot identify as a
+    # specific EPSG code (e.g. ``OGC:CRS84``, plain-CRS84 URNs, projected CRSes without
+    # an EPSG) still work — they just take the full transform path below, where
+    # ``SetFromUserInput`` handles them (``OGC:CRS84`` round-trips as identity under
+    # ``OAMS_TRADITIONAL_GIS_ORDER``) or raises if genuinely invalid.
+    try:
+        if epsg_from_user_input(crs) == 4326:
+            return bbox
+    except CRSError:  # resolver cannot identify the CRS; try the transform path
+        pass
     source = osr.SpatialReference()
     source.SetFromUserInput(crs)
     source.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
@@ -815,13 +839,26 @@ def _bbox_to_4326(bbox: BBox, crs: str) -> BBox:
     target.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
     transform = osr.CoordinateTransformation(source, target)
     min_x, min_y, max_x, max_y = bbox
-    corners = [(min_x, min_y), (min_x, max_y), (max_x, min_y), (max_x, max_y)]
-    xs, ys = [], []
-    for x, y in corners:
-        lon, lat, *_ = transform.TransformPoint(x, y)
-        xs.append(lon)
-        ys.append(lat)
-    return (min(xs), min(ys), max(xs), max(ys))
+    # Densify each edge (not just the four corners) so an edge that bows outward under
+    # the projection is fully captured. ``TransformBounds`` walks each edge with
+    # ``_BBOX_DENSIFY_POINTS`` samples and returns the true envelope (#97).
+    west, south, east, north = transform.TransformBounds(
+        min_x, min_y, max_x, max_y, _BBOX_DENSIFY_POINTS
+    )
+    # ``TransformBounds`` returns ``(inf, inf, inf, inf)`` for a bbox outside the
+    # projection domain, where the pre-densify four-corner path would raise
+    # ``Point outside of projection domain``. Preserve that fail-loud guarantee rather
+    # than smuggle infinities into ``SetSpatialFilterRect`` downstream (#97).
+    if not all(math.isfinite(v) for v in (west, south, east, north)):
+        raise ReaderError(
+            f"Bbox {bbox} is outside the projection domain of {crs!r}; "
+            f"back-transform to EPSG:4326 produced a not-finite envelope."
+        )
+    # ``TransformBounds`` signals an antimeridian wrap by returning ``west > east``.
+    # Carry that signal through unchanged; :func:`_discover_scenes` detects it and
+    # splits the EEDA spatial filter into east and west halves — tighter than widening
+    # to ``(-180, 180)`` here would be for a narrow dateline-crossing AOI (#97).
+    return (west, south, east, north)
 
 
 def _geometry_bounds(geometry: object) -> BBox:
@@ -1073,15 +1110,37 @@ def _discover_scenes(
     )
     layer.SetAttributeFilter(attribute_filter)
     min_x, min_y, max_x, max_y = bbox_4326
-    layer.SetSpatialFilterRect(min_x, min_y, max_x, max_y)
+    # :func:`_bbox_to_4326` reports an antimeridian-crossing AOI by returning
+    # ``west > east`` — OGR's ``SetSpatialFilterRect`` would normalise that to
+    # ``[min(w, e), max(w, e)]`` (the wrong half of the globe), so split into the
+    # east and west halves and run two filter+scan passes. For a non-wrapping AOI
+    # the single-pass shape is preserved. Scenes whose geometry falls on the
+    # dateline would be returned by both passes, so dedupe by
+    # ``(startTime, connection)`` (#97).
+    if min_x > max_x:
+        rects = [
+            (-180.0, min_y, max_x, max_y),
+            (min_x, min_y, 180.0, max_y),
+        ]
+    else:
+        rects = [(min_x, min_y, max_x, max_y)]
     scenes: list[_Scene] = []
-    for feature in layer:
-        connection = feature.GetFieldAsString("gdal_dataset")
-        if connection:
+    seen: set[tuple[str, str]] = set()
+    for rect in rects:
+        layer.SetSpatialFilterRect(*rect)
+        for feature in layer:
+            connection = feature.GetFieldAsString("gdal_dataset")
+            if not connection:
+                continue
+            start_time = feature.GetFieldAsString("startTime")
+            key = (start_time, connection)
+            if key in seen:
+                continue
+            seen.add(key)
             scenes.append(
                 _Scene(
                     connection=connection,
-                    time=feature.GetFieldAsString("startTime"),
+                    time=start_time,
                     band_count=_field_int(feature, "band_count"),
                     width=_field_int(feature, "band_max_width"),
                     height=_field_int(feature, "band_max_height"),
