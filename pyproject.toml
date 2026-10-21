@@ -31,7 +31,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-viz = ["pyramids-core[viz]>=0.70.0"]
+viz = [
+    "pyramids-core[viz]>=0.70.0",
+    # CVE-2026-112395/112397/112400/112404/112895/112896/112897/112899: eight
+    # vulnerabilities in Pillow < 13.0.0, fixed in 13.0.0. Pillow arrives *only* via
+    # the viz stack (pyramids-core[viz] → matplotlib → pillow), so the floor belongs
+    # on this extra — a bare `pip install pyramids-eo` takes no pin, `pip install
+    # pyramids-eo[viz]` does. (certifi is also flagged transitively via pyogrio /
+    # pyproj and the dev-only requests chain, but pyramids-eo doesn't own those
+    # chains — upstream pyramids-gis guards them; pip-audit on the lock sees the
+    # resolver's 2026.10.19 already.)
+    "pillow >=13.0.0",
+]
 
 [dependency-groups]
 dev = [
