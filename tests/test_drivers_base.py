@@ -14,6 +14,7 @@ from pyramids_eo.drivers._base import (
 )
 from pyramids_eo.drivers.fci import FciDriver
 from pyramids_eo.drivers.olci import OlciDriver
+from pyramids_eo.drivers.seviri import SeviriDriver
 from pyramids_eo.drivers.slstr import SlstrDriver
 
 
@@ -343,6 +344,11 @@ _DRIVERS = [
     ("fci", FciDriver, "read_fci_l1c", "ir_105"),
     ("olci", OlciDriver, "read_olci", "Oa08"),
     ("slstr", SlstrDriver, "read_slstr", "S5"),
+    # SEVIRI is included deliberately: it had the same defect unfixed (its
+    # `calibrate` arrived as the truthy string "false", so calibration ran when the
+    # caller asked for it off), which is exactly what this structural check exists
+    # to surface rather than leaving to be noticed per driver.
+    ("seviri", SeviriDriver, "read_seviri", "IR_108"),
 ]
 
 

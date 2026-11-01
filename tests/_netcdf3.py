@@ -94,23 +94,6 @@ def _attribute_list(attributes: dict[str, Any] | None) -> bytes:
     return struct.pack(">ii", _NC_ATTRIBUTE, len(attributes)) + body
 
 
-def _attribute_type_for(array: np.ndarray) -> int:
-    """Return the `nc_type` an attribute should take to match `array`'s type.
-
-    netCDF-C rejects a `_FillValue` whose type differs from its variable's with
-    `NC_EBADTYPE`, so an attribute that must match the data -- `_FillValue`,
-    `valid_min`, `valid_max` -- has to be typed from the variable rather than from
-    the Python value it was written as.
-
-    Args:
-        array: The variable's data.
-
-    Returns:
-        The matching `nc_type` code.
-    """
-    return _NC_TYPE_OF[(array.dtype.kind, array.dtype.itemsize)]
-
-
 def write_netcdf(
     path: Path,
     variables: dict[str, tuple[np.ndarray, dict[str, Any]]],

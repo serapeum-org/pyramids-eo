@@ -114,3 +114,42 @@ def test_read_rejects_multi_band_generator():
             bands=(b for b in ["IR_108", "IR_120"]),
             options={"parse": _parser},
         )
+
+
+def test_read_coerces_string_boolean_and_numeric_open_options(monkeypatch):
+    """`calibrate=false` disables calibration instead of enabling it.
+
+    SEVIRI had the same defect as the other channel-at-a-time drivers and kept it
+    after they were fixed: `read_file` normalises open_options to KEY=VALUE
+    strings, and the truthy string "false" switched calibration ON, so a caller
+    who asked for raw radiance silently got calibrated values. The two numeric
+    keywords arrived as strings for the same reason.
+    """
+    import pyramids_eo.sensors.readers as readers
+
+    captured: dict = {}
+    monkeypatch.setattr(
+        readers, "read_seviri", lambda *a, **k: captured.update(k) or "dataset"
+    )
+    SeviriDriver().read(
+        "scene.nat",
+        options=[
+            "channel=IR_108",
+            "calibrate=false",
+            "sun_earth_distance=0.983",
+            "subsatellite_longitude=9.5",
+        ],
+    )
+    assert captured["calibrate"] is False, captured
+    assert captured["sun_earth_distance"] == 0.983, captured
+    assert captured["subsatellite_longitude"] == 9.5, captured
+
+
+@pytest.mark.parametrize(
+    "option, message",
+    [("calibrate=maybe", "must be a boolean"), ("sun_earth_distance=nan", "finite")],
+)
+def test_read_rejects_unreadable_options(option, message):
+    """An unreadable boolean or non-finite numeric option is rejected by name."""
+    with pytest.raises(ValueError, match=message):
+        SeviriDriver().read("scene.nat", options=["channel=IR_108", option])
