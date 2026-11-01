@@ -252,7 +252,11 @@ def geolocation_domain(
         line_step: Row stride between geolocation samples.
 
     Returns:
-        The `GEOLOCATION` domain as a dict of GDAL metadata items.
+        The `GEOLOCATION` domain as a dict of GDAL metadata items: the longitude /
+        latitude subdataset strings and bands, the offsets and steps, plus the
+        `SRS` (lon/lat on WGS 84, which the arrays are in) and a
+        `GEOREFERENCING_CONVENTION` of `PIXEL_CENTER`. GDAL needs the whole set,
+        so a domain missing any of it is silently unusable by a warp.
 
     Examples:
         - A full-resolution OLCI geolocation grid:
@@ -300,10 +304,14 @@ def wrap_swath(data: np.ndarray, domain: dict[str, str]) -> Any:
 
     Args:
         data: The `(row, col)` swath array, NaN where invalid.
-        domain: The `GEOLOCATION` domain from `geolocation_domain`.
+        domain: The `GEOLOCATION` domain from `geolocation_domain`, or an empty
+            dict to attach none -- which is what a reader's `geolocation=False`
+            passes, leaving a result with no geolocation at all.
 
     Returns:
-        A pyramids `Dataset` of `data` with the domain set on its GDAL handle.
+        A pyramids `Dataset` of `data`, with the domain set on its GDAL handle
+        when `domain` is non-empty. The domain is copied, so the caller's dict is
+        not adopted.
     """
     from pyramids.dataset import Dataset, GeoReference
 

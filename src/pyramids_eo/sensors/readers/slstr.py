@@ -171,7 +171,9 @@ def _discover_band_file(
         The measurement file's `Path`.
 
     Raises:
-        ReaderError: When no file for the channel and view is in the granule.
+        ReaderError: When the granule holds no file for the channel and view; when
+            `grid` was given but matches none of the files that do exist; or when
+            several grids carry the channel and no `grid` was given to choose one.
     """
     default_grid, quantity = _CHANNEL_GRID[channel]
     candidate = granule / f"{channel}_{quantity}_{grid or default_grid}{view}.nc"
@@ -233,6 +235,12 @@ def _channel_metadata(
     channel: str, granule: Path, band_path: Path, variable_meta: dict[str, str]
 ) -> dict[str, str]:
     """Build the CF-style metadata carried onto a decoded channel.
+
+    Keeps the variable's own CF attributes (`units`, `long_name`,
+    `standard_name`) when the granule declares them, and adds the channel's
+    registry `wavelength_um` / `resolution_m` / `kind` plus provenance (sensor,
+    channel, granule name, and the grid and view actually read). Registry lookup
+    failure is tolerated and simply omits those three fields.
 
     Args:
         channel: Canonical channel name.

@@ -125,8 +125,10 @@ def _channel_metadata(
 
     Keeps the variable's own CF attributes (`units`, `long_name`,
     `standard_name`) when the granule declares them, and adds the channel's
-    registry wavelength / resolution plus provenance. Registry lookup failure is
-    tolerated: the decode must not depend on the bundled table.
+    registry `wavelength_um` / `resolution_m` / `kind` plus provenance (sensor,
+    channel, granule name and a note that the geolocation is a swath domain).
+    Registry lookup failure is tolerated and simply omits those three fields:
+    the decode must not depend on the bundled table.
 
     Args:
         channel: Canonical channel name.
