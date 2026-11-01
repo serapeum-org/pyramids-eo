@@ -25,14 +25,19 @@ classifiers = [
 requires-python = ">= 3.11, <4"
 
 dependencies = [
-    "pyramids-core >=0.71.0",
+    # >=0.73.0 for the in-memory DatasetCollection reduction (pyramids #1412): the
+    # collection `collection_from_earthengine` returns is backed by resident scenes
+    # (`datasets=`, so `files is None`), and before 0.73.0 `DatasetCollection.data`
+    # — which `reduce_time` and the associative `mean`/`min`/`max`/`sum` all read —
+    # raised RuntimeError on it, making the reader's collection unreducible (#131).
+    "pyramids-core >=0.73.0",
     "numpy >=2.0.0",
     "pyyaml >=6.0",
 ]
 
 [project.optional-dependencies]
 viz = [
-    "pyramids-core[viz]>=0.71.0",
+    "pyramids-core[viz]>=0.73.0",
     # CVE-2026-112395/112397/112400/112404/112895/112896/112897/112899: eight
     # vulnerabilities in Pillow < 13.0.0, fixed in 13.0.0. Pillow arrives *only* via
     # the viz stack (pyramids-core[viz] → matplotlib → pillow), so the floor belongs
@@ -43,6 +48,13 @@ viz = [
     # resolver's 2026.10.19 already.)
     "pillow >=13.0.0",
 ]
+# Reductions over a returned DatasetCollection (`reduce_time`, `mean` / `min` /
+# `max` / `sum`) read `DatasetCollection.data`, which needs dask — so a bare install
+# raises `OptionalPackageDoesNotExist` on them (#131). This is the supported opt-in:
+# `pip install pyramids-eo[lazy]`, rather than requiring a user to know to install an
+# upstream package's extra by hand. It is an extra, not a runtime dependency, so a
+# plain `pip install pyramids-eo` still pulls none of its ~31 distributions.
+lazy = ["pyramids-core[lazy]>=0.73.0"]
 
 [dependency-groups]
 dev = [
@@ -68,8 +80,13 @@ dev = [
     # fixed in 2.21.0); it arrives transitively via jupyterlab / notebook.
     "jupyter-server >=2.21.0",
     # Floor tornado past GHSA-chx6-46f5-w4vp / c2m8-h5v5-343r / 3hv7-mjh2-fv65
-    # (fixed in 6.5.9); it arrives transitively via the jupyter stack.
-    "tornado >=6.5.9",
+    # (fixed in 6.5.9) and CVE-2026-115927 / 116577 / 116578 (fixed in 6.6); it
+    # arrives transitively via the jupyter stack.
+    "tornado >=6.6",
+    # Floor filelock past CVE-2026-112907/112908/112909/112910/112911/112913/
+    # 112915/112935/112936/112938/112939/112940 (fixed by 4.2.1); it arrives
+    # transitively via virtualenv / pre-commit.
+    "filelock >=4.2.1",
     # Floor urllib3 past PYSEC-2026-4175/4176/4177 (chunked-encoding memory
     # DoS, fixed in 2.8.0); it arrives transitively via the jupyter / HTTP stack.
     "urllib3 >=2.8.0",
@@ -95,6 +112,10 @@ docs = [
     "jupyter",
     "nbconvert",
     "ipykernel",
+    # Same tornado floor the dev group carries (CVE-2026-115927 / 116577 / 116578,
+    # fixed in 6.6): it arrives here too, via the notebook / jupyter stack. pip-audit
+    # only scans the py311 environment, so this one is not caught by CI.
+    "tornado >=6.6",
 ]
 
 [project.urls]
@@ -103,7 +124,7 @@ repository = "https://github.com/serapeum-org/pyramids-eo"
 documentation = "https://serapeum-org.github.io/pyramids-eo"
 Changelog = "https://github.com/serapeum-org/pyramids-eo/blob/main/docs/change-log.md"
 
-# Raster-reader plugins discovered by pyramids-core 0.70's `pyramids.raster_drivers`
+# Raster-reader plugins discovered by pyramids-core's `pyramids.raster_drivers`
 # hook: installing this package lets `Dataset.read_file(<source>)` route into these.
 # Only readers that fit the single-source read_file model are registered (see
 # src/pyramids_eo/drivers/__init__.py); S2 and FCI stay facade-only.
@@ -203,6 +224,7 @@ markers = [
     "fast: mark test as fast (deselect with '-m \"not fast\"')",
     "core: extras-free test (auto-applied when no extras marker is present)",
     "plot: tests requiring the [viz] extra (cleopatra) — plotting tests (deselect with '-m \"not plot\"')",
+    "lazy: tests requiring pyramids-core[lazy] (dask) — DatasetCollection reductions (deselect with '-m \"not lazy\"')",
     "live: live network test against a real external service (deselect with '-m \"not live\"', run with '-m live')",
 ]
 
@@ -240,14 +262,17 @@ cz-changelog = { cmd = "cz changelog", description = "Generate changelog using C
 cz-bump = { cmd = "cz bump", description = "Bump version using Commitizen" }
 mypy = { cmd = "mypy", description = "Run mypy type checking" }
 
+# The test environments carry `lazy` (dask) so the `@pytest.mark.lazy` reduction
+# tests execute rather than auto-skip; `default` and `docs` stay without it, so a
+# bare install and the docs build pull none of its ~31 distributions (#131).
 [tool.pixi.environments]
 default = { features = ["viz"], solve-group = "default" }
-dev = { features = ["viz", "dev"], solve-group = "default" }
+dev = { features = ["viz", "lazy", "dev"], solve-group = "default" }
 docs = { features = ["docs", "viz"], solve-group = "docs" }
-py311 = { features = ["py311", "viz", "dev"], solve-group = "py311" }
-py312 = { features = ["py312", "viz", "dev"], solve-group = "py312" }
-py313 = { features = ["py313", "viz", "dev"], solve-group = "py313" }
-py314 = { features = ["py314", "viz", "dev"], solve-group = "py314" }
+py311 = { features = ["py311", "viz", "lazy", "dev"], solve-group = "py311" }
+py312 = { features = ["py312", "viz", "lazy", "dev"], solve-group = "py312" }
+py313 = { features = ["py313", "viz", "lazy", "dev"], solve-group = "py313" }
+py314 = { features = ["py314", "viz", "lazy", "dev"], solve-group = "py314" }
 
 [tool.pixi.feature.py311.dependencies]
 python = "3.11.*"

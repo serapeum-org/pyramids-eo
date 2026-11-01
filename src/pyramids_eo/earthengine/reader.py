@@ -2540,7 +2540,27 @@ def collection_from_earthengine(
 
     Returns:
         A pyramids :class:`~pyramids.dataset.DatasetCollection`, one timestep per
-        scene, with the acquisition times as its time axis.
+        scene, with the acquisition times as its time axis. The scenes are held in
+        memory (``files is None``), which `pyramids-core` >= 0.73.0 reduces directly:
+        ``reduce_time`` and ``mean`` / ``min`` / ``max`` / ``sum`` need no spill to
+        disk. Two caveats:
+
+        * **Gaps must be ``NaN`` first.** Those reductions do not mask the scenes'
+          declared nodata — including anything passed as ``nodata=`` above — so a
+          sentinel cell is reduced as an ordinary value. With ``nodata=-32768`` and
+          one gapped cell, ``sum`` over scenes 10/20/30 returns ``-32728`` for that
+          cell against ``60`` elsewhere, and ``min`` returns ``-32768``.
+        * **Memory.** The in-memory cube reads every scene's array eagerly (only the
+          time stack is lazy), so the whole series is resident. For a series larger
+          than RAM, write the scenes out and reduce a file-backed collection, which
+          reads tile-by-tile.
+
+        The reductions read ``DatasetCollection.data``, which needs dask, so they are
+        gated behind this package's ``lazy`` extra — install
+        ``pip install 'pyramids-eo[lazy]'`` or accessing ``.data`` raises
+        ``pyramids.errors.OptionalPackageDoesNotExist``. ``to_zarr`` /
+        ``to_kerchunk`` still require a file-backed collection; write the scenes out
+        (e.g. ``to_cog_stack`` + ``DatasetCollection.from_files``) for those.
 
     Raises:
         ValueError: ``scale`` and ``shape`` are both given, or neither ``bbox``

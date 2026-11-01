@@ -1380,6 +1380,111 @@ class TestCollectionFromEarthengine:
             "2024-06-03T00:00:00",
         ], f"Unexpected time axis: {list(dc.time)}"
 
+    @pytest.mark.lazy
+    def test_returned_collection_reduces_over_time(self, three_scenes) -> None:
+        """The reader's collection reduces over time, no manual spill-to-disk (#131).
+
+        Args:
+            three_scenes: Fixture patching discovery/open (three scenes, fills
+                10 / 20 / 30).
+
+        Test scenario:
+            The reader hands back a collection backed by resident scenes
+            (`datasets=`, so `files is None`). Before pyramids-core 0.73.0
+            (pyramids #1412), `DatasetCollection.data` — which `reduce_time` and
+            the associative reducers read — refused that with
+            `RuntimeError: ... requires a file-backed collection`, so every
+            multi-scene composite failed. Reducing here pins the integration
+            contract: one calendar-month window, every pixel the mean of
+            10 / 20 / 30.
+        """
+        dc = collection_from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(4, 4)),
+            start="2024-06-01",
+            end="2024-06-30",
+        )
+        assert dc.files is None, (
+            "the reader returns resident scenes; this test exists to prove such a "
+            "collection is reducible (#131)"
+        )
+        windows = dc.reduce_time(list(dc.time), freq="1MS", op="mean")
+        assert len(windows) == 1, f"expected one June window, got {len(windows)}"
+        _label, reduced = windows[0]
+        values = reduced.read_array()
+        assert values.shape == (4, 4), f"unexpected reduced shape: {values.shape}"
+        assert values == pytest.approx(20.0), (
+            f"every pixel should be the mean of 10/20/30, got {values}"
+        )
+
+    @pytest.mark.lazy
+    @pytest.mark.parametrize(
+        ("op", "expected"),
+        [("mean", 20.0), ("min", 10.0), ("max", 30.0), ("sum", 60.0)],
+    )
+    def test_returned_collection_associative_reducers(
+        self, three_scenes, op, expected
+    ) -> None:
+        """The associative reducers issue #131 names also work on the collection.
+
+        Args:
+            three_scenes: Fixture patching discovery/open (three scenes, fills
+                10 / 20 / 30).
+            op: The `DatasetCollection` reducer method to call.
+            expected: The reducer's per-pixel result over scenes 10 / 20 / 30.
+
+        Test scenario:
+            `mean` / `min` / `max` / `sum` read `DatasetCollection.data` just as
+            `reduce_time` does, so each one used to raise on the reader's in-memory
+            collection. Covers the whole set the issue names, not only `reduce_time`.
+        """
+        dc = collection_from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(4, 4)),
+            start="2024-06-01",
+            end="2024-06-30",
+        )
+        assert dc.files is None, "must reduce the in-memory collection, not a spill"
+        values = np.asarray(getattr(dc, op)())
+        # Pin the shape: the reducer collapses time and keeps the band axis, and an
+        # empty array would satisfy the approx comparison below vacuously.
+        assert values.shape == (1, 4, 4), f"unexpected {op}() shape: {values.shape}"
+        assert values == pytest.approx(expected), (
+            f"{op}() over 10/20/30 should be {expected}, got {values}"
+        )
+
+    @pytest.mark.lazy
+    def test_returned_collection_reduces_per_scene_window(self, three_scenes) -> None:
+        """Per-day windows pair each scene's value with its own acquisition date.
+
+        Args:
+            three_scenes: Fixture patching discovery/open (three scenes, fills
+                10 / 20 / 30 on 2024-06-01/02/03).
+
+        Test scenario:
+            A daily frequency puts every scene in its own window, exercising the
+            bucketing a single-window case cannot: it pins that the reader's `time`
+            axis is correctly *paired* with each scene's pixels, since a mispaired
+            axis would land a value in the wrong day. It does not pin discovery
+            order — `reduce_time` returns windows sorted by label, so reversing the
+            scene order yields the same output (verified).
+        """
+        dc = collection_from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(4, 4)),
+            start="2024-06-01",
+            end="2024-06-30",
+        )
+        windows = dc.reduce_time(list(dc.time), freq="1D", op="mean")
+        assert len(windows) == 3, f"expected one window per scene, got {len(windows)}"
+        paired = {
+            str(label)[:10]: reduced.read_array().ravel()[0]
+            for label, reduced in windows
+        }
+        assert paired == pytest.approx(
+            {"2024-06-01": 10.0, "2024-06-02": 20.0, "2024-06-03": 30.0}
+        ), f"each day's window should carry that scene's value: {paired}"
+
     def test_scale_and_shape_mutually_exclusive(self) -> None:
         """Passing both ``scale`` and ``shape`` raises ``ValueError``.
 
