@@ -793,3 +793,125 @@ class TestGeolocationWarpExtent:
             f"an 8x8 swath warped to {width}x{height}: a coordinate outside the "
             f"granule's footprint has stretched the output bounds"
         )
+
+
+class TestGeolocationFillValue:
+    """The geolocation fill value must not be consumed as a real coordinate."""
+
+    @staticmethod
+    def _granule(path, *, filled):
+        """Write an 8x8 packed geolocation file, optionally with one filled pixel."""
+        from tests._netcdf3 import write_netcdf
+
+        scale, fill = 1e-06, -2147483648
+        longitude = np.round(np.tile(np.linspace(4.0, 5.0, 8), (8, 1)) / scale)
+        latitude = np.round(
+            np.repeat(np.linspace(52.0, 51.0, 8)[:, None], 8, axis=1) / scale
+        )
+        longitude = longitude.astype("int32")
+        latitude = latitude.astype("int32")
+        if filled:
+            longitude[0, 0] = fill
+            latitude[0, 0] = fill
+        attributes = {"scale_factor": scale, "_FillValue": fill}
+        return write_netcdf(
+            path,
+            {
+                "longitude": (longitude, dict(attributes)),
+                "latitude": (latitude, dict(attributes)),
+            },
+        )
+
+    def test_a_filled_geolocation_pixel_does_not_move_the_extent(self, tmp_path):
+        """One filled geolocation pixel must not drag the warped extent off the globe.
+
+        Test scenario:
+            GDAL's geolocation transformer consults the band's nodata to decide
+            which samples to skip. A VRT that carried the scaling but dropped the
+            fill value let the sentinel through as a coordinate --
+            `-2147483648 * 1e-06` is -2147.48 degrees -- which moved the origin
+            from 3.93 to -4836.91 while `gdal.Warp` only *warned*, so a caller got
+            a silently mis-georeferenced result rather than an error. Real
+            products do ship fills here: SLSTR's oblique `geodetic_*o.nc` covers a
+            narrower swath than the nadir grid.
+        """
+        from osgeo import gdal
+
+        control = _warp_geotransform(
+            geolocation_domain(
+                self._granule(tmp_path / "clean.nc", filled=False), reader="read_test"
+            ),
+            shape=(8, 8),
+        )
+        filled = _warp_geotransform(
+            geolocation_domain(
+                self._granule(tmp_path / "filled.nc", filled=True), reader="read_test"
+            ),
+            shape=(8, 8),
+        )
+        assert filled[0] == pytest.approx(control[0], abs=1e-6), (
+            f"a filled pixel moved the longitude origin: {filled[0]} vs {control[0]}"
+        )
+        assert filled[3] == pytest.approx(control[3], abs=1e-6), (
+            f"a filled pixel moved the latitude origin: {filled[3]} vs {control[3]}"
+        )
+        assert gdal is not None  # the import is what exercises the warp path
+
+    def test_the_vrt_declares_the_fill_in_both_domains(self, tmp_path):
+        """The VRT carries the raw sentinel as source NODATA and the scaled one as band nodata."""
+        from osgeo import gdal
+
+        geo = self._granule(tmp_path / "geo.nc", filled=True)
+        domain = geolocation_domain(geo, reader="read_test")
+        xml = gdal.VSIFile(domain["X_DATASET"], "rb").read().decode("utf-8")
+        assert "<NODATA>-2147483648" in xml, f"raw source fill missing: {xml}"
+        assert "<NoDataValue>-2147.483648" in xml, f"scaled band fill missing: {xml}"
+
+    def test_the_netcdf_default_fill_is_carried_too(self, tmp_path):
+        """A variable with no explicit `_FillValue` still gets netCDF's type default.
+
+        Test scenario:
+            netCDF defines a per-type default fill (`NC_FILL_INT` is -2147483647)
+            that marks never-written data, and GDAL reports it as the band's
+            nodata even when the file declares no `_FillValue` attribute --
+            measured, not assumed. Carrying it means an unwritten gap in a
+            geolocation array is skipped by the transformer just as an explicit
+            fill is, rather than being read as a coordinate.
+        """
+        from osgeo import gdal
+
+        from tests._netcdf3 import write_netcdf
+
+        values = np.round(np.tile(np.linspace(4.0, 5.0, 3), (2, 1)) / 1e-06)
+        geo = write_netcdf(
+            tmp_path / "geo.nc",
+            {
+                "longitude": (values.astype("int32"), {"scale_factor": 1e-06}),
+                "latitude": (values.astype("int32"), {"scale_factor": 1e-06}),
+            },
+        )
+        domain = geolocation_domain(geo, reader="read_test")
+        xml = gdal.VSIFile(domain["X_DATASET"], "rb").read().decode("utf-8")
+        assert "<NODATA>-2147483647" in xml, (
+            f"netCDF's default int fill should be carried: {xml}"
+        )
+
+    def test_a_vrt_built_without_a_fill_declares_none(self):
+        """`_unscaling_vrt` omits both nodata elements when given no fill value.
+
+        Test scenario:
+            Exercised directly because GDAL supplies a per-type default fill for
+            every netCDF integer variable, so no real geolocation file reaches
+            this path -- but the helper must still emit valid VRT when a caller
+            has no sentinel to declare.
+        """
+        from osgeo import gdal
+
+        from pyramids_eo.sensors.readers._sentinel3 import _unscaling_vrt
+
+        path = _unscaling_vrt(
+            'NETCDF:"nofill.nc":longitude', "longitude", 3, 2, 1e-06, 0.0, None
+        )
+        xml = gdal.VSIFile(path, "rb").read().decode("utf-8")
+        assert "NODATA" not in xml, f"no fill given, so none should appear: {xml}"
+        assert "<ScaleRatio>1e-06</ScaleRatio>" in xml, f"scaling must survive: {xml}"

@@ -208,7 +208,13 @@ def _wgs84_wkt() -> str:
 
 
 def _unscaling_vrt(
-    source: str, variable: str, width: int, height: int, scale: float, offset: float
+    source: str,
+    variable: str,
+    width: int,
+    height: int,
+    scale: float,
+    offset: float,
+    fill: float | None,
 ) -> str:
     """Write a `/vsimem` VRT that unpacks `source` to degrees, and return its path.
 
@@ -226,6 +232,15 @@ def _unscaling_vrt(
     `/vsimem` under a name derived from the source, so repeated reads of one
     granule reuse a single entry; GDAL keeps it for the life of the process.
 
+    The variable's fill value must be carried across too. GDAL's geolocation
+    transformer consults the band's nodata to decide which samples to skip, so a
+    VRT that drops it lets the fill sentinel through as a real coordinate --
+    `-2147483648 * 1e-06` is -2147.48 degrees, which drags the warp's computed
+    extent far off the globe while `gdal.Warp` only *warns*. The fill is declared
+    twice, in the two domains GDAL reads it in: `NODATA` inside the
+    `ComplexSource` is the raw, still-packed sentinel, and the band's
+    `NoDataValue` is that sentinel in the scaled output units.
+
     Args:
         source: The GDAL subdataset string of the packed variable.
         variable: The variable name, used to build a stable `/vsimem` name.
@@ -233,6 +248,7 @@ def _unscaling_vrt(
         height: Raster height in pixels.
         scale: The variable's `scale_factor`.
         offset: The variable's `add_offset`.
+        fill: The variable's raw `_FillValue`, or `None` when it declares none.
 
     Returns:
         The `/vsimem` path of the written VRT.
@@ -241,9 +257,14 @@ def _unscaling_vrt(
 
     digest = hashlib.sha1(source.encode("utf-8", "replace")).hexdigest()[:16]
     path = f"/vsimem/pyramids_eo_geoloc/{variable}-{digest}.vrt"
+    nodata = ""
+    if fill is not None:
+        nodata = f"<NoDataValue>{fill * scale + offset!r}</NoDataValue>"
+    source_nodata = "" if fill is None else f"<NODATA>{fill!r}</NODATA>"
     xml = (
         f'<VRTDataset rasterXSize="{width}" rasterYSize="{height}">'
         f'<VRTRasterBand dataType="Float64" band="1">'
+        f"{nodata}"
         f"<ComplexSource>"
         f'<SourceFilename relativeToVRT="0">{escape(source)}</SourceFilename>'
         f"<SourceBand>1</SourceBand>"
@@ -251,6 +272,7 @@ def _unscaling_vrt(
         f'<DstRect xOff="0" yOff="0" xSize="{width}" ySize="{height}"/>'
         f"<ScaleOffset>{offset!r}</ScaleOffset>"
         f"<ScaleRatio>{scale!r}</ScaleRatio>"
+        f"{source_nodata}"
         f"</ComplexSource>"
         f"</VRTRasterBand>"
         f"</VRTDataset>"
@@ -284,6 +306,7 @@ def geolocation_source(geo_path: Any, variable: str, *, reader: str) -> str:
     raster = _open(geo_path, variable, reader)
     band = raster.GetRasterBand(1)
     scale, offset = band.GetScale(), band.GetOffset()
+    fill = band.GetNoDataValue()
     width, height = raster.RasterXSize, raster.RasterYSize
     del raster, band
 
@@ -291,7 +314,7 @@ def geolocation_source(geo_path: Any, variable: str, *, reader: str) -> str:
     offset = 0.0 if offset is None else float(offset)
     if scale == 1.0 and offset == 0.0:
         return source
-    return _unscaling_vrt(source, variable, width, height, scale, offset)
+    return _unscaling_vrt(source, variable, width, height, scale, offset, fill)
 
 
 def geolocation_domain(
