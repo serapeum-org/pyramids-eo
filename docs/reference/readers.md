@@ -20,6 +20,49 @@ north-up on the 3 km geostationary grid (validated on a real Meteosat-10
 granule — see issue #40). `parse_seviri_native` is the underlying `.nat` decoder,
 and a custom `parse` callable can still be injected.
 
+## Sentinel-3: swath readers
+
+For Sentinel-3 `.SEN3` granules use `read_olci` (OLCI L1B EFR / ERR) and
+`read_slstr` (SLSTR L1 RBT). Both decode through pyramids' bundled GDAL NetCDF
+driver — there is no `netCDF4` dependency and nothing from the satpy stack — and
+`available_olci_channels(granule)` lists the OLCI bands a granule carries.
+
+These two differ from the geostationary readers above in three ways worth knowing:
+
+- **They are swath instruments.** A pushbroom sensor sweeps a curved strip of
+  ground, so no affine geotransform can describe where the pixels are; the product
+  instead ships a longitude and a latitude for *every* pixel. The results therefore
+  carry a GDAL **`GEOLOCATION` metadata domain** pointing at those arrays, a
+  placeholder pixel/line geotransform, and no CRS. Nothing is resampled — a caller
+  who wants a map grid warps on demand:
+
+    ```python
+    from osgeo import gdal
+    from pyramids_eo.sensors.readers import read_olci
+
+    swath = read_olci("S3A_OL_1_EFR.SEN3", channel="Oa08")
+    swath.geotransform          # the placeholder grid, not a geographic one
+    gdal.Warp("oa08.tif", swath.raster, geoloc=True)   # user-driven reprojection
+    ```
+
+- **They decode only.** Radiometric calibration choices are out of scope for these
+  readers (issue #136), so `read_olci` returns radiance and does not convert to
+  reflectance; a caller converting it should use the granule's own per-detector
+  `solar_flux` from `instrument_data.nc`. The SLSTR RBT product is already
+  geophysical, so `S7`–`S9` / `F1`–`F2` arrive as brightness temperature in kelvin
+  with no Planck conversion applied.
+
+- **SLSTR is dual-view and multi-grid.** It images each scene twice, so
+  `view="nadir"` (default) or `view="oblique"` selects one; and its channels sit on
+  different resolutions — `S1`–`S6` on the 500 m `a` grid, `S7`–`S9` on the 1 km
+  `i` grid, `F1`–`F2` on the 1 km `f` grid — which `grid=` can override. Because
+  the grids differ in shape, `channels=[...]` returns a `dict[str, Dataset]` of
+  differently-sized arrays rather than a stack.
+
+Himawari AHI (HSD) remains unimplemented: its byte-level layout comes from JMA's
+Himawari Standard Data User's Guide, which is needed before a correct decoder can
+be written (see issue #136).
+
 ::: pyramids_eo.sensors.readers
     options:
         show_root_heading: true
@@ -51,6 +94,20 @@ and a custom `parse` callable can still be injected.
         heading_level: 3
         members_order: source
 
+::: pyramids_eo.sensors.readers.olci
+    options:
+        show_root_heading: true
+        show_source: true
+        heading_level: 3
+        members_order: source
+
+::: pyramids_eo.sensors.readers.slstr
+    options:
+        show_root_heading: true
+        show_source: true
+        heading_level: 3
+        members_order: source
+
 ::: pyramids_eo.sensors.readers.harmonise
     options:
         show_root_heading: true
@@ -71,6 +128,8 @@ call site. Installing pyramids-eo is the whole integration.
 | `seviri` | a `.nat` granule | `read_seviri` |
 | `s2` | a `.SAFE` product (or `.SAFE.zip`) | `from_sentinel2` |
 | `fci` | an FCI L1C granule: a chunk **directory**, a **glob**, or an `fci://` path | `read_fci_l1c` |
+| `olci` | a Sentinel-3 OLCI `.SEN3` granule directory, or an `olci://` path | `read_olci` |
+| `slstr` | a Sentinel-3 SLSTR `.SEN3` granule directory, or a `slstr://` path | `read_slstr` |
 
 ```python
 from pyramids.dataset import Dataset
@@ -80,6 +139,13 @@ nat = Dataset.read_file("MSG_SEVIRI.nat", open_options={"channel": "IR_108"})
 ee = Dataset.read_file("ee://USGS/SRTMGL1_003", open_options={"bbox": (0, 0, 1, 1)})
 fci = Dataset.read_file("/data/fci_granule", open_options={"channel": "ir_105"})
 fci2 = Dataset.read_file("fci:///data/fci_granule", open_options={"channel": "ir_105"})
+
+# Sentinel-3: OLCI and SLSTR share the .SEN3 suffix, so the granule's contents decide
+# which driver claims it (an olci:// / slstr:// prefix, or driver=, names one explicitly)
+olci = Dataset.read_file("S3A_OL_1_EFR.SEN3", open_options={"channel": "Oa08"})
+slstr = Dataset.read_file(
+    "S3A_SL_1_RBT.SEN3", open_options={"channel": "S8", "view": "oblique"}
+)
 
 # Sentinel-2: GDAL opens a .SAFE itself, so ask for the pyramids-eo reader explicitly
 s2 = Dataset.read_file("S2A_MSIL2A.SAFE", driver="s2", open_options={"bands": ["B04", "B03", "B02"]})
