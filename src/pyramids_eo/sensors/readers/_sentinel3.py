@@ -22,9 +22,9 @@ from __future__ import annotations
 
 import hashlib
 import math
+from html import escape
 from pathlib import Path
 from typing import Any
-from xml.sax.saxutils import escape
 
 import numpy as np
 
@@ -303,7 +303,7 @@ def _unscaling_vrt(
         f'<VRTRasterBand dataType="Float64" band="1">'
         f"{nodata}"
         f"<ComplexSource>"
-        f'<SourceFilename relativeToVRT="0">{escape(source)}</SourceFilename>'
+        f'<SourceFilename relativeToVRT="0">{escape(source, quote=True)}</SourceFilename>'
         f"<SourceBand>1</SourceBand>"
         f'<SrcRect xOff="0" yOff="0" xSize="{width}" ySize="{height}"/>'
         f'<DstRect xOff="0" yOff="0" xSize="{width}" ySize="{height}"/>'
