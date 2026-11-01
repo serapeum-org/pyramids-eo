@@ -139,19 +139,25 @@ class OlciDriver:
                 accepted and ignored — a granule is read whole, carries its own swath geolocation,
                 and needs no credentials.
 
-
-        A channel **set** is a direct-call feature only: ``Dataset.read_file`` requires a driver
-        to return one ``Dataset``, so an ``options={'channels': [...]}`` read raises ``TypeError``
-        from pyramids' plugin layer. Use the reader function (``read_olci(..., channels=[...])``)
-        for several channels at once. This is shared with the other channel-at-a-time drivers.
-
         Returns:
             A single band's ``Dataset``, or a ``dict[str, Dataset]`` when several were requested.
 
         Raises:
             ValueError: No band was given (via ``bands`` or ``options``, counting an empty
                 ``channels`` list as none); both a single ``channel`` and a ``channels`` list were
-                given; or ``bands`` is not a list of band names.
+                given; ``bands`` is not a list of band names; ``options`` is a bare string or
+                carries an item that is not ``"KEY=VALUE"``; or ``geolocation`` is a string that
+                is not a recognised boolean spelling (see
+                :func:`~pyramids_eo.drivers._base.coerce_booleans`).
+            ReaderError: Propagated from :func:`~pyramids_eo.sensors.readers.read_olci` — the
+                band is not an OLCI one, or the granule lacks it or its geolocation file.
+
+        Note:
+            A channel **set** is a direct-call feature only: ``Dataset.read_file`` requires a
+            driver to return one ``Dataset``, so an ``options={'channels': [...]}`` read raises
+            ``TypeError`` from pyramids' plugin layer. Use the reader function
+            (``read_olci(..., channels=[...])``) for several channels at once. This is shared
+            with the other channel-at-a-time drivers.
         """
         from pyramids_eo.sensors.readers import read_olci
 

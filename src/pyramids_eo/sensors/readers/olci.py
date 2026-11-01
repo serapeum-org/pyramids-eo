@@ -137,6 +137,28 @@ def product_type(granule: Path) -> str | None:
 
     Returns:
         `"EFR"`, `"ERR"`, or `None` when the granule does not identify itself.
+
+    Examples:
+        - A standard product name identifies itself, so no file access is needed:
+            ```python
+            >>> from pathlib import Path
+            >>> from pyramids_eo.sensors.readers.olci import product_type
+            >>> product_type(Path("S3A_OL_1_EFR____20230101T101530.SEN3"))
+            'EFR'
+            >>> product_type(Path("S3B_OL_1_ERR____20230101T101530.SEN3"))
+            'ERR'
+
+            ```
+        - A granule that names neither, and carries no manifest saying so, yields
+          `None` -- which is what makes the reader omit `resolution_m` rather than
+          guess it:
+            ```python
+            >>> from pathlib import Path
+            >>> from pyramids_eo.sensors.readers.olci import product_type
+            >>> product_type(Path("mystery.SEN3")) is None
+            True
+
+            ```
     """
     name = granule.name.upper()
     for product in ("EFR", "ERR"):
@@ -165,15 +187,18 @@ def _channel_metadata(
 
     Keeps the variable's own CF attributes (`units`, `long_name`,
     `standard_name`) when the granule declares them, and adds the channel's
-    registry `wavelength_um` / `kind` plus provenance (sensor, channel and
-    granule name). Registry lookup failure is tolerated and simply omits those
-    fields: the decode must not depend on the bundled table.
+    registry `wavelength_um` / `kind` plus provenance: `sensor`, `channel`,
+    `granule`, a `geolocation` key describing what the result actually carries,
+    and -- when the granule identifies itself -- `product` and `resolution_m`.
+    Registry lookup failure is tolerated and simply omits `wavelength_um` and
+    `kind`: the decode must not depend on the bundled table.
 
     `resolution_m` is derived from the detected product type rather than taken
     from the registry, because EFR and ERR are indistinguishable by filename and
     the registry carries only the full-resolution figure. When the granule does
-    not identify itself the key is **omitted**, rather than asserting a value
-    that could be wrong by a factor of four for resolution-aware consumers.
+    not identify itself **both** `product` and `resolution_m` are omitted, rather
+    than asserting a value that could be wrong by a factor of four for
+    resolution-aware consumers.
 
     Args:
         channel: Canonical channel name.
@@ -284,9 +309,12 @@ def read_olci(
     """Read one or several OLCI L1B radiance bands from a `.SEN3` granule.
 
     Decodes each requested band's packed `OaNN_radiance` variable (`raw *
-    scale_factor + add_offset`, with the `_FillValue` and anything outside
-    `valid_range` masked to NaN) and returns it as a swath `Dataset` carrying the
-    granule's per-pixel geolocation as a GDAL `GEOLOCATION` domain.
+    scale_factor + add_offset`, with the `_FillValue` and anything outside the
+    variable's validity limits masked to NaN) and returns it as a swath `Dataset`
+    carrying the granule's per-pixel geolocation as a GDAL `GEOLOCATION` domain.
+    The limits come from the `valid_min` / `valid_max` scalars the OLCI L1
+    specification carries -- not from a combined `valid_range`, which appears
+    nowhere in it -- and are compared against the raw, still-packed values.
 
     Pass exactly one of `channel` (returns a `Dataset`) or `channels` (returns a
     `dict[str, Dataset]` keyed by canonical channel name).

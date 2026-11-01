@@ -104,10 +104,18 @@ def coerce_booleans(
     and would therefore silently turn the option *on*. Every string spelling is mapped here
     instead, and an unrecognised one is rejected rather than guessed at.
 
+    Only ``str`` values are converted. A real ``bool`` is already correct, and a value of any
+    other type (``0``, ``None``, a float) is left **untouched** for the reader to interpret or
+    reject — this helper deliberately does not impose truthiness on it.
+
     Args:
-        settings: The options dict, mutated in place.
+        settings: The options dict, mutated in place. Keys in ``keys`` that are absent from it
+            are skipped, so it is safe to name every boolean option a driver accepts.
         keys: The option names that are booleans for this driver.
         driver: The driver name, for the error message.
+
+    Returns:
+        ``None`` — ``settings`` is modified in place.
 
     Raises:
         ValueError: A named option is a string that is not a recognised boolean spelling.

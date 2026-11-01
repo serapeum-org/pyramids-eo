@@ -371,8 +371,11 @@ def available_slstr_channels(
         view: `"nadir"` (default) or `"oblique"`.
 
     Returns:
-        A `{channel: [grid letters]}` mapping, in canonical channel order, listing
-        only the channels the granule actually holds a measurement for.
+        A `{channel: [grid letters]}` mapping listing only the channels the
+        granule actually holds a measurement for, in the product's own channel
+        order -- `S1`..`S9` then `F1`, `F2` -- which is not the alphabetical order
+        the error messages use. Each channel's grid letters are likewise in the
+        order `read_slstr` would try them.
 
     Raises:
         ReaderError: When `source` is not a granule, or `view` is not an SLSTR
@@ -407,8 +410,11 @@ def read_slstr_band(
         source: The `.SEN3` granule directory, or a file inside it.
         channel: The channel to read (`"S5"`, `"s5"`, `"F1"`).
         view: `"nadir"` (default) or `"oblique"`.
-        grid: An explicit grid letter (`"a"`, `"b"`, `"i"`, `"f"`) overriding the
-            channel's usual grid.
+        grid: An explicit grid letter (`"a"`, `"b"`, `"i"`, `"f"`) restricting the
+            read to that one grid. `None` (default) tries the channel's documented
+            grids in order. The restriction is honoured even when only one
+            candidate file exists, so a read never silently returns a different
+            resolution than the one asked for.
         geolocation: When `True` (default), attach the `GEOLOCATION` domain from
             the `geodetic_*` file matching the grid read.
 
@@ -461,9 +467,12 @@ def read_slstr(
     """Read one or several SLSTR L1 RBT channels from a `.SEN3` granule.
 
     Decodes each requested channel's packed variable (`raw * scale_factor +
-    add_offset`, with the `_FillValue` and anything outside `valid_range` masked
-    to NaN) and returns it as a swath `Dataset` carrying the matching grid's
-    per-pixel geolocation as a GDAL `GEOLOCATION` domain.
+    add_offset`, with the `_FillValue` and anything outside the variable's
+    validity limits masked to NaN) and returns it as a swath `Dataset` carrying
+    the matching grid's per-pixel geolocation as a GDAL `GEOLOCATION` domain. The
+    limits come from the `valid_min` / `valid_max` scalars the SLSTR L1
+    specification carries -- not from a combined `valid_range`, which appears
+    nowhere in it -- and are compared against the raw, still-packed values.
 
     Pass exactly one of `channel` (returns a `Dataset`) or `channels` (returns a
     `dict[str, Dataset]`). Channels on different grids have **different array
@@ -479,7 +488,11 @@ def read_slstr(
         channels: A sequence of channels for a `dict` result; mutually exclusive
             with `channel`.
         view: `"nadir"` (default) or `"oblique"` -- SLSTR images each scene twice.
-        grid: An explicit grid letter overriding each channel's usual grid.
+        grid: An explicit grid letter (`"a"`, `"b"`, `"i"`, `"f"`) restricting
+            every channel to that one grid. `None` (default) tries each channel's
+            documented grids in order. A restricted read never falls back to
+            another resolution: a channel the granule does not carry on that grid
+            raises instead.
         geolocation: When `True` (default), attach each result's `GEOLOCATION`
             domain.
 
@@ -490,7 +503,8 @@ def read_slstr(
     Raises:
         ReaderError: When neither / both of `channel` / `channels` are given,
             `channels` is empty or names a channel twice, a channel or the view
-            is not an SLSTR one, or the granule lacks a requested channel.
+            is not an SLSTR one, `grid` is not one of the four SLSTR grid letters,
+            or the granule lacks a requested channel on the grid(s) tried.
     """
     requested, single = resolve_channels(channel, channels, "read_slstr")
     # Canonicalise before the duplicate check: `resolve_channels` compares the raw

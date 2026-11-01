@@ -146,12 +146,6 @@ class FciDriver:
                 accepted and ignored — a granule is read whole, carries its own geostationary CRS,
                 and needs no credentials.
 
-
-        A channel **set** is a direct-call feature only: ``Dataset.read_file`` requires a driver
-        to return one ``Dataset``, so an ``options={'channels': [...]}`` read raises ``TypeError``
-        from pyramids' plugin layer. Use the reader function (``read_fci_l1c(..., channels=[...])``)
-        for several channels at once. This is shared with the other channel-at-a-time drivers.
-
         Returns:
             A single channel's ``Dataset``, or a ``dict[str, Dataset]`` when several channels were
             requested.
@@ -160,7 +154,21 @@ class FciDriver:
             ValueError: No channel was given (via ``bands`` or ``options``, counting an empty
                 ``channels`` list as none); both a single ``channel`` and a ``channels`` list were
                 given; ``bands`` is not a list of channel names (a string, bytes, mapping, or other
-                non-sequence); or the source resolved to no chunk files.
+                non-sequence); the source resolved to no chunk files; ``options`` is a bare string
+                or carries an item that is not ``"KEY=VALUE"``; or ``calibrate`` is a string that
+                is not a recognised boolean spelling (see
+                :func:`~pyramids_eo.drivers._base.coerce_booleans`).
+            ReaderError: Propagated from :func:`~pyramids_eo.sensors.readers.read_fci_l1c` — no
+                chunk carries the requested channel, or the chunks are inconsistent.
+            CalibrationError: Propagated when ``calibrate`` is on and a channel lacks the
+                constants its radiometric kind needs.
+
+        Note:
+            A channel **set** is a direct-call feature only: ``Dataset.read_file`` requires a
+            driver to return one ``Dataset``, so an ``options={'channels': [...]}`` read raises
+            ``TypeError`` from pyramids' plugin layer. Use the reader function
+            (``read_fci_l1c(..., channels=[...])``) for several channels at once. This is shared
+            with the other channel-at-a-time drivers.
         """
         from pyramids_eo.sensors.readers import read_fci_l1c
 

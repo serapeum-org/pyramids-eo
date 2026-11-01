@@ -170,6 +170,27 @@ def invalid_mask(raw: np.ndarray, meta: Mapping[str, Any]) -> np.ndarray:
 
     Returns:
         A boolean array of `raw`'s shape, `True` for an invalid element.
+
+    Examples:
+        - Out-of-range values and the fill value are both flagged, against the
+          Sentinel-3 `valid_min` / `valid_max` spelling:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.sensors.readers._common import invalid_mask
+            >>> raw = np.array([-999, 1, 50, 500], dtype=np.int32)
+            >>> meta = {"valid_min": "10", "valid_max": "100", "_FillValue": "-999"}
+            >>> invalid_mask(raw, meta).tolist()
+            [True, True, False, True]
+
+            ```
+        - With no validity attributes at all, nothing is masked:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.sensors.readers._common import invalid_mask
+            >>> invalid_mask(np.array([1, 2, 3]), {}).tolist()
+            [False, False, False]
+
+            ```
     """
     invalid = np.zeros(raw.shape, dtype=bool)
     low, high = validity_bounds(meta)
@@ -204,8 +225,10 @@ def resolve_channels(
         sequence (the caller wants a `dict`).
 
     Raises:
-        ReaderError: When both or neither of `channel` / `channels` are given, or
-            when `channels` is empty.
+        ReaderError: When both or neither of `channel` / `channels` are given;
+            when `channels` is a bare `str` / `bytes` rather than a sequence of
+            names (which would otherwise be read one character at a time); when
+            `channels` is empty; or when `channels` names the same channel twice.
     """
     if (channel is None) == (channels is None):
         raise ReaderError(f"{reader}: pass exactly one of `channel` or `channels`")

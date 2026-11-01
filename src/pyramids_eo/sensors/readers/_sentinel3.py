@@ -180,22 +180,30 @@ def read_packed_variable(
 
 
 def _wgs84_wkt() -> str:
-    """Return WGS 84 as WKT, in longitude/latitude axis order.
+    """Return WGS 84 as a WKT string, for the `GEOLOCATION` domain's `SRS` key.
 
-    The `GEOLOCATION` domain's `SRS` key must be **WKT**: GDAL parses it with
-    `importFromWkt`, so an authority string like `"EPSG:4326"` fails silently and
-    leaves the transformer's `bGeographicSRSWithMinus180Plus180LongRange` flag
-    false -- disabling the antimeridian handling a polar-orbiting swath needs.
+    WKT is used because it is self-contained: it names the datum and ellipsoid
+    outright rather than deferring to an authority lookup. Measured on GDAL 3.13,
+    the `SRS` key is *optional* -- a warp without it produces an identical
+    geotransform -- and GDAL imports it permissively, accepting either this WKT or
+    a bare authority string such as `"EPSG:4326"`. What it does not tolerate is an
+    unparseable value, which it rejects loudly ("Failed to import coordinate
+    system") -- so the only real requirement is that whatever is emitted parses.
 
     Returns:
-        The WGS 84 WKT string.
+        The WGS 84 WKT string. Note this is EPSG:4326's own axis order, i.e. the
+        WKT carries `AXIS["Latitude",NORTH], AXIS["Longitude",EAST]`; the
+        geolocation arrays themselves are identified as longitude and latitude by
+        the domain's `X_DATASET` / `Y_DATASET` keys, not by this string.
     """
     from osgeo import osr
 
     reference = osr.SpatialReference()
     reference.ImportFromEPSG(4326)
-    # The geolocation arrays are (longitude, latitude), i.e. traditional GIS
-    # order, not EPSG:4326's authority order of (latitude, longitude).
+    # The geolocation arrays are (longitude, latitude), i.e. traditional GIS order,
+    # not EPSG:4326's authority order. Note this only sets an in-memory property of
+    # `reference`: measured, it leaves `ExportToWkt()` byte-identical, so the string
+    # returned below still carries the authority's lat-then-lon AXIS entries.
     reference.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
     return str(reference.ExportToWkt())
 
@@ -321,12 +329,19 @@ def geolocation_domain(
 
     Returns:
         The `GEOLOCATION` domain as a dict of GDAL metadata items: the longitude /
-        latitude subdataset strings and bands, the offsets and steps, plus the
-        `SRS` (lon/lat on WGS 84, which the arrays are in) and a
-        `GEOREFERENCING_CONVENTION` of `PIXEL_CENTER`. GDAL needs the whole set,
-        so a domain missing any of it is silently unusable by a warp.
+        latitude sources and bands, the offsets and steps, plus the `SRS` (WGS 84,
+        which the arrays are on) and a `GEOREFERENCING_CONVENTION` of
+        `PIXEL_CENTER`.
 
-    Examples:
+        The keys are not equally required, measured against GDAL 3.13 rather than
+        assumed: `X_BAND`, `Y_BAND`, `PIXEL_OFFSET`, `LINE_OFFSET`, `PIXEL_STEP`
+        and `LINE_STEP` are hard-required, and a warp missing any one of them fails
+        **loudly** with `RuntimeError: Missing some geolocation fields in
+        GDALCreateGeoLocTransformer()`. A missing `X_DATASET` / `Y_DATASET` is the
+        one silent failure: `gdal.Warp` simply returns `None`. `SRS` and
+        `GEOREFERENCING_CONVENTION` are both optional -- but leaving the convention
+        out shifts the result by half a pixel, which is why it is always stated.
+
     Notes:
         This opens the geolocation variables, so it has no runnable example here --
         it needs a real annotation file. For an OLCI granule,
@@ -369,9 +384,13 @@ def wrap_swath(data: np.ndarray, domain: dict[str, str]) -> Any:
             passes, leaving a result with no geolocation at all.
 
     Returns:
-        A pyramids `Dataset` of `data`, with the domain set on its GDAL handle
-        when `domain` is non-empty. The domain is copied, so the caller's dict is
-        not adopted.
+        A pyramids `Dataset` of `data`, with `domain` set on its GDAL handle. The
+        domain is copied, so the caller's dict is not adopted.
+
+        The set happens unconditionally, so `"GEOLOCATION"` is listed by
+        `GetMetadataDomainList()` either way -- for an empty `domain` it is simply
+        an empty domain. Code deciding whether a result is geolocated must
+        therefore test the domain's *contents*, not its presence in that list.
     """
     from pyramids.dataset import Dataset, GeoReference
 
