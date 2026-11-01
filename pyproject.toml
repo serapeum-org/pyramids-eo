@@ -48,6 +48,13 @@ viz = [
     # resolver's 2026.10.19 already.)
     "pillow >=13.0.0",
 ]
+# Reductions over a returned DatasetCollection (`reduce_time`, `mean` / `min` /
+# `max` / `sum`) read `DatasetCollection.data`, which needs dask — so a bare install
+# raises `OptionalPackageDoesNotExist` on them (#131). This is the supported opt-in:
+# `pip install pyramids-eo[lazy]`, rather than requiring a user to know to install an
+# upstream package's extra by hand. It is an extra, not a runtime dependency, so a
+# plain `pip install pyramids-eo` still pulls none of its ~31 distributions.
+lazy = ["pyramids-core[lazy]>=0.73.0"]
 
 [dependency-groups]
 dev = [
@@ -84,18 +91,6 @@ dev = [
     "commitizen>=4.8.4",
     "mypy>=1.10.0",
     "types-PyYAML>=6.0.0",
-    # The [lazy] extra so the test suite can exercise a DatasetCollection reduction:
-    # `DatasetCollection.data` — which `reduce_time` and the associative reducers
-    # read — needs dask, so without this no reduction over the collection
-    # `collection_from_earthengine` returns is executable (#131). It is not just
-    # dask: measured against the lock it pulls 31 distributions (dask, distributed,
-    # zarr, s3fs, aiobotocore/botocore, aiohttp, kerchunk, h5py, numcodecs, …), all
-    # of which then sit in the py311 environment pip-audit scans. Dev-only: the
-    # published wheel's runtime dependency stays the bare `pyramids-core`, so a
-    # plain `pip install pyramids-eo` pulls none of it and the [lazy] extra stays
-    # the installing user's choice (see `collection_from_earthengine`'s Returns).
-    # Tests needing it are tagged `@pytest.mark.lazy` and auto-skip without it.
-    "pyramids-core[lazy]>=0.73.0",
 ]
 docs = [
     "mkdocs >=1.5.3",
@@ -258,14 +253,17 @@ cz-changelog = { cmd = "cz changelog", description = "Generate changelog using C
 cz-bump = { cmd = "cz bump", description = "Bump version using Commitizen" }
 mypy = { cmd = "mypy", description = "Run mypy type checking" }
 
+# The test environments carry `lazy` (dask) so the `@pytest.mark.lazy` reduction
+# tests execute rather than auto-skip; `default` and `docs` stay without it, so a
+# bare install and the docs build pull none of its ~31 distributions (#131).
 [tool.pixi.environments]
 default = { features = ["viz"], solve-group = "default" }
-dev = { features = ["viz", "dev"], solve-group = "default" }
+dev = { features = ["viz", "lazy", "dev"], solve-group = "default" }
 docs = { features = ["docs", "viz"], solve-group = "docs" }
-py311 = { features = ["py311", "viz", "dev"], solve-group = "py311" }
-py312 = { features = ["py312", "viz", "dev"], solve-group = "py312" }
-py313 = { features = ["py313", "viz", "dev"], solve-group = "py313" }
-py314 = { features = ["py314", "viz", "dev"], solve-group = "py314" }
+py311 = { features = ["py311", "viz", "lazy", "dev"], solve-group = "py311" }
+py312 = { features = ["py312", "viz", "lazy", "dev"], solve-group = "py312" }
+py313 = { features = ["py313", "viz", "lazy", "dev"], solve-group = "py313" }
+py314 = { features = ["py314", "viz", "lazy", "dev"], solve-group = "py314" }
 
 [tool.pixi.feature.py311.dependencies]
 python = "3.11.*"
