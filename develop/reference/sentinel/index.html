@@ -3064,12 +3064,12 @@ scene.</p>
 <a id="__codelineno-0-149" name="__codelineno-0-149"></a><span class="sd">    written files are then assembled into a ``DatasetCollection``.</span>
 <a id="__codelineno-0-150" name="__codelineno-0-150"></a>
 <a id="__codelineno-0-151" name="__codelineno-0-151"></a><span class="sd">    The collection is **file-backed on purpose**, for the two things that still</span>
-<a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="sd">    need it on `pyramids-core` &gt;= 0.73.0: `DatasetCollection.to_zarr` and</span>
-<a id="__codelineno-0-153" name="__codelineno-0-153"></a><span class="sd">    `to_kerchunk` require a file-backed collection outright, and out-of-core scale</span>
+<a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="sd">    need it on ``pyramids-core`` &gt;= 0.73.0: ``DatasetCollection.to_zarr`` and</span>
+<a id="__codelineno-0-153" name="__codelineno-0-153"></a><span class="sd">    ``to_kerchunk`` require a file-backed collection outright, and out-of-core scale</span>
 <a id="__codelineno-0-154" name="__codelineno-0-154"></a><span class="sd">    depends on it — the in-memory cube reads each scene's array eagerly (only the</span>
 <a id="__codelineno-0-155" name="__codelineno-0-155"></a><span class="sd">    time stack is lazy), whereas a file-backed collection reads tile-by-tile, so a</span>
 <a id="__codelineno-0-156" name="__codelineno-0-156"></a><span class="sd">    series larger than RAM stays readable. Time-axis **reductions** no longer need</span>
-<a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="sd">    it: since `pyramids-core` 0.73.0 they also run on a resident `datasets=`</span>
+<a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="sd">    it: since ``pyramids-core`` 0.73.0 they also run on a resident ``datasets=``</span>
 <a id="__codelineno-0-158" name="__codelineno-0-158"></a><span class="sd">    collection, which is what :func:`collection_from_earthengine` returns.</span>
 <a id="__codelineno-0-159" name="__codelineno-0-159"></a>
 <a id="__codelineno-0-160" name="__codelineno-0-160"></a><span class="sd">    Args:</span>
@@ -5226,12 +5226,12 @@ scene.</p>
 <a id="__codelineno-0-149" name="__codelineno-0-149"></a><span class="sd">    written files are then assembled into a ``DatasetCollection``.</span>
 <a id="__codelineno-0-150" name="__codelineno-0-150"></a>
 <a id="__codelineno-0-151" name="__codelineno-0-151"></a><span class="sd">    The collection is **file-backed on purpose**, for the two things that still</span>
-<a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="sd">    need it on `pyramids-core` &gt;= 0.73.0: `DatasetCollection.to_zarr` and</span>
-<a id="__codelineno-0-153" name="__codelineno-0-153"></a><span class="sd">    `to_kerchunk` require a file-backed collection outright, and out-of-core scale</span>
+<a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="sd">    need it on ``pyramids-core`` &gt;= 0.73.0: ``DatasetCollection.to_zarr`` and</span>
+<a id="__codelineno-0-153" name="__codelineno-0-153"></a><span class="sd">    ``to_kerchunk`` require a file-backed collection outright, and out-of-core scale</span>
 <a id="__codelineno-0-154" name="__codelineno-0-154"></a><span class="sd">    depends on it — the in-memory cube reads each scene's array eagerly (only the</span>
 <a id="__codelineno-0-155" name="__codelineno-0-155"></a><span class="sd">    time stack is lazy), whereas a file-backed collection reads tile-by-tile, so a</span>
 <a id="__codelineno-0-156" name="__codelineno-0-156"></a><span class="sd">    series larger than RAM stays readable. Time-axis **reductions** no longer need</span>
-<a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="sd">    it: since `pyramids-core` 0.73.0 they also run on a resident `datasets=`</span>
+<a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="sd">    it: since ``pyramids-core`` 0.73.0 they also run on a resident ``datasets=``</span>
 <a id="__codelineno-0-158" name="__codelineno-0-158"></a><span class="sd">    collection, which is what :func:`collection_from_earthengine` returns.</span>
 <a id="__codelineno-0-159" name="__codelineno-0-159"></a>
 <a id="__codelineno-0-160" name="__codelineno-0-160"></a><span class="sd">    Args:</span>
