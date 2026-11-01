@@ -1444,24 +1444,30 @@ class TestCollectionFromEarthengine:
             start="2024-06-01",
             end="2024-06-30",
         )
+        assert dc.files is None, "must reduce the in-memory collection, not a spill"
         values = np.asarray(getattr(dc, op)())
+        # Pin the shape: the reducer collapses time and keeps the band axis, and an
+        # empty array would satisfy the approx comparison below vacuously.
+        assert values.shape == (1, 4, 4), f"unexpected {op}() shape: {values.shape}"
         assert values == pytest.approx(expected), (
             f"{op}() over 10/20/30 should be {expected}, got {values}"
         )
 
     @pytest.mark.lazy
     def test_returned_collection_reduces_per_scene_window(self, three_scenes) -> None:
-        """Per-day windows keep each scene's own value, pinning the time ordering.
+        """Per-day windows pair each scene's value with its own acquisition date.
 
         Args:
             three_scenes: Fixture patching discovery/open (three scenes, fills
                 10 / 20 / 30 on 2024-06-01/02/03).
 
         Test scenario:
-            A daily frequency puts every scene in its own window, so the reduction
-            exercises the bucketing and output ordering that a single-window case
-            cannot — a scrambled `time` axis still averages to 20, but would not
-            yield 10 / 20 / 30 in order here.
+            A daily frequency puts every scene in its own window, exercising the
+            bucketing a single-window case cannot: it pins that the reader's `time`
+            axis is correctly *paired* with each scene's pixels, since a mispaired
+            axis would land a value in the wrong day. It does not pin discovery
+            order — `reduce_time` returns windows sorted by label, so reversing the
+            scene order yields the same output (verified).
         """
         dc = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
@@ -1471,10 +1477,13 @@ class TestCollectionFromEarthengine:
         )
         windows = dc.reduce_time(list(dc.time), freq="1D", op="mean")
         assert len(windows) == 3, f"expected one window per scene, got {len(windows)}"
-        per_window = [reduced.read_array().ravel()[0] for _label, reduced in windows]
-        assert per_window == pytest.approx([10.0, 20.0, 30.0]), (
-            f"daily windows should follow the scenes' acquisition order: {per_window}"
-        )
+        paired = {
+            str(label)[:10]: reduced.read_array().ravel()[0]
+            for label, reduced in windows
+        }
+        assert paired == pytest.approx(
+            {"2024-06-01": 10.0, "2024-06-02": 20.0, "2024-06-03": 30.0}
+        ), f"each day's window should carry that scene's value: {paired}"
 
     def test_scale_and_shape_mutually_exclusive(self) -> None:
         """Passing both ``scale`` and ``shape`` raises ``ValueError``.
