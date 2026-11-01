@@ -25,14 +25,19 @@ classifiers = [
 requires-python = ">= 3.11, <4"
 
 dependencies = [
-    "pyramids-core >=0.71.0",
+    # >=0.73.0 for the in-memory DatasetCollection reduction (pyramids #1412): the
+    # collection `collection_from_earthengine` returns is backed by resident scenes
+    # (`datasets=`, so `files is None`), and before 0.73.0 `DatasetCollection.data`
+    # — which `reduce_time` and the associative `mean`/`min`/`max`/`sum` all read —
+    # raised RuntimeError on it, making the reader's collection unreducible (#131).
+    "pyramids-core >=0.73.0",
     "numpy >=2.0.0",
     "pyyaml >=6.0",
 ]
 
 [project.optional-dependencies]
 viz = [
-    "pyramids-core[viz]>=0.71.0",
+    "pyramids-core[viz]>=0.73.0",
     # CVE-2026-112395/112397/112400/112404/112895/112896/112897/112899: eight
     # vulnerabilities in Pillow < 13.0.0, fixed in 13.0.0. Pillow arrives *only* via
     # the viz stack (pyramids-core[viz] → matplotlib → pillow), so the floor belongs
@@ -79,6 +84,13 @@ dev = [
     "commitizen>=4.8.4",
     "mypy>=1.10.0",
     "types-PyYAML>=6.0.0",
+    # The [lazy] extra (dask) so the test suite can exercise a DatasetCollection
+    # reduction: `DatasetCollection.data` — which `reduce_time` and the associative
+    # reducers read — needs dask, so without this no reduction over the collection
+    # `collection_from_earthengine` returns is executable (#131). Dev-only: the
+    # published wheel's runtime dependency stays the bare `pyramids-core`, leaving
+    # the [lazy] extra the installing user's choice.
+    "pyramids-core[lazy]>=0.73.0",
 ]
 docs = [
     "mkdocs >=1.5.3",

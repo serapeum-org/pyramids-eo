@@ -1351,6 +1351,38 @@ class TestFromEarthengineComposite:
 class TestCollectionFromEarthengine:
     """Tests for :func:`collection_from_earthengine`."""
 
+    def test_returned_collection_reduces_over_time(self, three_scenes) -> None:
+        """The reader's collection reduces over time, no manual spill-to-disk (#131).
+
+        Args:
+            three_scenes: Fixture patching discovery/open (three scenes, fills
+                10 / 20 / 30).
+
+        Test scenario:
+            The reader hands back a collection backed by resident scenes
+            (``datasets=``, so ``files is None``). Before pyramids-core 0.73.0
+            (pyramids #1412), ``DatasetCollection.data`` — which ``reduce_time`` and
+            the associative reducers read — refused that with
+            ``RuntimeError: ... requires a file-backed collection``, so every
+            multi-scene composite failed. Reducing here pins the integration
+            contract: one 30-day window whose mean of 10 / 20 / 30 is 20.
+        """
+        dc = collection_from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(4, 4)),
+            start="2024-06-01",
+            end="2024-06-30",
+        )
+        assert dc.files is None, (
+            "the reader returns resident scenes; this test exists to prove such a "
+            "collection is reducible (#131)"
+        )
+        windows = dc.reduce_time(list(dc.time), freq="30D", op="mean")
+        assert len(windows) == 1, f"expected one 30-day window, got {len(windows)}"
+        assert windows[0][1].read_array().ravel()[0] == pytest.approx(20.0), (
+            f"mean of 10/20/30 should be 20, got {windows[0][1].read_array().ravel()[:4]}"
+        )
+
     def test_returns_dataset_collection(self, three_scenes) -> None:
         """Discovery + aligned reads produce a per-scene ``DatasetCollection``.
 
