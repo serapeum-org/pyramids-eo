@@ -182,6 +182,57 @@ class TestReadOlci:
         with pytest.raises(ReaderError, match="not a Sentinel-3 granule"):
             read_olci(tmp_path / "nope.SEN3", channel="Oa08")
 
+    def test_metadata_geolocation_and_band_names_coexist(self, tmp_path):
+        """Setting the CF metadata does not clobber the band name or the GEOLOCATION domain.
+
+        Test scenario:
+            The reader sets `band_names`, attaches the GEOLOCATION domain, and then calls
+            `SetMetadata` on the *default* domain. `SetMetadata` replaces a whole domain,
+            so this pins that all three survive together -- a reordering or a change of
+            target domain in a future refactor would otherwise silently drop the band
+            name or the geolocation, which no coverage number would catch.
+        """
+        dataset = read_olci(olci_granule(tmp_path), channel="Oa08")
+        assert dataset.band_names == ["Oa08"], dataset.band_names
+        assert dataset.raster.GetMetadata("GEOLOCATION").get("X_DATASET"), (
+            "the GEOLOCATION domain must survive the default-domain SetMetadata"
+        )
+        assert dataset.raster.GetMetadata()["sensor"] == "olci", (
+            dataset.raster.GetMetadata()
+        )
+
+    def test_declares_nan_nodata(self, tmp_path):
+        """The result declares NaN nodata, matching the masked fill pixels."""
+        dataset = read_olci(olci_granule(tmp_path), channel="Oa08")
+        assert np.isnan(dataset.no_data_value[0]), (
+            f"nodata should be NaN, got {dataset.no_data_value}"
+        )
+
+    def test_repeated_reads_are_stable(self, tmp_path):
+        """Reading the same band twice yields identical values (no cached-state drift)."""
+        granule = olci_granule(tmp_path)
+        first = np.asarray(read_olci(granule, channel="Oa08").read_array(), dtype=float)
+        second = np.asarray(
+            read_olci(granule, channel="Oa08").read_array(), dtype=float
+        )
+        assert np.allclose(first, second, equal_nan=True), (
+            f"repeated reads differ:\n{first}\n{second}"
+        )
+
+    def test_channels_with_geolocation_disabled(self, tmp_path):
+        """`channels=` and `geolocation=False` combine: a dict with no domains."""
+        granule = olci_granule(
+            tmp_path,
+            bands={"Oa08": packed_counts(), "Oa17": packed_counts()},
+            geolocation=False,
+        )
+        result = read_olci(granule, channels=["Oa08", "Oa17"], geolocation=False)
+        assert sorted(result) == ["Oa08", "Oa17"], sorted(result)
+        for name, dataset in result.items():
+            assert not dataset.raster.GetMetadata("GEOLOCATION"), (
+                f"{name} should carry no GEOLOCATION domain"
+            )
+
     def test_registry_lookup_failure_still_yields_metadata(self, tmp_path, monkeypatch):
         """An unavailable registry degrades to CF-only metadata rather than failing the read."""
         from pyramids_eo.sensors import registry

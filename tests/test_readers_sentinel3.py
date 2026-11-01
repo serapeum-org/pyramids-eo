@@ -14,12 +14,14 @@ import pytest
 
 from pyramids_eo.errors import ReaderError
 from pyramids_eo.sensors.readers._sentinel3 import (
+    PLACEHOLDER_GEOTRANSFORM,
     SEN3_SUFFIX,
     geolocation_domain,
     granule_file,
     read_packed_variable,
     resolve_granule,
     subdataset,
+    wrap_swath,
 )
 
 
@@ -127,6 +129,29 @@ class TestGeolocationDomain:
         assert domain["LINE_STEP"] == "1"
         assert domain["SRS"] == "EPSG:4326"
 
+    def test_emits_the_full_gdal_key_set(self):
+        """Every key GDAL needs to consume a geolocation array is present.
+
+        Test scenario:
+            A domain missing PIXEL_OFFSET / LINE_OFFSET / SRS is silently unusable by
+            gdal.Warp, so the complete key set is pinned rather than just the datasets.
+        """
+        domain = geolocation_domain("g.nc")
+        expected = {
+            "X_DATASET",
+            "X_BAND",
+            "Y_DATASET",
+            "Y_BAND",
+            "PIXEL_OFFSET",
+            "LINE_OFFSET",
+            "PIXEL_STEP",
+            "LINE_STEP",
+            "SRS",
+            "GEOREFERENCING_CONVENTION",
+        }
+        assert set(domain) == expected, f"domain key set drifted: {sorted(domain)}"
+        assert domain["GEOREFERENCING_CONVENTION"] == "PIXEL_CENTER", domain
+
     def test_custom_variables_and_stride(self):
         """SLSTR-style suffixed variables and a tie-point stride are carried through."""
         domain = geolocation_domain(
@@ -138,6 +163,49 @@ class TestGeolocationDomain:
         )
         assert domain["X_DATASET"].endswith(":longitude_in")
         assert (domain["PIXEL_STEP"], domain["LINE_STEP"]) == ("16", "4")
+
+
+class TestWrapSwath:
+    """Tests for `wrap_swath`, which builds the swath `Dataset`."""
+
+    def test_declares_nan_nodata_and_the_placeholder_grid(self):
+        """A swath Dataset declares NaN nodata, the placeholder grid, and no EPSG.
+
+        Test scenario:
+            A swath has no affine mapping to the ground, so the geotransform must be
+            the documented placeholder rather than a plausible-looking geographic one
+            that downstream code might trust.
+        """
+        dataset = wrap_swath(np.array([[1.0, 2.0]]), geolocation_domain("g.nc"))
+        assert dataset.geotransform == PLACEHOLDER_GEOTRANSFORM, (
+            f"expected the placeholder grid, got {dataset.geotransform}"
+        )
+        assert dataset.epsg is None, f"a swath has no EPSG, got {dataset.epsg}"
+        assert np.isnan(dataset.no_data_value[0]), (
+            f"nodata should be NaN, got {dataset.no_data_value}"
+        )
+
+    def test_attaches_the_domain(self):
+        """The GEOLOCATION domain is set on the Dataset's GDAL handle."""
+        domain = geolocation_domain("g.nc")
+        dataset = wrap_swath(np.array([[1.0]]), domain)
+        assert (
+            dataset.raster.GetMetadata("GEOLOCATION")["X_DATASET"]
+            == (domain["X_DATASET"])
+        )
+
+    def test_does_not_mutate_the_callers_domain(self):
+        """The caller's domain dict is copied, not adopted and later mutated."""
+        domain = geolocation_domain("g.nc")
+        before = dict(domain)
+        dataset = wrap_swath(np.array([[1.0]]), domain)
+        dataset.raster.SetMetadata({"sensor": "olci"})
+        assert domain == before, f"caller's domain was mutated: {domain}"
+
+    def test_an_empty_domain_leaves_no_geolocation(self):
+        """An empty domain (geolocation=False) attaches no GEOLOCATION metadata."""
+        dataset = wrap_swath(np.array([[1.0]]), {})
+        assert not dataset.raster.GetMetadata("GEOLOCATION"), "domain should be empty"
 
 
 class TestReadPackedVariableErrors:
@@ -244,6 +312,8 @@ class TestReadPackedVariableUnpacking:
     def test_returns_the_variable_metadata(self, monkeypatch):
         """The variable's attribute dict comes back alongside the values."""
         _, meta = _read(
-            monkeypatch, np.array([[1]], dtype="uint16"), {"units": "K", "long_name": "bt"}
+            monkeypatch,
+            np.array([[1]], dtype="uint16"),
+            {"units": "K", "long_name": "bt"},
         )
         assert meta["units"] == "K" and meta["long_name"] == "bt", meta

@@ -196,6 +196,42 @@ class TestReadSlstr:
         with pytest.raises(ReaderError, match="exactly one"):
             read_slstr(granule)
 
+    def test_oblique_channels_set_across_grids(self, tmp_path):
+        """`view="oblique"` applies to every channel in a `channels` set, across grids.
+
+        Test scenario:
+            The view is a per-call argument while the grid is per-channel, so a set
+            spanning both grids must read the oblique file of each and report the
+            oblique geodetic domain for each.
+        """
+        granule = slstr_granule(
+            tmp_path, channels={"S5": packed_counts(), "S8": packed_counts()}, view="o"
+        )
+        result = read_slstr(granule, channels=["S5", "S8"], view="oblique")
+        assert sorted(result) == ["S5", "S8"], sorted(result)
+        assert result["S5"].raster.GetMetadata()["grid"] == "ao", result[
+            "S5"
+        ].raster.GetMetadata()
+        assert result["S8"].raster.GetMetadata()["grid"] == "io", result[
+            "S8"
+        ].raster.GetMetadata()
+        assert (
+            result["S8"]
+            .raster.GetMetadata("GEOLOCATION")["Y_DATASET"]
+            .endswith('geodetic_io.nc":latitude_io')
+        ), result["S8"].raster.GetMetadata("GEOLOCATION")
+
+    def test_metadata_geolocation_and_band_names_coexist(self, tmp_path):
+        """Setting the CF metadata does not clobber the band name or the GEOLOCATION domain."""
+        dataset = read_slstr(slstr_granule(tmp_path), channel="S5")
+        assert dataset.band_names == ["S5"], dataset.band_names
+        assert dataset.raster.GetMetadata("GEOLOCATION").get("X_DATASET"), (
+            "the GEOLOCATION domain must survive the default-domain SetMetadata"
+        )
+        assert dataset.raster.GetMetadata()["sensor"] == "slstr", (
+            dataset.raster.GetMetadata()
+        )
+
     def test_explicit_grid_that_matches_nothing_raises(self, tmp_path):
         """An explicit `grid=` naming a grid the granule lacks reports what it does have."""
         granule = tmp_path / "S3A_SL_1_RBT.SEN3"
