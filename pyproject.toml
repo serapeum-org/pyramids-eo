@@ -84,12 +84,17 @@ dev = [
     "commitizen>=4.8.4",
     "mypy>=1.10.0",
     "types-PyYAML>=6.0.0",
-    # The [lazy] extra (dask) so the test suite can exercise a DatasetCollection
-    # reduction: `DatasetCollection.data` — which `reduce_time` and the associative
-    # reducers read — needs dask, so without this no reduction over the collection
-    # `collection_from_earthengine` returns is executable (#131). Dev-only: the
-    # published wheel's runtime dependency stays the bare `pyramids-core`, leaving
-    # the [lazy] extra the installing user's choice.
+    # The [lazy] extra so the test suite can exercise a DatasetCollection reduction:
+    # `DatasetCollection.data` — which `reduce_time` and the associative reducers
+    # read — needs dask, so without this no reduction over the collection
+    # `collection_from_earthengine` returns is executable (#131). It is not just
+    # dask: measured against the lock it pulls 31 distributions (dask, distributed,
+    # zarr, s3fs, aiobotocore/botocore, aiohttp, kerchunk, h5py, numcodecs, …), all
+    # of which then sit in the py311 environment pip-audit scans. Dev-only: the
+    # published wheel's runtime dependency stays the bare `pyramids-core`, so a
+    # plain `pip install pyramids-eo` pulls none of it and the [lazy] extra stays
+    # the installing user's choice (see `collection_from_earthengine`'s Returns).
+    # Tests needing it are tagged `@pytest.mark.lazy` and auto-skip without it.
     "pyramids-core[lazy]>=0.73.0",
 ]
 docs = [
@@ -115,7 +120,7 @@ repository = "https://github.com/serapeum-org/pyramids-eo"
 documentation = "https://serapeum-org.github.io/pyramids-eo"
 Changelog = "https://github.com/serapeum-org/pyramids-eo/blob/main/docs/change-log.md"
 
-# Raster-reader plugins discovered by pyramids-core 0.70's `pyramids.raster_drivers`
+# Raster-reader plugins discovered by pyramids-core's `pyramids.raster_drivers`
 # hook: installing this package lets `Dataset.read_file(<source>)` route into these.
 # Only readers that fit the single-source read_file model are registered (see
 # src/pyramids_eo/drivers/__init__.py); S2 and FCI stay facade-only.
