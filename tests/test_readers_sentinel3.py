@@ -225,7 +225,7 @@ class TestReadPackedVariableErrors:
 
     def test_non_numeric_scale_factor_raises(self, monkeypatch):
         """A non-numeric scale_factor is a clear ReaderError, not a ValueError."""
-        with pytest.raises(ReaderError, match="non-numeric scale_factor"):
+        with pytest.raises(ReaderError, match="not a finite number"):
             _read(
                 monkeypatch,
                 np.array([[1, 2]], dtype="uint16"),
@@ -281,6 +281,89 @@ class TestReadPackedVariableUnpacking:
             monkeypatch, np.array([[10, 20]], dtype="uint16"), {"_FillValue": "nodata"}
         )
         assert np.all(np.isfinite(values)), values
+
+    def test_sentinel3_valid_min_valid_max_are_masked(self, monkeypatch):
+        """Counts outside the separate `valid_min`/`valid_max` scalars are masked.
+
+        Test scenario:
+            This is the spelling the Sentinel-3 L1 products actually use --
+            `valid_range` appears in neither the OLCI nor the SLSTR
+            specification. Reading only `valid_range` made this masking dead
+            code, so out-of-range radiances and brightness temperatures passed
+            through as valid.
+        """
+        values, _ = _read(
+            monkeypatch,
+            np.array([[1, 50, 500]], dtype="int32"),
+            {"valid_min": "10", "valid_max": "100"},
+        )
+        assert np.isnan(values[0, 0]) and np.isnan(values[0, 2]), values
+        assert values[0, 1] == 50.0, values
+
+    def test_a_single_sentinel3_bound_is_honoured(self, monkeypatch):
+        """`valid_min` without `valid_max` masks only below, and vice versa."""
+        low_only, _ = _read(
+            monkeypatch, np.array([[1, 500]], dtype="int32"), {"valid_min": "10"}
+        )
+        assert np.isnan(low_only[0, 0]) and low_only[0, 1] == 500.0, low_only
+        high_only, _ = _read(
+            monkeypatch, np.array([[1, 500]], dtype="int32"), {"valid_max": "100"}
+        )
+        assert high_only[0, 0] == 1.0 and np.isnan(high_only[0, 1]), high_only
+
+    def test_packed_geolocation_bounds_mask_the_fill(self, monkeypatch):
+        """A real OLCI latitude variable unpacks to degrees with its fill masked.
+
+        Test scenario:
+            Exercises the published packing together: `int32` micro-degrees with
+            `scale_factor` 1e-06, `valid_min`/`valid_max` of ±90000000 in *packed*
+            units, and `_FillValue` -2147483648.
+        """
+        values, _ = _read(
+            monkeypatch,
+            np.array([[-2147483648, 45000000]], dtype="int32"),
+            {
+                "scale_factor": "1e-06",
+                "valid_min": "-90000000",
+                "valid_max": "90000000",
+                "_FillValue": "-2147483648",
+            },
+        )
+        assert np.isnan(values[0, 0]), f"the fill value must mask: {values}"
+        assert values[0, 1] == pytest.approx(45.0), values
+
+    @pytest.mark.parametrize("bad", ["nan", "inf", "-inf"])
+    def test_non_finite_packing_raises(self, monkeypatch, bad):
+        """A non-finite scale_factor raises instead of voiding or de-masking the array.
+
+        Test scenario:
+            `float("nan")` and `float("inf")` parse happily, so the old numeric
+            guard let them through: a NaN scale silently made every pixel
+            invalid, and an infinite one produced infinities that evade the
+            Dataset's NaN nodata and are reported as valid data.
+        """
+        with pytest.raises(ReaderError, match="not a finite number"):
+            _read(
+                monkeypatch,
+                np.array([[1, 2]], dtype="int32"),
+                {"scale_factor": bad},
+            )
+
+    def test_reversed_valid_range_masks_nothing(self, monkeypatch):
+        """A reversed `valid_range` masks nothing rather than every pixel."""
+        values, _ = _read(
+            monkeypatch, np.array([[1, 2]], dtype="int32"), {"valid_range": "{4, 1}"}
+        )
+        assert np.all(np.isfinite(values)), f"a reversed range must not mask: {values}"
+
+    def test_reversed_valid_min_max_masks_nothing(self, monkeypatch):
+        """A reversed `valid_min`/`valid_max` pair likewise masks nothing."""
+        values, _ = _read(
+            monkeypatch,
+            np.array([[1, 2]], dtype="int32"),
+            {"valid_min": "100", "valid_max": "10"},
+        )
+        assert np.all(np.isfinite(values)), f"a reversed pair must not mask: {values}"
 
     def test_values_below_valid_range_are_masked(self, monkeypatch):
         """Counts under valid_min are masked to NaN."""

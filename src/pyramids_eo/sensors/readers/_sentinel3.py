@@ -26,6 +26,7 @@ from typing import Any
 import numpy as np
 
 from pyramids_eo.errors import ReaderError
+from pyramids_eo.sensors.readers._common import finite_float, invalid_mask
 
 #: The identity pixel/line geotransform a swath `Dataset` carries in place of a
 #: geographic one. A swath has no affine mapping to the ground, so this is an
@@ -126,53 +127,18 @@ def _open(path: Any, variable: str, reader: str) -> Any:
     return raster
 
 
-def _valid_bounds(valid_range: Any) -> tuple[float | None, float | None]:
-    """Parse a CF `valid_range` attribute into `(min, max)` floats.
-
-    GDAL renders the attribute as a `"{lo, hi}"` string. Anything unparseable
-    yields `(None, None)` so a malformed attribute simply does not mask.
-
-    Args:
-        valid_range: The raw attribute value, or `None`.
-
-    Returns:
-        A `(valid_min, valid_max)` pair, either element `None` when absent.
-
-    Examples:
-        - A GDAL-rendered range parses to floats, and junk is ignored:
-            ```python
-            >>> from pyramids_eo.sensors.readers._sentinel3 import _valid_bounds
-            >>> _valid_bounds("{0, 4095}")
-            (0.0, 4095.0)
-            >>> _valid_bounds(None)
-            (None, None)
-            >>> _valid_bounds("not-a-range")
-            (None, None)
-
-            ```
-    """
-    if valid_range is None:
-        return None, None
-    text = str(valid_range).strip().lstrip("{").rstrip("}")
-    parts = [piece.strip() for piece in text.split(",")]
-    if len(parts) != 2:
-        return None, None
-    try:
-        return float(parts[0]), float(parts[1])
-    except ValueError:
-        return None, None
-
-
 def read_packed_variable(
     path: Any, variable: str, *, reader: str
 ) -> tuple[np.ndarray, dict[str, str]]:
     """Read one CF-packed NetCDF variable, unpacked and masked to NaN.
 
     Applies the CF unpacking the Sentinel-3 products use -- `raw * scale_factor +
-    add_offset` -- and masks the `_FillValue` and anything outside `valid_range`
-    to NaN. A variable with no `scale_factor` / `add_offset` (the geolocation and
-    already-geophysical variables) is read as-is, so this serves both the packed
-    measurement variables and the plain annotation ones.
+    add_offset` -- and masks the `_FillValue` and anything outside the variable's
+    validity limits to NaN, via the shared CF decoder in `_common` (so the
+    attribute spellings are resolved the same way for every reader). A variable
+    with no `scale_factor` / `add_offset` (the geolocation and already-geophysical
+    variables) is read as-is, so this serves both the packed measurement
+    variables and the plain annotation ones.
 
     Args:
         path: Path to the NetCDF file.
@@ -185,7 +151,7 @@ def read_packed_variable(
 
     Raises:
         ReaderError: When the variable cannot be opened, or carries a
-            non-numeric `scale_factor` / `add_offset`.
+            `scale_factor` / `add_offset` that is not a finite number.
     """
     raster = _open(path, variable, reader)
     band = raster.GetRasterBand(1)
@@ -196,33 +162,18 @@ def read_packed_variable(
     del raster, band
 
     values = raw.astype(float)
-    scale, offset = meta.get("scale_factor"), meta.get("add_offset")
-    if scale is not None or offset is not None:
-        try:
-            values = values * float(scale if scale is not None else 1.0) + float(
-                offset if offset is not None else 0.0
-            )
-        except ValueError as exc:
+    raw_scale, raw_offset = meta.get("scale_factor"), meta.get("add_offset")
+    if raw_scale is not None or raw_offset is not None:
+        scale = 1.0 if raw_scale is None else finite_float(raw_scale)
+        offset = 0.0 if raw_offset is None else finite_float(raw_offset)
+        if scale is None or offset is None:
             raise ReaderError(
-                f"{reader}: {variable!r} has a non-numeric scale_factor / "
-                f"add_offset ({scale!r} / {offset!r})"
-            ) from exc
+                f"{reader}: {variable!r} has a scale_factor / add_offset that is "
+                f"not a finite number ({raw_scale!r} / {raw_offset!r})"
+            )
+        values = values * scale + offset
 
-    invalid = np.zeros(raw.shape, dtype=bool)
-    valid_min, valid_max = _valid_bounds(meta.get("valid_range"))
-    if valid_min is not None:
-        invalid |= raw < valid_min
-    if valid_max is not None:
-        invalid |= raw > valid_max
-    fill = meta.get("_FillValue")
-    if fill is not None:
-        try:
-            invalid |= raw == float(fill)
-        except ValueError:
-            # A non-numeric _FillValue cannot match a numeric array; ignore it
-            # rather than fail the read.
-            pass
-    values[invalid] = np.nan
+    values[invalid_mask(raw, meta)] = np.nan
     return values, meta
 
 

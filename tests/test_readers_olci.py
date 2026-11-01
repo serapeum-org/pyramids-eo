@@ -13,10 +13,8 @@ import numpy as np
 import pytest
 
 from pyramids_eo.errors import ReaderError
-from pyramids_eo.sensors.readers._sentinel3 import (
-    PLACEHOLDER_GEOTRANSFORM,
-    _valid_bounds,
-)
+from pyramids_eo.sensors.readers._common import valid_bounds
+from pyramids_eo.sensors.readers._sentinel3 import PLACEHOLDER_GEOTRANSFORM
 from pyramids_eo.sensors.readers.olci import (
     _canonical_channel,
     available_olci_channels,
@@ -56,23 +54,29 @@ class TestCanonicalChannel:
 
 
 class TestValidBounds:
-    """Tests for `_valid_bounds` (the CF `valid_range` parser)."""
+    """Tests for the shared `valid_bounds` CF `valid_range` parser."""
 
     @pytest.mark.parametrize(
         "given, expected",
         [
             ("{0, 4095}", (0.0, 4095.0)),
             ("0, 4095", (0.0, 4095.0)),
+            ("{-1.5e2, 4.0e3}", (-150.0, 4000.0)),
+            # Three or more numbers take the first and last, which is the
+            # long-standing FCI behaviour this parser was lifted from.
+            ("{1, 2, 3}", (1.0, 3.0)),
             (None, (None, None)),
             ("not-a-range", (None, None)),
             ("{1}", (None, None)),
-            ("{1, 2, 3}", (None, None)),
             ("{a, b}", (None, None)),
+            # A reversed range is malformed in the same sense as junk, and must
+            # mask nothing rather than mask every pixel.
+            ("{4, 1}", (None, None)),
         ],
     )
     def test_parsing(self, given, expected):
-        """A GDAL-rendered range parses; anything malformed yields no bounds."""
-        assert _valid_bounds(given) == expected, f"{given!r} should parse to {expected}"
+        """A GDAL-rendered range parses; malformed or reversed yields no bounds."""
+        assert valid_bounds(given) == expected, f"{given!r} should parse to {expected}"
 
 
 class TestReadOlci:
