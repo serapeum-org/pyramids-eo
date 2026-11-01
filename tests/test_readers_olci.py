@@ -22,7 +22,12 @@ from pyramids_eo.sensors.readers.olci import (
     read_olci,
     read_olci_band,
 )
-from tests._sentinel3_granule import expected_radiance, olci_granule, packed_counts
+from tests._sentinel3_granule import (
+    expected_radiance,
+    olci_granule,
+    packed_counts,
+    write_geolocation,
+)
 
 
 class TestCanonicalChannel:
@@ -519,3 +524,179 @@ class TestBandGridConsistency:
         )
         result = read_olci(granule, channels=["Oa08", "Oa17"])
         assert sorted(result) == ["Oa08", "Oa17"], sorted(result)
+
+
+class TestGeolocationGridConformance:
+    """OLCI's geolocation grid must match the band, not merely exist.
+
+    The conformance check lives in the shared `geolocation_source`, but OLCI
+    reaches it through its own `_resolve_domain` and only SLSTR's path was
+    covered. Both OLCI entry points matter: `read_olci_band` validates against the
+    single band's shape, while `read_olci` validates one shared domain against the
+    first band of a set.
+    """
+
+    @staticmethod
+    def _granule(root, geo_shape, *, bands=None):
+        """Build an OLCI granule whose bands are 2x3 and whose geolocation is `geo_shape`."""
+        granule = olci_granule(root, bands=bands, geolocation=False)
+        write_geolocation(granule / "geo_coordinates.nc", shape=geo_shape)
+        return granule
+
+    @pytest.mark.parametrize("geo_shape", [(4, 6), (1, 2), (2, 6), (4, 3), (3, 2)])
+    def test_a_mismatched_geolocation_grid_raises(self, tmp_path, geo_shape):
+        """A geolocation grid of the wrong size is rejected rather than silently used.
+
+        Args:
+            geo_shape: The geolocation grid's `(rows, columns)`, against a 2x3 band.
+
+        Test scenario:
+            Oversized is the dangerous case: GDAL emits no warning and the warp
+            simply lands elsewhere, which looks like a plausible raster in the
+            wrong place. `(3, 2)` is the band's shape transposed, which is the only
+            case that distinguishes a `(height, width)` comparison from a
+            `(width, height)` one -- every other row here differs in area too.
+        """
+        granule = self._granule(tmp_path / f"m{geo_shape[0]}{geo_shape[1]}", geo_shape)
+        with pytest.raises(ReaderError, match="but the band is 2x3"):
+            read_olci(granule, channel="Oa08")
+
+    @pytest.mark.parametrize("geo_shape", [(4, 6), (3, 2)])
+    def test_a_channel_set_validates_its_shared_domain_too(self, tmp_path, geo_shape):
+        """The one domain a channel set shares is validated against the bands' grid.
+
+        Args:
+            geo_shape: The geolocation grid's `(rows, columns)`, against 2x3 bands.
+
+        Test scenario:
+            `read_olci` resolves the domain once for the whole set, so the
+            validation runs on a different code path than the single-band read.
+            Covering only `channel=` would leave the multi-band path unchecked.
+        """
+        granule = self._granule(
+            tmp_path / f"s{geo_shape[0]}{geo_shape[1]}",
+            geo_shape,
+            bands={"Oa08": packed_counts(), "Oa17": packed_counts()},
+        )
+        with pytest.raises(ReaderError, match="but the band is 2x3"):
+            read_olci(granule, channels=["Oa08", "Oa17"])
+
+    def test_the_conforming_grid_still_reads(self, tmp_path):
+        """The matching grid reads normally, so the check is not simply always-on.
+
+        Test scenario:
+            Without this control a check that rejected every grid would pass every
+            assertion above.
+        """
+        granule = self._granule(tmp_path / "ok", (2, 3))
+        assert read_olci(granule, channel="Oa08").read_array().shape == (2, 3)
+
+    def test_geolocation_false_skips_the_conformance_check(self, tmp_path):
+        """With geolocation off a mismatched annotation file is never consulted."""
+        granule = self._granule(tmp_path / "off", (4, 6))
+        dataset = read_olci(granule, channel="Oa08", geolocation=False)
+        assert dataset.read_array().shape == (2, 3), "the band must still decode"
+
+
+class TestProductTypeTokenSources:
+    """Which text `product_type` is allowed to read the product token out of."""
+
+    def test_a_token_in_a_parent_directory_is_not_adopted(self, tmp_path):
+        """Only the granule's own name counts, not the path it happens to sit under.
+
+        Test scenario:
+            Granules are routinely unpacked into a directory named after the
+            download -- `S3A_OL_1_ERR____.../mystery.SEN3` -- so matching against
+            the whole path would let a sibling's or an archive's name decide this
+            granule's resolution. The existing tests all place the granule
+            directly in `tmp_path`, where the parent can never contain a token, so
+            the two readings agree there.
+        """
+        parent = tmp_path / "S3A_OL_1_ERR____20260101T101500"
+        granule = parent / "mystery.SEN3"
+        granule.mkdir(parents=True)
+        assert product_type(granule) is None, (
+            "a token in a parent directory must not identify the granule"
+        )
+
+    def test_the_manifest_product_type_element_is_matched_without_a_prefix(
+        self, tmp_path
+    ):
+        """A bare `OL_1_EFR` in the manifest resolves, as the real element spells it.
+
+        Test scenario:
+            The granule name carries `_OL_1_EFR` but a manifest's own
+            `<productType>` element is `OL_1_EFR___`, with no leading underscore --
+            which is why the two sources are searched with different prefixes. The
+            existing manifest fixtures all embed the full product *name*, which
+            contains `_OL_1_`, so they match under either prefix and cannot tell
+            the two apart.
+        """
+        granule = tmp_path / "renamed.SEN3"
+        granule.mkdir()
+        (granule / "xfdumanifest.xml").write_text(
+            "<xfdu><metadataObject><productType>OL_1_EFR___</productType>"
+            "</metadataObject></xfdu>",
+            encoding="utf-8",
+        )
+        assert product_type(granule) == "EFR", (
+            "the manifest token is not underscore-prefixed and must still match"
+        )
+
+    def test_a_lower_cased_manifest_token_resolves(self, tmp_path):
+        """The manifest is case-folded before matching, as the granule name is."""
+        granule = tmp_path / "renamed-lower.SEN3"
+        granule.mkdir()
+        (granule / "xfdumanifest.xml").write_text(
+            "<xfdu><t>ol_1_err</t></xfdu>", encoding="utf-8"
+        )
+        assert product_type(granule) == "ERR", (
+            "the manifest must be matched case-folded"
+        )
+
+    def test_a_large_but_valid_manifest_still_resolves(self, tmp_path):
+        """A token far into a realistically sized manifest is found, not truncated.
+
+        Test scenario:
+            A real `xfdumanifest.xml` is hundreds of kilobytes of dataObject
+            entries, and the whole file is read as text and upper-cased. A reader
+            that sampled only the head -- or that choked on the size -- would
+            report `None` and silently drop the resolution for every real granule
+            whose name had been changed.
+        """
+        granule = tmp_path / "renamed-big.SEN3"
+        granule.mkdir()
+        body = "<dataObject><byteStream>0</byteStream></dataObject>" * 20000
+        (granule / "xfdumanifest.xml").write_text(
+            f"<xfdu>{body}<productType>OL_1_ERR___</productType></xfdu>",
+            encoding="utf-8",
+        )
+        manifest_size = (granule / "xfdumanifest.xml").stat().st_size
+        assert manifest_size > 500_000, f"the fixture must be large: {manifest_size}"
+        assert product_type(granule) == "ERR", (
+            "a token late in a large manifest must still be found"
+        )
+
+    def test_a_manifest_is_only_consulted_when_the_name_says_nothing(
+        self, tmp_path, monkeypatch
+    ):
+        """A granule naming its type never reads the manifest at all.
+
+        Test scenario:
+            The precedence is already asserted through a disagreeing manifest; this
+            pins the stronger claim the docstring makes -- that a self-identifying
+            name needs *no file access* -- by making any read of the manifest fail.
+        """
+        from pathlib import Path as _Path
+
+        granule = tmp_path / "S3A_OL_1_EFR____20260101T101500.SEN3"
+        granule.mkdir()
+        (granule / "xfdumanifest.xml").write_text("<xfdu/>", encoding="utf-8")
+
+        def _forbidden(self, *args, **kwargs):
+            raise AssertionError(f"the manifest must not be read: {self}")
+
+        monkeypatch.setattr(_Path, "read_text", _forbidden)
+        assert product_type(granule) == "EFR", (
+            "a self-identifying granule name must resolve without any file access"
+        )

@@ -223,3 +223,113 @@ class TestWriteNetcdfRoundTrip:
         path = write_netcdf(tmp_path / "tiny.nc", {"v": (np.array([[7]], "int32"), {})})
         array, _ = _read(path, "v")
         assert array.reshape(-1).tolist() == [7], f"1x1 grid read back as {array!r}"
+
+
+class TestWriteNetcdfAgainstAnIndependentReader:
+    """Cross-checks the writer against `scipy.io.netcdf_file` rather than against GDAL.
+
+    Every other round trip in this file reads the file back through the **same**
+    bundled GDAL netCDF driver the readers under test consume it with, so the writer
+    and its consumer could agree on a wrong layout and both still look correct.
+    `scipy.io.netcdf_file` is an independent pure-Python implementation of the
+    published classic format and -- decisively -- it does **not** flip rows, so it
+    reports the bytes as they were actually written.
+    """
+
+    def test_the_on_disk_rows_are_reversed_relative_to_the_caller(self, tmp_path):
+        """scipy sees the rows reversed on disk while GDAL hands back the caller's order.
+
+        Test scenario:
+            The writer reverses rows because GDAL reads a netCDF grid bottom-up.
+            Checked only through GDAL, that is a pair of compensating flips: drop
+            both the writer's reversal and GDAL's and every assertion in the suite
+            still passes, which is exactly an agreeing-case blind spot. Asserting
+            the on-disk order with an independent reader and the read-back order
+            with GDAL pins the two halves separately.
+        """
+        from scipy.io import netcdf_file
+
+        assert not np.allclose(_ROWS, _ROWS[::-1]), (
+            "the fixture must stay row-asymmetric or this test proves nothing"
+        )
+        path = write_netcdf(tmp_path / "order.nc", {"v": (_ROWS.astype("int32"), {})})
+        with netcdf_file(str(path), "r", mmap=False) as handle:
+            on_disk = np.asarray(handle.variables["v"][:], dtype=float)
+        assert np.allclose(on_disk, _ROWS[::-1]), (
+            f"the writer must store rows bottom-up; scipy read\n{on_disk}\n"
+            f"but the file should hold\n{_ROWS[::-1]}"
+        )
+        assert np.allclose(_read(path, "v")[0], _ROWS), (
+            "GDAL's bottom-up read must undo the writer's reversal"
+        )
+
+    def test_an_independent_reader_sees_the_declared_dimensions_and_types(
+        self, tmp_path
+    ):
+        """scipy reports the dimension names, lengths and per-variable `nc_type`s written.
+
+        Test scenario:
+            The classic header declares each dimension once and each variable's
+            type and data offset by hand. A wrong `nc_type` or a mis-measured
+            offset could still read plausibly through one reader; agreeing with a
+            second, independent parser is what makes the header itself correct
+            rather than merely GDAL-compatible.
+        """
+        from scipy.io import netcdf_file
+
+        path = write_netcdf(
+            tmp_path / "header.nc",
+            {
+                "alpha": (_ROWS.astype("int32"), {"units": "a", "scale_factor": 0.5}),
+                "beta": (_ROWS.astype("float32") * 2, {"units": "b"}),
+                "gamma": (_ROWS.astype("int16") * 3, {"units": "c"}),
+            },
+            dimensions=("along_track", "across_track"),
+        )
+        with netcdf_file(str(path), "r", mmap=False) as handle:
+            dimensions = dict(handle.dimensions)
+            types = {
+                name: variable.data.dtype.str
+                for name, variable in handle.variables.items()
+            }
+            attributes = {
+                name: dict(variable._attributes)
+                for name, variable in handle.variables.items()
+            }
+        assert dimensions == {"along_track": 2, "across_track": 3}, (
+            f"the header declared the wrong dimensions: {dimensions}"
+        )
+        assert types == {"alpha": ">i4", "beta": ">f4", "gamma": ">i2"}, (
+            f"a variable was written with the wrong nc_type: {types}"
+        )
+        assert attributes["alpha"]["units"] == b"a", attributes["alpha"]
+        assert attributes["alpha"]["scale_factor"] == 0.5, attributes["alpha"]
+        assert "scale_factor" not in attributes["beta"], (
+            f"beta must not inherit alpha's packing: {attributes['beta']}"
+        )
+
+    def test_a_fill_value_typed_differently_from_its_variable_still_round_trips(
+        self, tmp_path
+    ):
+        """An `int` `_FillValue` on a float variable is readable by both readers.
+
+        Test scenario:
+            The writer types every numeric attribute from the Python value (`int`
+            -> NC_INT, `float` -> NC_DOUBLE) rather than from the variable, so a
+            `_FillValue` need not match its variable's type. Pinning that it is
+            still read back by an independent parser records what the fixtures may
+            rely on, instead of leaving the writer's one remaining type rule
+            undocumented.
+        """
+        from scipy.io import netcdf_file
+
+        path = write_netcdf(
+            tmp_path / "fill.nc",
+            {"v": (_ROWS.astype("float32"), {"_FillValue": 9, "units": "K"})},
+        )
+        with netcdf_file(str(path), "r", mmap=False) as handle:
+            declared = handle.variables["v"]._attributes["_FillValue"]
+        assert float(declared) == 9.0, f"scipy read _FillValue as {declared!r}"
+        assert float(_read(path, "v")[1]["_FillValue"]) == 9.0, (
+            "GDAL must see the same fill value as the independent reader"
+        )

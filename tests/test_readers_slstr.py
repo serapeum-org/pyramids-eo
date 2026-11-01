@@ -14,6 +14,8 @@ import pytest
 from pyramids_eo.errors import ReaderError
 from pyramids_eo.sensors.readers.slstr import (
     _canonical_channel,
+    _parse_channel,
+    _resolve_channel_target,
     _resolve_grid,
     _resolve_view,
     available_slstr_channels,
@@ -405,6 +407,54 @@ class TestAvailableSlstrChannels:
         with pytest.raises(ReaderError, match="is not an SLSTR view"):
             available_slstr_channels(granule, view="sideways")
 
+    def test_a_channel_without_its_geodetic_file_is_not_listed(self, tmp_path):
+        """A measurement whose geodetic annotation is missing is omitted, not offered.
+
+        Test scenario:
+            Every other fixture writes the measurement and its `geodetic_*` sibling
+            together, so the two halves of the condition always agree and dropping
+            the geodetic half changes nothing that is asserted. Here `S8`'s `i`-grid
+            annotation is absent while its measurement is present: listing it would
+            advertise a channel `read_slstr` then refuses.
+        """
+        granule = slstr_granule(
+            tmp_path, channels={"S5": packed_counts(), "S8": packed_counts()}
+        )
+        (granule / "geodetic_in.nc").unlink()
+        listed = available_slstr_channels(granule)
+        assert listed == {"S5": ["a"]}, (
+            f"S8 has no geodetic_in.nc and must not be listed: {listed}"
+        )
+        with pytest.raises(ReaderError, match="geodetic_in.nc"):
+            read_slstr(granule, channel="S8")
+
+    def test_one_grid_of_a_duplicated_channel_drops_out_on_its_own(self, tmp_path):
+        """Losing `geodetic_bn.nc` removes only the `b` grid from a channel's list.
+
+        Test scenario:
+            `S4`-`S6` are carried on both 500 m grids, so the per-grid filter has
+            to act grid by grid rather than per channel -- a whole-channel test
+            cannot tell those two readings apart.
+        """
+        granule = slstr_pdfs_granule(tmp_path, views=("n",))
+        (granule / "geodetic_bn.nc").unlink()
+        listed = available_slstr_channels(granule)
+        assert listed["S5"] == ["a"], f"S5's b grid lost its annotation: {listed['S5']}"
+        assert listed["S1"] == ["a"], f"an a-grid-only channel is unaffected: {listed}"
+
+    def test_a_geodetic_file_without_a_measurement_lists_nothing(self, tmp_path):
+        """An annotation file alone does not make a channel available.
+
+        Test scenario:
+            The complement of the case above: both halves of the condition must be
+            required, so a granule carrying only annotations reports no channels.
+        """
+        granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+        (granule / "S5_radiance_an.nc").unlink()
+        assert available_slstr_channels(granule) == {}, (
+            "a geodetic file with no measurement must not be listed"
+        )
+
 
 def _geodetic(granule, grid, view="n"):
     """Write the `geodetic_<grid><view>.nc` annotation file for one grid."""
@@ -750,6 +800,21 @@ class TestGeodeticGridConformance:
         granule = self._granule(tmp_path, (2, 3))
         assert read_slstr(granule, channel="S5").read_array().shape == (2, 3)
 
+    def test_a_transposed_geodetic_grid_raises(self, tmp_path):
+        """A geodetic grid that is the band's shape transposed is rejected.
+
+        Test scenario:
+            The mismatch cases above all differ from the band in *area*, so a
+            conformance check comparing `(width, height)` instead of
+            `(height, width)` would still raise on every one of them. A 3x2 grid
+            against a 2x3 band is the one shape that tells the two comparisons
+            apart -- and it is the realistic failure, since a transposed read of
+            the annotation file is exactly what a row/column mix-up produces.
+        """
+        granule = self._granule(tmp_path, (3, 2))
+        with pytest.raises(ReaderError, match="is 3x2 but the band is 2x3"):
+            read_slstr(granule, channel="S5")
+
     @pytest.mark.parametrize("bad_scale", [float("nan"), float("inf"), 0.0])
     def test_an_unusable_geolocation_scale_raises(self, tmp_path, bad_scale):
         """A non-finite or zero geolocation scale is rejected at read time.
@@ -777,3 +842,222 @@ class TestGeodeticGridConformance:
         )
         with pytest.raises(ReaderError, match="unusable scale_factor"):
             read_slstr(granule, channel="S5")
+
+
+class TestChannelTargetMatrix:
+    """Every spelled-against-explicit combination `_resolve_channel_target` must handle.
+
+    The reader has two independent sources for the grid and the view -- the
+    channel's own spelling and the `grid=` / `view=` arguments -- and three
+    outcomes per axis: the spelling decides, the argument decides, or they
+    disagree and it is an error. The single spelling the earlier tests used
+    (`S5_radiance_an`) agrees with every default, so none of that was separable.
+    Each cell below names which source must win, or that the pair is refused.
+    """
+
+    @pytest.mark.parametrize(
+        "channel, view, grid, expected",
+        [
+            # A spelling alone decides both axes.
+            ("S5_radiance_bn", None, None, ("S5", "b", "n")),
+            ("S5_radiance_ao", None, None, ("S5", "a", "o")),
+            ("S8_BT_io", None, None, ("S8", "i", "o")),
+            ("F1_BT_fo", None, None, ("F1", "f", "o")),
+            # A bare channel leaves the grid open and defaults the view to nadir.
+            ("S5", None, None, ("S5", None, "n")),
+            ("s5", None, None, ("S5", None, "n")),
+            # With a bare channel the arguments decide, in either spelling.
+            ("S5", "oblique", None, ("S5", None, "o")),
+            ("S5", "o", None, ("S5", None, "o")),
+            ("S5", "nadir", "b", ("S5", "b", "n")),
+            ("S5", None, "i", ("S5", "i", "n")),
+            ("S5", "oblique", "B", ("S5", "b", "o")),
+            # Agreeing sources are accepted rather than flagged as a conflict,
+            # including when only their case differs.
+            ("S5_radiance_bn", "nadir", "b", ("S5", "b", "n")),
+            ("S5_radiance_bn", "n", "B", ("S5", "b", "n")),
+            ("S5_radiance_ao", "oblique", "a", ("S5", "a", "o")),
+            # One source given, the other silent: no conflict either way round.
+            ("S5_radiance_bn", "nadir", None, ("S5", "b", "n")),
+            ("S5_radiance_bn", None, "b", ("S5", "b", "n")),
+            # A grid that agrees while the view is left open is not a conflict.
+            ("S8_BT_io", None, "i", ("S8", "i", "o")),
+        ],
+    )
+    def test_the_agreed_target_is_resolved(self, channel, view, grid, expected):
+        """A spelling and arguments that do not contradict resolve to one target.
+
+        Args:
+            channel: The channel spelling passed by the caller.
+            view: The caller's `view` argument, or `None`.
+            grid: The caller's `grid` argument, or `None`.
+            expected: The `(name, grid, view_suffix)` triple required.
+
+        Test scenario:
+            A spelled suffix names one specific file, so it must survive to the
+            discovery step; `an` -- the only spelling previously tested -- happens
+            to equal both defaults, so discarding the suffix altogether looked
+            correct. Each row here uses a value that differs from the default on at
+            least one axis.
+        """
+        resolved = _resolve_channel_target(channel, view, grid, "read_slstr")
+        assert resolved == expected, (
+            f"channel={channel!r} view={view!r} grid={grid!r} should resolve to "
+            f"{expected}, got {resolved}"
+        )
+
+    @pytest.mark.parametrize(
+        "channel, view, grid, message",
+        [
+            ("S5_radiance_bn", None, "a", "names grid 'b' but grid='a'"),
+            ("S5_radiance_an", None, "b", "names grid 'a' but grid='b'"),
+            # The grid agrees while the view does not: the view check must still fire.
+            ("S8_BT_io", "nadir", "i", "names the oblique view"),
+            ("S5_radiance_ao", "nadir", None, "names the oblique view"),
+            ("S5_radiance_bn", "oblique", None, "names the nadir view"),
+            # Both axes disagree: the grid conflict is reported first.
+            ("S5_radiance_bn", "oblique", "a", "names grid 'b' but grid='a'"),
+        ],
+    )
+    def test_a_contradiction_is_refused(self, channel, view, grid, message):
+        """A spelling that contradicts an argument is an error, not a silent choice.
+
+        Args:
+            channel: The channel spelling passed by the caller.
+            view: The caller's `view` argument, or `None`.
+            grid: The caller's `grid` argument, or `None`.
+            message: A fragment the error must name.
+
+        Test scenario:
+            Preferring either source silently reads a file the caller did not name.
+            The rows cover both axes and both directions -- a spelled `b` against
+            `grid='a'` and a spelled `a` against `grid='b'` -- so a check that
+            compared only one way round cannot pass.
+        """
+        with pytest.raises(ReaderError, match=message):
+            _resolve_channel_target(channel, view, grid, "read_slstr")
+
+    def test_an_invalid_explicit_argument_is_still_rejected_beside_a_spelling(self):
+        """A nonsense `grid=` / `view=` is validated even when the spelling carries one."""
+        with pytest.raises(ReaderError, match="is not an SLSTR grid"):
+            _resolve_channel_target("S5_radiance_bn", None, "z", "read_slstr")
+        with pytest.raises(ReaderError, match="is not an SLSTR view"):
+            _resolve_channel_target("S5_radiance_bn", "sideways", None, "read_slstr")
+
+
+class TestParseChannelQuantityMatrix:
+    """`_parse_channel` over every quantity x grid x view combination.
+
+    The quantity gate is per channel -- `S1`-`S6` ship radiance, `S7`-`S9` and
+    `F1`-`F2` ship brightness temperature -- so the full cross-product is the only
+    way to show it is the *channel* that decides and not, say, the letter or the
+    grid. The grid and view are carried through untouched, including letters the
+    channel is not documented on, which the discovery step then refuses.
+    """
+
+    @pytest.mark.parametrize("grid", ["a", "b", "i", "f"])
+    @pytest.mark.parametrize("view", ["n", "o"])
+    @pytest.mark.parametrize(
+        "channel, shipped, other",
+        [
+            ("S1", "radiance", "BT"),
+            ("S5", "radiance", "BT"),
+            ("S6", "radiance", "BT"),
+            ("S7", "BT", "radiance"),
+            ("S9", "BT", "radiance"),
+            ("F1", "BT", "radiance"),
+            ("F2", "BT", "radiance"),
+        ],
+    )
+    def test_the_shipped_quantity_parses_and_the_other_is_refused(
+        self, channel, shipped, other, grid, view
+    ):
+        """The channel's own quantity parses; the other is rejected on every grid/view.
+
+        Args:
+            channel: The SLSTR channel.
+            shipped: The radiometric quantity that channel really ships.
+            other: The quantity it does not ship.
+            grid: The grid letter in the spelling.
+            view: The view letter in the spelling.
+
+        Test scenario:
+            `S9_radiance_an` used to resolve quietly to the `S9_BT_in` brightness
+            temperature, handing back kelvin for a request that said radiance.
+            Sweeping every combination shows the gate is driven by the channel and
+            that the grid and view letters reach the caller unchanged, rather than
+            being normalised to the channel's default.
+        """
+        accepted = f"{channel}_{shipped}_{grid}{view}"
+        assert _parse_channel(accepted, "read_slstr") == (channel, grid, view), (
+            f"{accepted!r} must carry its own grid and view through"
+        )
+        with pytest.raises(ReaderError, match="names quantity"):
+            _parse_channel(f"{channel}_{other}_{grid}{view}", "read_slstr")
+
+    @pytest.mark.parametrize(
+        "spelling", ["S5_RADIANCE_an", "s8_bt_IO", "S5_Radiance_Bn"]
+    )
+    def test_the_quantity_and_suffix_are_case_insensitive(self, spelling):
+        """Mixed case in any part of a product spelling still resolves.
+
+        Args:
+            spelling: A product variable name with unconventional casing.
+
+        Test scenario:
+            The pattern is compiled case-insensitively, so the grid and view must
+            be lower-cased on the way out -- they are interpolated straight into a
+            filename, where `IO` would build `geodetic_IO.nc`.
+        """
+        name, grid, view = _parse_channel(spelling, "read_slstr")
+        assert name[0].isupper() and name[1:].isdigit(), f"odd channel name {name!r}"
+        assert grid == grid.lower() and view == view.lower(), (
+            f"the suffix must be lower-cased for the filename, got {grid!r}{view!r}"
+        )
+
+
+class TestSpelledGridOffTheChannelsTable:
+    """A spelled grid a channel is not documented on must not be swapped for one."""
+
+    @pytest.mark.parametrize(
+        "spelling, channel",
+        [
+            ("S7_BT_an", "S7"),
+            ("S8_BT_bn", "S8"),
+            ("S1_radiance_in", "S1"),
+            ("F2_BT_fn", "F2"),
+        ],
+    )
+    def test_it_raises_instead_of_falling_back_to_a_documented_grid(
+        self, tmp_path, spelling, channel
+    ):
+        """A grid the channel does not ship on fails rather than reading another file.
+
+        Args:
+            spelling: A product spelling naming a grid the channel is not on.
+            channel: The channel that spelling names.
+
+        Test scenario:
+            `_parse_channel` validates the quantity against the channel but not the
+            grid, so these reach discovery as a request for a file that cannot
+            exist. The granule *does* hold each channel on its own grid, so a
+            reader that discarded the spelled grid would return that file instead
+            -- a different resolution or stripe than the caller named, silently.
+        """
+        granule = slstr_pdfs_granule(tmp_path, views=("n", "o"))
+        with pytest.raises(ReaderError, match=f"has no {channel!r} measurement"):
+            read_slstr(granule, channel=spelling)
+
+    def test_the_same_channels_still_read_on_their_documented_grid(self, tmp_path):
+        """The control: the rejections above are about the grid, not the channel.
+
+        Test scenario:
+            Without this the class could pass against a granule that simply lacked
+            every channel, which would make the assertions above prove nothing.
+        """
+        granule = slstr_pdfs_granule(tmp_path, views=("n", "o"))
+        for spelling in ("S7_BT_in", "S8_BT_in", "S1_radiance_an", "F2_BT_in"):
+            metadata = read_slstr(granule, channel=spelling).raster.GetMetadata()
+            assert metadata["grid"] == spelling[-2:], (
+                f"{spelling} should read the grid it names: {metadata}"
+            )

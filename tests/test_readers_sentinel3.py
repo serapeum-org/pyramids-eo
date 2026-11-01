@@ -164,14 +164,17 @@ class TestGeolocationDomain:
         assert (domain["PIXEL_STEP"], domain["LINE_STEP"]) == ("1", "1"), domain
 
     def test_srs_is_parseable_wkt_for_a_geographic_crs(self, tmp_path):
-        """`SRS` must be WKT, because GDAL reads the key with importFromWkt.
+        """`SRS` must be a parseable, geographic coordinate system description.
 
         Test scenario:
-            An authority string such as "EPSG:4326" fails importFromWkt
-            *silently*, leaving GDAL's
-            bGeographicSRSWithMinus180Plus180LongRange flag false and skipping
-            the antimeridian handling a polar-orbiting swath needs. Pinning the
-            parse, rather than the string, is what catches that.
+            Measured on GDAL 3.13, the key is imported permissively -- this WKT and
+            a bare "EPSG:4326" give an identical geotransform, while an
+            unparseable value is rejected loudly ("Failed to import coordinate
+            system"). So the requirement is simply that it parses and is
+            geographic; what the key actually buys is a CRS on the warped output,
+            which `TestGeolocationSrsGivesTheOutputACrs` asserts. The
+            antimeridian rationale this test once cited was never reproduced and
+            is not why the key is emitted.
         """
         from osgeo import osr
 
@@ -1006,3 +1009,224 @@ class TestNonNumericFillValueWarns:
                 np.array([[1, 2]], dtype="int32"), {"_FillValue": "nodata"}
             )
         assert not mask.any(), "nothing can be masked from a non-numeric fill"
+
+
+class TestValidityBoundsPrecedenceMatrix:
+    """The whole `valid_min` x `valid_max` x `valid_range` cross-product, not a sample.
+
+    The other validity tests each pick a row. A sample cannot show that the
+    precedence rule is uniform, and the two bounds are resolved independently by
+    three interacting cases apiece (present, absent, unparseable) against four
+    `valid_range` cases (absent, usable, reversed, unparseable). Every cell is
+    stated below with its own expected pair, so a change to the rule has to change
+    this table rather than slip through on the cells that happen to agree.
+    """
+
+    @pytest.mark.parametrize(
+        "meta, expected",
+        [
+            ({}, (None, None)),
+            ({"valid_range": "{0, 100}"}, (0.0, 100.0)),
+            ({"valid_range": "{100, 0}"}, (None, None)),
+            ({"valid_range": "junk"}, (None, None)),
+            ({"valid_max": "50"}, (None, 50.0)),
+            ({"valid_max": "50", "valid_range": "{0, 100}"}, (0.0, 50.0)),
+            ({"valid_max": "50", "valid_range": "{100, 0}"}, (None, 50.0)),
+            ({"valid_max": "50", "valid_range": "junk"}, (None, 50.0)),
+            ({"valid_max": "junk"}, (None, None)),
+            ({"valid_max": "junk", "valid_range": "{0, 100}"}, (0.0, 100.0)),
+            ({"valid_max": "junk", "valid_range": "{100, 0}"}, (None, None)),
+            ({"valid_max": "junk", "valid_range": "junk"}, (None, None)),
+            ({"valid_min": "10"}, (10.0, None)),
+            ({"valid_min": "10", "valid_range": "{0, 100}"}, (10.0, 100.0)),
+            ({"valid_min": "10", "valid_range": "{100, 0}"}, (10.0, None)),
+            ({"valid_min": "10", "valid_range": "junk"}, (10.0, None)),
+            ({"valid_min": "10", "valid_max": "50"}, (10.0, 50.0)),
+            (
+                {"valid_min": "10", "valid_max": "50", "valid_range": "{0, 100}"},
+                (10.0, 50.0),
+            ),
+            (
+                {"valid_min": "10", "valid_max": "50", "valid_range": "{100, 0}"},
+                (10.0, 50.0),
+            ),
+            (
+                {"valid_min": "10", "valid_max": "50", "valid_range": "junk"},
+                (10.0, 50.0),
+            ),
+            ({"valid_min": "10", "valid_max": "junk"}, (10.0, None)),
+            (
+                {"valid_min": "10", "valid_max": "junk", "valid_range": "{0, 100}"},
+                (10.0, 100.0),
+            ),
+            (
+                {"valid_min": "10", "valid_max": "junk", "valid_range": "{100, 0}"},
+                (10.0, None),
+            ),
+            (
+                {"valid_min": "10", "valid_max": "junk", "valid_range": "junk"},
+                (10.0, None),
+            ),
+            ({"valid_min": "junk"}, (None, None)),
+            ({"valid_min": "junk", "valid_range": "{0, 100}"}, (0.0, 100.0)),
+            ({"valid_min": "junk", "valid_range": "{100, 0}"}, (None, None)),
+            ({"valid_min": "junk", "valid_range": "junk"}, (None, None)),
+            ({"valid_min": "junk", "valid_max": "50"}, (None, 50.0)),
+            (
+                {"valid_min": "junk", "valid_max": "50", "valid_range": "{0, 100}"},
+                (0.0, 50.0),
+            ),
+            (
+                {"valid_min": "junk", "valid_max": "50", "valid_range": "{100, 0}"},
+                (None, 50.0),
+            ),
+            (
+                {"valid_min": "junk", "valid_max": "50", "valid_range": "junk"},
+                (None, 50.0),
+            ),
+            ({"valid_min": "junk", "valid_max": "junk"}, (None, None)),
+            (
+                {"valid_min": "junk", "valid_max": "junk", "valid_range": "{0, 100}"},
+                (0.0, 100.0),
+            ),
+            (
+                {"valid_min": "junk", "valid_max": "junk", "valid_range": "{100, 0}"},
+                (None, None),
+            ),
+            (
+                {"valid_min": "junk", "valid_max": "junk", "valid_range": "junk"},
+                (None, None),
+            ),
+        ],
+    )
+    def test_every_combination_resolves_as_documented(self, meta, expected):
+        """Each cell of the precedence matrix resolves to its documented pair.
+
+        Args:
+            meta: The variable's CF attribute dict for this cell.
+            expected: The `(valid_min, valid_max)` the contract requires.
+
+        Test scenario:
+            The rule is: a usable scalar wins for its own bound, an unparseable one
+            counts as absent, `valid_range` supplies only the bounds no scalar
+            gave, a reversed range supplies neither, and a resolved pair that is
+            itself reversed masks nothing. Spelling out all 36 cells is what makes
+            each clause load-bearing instead of inferable from a friendly sample.
+        """
+        assert validity_bounds(meta) == expected, (
+            f"{meta} should resolve to {expected}, got {validity_bounds(meta)}"
+        )
+
+    def test_a_resolved_pair_that_is_reversed_masks_nothing(self):
+        """A min above a max, assembled from the two scalars, discards both bounds.
+
+        Test scenario:
+            The reversal guard runs after the fallback, so it has to catch a pair
+            that only becomes reversed once assembled -- otherwise every pixel is
+            masked with no diagnostic.
+        """
+        assert validity_bounds({"valid_min": "90", "valid_max": "10"}) == (None, None)
+        assert validity_bounds({"valid_min": "90", "valid_range": "{0, 10}"}) == (
+            None,
+            None,
+        ), "a scalar min above the range's max must discard both bounds"
+
+
+class TestValidBoundsTakesTheFirstAndLastNumber:
+    """`valid_range` is parsed as first-and-last, which a two-number sample hides."""
+
+    @pytest.mark.parametrize(
+        "text, expected",
+        [
+            ("{0, 4095}", (0.0, 4095.0)),
+            # Three numbers: the LAST is the upper bound, not the second. Every
+            # other fixture uses a two-element range, where those coincide.
+            ("{1, 2, 3}", (1.0, 3.0)),
+            # The middle number is ignored outright: it neither bounds the range
+            # nor makes an otherwise-ascending one look reversed.
+            ("{1, 9, 2}", (1.0, 2.0)),
+            # Reversal is judged on the ends, so this is discarded although its
+            # first two numbers ascend.
+            ("{9, 1, 2}", (None, None)),
+            # GDAL renders a vector attribute without braces in some builds.
+            ("0 50", (0.0, 50.0)),
+            ("{-1.5e2, 3}", (-150.0, 3.0)),
+            ("{3}", (None, None)),
+        ],
+    )
+    def test_the_bounds_come_from_the_ends_of_the_number_list(self, text, expected):
+        """The first and last numbers bound the range, whatever sits between them.
+
+        Args:
+            text: The raw `valid_range` attribute value.
+            expected: The `(low, high)` pair it must yield.
+
+        Test scenario:
+            `{1, 2, 3}` distinguishes "second number" from "last number", and
+            `{1, 9, 2}` against `{9, 1, 2}` shows the reversal check operates on
+            the ends rather than on the first pair. A two-element range -- the only
+            shape the rest of the suite uses -- cannot tell those readings apart.
+        """
+        from pyramids_eo.sensors.readers._common import valid_bounds
+
+        assert valid_bounds(text) == expected, (
+            f"{text!r} should parse to {expected}, got {valid_bounds(text)}"
+        )
+
+
+class TestLongitudeDrivesXAndLatitudeDrivesY:
+    """The domain's X slot must carry longitude and its Y slot latitude.
+
+    Nothing else warps a grid whose longitude and latitude ranges cannot be
+    confused *and* compares it against the same grid with the two variables
+    exchanged. The fixture's longitude spans 4..5 and its latitude 51..52, so a
+    transposition moves the warped origin by ~47 degrees instead of being masked by
+    a shared range.
+    """
+
+    @staticmethod
+    def _origin(domain):
+        """Warp an 8x8 raster through `domain` and return its `(origin_x, origin_y)`."""
+        geotransform, _ = _warp(domain, (8, 8))
+        return geotransform[0], geotransform[3]
+
+    def test_the_warped_origin_lands_in_the_longitude_and_latitude_ranges(
+        self, tmp_path
+    ):
+        """X comes out in the longitude range and Y in the latitude range."""
+        geo = write_geolocation(tmp_path / "geo_coordinates.nc", shape=(8, 8))
+        origin_x, origin_y = self._origin(geolocation_domain(geo, reader="read_test"))
+        assert 3.0 < origin_x < 6.0, (
+            f"X must be driven by longitude (4..5 here), got {origin_x}"
+        )
+        assert 50.0 < origin_y < 53.0, (
+            f"Y must be driven by latitude (51..52 here), got {origin_y}"
+        )
+
+    def test_exchanging_the_two_variables_visibly_moves_the_origin(self, tmp_path):
+        """Feeding latitude to X and longitude to Y relocates the result entirely.
+
+        Test scenario:
+            This is the decisive half: it proves the previous assertion is
+            sensitive to the X/Y wiring rather than to anything else about the
+            domain. Measured, the origin moves from (3.93, 52.07) to (50.86,
+            5.14), so a reader that filled the two slots the wrong way round --
+            which no key name or warp success would reveal -- could not pass both
+            tests.
+        """
+        geo = write_geolocation(tmp_path / "geo_coordinates.nc", shape=(8, 8))
+        correct = self._origin(geolocation_domain(geo, reader="read_test"))
+        exchanged = self._origin(
+            geolocation_domain(
+                geo,
+                reader="read_test",
+                longitude_variable="latitude",
+                latitude_variable="longitude",
+            )
+        )
+        assert 50.0 < exchanged[0] < 53.0 and 3.0 < exchanged[1] < 6.0, (
+            f"exchanging the variables must put latitude on X, got {exchanged}"
+        )
+        assert abs(exchanged[0] - correct[0]) > 40.0, (
+            f"the two wirings must be distinguishable: {correct} vs {exchanged}"
+        )
