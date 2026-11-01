@@ -18,12 +18,12 @@ pyramids-core 0.70 added an entry-point group, `pyramids.raster_drivers`. A pack
 there; pyramids discovers it lazily the first time `read_file` needs a non-GDAL reader. **Installing pyramids-eo is
 the whole integration** — there is nothing to import or configure. The four drivers it registers:
 
-| driver name | source it opens | reader it delegates to |
-| --- | --- | --- |
-| `earthengine` | an `ee://<asset-id>` URL | [`from_earthengine`](reference/earthengine.md) |
-| `seviri` | a SEVIRI native `.nat` granule | [`read_seviri`](reference/readers.md) |
-| `s2` | a Sentinel-2 `.SAFE` product (or `.SAFE.zip`) | [`from_sentinel2`](reference/sentinel.md) |
-| `fci` | an MTG-FCI L1C FDHSI granule (a chunk set) | [`read_fci_l1c`](reference/readers.md) |
+| driver name   | source it opens                               | reader it delegates to                         |
+|---------------|-----------------------------------------------|------------------------------------------------|
+| `earthengine` | an `ee://<asset-id>` URL                      | [`from_earthengine`](reference/earthengine.md) |
+| `seviri`      | a SEVIRI native `.nat` granule                | [`read_seviri`](reference/readers.md)          |
+| `s2`          | a Sentinel-2 `.SAFE` product (or `.SAFE.zip`) | [`from_sentinel2`](reference/sentinel.md)      |
+| `fci`         | an MTG-FCI L1C FDHSI granule (a chunk set)    | [`read_fci_l1c`](reference/readers.md)         |
 
 Every reader stays pure pyramids-eo over pyramids' bundled GDAL — no `earthengine-api`, no extra GDAL install.
 
@@ -50,8 +50,8 @@ The consequence is the single rule worth remembering:
 own. So every reader keyword travels inside `open_options`, which accepts either form:
 
 ```python
-open_options={"bands": ["B04", "B03", "B02"], "resolution": 10}   # a dict — preferred
-open_options=["bands=B04", "resolution=10"]                        # a GDAL-style KEY=VALUE list
+open_options = {"bands": ["B04", "B03", "B02"], "resolution": 10}  # a dict — preferred
+open_options = ["bands=B04", "resolution=10"]  # a GDAL-style KEY=VALUE list
 ```
 
 A **dict preserves Python types**; a `KEY=VALUE` list makes every value a **string**. So an option the reader needs
@@ -64,6 +64,7 @@ The drivers pull the window/band/credential keys out of `open_options` and pass 
 
 ```python
 from pyramids.dataset import Dataset
+
 
 # A single EE image, windowed to an AOI:
 srtm = Dataset.read_file(
@@ -80,7 +81,7 @@ composite = Dataset.read_file(
         "start": "2023-01-01",
         "end": "2023-03-01",
         "reducer": "median",
-        "credentials": "path/to/service-account.json",   # or omit to use Application Default Credentials
+        "credentials": "path/to/service-account.json",  # or omit to use Application Default Credentials
     },
 )
 ```
@@ -96,6 +97,7 @@ A **temporal** `DatasetCollection` (one timestep per scene, unreduced) is **not*
 ```python
 from pyramids.dataset import Dataset
 
+
 ir = Dataset.read_file("MSG4-SEVIRI-MSG15.nat", open_options={"channel": "IR_108"})
 ```
 
@@ -105,6 +107,7 @@ The read covers the whole granule, so `bbox` / `crs` do not apply.
 
 ```python
 from pyramids.dataset import Dataset
+
 
 # Band selection + DN -> reflectance (the pyramids-eo reader, not GDAL's container):
 scene = Dataset.read_file(
@@ -128,6 +131,7 @@ holding the chunks, a glob matching them, or an `fci://` path — and the driver
 ```python
 from pyramids.dataset import Dataset
 
+
 # A granule directory (GDAL cannot open a directory, so this auto-routes):
 ir = Dataset.read_file("/data/MTI1_FCI_L1C_granule", open_options={"channel": "ir_105"})
 
@@ -141,11 +145,11 @@ bands = Dataset.read_file("/data/granule", open_options={"channels": ["vis_06", 
 
 ## Facade or `read_file` — which to use
 
-| use the typed facade when… | use `read_file` when… |
-| --- | --- |
+| use the typed facade when…                                                      | use `read_file` when…                                                                                       |
+|---------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
 | you are writing pyramids-eo code and want the full typed signature and IDE help | generic pyramids code opens a source by **string/URL** (a pipeline, config-driven ingest, a STAC-like flow) |
-| you need the **temporal collection** readers (`collection_from_*`) | you want **zero import coupling** to pyramids-eo at the call site |
-| you want every reader keyword as a named argument | one code path must open GeoTIFFs, NetCDFs **and** EO products uniformly |
+| you need the **temporal collection** readers (`collection_from_*`)              | you want **zero import coupling** to pyramids-eo at the call site                                           |
+| you want every reader keyword as a named argument                               | one code path must open GeoTIFFs, NetCDFs **and** EO products uniformly                                     |
 
 The facades are the source of truth for the reader options; the driver simply maps `open_options` onto them.
 
