@@ -78,7 +78,9 @@ These two differ from the geostationary readers above in three ways worth knowin
   product type from the granule name â€” falling back to `xfdumanifest.xml` â€” and
   reports `resolution_m` accordingly. A granule that identifies itself as neither
   carries no `resolution_m` at all, rather than a figure that could be wrong by a
-  factor of four for resolution-aware consumers like `harmonise`.
+  factor of four. (Nothing in this package reads that key today — `harmonise` takes
+  an explicit reference grid — so it is provenance for a caller, not an input to
+  the stack.)
 
 A reader keyword passed through `read_file` arrives as a string, because
 `Dataset.read_file` normalises `open_options` to GDAL's `KEY=VALUE` form. The

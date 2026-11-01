@@ -354,10 +354,17 @@ class TestReadPackedVariableUnpacking:
         assert np.isfinite(values[0, 0]) and np.isnan(values[0, 1]), values
 
     def test_non_numeric_fill_value_is_ignored(self, monkeypatch):
-        """A non-numeric _FillValue cannot match, so it masks nothing rather than failing."""
-        values, _ = _read(
-            monkeypatch, np.array([[10, 20]], dtype="uint16"), {"_FillValue": "nodata"}
-        )
+        """A non-numeric _FillValue masks nothing rather than failing the read.
+
+        It warns while doing so -- see `TestNonNumericFillValueWarns` -- because
+        the lost masking is a real gap in the result's nodata.
+        """
+        with pytest.warns(UserWarning, match="non-numeric _FillValue"):
+            values, _ = _read(
+                monkeypatch,
+                np.array([[10, 20]], dtype="uint16"),
+                {"_FillValue": "nodata"},
+            )
         assert np.all(np.isfinite(values)), values
 
     def test_sentinel3_valid_min_valid_max_are_masked(self, monkeypatch):
@@ -915,3 +922,87 @@ class TestGeolocationFillValue:
         xml = gdal.VSIFile(path, "rb").read().decode("utf-8")
         assert "NODATA" not in xml, f"no fill given, so none should appear: {xml}"
         assert "<ScaleRatio>1e-06</ScaleRatio>" in xml, f"scaling must survive: {xml}"
+
+
+class TestGeolocationSrsGivesTheOutputACrs:
+    """The domain's `SRS` key is what puts a CRS on the warped result."""
+
+    def test_the_warped_output_carries_a_geographic_crs(self, tmp_path):
+        """With the SRS emitted, the warped raster states its coordinate system.
+
+        Test scenario:
+            The key was first justified by an antimeridian rationale that turned
+            out not to hold on GDAL 3.13, and the geotransform is identical with
+            or without it -- which made the key look inert. It is not: the warped
+            output's projection is empty without it, so a caller gets a raster
+            positioned correctly but not saying in what. This pins the real
+            benefit, which no assertion covered.
+        """
+        from osgeo import gdal
+
+        geo = write_geolocation(tmp_path / "geo_coordinates.nc")
+        domain = geolocation_domain(geo, reader="read_test", shape=(2, 3))
+        source = gdal.GetDriverByName("MEM").Create("", 3, 2, 1, gdal.GDT_Float32)
+        source.GetRasterBand(1).WriteArray(np.arange(6, dtype="float32").reshape(2, 3))
+        source.SetMetadata(dict(domain), "GEOLOCATION")
+        with_srs = gdal.Warp("", source, format="MEM", geoloc=True).GetProjection()
+        assert "WGS 84" in with_srs, f"the output should carry WGS 84: {with_srs!r}"
+
+        stripped = dict(domain)
+        del stripped["SRS"]
+        source.SetMetadata(stripped, "GEOLOCATION")
+        without_srs = gdal.Warp("", source, format="MEM", geoloc=True).GetProjection()
+        assert without_srs == "", (
+            f"without SRS the output should have no CRS, got {without_srs!r}"
+        )
+
+
+class TestValidityFallbackFillsOnlyTheMissingBound:
+    """A single validity scalar must not suppress the combined-range fallback."""
+
+    @pytest.mark.parametrize(
+        "meta, expected",
+        [
+            ({"valid_min": "10", "valid_range": "{0, 50}"}, (10.0, 50.0)),
+            ({"valid_max": "40", "valid_range": "{5, 99}"}, (5.0, 40.0)),
+            ({"valid_range": "{5, 99}"}, (5.0, 99.0)),
+            ({"valid_min": "10", "valid_max": "40"}, (10.0, 40.0)),
+        ],
+    )
+    def test_each_bound_is_resolved_independently(self, meta, expected):
+        """The scalar wins where present; the range supplies only what is missing.
+
+        Args:
+            meta: The variable's CF attributes.
+            expected: The resolved `(valid_min, valid_max)`.
+
+        Test scenario:
+            One usable scalar used to skip the `valid_range` fallback entirely, so
+            `{valid_min: 10, valid_range: "{0, 50}"}` resolved to `(10.0, None)` --
+            silently dropping the upper bound and leaving saturated pixels unmasked.
+        """
+        from pyramids_eo.sensors.readers._common import validity_bounds
+
+        assert validity_bounds(meta) == expected, f"{meta} should give {expected}"
+
+
+class TestNonNumericFillValueWarns:
+    """An unparseable `_FillValue` masks nothing, so it must not pass in silence."""
+
+    def test_it_warns_that_masking_is_incomplete(self):
+        """A non-numeric fill value warns rather than silently masking nothing.
+
+        Test scenario:
+            Before the CF decoder was shared, the FCI reader raised `ValueError`
+            on an unparseable `_FillValue`; the lift turned that into a silent
+            no-op, which is the one behaviour difference in a change billed as
+            behaviour-preserving. Warning keeps the lost masking visible without
+            failing a read that is otherwise fine.
+        """
+        from pyramids_eo.sensors.readers._common import invalid_mask
+
+        with pytest.warns(UserWarning, match="non-numeric _FillValue"):
+            mask = invalid_mask(
+                np.array([[1, 2]], dtype="int32"), {"_FillValue": "nodata"}
+            )
+        assert not mask.any(), "nothing can be masked from a non-numeric fill"

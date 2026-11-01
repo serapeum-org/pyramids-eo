@@ -260,3 +260,33 @@ def test_read_coerces_a_string_boolean_calibrate(tmp_path, monkeypatch):
     )
     FciDriver().read(str(granule), options=["channel=ir_105", "calibrate=false"])
     assert captured["options"] == {"calibrate": False}, captured
+
+
+def test_read_coerces_a_string_numeric_open_option(tmp_path, monkeypatch):
+    """`sun_earth_distance=0.983` as a KEY=VALUE string reaches the reader as a float.
+
+    The numeric sibling of the boolean problem: read_file normalises open_options to
+    strings, so this arrived as "0.983" and failed deep inside the calibration
+    arithmetic with a raw `TypeError: unsupported operand type(s) for ** or pow()`
+    naming neither the option nor the driver.
+    """
+    granule, _ = _make_granule(tmp_path, ["c0.nc"])
+    captured = {}
+    monkeypatch.setattr(
+        readers,
+        "read_fci_l1c",
+        lambda p, *, channel, channels, **o: captured.update(options=o),
+    )
+    FciDriver().read(
+        str(granule), options=["channel=ir_105", "sun_earth_distance=0.983"]
+    )
+    assert captured["options"] == {"sun_earth_distance": 0.983}, captured
+
+
+def test_read_rejects_a_non_numeric_open_option(tmp_path):
+    """A non-numeric `sun_earth_distance` is rejected where the option is named."""
+    granule, _ = _make_granule(tmp_path, ["c0.nc"])
+    with pytest.raises(ValueError, match="must be a number"):
+        FciDriver().read(
+            str(granule), options=["channel=ir_105", "sun_earth_distance=far"]
+        )

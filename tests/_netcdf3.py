@@ -80,7 +80,7 @@ def _attribute(name: str, value: Any) -> bytes:
         nc_type = NC_INT
     elif array.dtype.kind == "f":
         nc_type = NC_DOUBLE
-    else:  # pragma: no cover - defensive; fixtures use numbers and strings only
+    else:
         raise TypeError(f"unsupported attribute type for {name!r}: {array.dtype}")
     flat = np.atleast_1d(array).astype(_DTYPES[nc_type])
     return _name(name) + struct.pack(">ii", nc_type, flat.size) + _pad(flat.tobytes())
@@ -92,6 +92,23 @@ def _attribute_list(attributes: dict[str, Any] | None) -> bytes:
         return struct.pack(">ii", 0, 0)
     body = b"".join(_attribute(key, value) for key, value in attributes.items())
     return struct.pack(">ii", _NC_ATTRIBUTE, len(attributes)) + body
+
+
+def _attribute_type_for(array: np.ndarray) -> int:
+    """Return the `nc_type` an attribute should take to match `array`'s type.
+
+    netCDF-C rejects a `_FillValue` whose type differs from its variable's with
+    `NC_EBADTYPE`, so an attribute that must match the data -- `_FillValue`,
+    `valid_min`, `valid_max` -- has to be typed from the variable rather than from
+    the Python value it was written as.
+
+    Args:
+        array: The variable's data.
+
+    Returns:
+        The matching `nc_type` code.
+    """
+    return _NC_TYPE_OF[(array.dtype.kind, array.dtype.itemsize)]
 
 
 def write_netcdf(
@@ -121,11 +138,21 @@ def write_netcdf(
         The written file's path.
 
     Raises:
-        ValueError: When `variables` is empty or the arrays differ in shape.
+        ValueError: When `variables` is empty, an array is not 2-D, the arrays
+            differ in shape, or an array's dtype is not one of the four supported
+            (`int16`, `int32`, `float32`, `float64` -- notably **not** `uint16`,
+            which real OLCI radiance uses; fixtures write those values as `int32`,
+            which GDAL reads back identically for the in-range counts used here).
+        TypeError: When an attribute value is neither a string nor a number.
     """
     if not variables:
         raise ValueError("write_netcdf needs at least one variable")
     arrays = [np.asarray(array) for array, _ in variables.values()]
+    ranks = {array.ndim for array in arrays}
+    if ranks != {2}:
+        raise ValueError(
+            f"every variable must be 2-D (one grid per file), got ranks {sorted(ranks)}"
+        )
     shapes = {array.shape for array in arrays}
     if len(shapes) != 1:
         raise ValueError(f"all variables must share one shape, got {sorted(shapes)}")

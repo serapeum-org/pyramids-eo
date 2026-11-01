@@ -165,6 +165,55 @@ def coerce_booleans(
             )
 
 
+def coerce_floats(
+    settings: dict[str, Any], keys: tuple[str, ...], *, driver: str
+) -> None:
+    """Coerce string spellings of known numeric reader keywords, in place.
+
+    The same problem ``coerce_booleans`` solves: ``read_file`` normalises
+    ``open_options`` to ``KEY=VALUE`` strings, so a numeric keyword arrives as a
+    ``str`` and only fails much later inside the reader's arithmetic, with a message
+    that names neither the option nor the driver.
+
+    Args:
+        settings: The options dict, mutated in place.
+        keys: The option names that are floats for this driver.
+        driver: The driver name, for the error message.
+
+    Raises:
+        ValueError: A named option is a string that is not a number.
+
+    Examples:
+        - A numeric string becomes a float, and a real number passes through:
+            ```python
+            >>> from pyramids_eo.drivers._base import coerce_floats
+            >>> settings = {"sun_earth_distance": "0.983"}
+            >>> coerce_floats(settings, ("sun_earth_distance",), driver="fci")
+            >>> settings["sun_earth_distance"]
+            0.983
+
+            ```
+        - A non-numeric string is rejected where the option is named:
+            ```python
+            >>> coerce_floats({"sun_earth_distance": "far"}, ("sun_earth_distance",), driver="fci")
+            Traceback (most recent call last):
+                ...
+            ValueError: fci: open option 'sun_earth_distance' must be a number; got 'far'.
+
+            ```
+    """
+    for key in keys:
+        value = settings.get(key)
+        if not isinstance(value, str):
+            continue
+        try:
+            settings[key] = float(value)
+        except ValueError:
+            raise ValueError(
+                f"{driver}: open option {key!r} must be a number; got {value!r}."
+            ) from None
+
+
 def bands_to_channels(bands: Any, *, example: str) -> tuple[Any, Any]:
     """Map a ``bands`` argument onto a reader's ``(channel, channels)`` pair.
 

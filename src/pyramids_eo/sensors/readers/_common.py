@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -149,8 +150,13 @@ def validity_bounds(meta: Mapping[str, Any]) -> tuple[float | None, float | None
     """
     low = finite_float(meta.get("valid_min"))
     high = finite_float(meta.get("valid_max"))
-    if low is None and high is None:
-        return valid_bounds(meta.get("valid_range"))
+    if low is None or high is None:
+        # Fill only the bound that is missing. A variable carrying one scalar plus
+        # a combined range would otherwise have the range ignored entirely, which
+        # silently dropped the other bound.
+        fallback_low, fallback_high = valid_bounds(meta.get("valid_range"))
+        low = fallback_low if low is None else low
+        high = fallback_high if high is None else high
     if low is not None and high is not None and low > high:
         return None, None
     return low, high
@@ -198,9 +204,21 @@ def invalid_mask(raw: np.ndarray, meta: Mapping[str, Any]) -> np.ndarray:
         invalid |= raw < low
     if high is not None:
         invalid |= raw > high
-    fill = finite_float(meta.get("_FillValue"))
+    raw_fill = meta.get("_FillValue")
+    fill = finite_float(raw_fill)
     if fill is not None:
         invalid |= raw == fill
+    elif raw_fill is not None:
+        # A _FillValue that is not a finite number cannot match a numeric array, so
+        # nothing can be masked from it. That is a real loss of masking, so say so
+        # rather than passing over it: before this decoder was shared, the FCI
+        # reader raised on an unparseable fill value.
+        warnings.warn(
+            f"ignoring a non-numeric _FillValue {raw_fill!r}: no pixels can be "
+            "masked from it, so the result's nodata may be incomplete",
+            UserWarning,
+            stacklevel=3,
+        )
     return invalid
 
 

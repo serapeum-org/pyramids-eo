@@ -38,6 +38,11 @@ GEO_FILL = -2147483648
 #: SLSTR L1 RBT product-composition table. Note the fire channels are
 #: **asymmetric**: F1 has its own `f` grid while F2 stays on the 1 km `i` grid.
 #: S4-S6 additionally appear on the alternative 500 m `b` grid.
+#:
+#: This deliberately lists ONE grid per fire channel where production's
+#: `_CHANNEL_GRIDS` lists `("f", "i")` for F1: the fixtures model a current-baseline
+#: granule, which carries F1 on `f` only. F1's `i` fallback exists for
+#: pre-`f`-baseline products and is exercised by a granule built for that case.
 PDFS_LAYOUT: dict[str, tuple[tuple[str, ...], str]] = {
     "S1": (("a",), "radiance"),
     "S2": (("a",), "radiance"),

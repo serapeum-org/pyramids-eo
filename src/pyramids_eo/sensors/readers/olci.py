@@ -160,20 +160,37 @@ def product_type(granule: Path) -> str | None:
 
             ```
     """
-    name = granule.name.upper()
-    for product in ("EFR", "ERR"):
-        if f"_OL_1_{product}" in name:
-            return product
+    found = _product_tokens(granule.name.upper(), "_OL_1_")
+    if found is not None:
+        return found
     manifest = granule / "xfdumanifest.xml"
     if manifest.is_file():
         try:
             text = manifest.read_text(encoding="utf-8", errors="replace").upper()
         except OSError:
             return None
-        for product in ("EFR", "ERR"):
-            if f"OL_1_{product}" in text:
-                return product
+        return _product_tokens(text, "OL_1_")
     return None
+
+
+def _product_tokens(text: str, prefix: str) -> str | None:
+    """Return the single product token in `text`, or `None` if absent or ambiguous.
+
+    An ERR granule's manifest routinely references the EFR product it was derived
+    from, so **both** tokens can appear. Returning either would be a guess, and a
+    wrong resolution is consumed silently -- so ambiguity is reported as "unknown"
+    exactly like absence, which is the rule `product_type` documents.
+
+    Args:
+        text: The upper-cased text to search.
+        prefix: The token prefix (`"_OL_1_"` for a granule name, `"OL_1_"` for a
+            manifest, whose own references are not underscore-prefixed).
+
+    Returns:
+        `"EFR"`, `"ERR"`, or `None` when neither or both appear.
+    """
+    present = [p for p in ("EFR", "ERR") if f"{prefix}{p}" in text]
+    return present[0] if len(present) == 1 else None
 
 
 def _channel_metadata(
@@ -182,6 +199,7 @@ def _channel_metadata(
     variable_meta: dict[str, str],
     *,
     geolocated: bool,
+    product: str | None,
 ) -> dict[str, str]:
     """Build the CF-style metadata carried onto a decoded band.
 
@@ -220,7 +238,6 @@ def _channel_metadata(
             else "none (placeholder pixel grid)"
         ),
     }
-    product = product_type(granule)
     if product is not None:
         metadata["product"] = product
         metadata["resolution_m"] = str(_PRODUCT_RESOLUTION[product])
@@ -262,39 +279,81 @@ def read_olci_band(source: Any, channel: Any, *, geolocation: bool = True) -> An
     reader = "read_olci"
     name = _canonical_channel(channel, reader)
     granule = resolve_granule(source, reader)
-    domain = _resolve_domain(granule, reader) if geolocation else {}
-    return _decode_band(granule, name, domain, reader)
+    # Decode first: the geolocation grid is validated against the band's shape, so
+    # the shape has to be known before the domain can be built.
+    data, variable_meta = _read_band(granule, name, reader)
+    domain = _resolve_domain(granule, reader, data.shape) if geolocation else {}
+    return _wrap_band(granule, name, data, variable_meta, domain, product_type(granule))
 
 
-def _resolve_domain(granule: Path, reader: str) -> dict[str, str]:
-    """Build the granule's `GEOLOCATION` domain once, for any number of bands."""
-    return geolocation_domain(granule_file(granule, _GEO_FILE, reader), reader=reader)
+def _resolve_domain(
+    granule: Path, reader: str, shape: tuple[int, int]
+) -> dict[str, str]:
+    """Build the granule's `GEOLOCATION` domain once, for any number of bands.
+
+    Args:
+        granule: The resolved `.SEN3` granule directory.
+        reader: The calling reader's name, for error messages.
+        shape: The band's `(rows, columns)`, which the geolocation grid must match.
+
+    Returns:
+        The `GEOLOCATION` domain.
+
+    Raises:
+        ReaderError: When the geolocation file or its variables are missing, or
+            its grid does not match `shape`.
+    """
+    return geolocation_domain(
+        granule_file(granule, _GEO_FILE, reader), reader=reader, shape=shape
+    )
 
 
-def _decode_band(granule: Path, name: str, domain: dict[str, str], reader: str) -> Any:
-    """Decode one canonical band from an already-resolved granule and domain.
+def _read_band(granule: Path, name: str, reader: str) -> tuple[Any, dict[str, str]]:
+    """Read one band's unpacked array and its CF attribute dict.
 
     Args:
         granule: The resolved `.SEN3` granule directory.
         name: The canonical channel name.
-        domain: The `GEOLOCATION` domain to attach, or `{}` for none.
         reader: The calling reader's name, for error messages.
 
     Returns:
-        The band's pyramids `Dataset`.
+        The `(array, metadata)` pair from `read_packed_variable`.
 
     Raises:
         ReaderError: When the granule has no such band file, or the variable
             cannot be decoded.
     """
     band_path = granule_file(granule, _band_filename(name), reader)
-    data, variable_meta = read_packed_variable(
-        band_path, f"{name}_radiance", reader=reader
-    )
+    return read_packed_variable(band_path, f"{name}_radiance", reader=reader)
+
+
+def _wrap_band(
+    granule: Path,
+    name: str,
+    data: Any,
+    variable_meta: dict[str, str],
+    domain: dict[str, str],
+    product: str | None,
+) -> Any:
+    """Wrap one decoded band as a `Dataset` with its domain and metadata.
+
+    Args:
+        granule: The resolved `.SEN3` granule directory (for provenance).
+        name: The canonical channel name.
+        data: The unpacked array.
+        variable_meta: The variable's CF attribute dict.
+        domain: The `GEOLOCATION` domain to attach, or `{}` for none.
+        product: The granule's detected product type, or `None`.
+
+    Returns:
+        The band's pyramids `Dataset`.
+    """
     dataset = wrap_swath(data, domain)
     dataset.band_names = [name]
     dataset.raster.SetMetadata(
-        _channel_metadata(name, granule, variable_meta, geolocated=bool(domain))
+        _channel_metadata(
+            name, granule, variable_meta, geolocated=bool(domain), product=product
+        )
     )
     return dataset
 
@@ -357,6 +416,20 @@ def read_olci(
     # re-running them per channel.
     reader = "read_olci"
     granule = resolve_granule(source, reader)
-    domain = _resolve_domain(granule, reader) if geolocation else {}
-    results = {name: _decode_band(granule, name, domain, reader) for name in canonical}
+    # Detect the product type once for the whole set rather than per band: it may
+    # read xfdumanifest.xml, which a 21-band read would otherwise re-parse 21 times.
+    product = product_type(granule)
+    decoded = {name: _read_band(granule, name, reader) for name in canonical}
+    shapes = {name: values.shape for name, (values, _) in decoded.items()}
+    if len(set(shapes.values())) > 1:
+        raise ReaderError(
+            f"read_olci: the requested bands are not on one grid: {shapes}; OLCI "
+            f"bands of a granule share a grid, so this granule looks inconsistent"
+        )
+    first = next(iter(decoded.values()))[0]
+    domain = _resolve_domain(granule, reader, first.shape) if geolocation else {}
+    results = {
+        name: _wrap_band(granule, name, values, variable_meta, domain, product)
+        for name, (values, variable_meta) in decoded.items()
+    }
     return results[canonical[0]] if single else results

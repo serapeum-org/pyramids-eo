@@ -404,27 +404,26 @@ class TestProductTypeEdgeCases:
             "S3A_OL_1_ERR_OL_1_EFR____20260101T101500.SEN3",
         ],
     )
-    def test_a_name_carrying_both_tokens_resolves_deterministically(
-        self, tmp_path, granule_name
-    ):
-        """A name containing both product tokens resolves to EFR, whatever the order.
+    def test_a_name_carrying_both_tokens_is_unknown(self, tmp_path, granule_name):
+        """A name containing both product tokens is reported unknown, not guessed.
 
         Args:
             granule_name: A granule directory name holding both `_OL_1_EFR` and
                 `_OL_1_ERR`.
 
         Test scenario:
-            A substring scan over a name that was renamed, nested or concatenated
-            can see both tokens, and the reported `resolution_m` differs by a
-            factor of four between them. What matters is that the answer does not
-            depend on the order the tokens appear in -- the candidate list is
-            scanned in a fixed order, so EFR wins either way, rather than the
-            result flipping with the filename.
+            An ERR granule's own naming or manifest routinely references the EFR
+            product it was derived from, so both tokens co-occurring is a real
+            case, not a pathological one. Picking the first match in a fixed order
+            is deterministic but still a guess, and it labelled such a granule
+            300 m when it is ~1200 m. `None` is the honest answer -- the same one
+            the function gives for a granule that states nothing -- and it is what
+            the "omit rather than assert" rule requires.
         """
         granule = tmp_path / granule_name
         granule.mkdir()
-        assert product_type(granule) == "EFR", (
-            f"{granule_name} should resolve to EFR regardless of token order"
+        assert product_type(granule) is None, (
+            f"{granule_name} is ambiguous and must not be resolved to a guess"
         )
 
     def test_the_granule_name_takes_precedence_over_the_manifest(self, tmp_path):
@@ -446,21 +445,33 @@ class TestProductTypeEdgeCases:
             "the granule name must win over a disagreeing manifest"
         )
 
-    def test_a_manifest_naming_both_products_resolves_deterministically(self, tmp_path):
-        """A manifest mentioning both product types also resolves to EFR, not at random.
+    def test_a_manifest_naming_both_products_is_unknown(self, tmp_path):
+        """A manifest mentioning both product types is unknown, not resolved to one.
 
         Test scenario:
-            A real `xfdumanifest.xml` references other products and processing
-            baselines, so both tokens can legitimately appear in it. The fallback
-            must therefore be as order-independent as the name scan.
+            This is the realistic shape of the ambiguity: a real
+            `xfdumanifest.xml` references the source product and processing
+            baseline, so an ERR granule's manifest legitimately names EFR too.
         """
         granule = tmp_path / "renamed-both.SEN3"
         granule.mkdir()
         (granule / "xfdumanifest.xml").write_text(
             "<xfdu><a>OL_1_ERR</a><b>OL_1_EFR</b></xfdu>", encoding="utf-8"
         )
-        assert product_type(granule) == "EFR", (
-            "the manifest scan must be order-independent too"
+        assert product_type(granule) is None, (
+            "a manifest naming both products must not be resolved to a guess"
+        )
+
+    def test_an_err_granule_referencing_its_efr_source_reports_no_resolution(
+        self, tmp_path
+    ):
+        """The realistic ambiguity yields no `resolution_m` rather than a wrong one."""
+        granule = olci_granule(
+            tmp_path, name="S3A_OL_1_ERR____from_OL_1_EFR_source.SEN3"
+        )
+        meta = read_olci(granule, channel="Oa08").raster.GetMetadata()
+        assert "resolution_m" not in meta, (
+            f"an ambiguous granule must not assert a resolution: {meta}"
         )
 
     def test_an_unreadable_manifest_yields_none(self, tmp_path, monkeypatch):
@@ -476,3 +487,35 @@ class TestProductTypeEdgeCases:
 
         monkeypatch.setattr(_Path, "read_text", _boom)
         assert product_type(granule) is None
+
+
+class TestBandGridConsistency:
+    """A multi-band read requires every requested band on one grid."""
+
+    def test_bands_of_differing_shapes_raise(self, tmp_path):
+        """Bands on different grids are rejected rather than sharing one domain.
+
+        Test scenario:
+            The geolocation domain is resolved once for a channel set and
+            validated against the first band's shape, which is only sound because
+            OLCI bands of a granule share a grid. A granule whose bands disagree
+            would otherwise have the rest silently validated against the wrong
+            shape, so it is caught explicitly.
+        """
+        granule = olci_granule(
+            tmp_path,
+            bands={
+                "Oa08": packed_counts(),
+                "Oa17": np.array([[1, 2], [3, 4]], dtype="int32"),
+            },
+        )
+        with pytest.raises(ReaderError, match="not on one grid"):
+            read_olci(granule, channels=["Oa08", "Oa17"])
+
+    def test_bands_on_one_grid_still_read(self, tmp_path):
+        """The usual case -- every band on the same grid -- is unaffected."""
+        granule = olci_granule(
+            tmp_path, bands={"Oa08": packed_counts(), "Oa17": packed_counts()}
+        )
+        result = read_olci(granule, channels=["Oa08", "Oa17"])
+        assert sorted(result) == ["Oa08", "Oa17"], sorted(result)

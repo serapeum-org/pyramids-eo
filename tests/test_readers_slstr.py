@@ -629,3 +629,151 @@ class TestChannelSpellingSymmetry:
         """A suffix that is not a real quantity/grid/view combination is still rejected."""
         with pytest.raises(ReaderError, match="is not an SLSTR channel"):
             _canonical_channel(given, "read_slstr")
+
+
+class TestSpelledGridAndView:
+    """A product variable spelling must select the file it names, not another."""
+
+    @pytest.mark.parametrize(
+        "spelling, grid, view",
+        [
+            ("S5_radiance_an", "an", "nadir"),
+            ("S5_radiance_bn", "bn", "nadir"),
+            ("S5_radiance_ao", "ao", "oblique"),
+            ("S8_BT_io", "io", "oblique"),
+            ("F1_BT_fo", "fo", "oblique"),
+            ("F2_BT_in", "in", "nadir"),
+        ],
+    )
+    def test_the_spelling_selects_the_file(self, tmp_path, spelling, grid, view):
+        """The grid and view encoded in a spelling decide which file is read.
+
+        Args:
+            spelling: The product variable name passed as `channel`.
+            grid: The grid+view suffix the result must report.
+            view: The view the result must report.
+
+        Test scenario:
+            Accepting the spelling and then discarding its suffix read a
+            *different* file than the caller named -- `S5_radiance_bn` returned
+            the `an` grid and `S5_radiance_ao` returned the nadir view -- which is
+            the silent-substitution class the `grid=` fix had just closed,
+            re-entering through the spelling convenience.
+        """
+        granule = slstr_pdfs_granule(tmp_path, views=("n", "o"))
+        metadata = read_slstr(granule, channel=spelling).raster.GetMetadata()
+        assert metadata["grid"] == grid, metadata
+        assert metadata["view"] == view, metadata
+
+    def test_a_spelled_grid_conflicting_with_an_explicit_grid_raises(self, tmp_path):
+        """A spelling and a `grid=` that disagree is an error, not a silent choice."""
+        granule = slstr_pdfs_granule(tmp_path, views=("n",))
+        with pytest.raises(ReaderError, match="names grid 'b' but grid='a'"):
+            read_slstr(granule, channel="S5_radiance_bn", grid="a")
+
+    def test_a_spelled_view_conflicting_with_an_explicit_view_raises(self, tmp_path):
+        """A spelling and a `view=` that disagree is an error."""
+        granule = slstr_pdfs_granule(tmp_path, views=("n", "o"))
+        with pytest.raises(ReaderError, match="names the oblique view"):
+            read_slstr(granule, channel="S5_radiance_ao", view="nadir")
+
+    def test_agreeing_explicit_arguments_are_accepted(self, tmp_path):
+        """A spelling plus a matching `grid=` is fine, not a spurious conflict."""
+        granule = slstr_pdfs_granule(tmp_path, views=("n",))
+        metadata = read_slstr(
+            granule, channel="S5_radiance_bn", grid="b"
+        ).raster.GetMetadata()
+        assert metadata["grid"] == "bn", metadata
+
+    def test_a_channel_set_keeps_each_spelling(self, tmp_path):
+        """Each channel in a set keeps its own spelled grid and view."""
+        granule = slstr_pdfs_granule(tmp_path, views=("n", "o"))
+        result = read_slstr(granule, channels=["S5_radiance_bn", "S8_BT_io"])
+        assert result["S5"].raster.GetMetadata()["grid"] == "bn"
+        assert result["S8"].raster.GetMetadata()["grid"] == "io"
+
+    @pytest.mark.parametrize(
+        "spelling", ["S9_radiance_an", "S5_BT_an", "F2_radiance_in"]
+    )
+    def test_a_quantity_the_channel_does_not_ship_is_rejected(self, spelling):
+        """A quantity/channel combination no product has is rejected, not swapped.
+
+        Test scenario:
+            `S9` is thermal, so `S9_radiance_an` names a file that cannot exist --
+            and it used to resolve quietly to the `S9_BT_in` brightness
+            temperature, returning kelvin for a request that said radiance.
+        """
+        with pytest.raises(ReaderError, match="names quantity"):
+            _canonical_channel(spelling, "read_slstr")
+
+
+class TestGeodeticGridConformance:
+    """The geodetic grid must match the channel's grid, not merely exist."""
+
+    @staticmethod
+    def _granule(root, geo_shape):
+        """Build a granule whose S5 band is 2x3 and whose geodetic grid is `geo_shape`."""
+        granule = root / "S3A_SL_1_RBT____shape.SEN3"
+        granule.mkdir(parents=True, exist_ok=True)
+        write_measurement(
+            granule / "S5_radiance_an.nc", "S5_radiance_an", packed_counts()
+        )
+        rows, columns = geo_shape
+        write_geolocation(
+            granule / "geodetic_an.nc",
+            longitude_variable="longitude_an",
+            latitude_variable="latitude_an",
+            shape=(rows, columns),
+        )
+        return granule
+
+    @pytest.mark.parametrize("geo_shape", [(4, 6), (1, 2), (2, 6), (4, 3)])
+    def test_a_mismatched_geodetic_grid_raises(self, tmp_path, geo_shape):
+        """A geodetic grid of the wrong size is rejected rather than silently used.
+
+        Args:
+            geo_shape: The geodetic grid's `(rows, columns)`, against a 2x3 band.
+
+        Test scenario:
+            Only the annotation file's *existence* and its variables' presence were
+            checked, never that the grid conformed. An oversized grid was the worst
+            case: GDAL emitted no warning at all and the warp simply landed
+            elsewhere (origin 3.96667 against the correct 3.92857), which is a
+            plausible-looking raster in the wrong place.
+        """
+        granule = self._granule(tmp_path, geo_shape)
+        with pytest.raises(ReaderError, match="but the band is 2x3"):
+            read_slstr(granule, channel="S5")
+
+    def test_a_conforming_geodetic_grid_is_accepted(self, tmp_path):
+        """The matching grid still reads, so the check is not over-eager."""
+        granule = self._granule(tmp_path, (2, 3))
+        assert read_slstr(granule, channel="S5").read_array().shape == (2, 3)
+
+    @pytest.mark.parametrize("bad_scale", [float("nan"), float("inf"), 0.0])
+    def test_an_unusable_geolocation_scale_raises(self, tmp_path, bad_scale):
+        """A non-finite or zero geolocation scale is rejected at read time.
+
+        Test scenario:
+            The finite-packing guard was applied to the measurement decoder but
+            not to the geolocation path, so these built an all-NaN or all-zero VRT
+            that read fine and failed only inside the caller's warp, with GDAL's
+            own `Int overflow : -nan(ind)`.
+        """
+        from tests._netcdf3 import write_netcdf
+
+        granule = tmp_path / "S3A_SL_1_RBT____scale.SEN3"
+        granule.mkdir()
+        write_measurement(
+            granule / "S5_radiance_an.nc", "S5_radiance_an", packed_counts()
+        )
+        values = np.full((2, 3), 4000000, dtype="int32")
+        write_netcdf(
+            granule / "geodetic_an.nc",
+            {
+                "longitude_an": (values, {"scale_factor": bad_scale}),
+                "latitude_an": (values, {"scale_factor": bad_scale}),
+            },
+        )
+        with pytest.raises(ReaderError, match="unusable scale_factor"):
+            read_slstr(granule, channel="S5")

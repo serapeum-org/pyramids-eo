@@ -25,6 +25,7 @@ from pyramids_eo.drivers._base import (
     RASTER_DRIVER_API_VERSION,
     bands_to_channels,
     coerce_booleans,
+    coerce_floats,
     expand_sources,
     options_as_dict,
 )
@@ -174,6 +175,7 @@ class FciDriver:
 
         settings = options_as_dict(options)
         coerce_booleans(settings, ("calibrate",), driver="fci")
+        coerce_floats(settings, ("sun_earth_distance",), driver="fci")
         channel = settings.pop("channel", None)
         channels = settings.pop("channels", None)
         if channel is not None and channels is not None:

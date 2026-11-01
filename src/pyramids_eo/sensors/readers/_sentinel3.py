@@ -184,11 +184,19 @@ def _wgs84_wkt() -> str:
 
     WKT is used because it is self-contained: it names the datum and ellipsoid
     outright rather than deferring to an authority lookup. Measured on GDAL 3.13,
-    the `SRS` key is *optional* -- a warp without it produces an identical
-    geotransform -- and GDAL imports it permissively, accepting either this WKT or
-    a bare authority string such as `"EPSG:4326"`. What it does not tolerate is an
-    unparseable value, which it rejects loudly ("Failed to import coordinate
-    system") -- so the only real requirement is that whatever is emitted parses.
+    GDAL imports the key permissively -- this WKT and a bare `"EPSG:4326"` both
+    work, while an unparseable value is rejected loudly ("Failed to import
+    coordinate system") -- so the requirement is simply that it parses.
+
+    What the key *does* buy is the warped output's coordinate system. Omitting it
+    leaves the geotransform unchanged but produces a result with **no CRS at all**:
+
+        with this SRS -> GetProjection() == 'GEOGCS["WGS 84", ...'
+        without it    -> GetProjection() == ''
+
+    so a caller who warps gets a raster that is positioned correctly but does not
+    say in what. That, rather than the antimeridian handling originally supposed,
+    is why the key is emitted.
 
     Returns:
         The WGS 84 WKT string. Note this is EPSG:4326's own axis order, i.e. the
@@ -230,7 +238,14 @@ def _unscaling_vrt(
     The VRT is tiny XML and reads nothing until a warp actually pulls from it, so
     no geolocation array is loaded or copied at decode time. It lives in
     `/vsimem` under a name derived from the source, so repeated reads of one
-    granule reuse a single entry; GDAL keeps it for the life of the process.
+    granule reuse a single entry rather than accumulating copies.
+
+    That entry is **process-global and not reference-counted**: GDAL keeps it for
+    the life of the process (about 400 bytes per granule-grid, so ~8 MB across
+    10 000 granules -- negligible for a script, worth bounding in a long-lived
+    service), and a returned `Dataset`'s geolocation stays valid only while it
+    exists. Unlinking it by hand makes a later warp fail with "No such file or
+    directory"; nothing in this package removes it.
 
     The variable's fill value must be carried across too. GDAL's geolocation
     transformer consults the band's nodata to decide which samples to skip, so a
@@ -255,7 +270,11 @@ def _unscaling_vrt(
     """
     from osgeo import gdal
 
-    digest = hashlib.sha1(source.encode("utf-8", "replace")).hexdigest()[:16]
+    # Not a security digest -- just a short, stable name for the /vsimem entry, so
+    # repeated reads of one granule reuse it instead of accumulating copies.
+    digest = hashlib.sha1(
+        source.encode("utf-8", "replace"), usedforsecurity=False
+    ).hexdigest()[:16]
     path = f"/vsimem/pyramids_eo_geoloc/{variable}-{digest}.vrt"
     nodata = ""
     if fill is not None:
@@ -281,7 +300,9 @@ def _unscaling_vrt(
     return path
 
 
-def geolocation_source(geo_path: Any, variable: str, *, reader: str) -> str:
+def geolocation_source(
+    geo_path: Any, variable: str, *, reader: str, shape: tuple[int, int] | None = None
+) -> str:
     """Resolve one geolocation variable to a GDAL source that yields degrees.
 
     Opens the variable -- which is also what validates that it *exists*, so a
@@ -305,13 +326,26 @@ def geolocation_source(geo_path: Any, variable: str, *, reader: str) -> str:
     source = subdataset(geo_path, variable)
     raster = _open(geo_path, variable, reader)
     band = raster.GetRasterBand(1)
-    scale, offset = band.GetScale(), band.GetOffset()
+    raw_scale, raw_offset = band.GetScale(), band.GetOffset()
     fill = band.GetNoDataValue()
     width, height = raster.RasterXSize, raster.RasterYSize
     del raster, band
 
-    scale = 1.0 if scale is None else float(scale)
-    offset = 0.0 if offset is None else float(offset)
+    if shape is not None and (height, width) != shape:
+        raise ReaderError(
+            f"{reader}: geolocation variable {variable!r} is {height}x{width} but the "
+            f"band is {shape[0]}x{shape[1]}; a geolocation grid that does not match "
+            f"the image would place every pixel wrongly"
+        )
+
+    scale = 1.0 if raw_scale is None else finite_float(raw_scale)
+    offset = 0.0 if raw_offset is None else finite_float(raw_offset)
+    if scale is None or offset is None or scale == 0.0:
+        raise ReaderError(
+            f"{reader}: geolocation variable {variable!r} has an unusable "
+            f"scale_factor / add_offset ({raw_scale!r} / {raw_offset!r}); it must be "
+            f"finite and the scale non-zero"
+        )
     if scale == 1.0 and offset == 0.0:
         return source
     return _unscaling_vrt(source, variable, width, height, scale, offset, fill)
@@ -325,6 +359,7 @@ def geolocation_domain(
     latitude_variable: str = "latitude",
     pixel_step: int = 1,
     line_step: int = 1,
+    shape: tuple[int, int] | None = None,
 ) -> dict[str, str]:
     """Build the GDAL `GEOLOCATION` metadata domain for a swath grid.
 
@@ -375,9 +410,13 @@ def geolocation_domain(
         end -- including a real `gdal.Warp` -- in `tests/test_readers_sentinel3.py`.
     """
     return {
-        "X_DATASET": geolocation_source(geo_path, longitude_variable, reader=reader),
+        "X_DATASET": geolocation_source(
+            geo_path, longitude_variable, reader=reader, shape=shape
+        ),
         "X_BAND": "1",
-        "Y_DATASET": geolocation_source(geo_path, latitude_variable, reader=reader),
+        "Y_DATASET": geolocation_source(
+            geo_path, latitude_variable, reader=reader, shape=shape
+        ),
         "Y_BAND": "1",
         "PIXEL_OFFSET": "0",
         "LINE_OFFSET": "0",

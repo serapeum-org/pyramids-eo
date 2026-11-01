@@ -91,3 +91,34 @@ def test_explicit_name_resolves_each_driver():
     assert select_driver("anything", "fci") is FciDriver
     assert select_driver("anything", "olci") is OlciDriver
     assert select_driver("anything", "slstr") is SlstrDriver
+
+
+def test_a_dual_content_sen3_resolves_to_the_olci_driver(tmp_path):
+    """A `.SEN3` holding both OLCI and SLSTR files resolves to olci, stably.
+
+    Both drivers claim the suffix and both `can_open` predicates return True for
+    such a directory, so `select_driver` takes the first claimant in registration
+    order -- which is alphabetical. The outcome is documented; this pins it, so a
+    future registration change cannot flip it silently.
+    """
+    granule = tmp_path / "S3A_BOTH.SEN3"
+    granule.mkdir()
+    (granule / "Oa08_radiance.nc").write_bytes(b"")
+    (granule / "S5_radiance_an.nc").write_bytes(b"")
+    assert OlciDriver.can_open(str(granule)) is True
+    assert SlstrDriver.can_open(str(granule)) is True
+    assert select_driver(str(granule)) is OlciDriver
+
+
+def test_an_empty_sen3_is_claimed_by_neither_driver(tmp_path):
+    """An empty `.SEN3` is claimed by neither, so read_file falls back to GDAL.
+
+    Documented behaviour: claiming on content means an incomplete granule gets
+    GDAL's generic error rather than the readers' "product looks incomplete"
+    message. Pinned so the trade-off is visible if it ever changes.
+    """
+    granule = tmp_path / "S3A_EMPTY.SEN3"
+    granule.mkdir()
+    assert OlciDriver.can_open(str(granule)) is False
+    assert SlstrDriver.can_open(str(granule)) is False
+    assert select_driver(str(granule)) is None

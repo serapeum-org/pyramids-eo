@@ -38,7 +38,11 @@ from __future__ import annotations
 from pyramids_eo.sensors.readers.fci import open_fci_l1c_chunk, read_fci
 from pyramids_eo.sensors.readers.fci_l1c import available_channels, read_fci_l1c
 from pyramids_eo.sensors.readers.harmonise import harmonise
-from pyramids_eo.sensors.readers.olci import available_olci_channels, read_olci
+from pyramids_eo.sensors.readers.olci import (
+    available_olci_channels,
+    product_type,
+    read_olci,
+)
 from pyramids_eo.sensors.readers.seviri import parse_seviri_native, read_seviri
 from pyramids_eo.sensors.readers.slstr import (
     available_slstr_channels,
@@ -52,6 +56,7 @@ __all__ = [
     "harmonise",
     "open_fci_l1c_chunk",
     "parse_seviri_native",
+    "product_type",
     "read_fci",
     "read_fci_l1c",
     "read_olci",

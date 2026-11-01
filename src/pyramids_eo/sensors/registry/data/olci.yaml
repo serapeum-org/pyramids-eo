@@ -11,8 +11,11 @@
 # must use the granule's OWN per-detector `solar_flux` from `instrument_data.nc`
 # together with the solar zenith angle from `tie_geometries.nc` -- those are
 # granule-accurate, whereas a nominal band irradiance baked in here would not be.
-# Verify the band centres against the ESA Sentinel-3 OLCI product documentation
-# before relying on them for quantitative work.
+# The band centres are ESA SentiWiki's OLCI products page, Table 2 (the OLCI
+# spectral bands). Note a documentation trap: ESA's OLCI *instrument* page prints
+# Oa9 = 673.25 and Oa16 = 778.85, contradicting the *product* table on exactly
+# those two rows. The product table (673.75 / 778.75) is the L1B convention and is
+# what is used here -- do not "correct" these two into the instrument-page values.
 name: olci
 channels:
   Oa01: {wavelength_um: 0.400,    resolution_m: 300, kind: solar}
