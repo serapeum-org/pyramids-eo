@@ -1351,6 +1351,7 @@ class TestFromEarthengineComposite:
 class TestCollectionFromEarthengine:
     """Tests for :func:`collection_from_earthengine`."""
 
+    @pytest.mark.lazy
     def test_returned_collection_reduces_over_time(self, three_scenes) -> None:
         """The reader's collection reduces over time, no manual spill-to-disk (#131).
 
@@ -1360,12 +1361,13 @@ class TestCollectionFromEarthengine:
 
         Test scenario:
             The reader hands back a collection backed by resident scenes
-            (``datasets=``, so ``files is None``). Before pyramids-core 0.73.0
-            (pyramids #1412), ``DatasetCollection.data`` — which ``reduce_time`` and
+            (`datasets=`, so `files is None`). Before pyramids-core 0.73.0
+            (pyramids #1412), `DatasetCollection.data` — which `reduce_time` and
             the associative reducers read — refused that with
-            ``RuntimeError: ... requires a file-backed collection``, so every
+            `RuntimeError: ... requires a file-backed collection`, so every
             multi-scene composite failed. Reducing here pins the integration
-            contract: one 30-day window whose mean of 10 / 20 / 30 is 20.
+            contract: one calendar-month window, every pixel the mean of
+            10 / 20 / 30.
         """
         dc = collection_from_earthengine(
             "COPERNICUS/S2_SR_HARMONIZED",
@@ -1377,10 +1379,72 @@ class TestCollectionFromEarthengine:
             "the reader returns resident scenes; this test exists to prove such a "
             "collection is reducible (#131)"
         )
-        windows = dc.reduce_time(list(dc.time), freq="30D", op="mean")
-        assert len(windows) == 1, f"expected one 30-day window, got {len(windows)}"
-        assert windows[0][1].read_array().ravel()[0] == pytest.approx(20.0), (
-            f"mean of 10/20/30 should be 20, got {windows[0][1].read_array().ravel()[:4]}"
+        windows = dc.reduce_time(list(dc.time), freq="1MS", op="mean")
+        assert len(windows) == 1, f"expected one June window, got {len(windows)}"
+        _label, reduced = windows[0]
+        values = reduced.read_array()
+        assert values.shape == (4, 4), f"unexpected reduced shape: {values.shape}"
+        assert values == pytest.approx(20.0), (
+            f"every pixel should be the mean of 10/20/30, got {values}"
+        )
+
+    @pytest.mark.lazy
+    @pytest.mark.parametrize(
+        ("op", "expected"),
+        [("mean", 20.0), ("min", 10.0), ("max", 30.0), ("sum", 60.0)],
+    )
+    def test_returned_collection_associative_reducers(
+        self, three_scenes, op, expected
+    ) -> None:
+        """The associative reducers issue #131 names also work on the collection.
+
+        Args:
+            three_scenes: Fixture patching discovery/open (three scenes, fills
+                10 / 20 / 30).
+            op: The `DatasetCollection` reducer method to call.
+            expected: The reducer's per-pixel result over scenes 10 / 20 / 30.
+
+        Test scenario:
+            `mean` / `min` / `max` / `sum` read `DatasetCollection.data` just as
+            `reduce_time` does, so each one used to raise on the reader's in-memory
+            collection. Covers the whole set the issue names, not only `reduce_time`.
+        """
+        dc = collection_from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(4, 4)),
+            start="2024-06-01",
+            end="2024-06-30",
+        )
+        values = np.asarray(getattr(dc, op)())
+        assert values == pytest.approx(expected), (
+            f"{op}() over 10/20/30 should be {expected}, got {values}"
+        )
+
+    @pytest.mark.lazy
+    def test_returned_collection_reduces_per_scene_window(self, three_scenes) -> None:
+        """Per-day windows keep each scene's own value, pinning the time ordering.
+
+        Args:
+            three_scenes: Fixture patching discovery/open (three scenes, fills
+                10 / 20 / 30 on 2024-06-01/02/03).
+
+        Test scenario:
+            A daily frequency puts every scene in its own window, so the reduction
+            exercises the bucketing and output ordering that a single-window case
+            cannot — a scrambled `time` axis still averages to 20, but would not
+            yield 10 / 20 / 30 in order here.
+        """
+        dc = collection_from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(4, 4)),
+            start="2024-06-01",
+            end="2024-06-30",
+        )
+        windows = dc.reduce_time(list(dc.time), freq="1D", op="mean")
+        assert len(windows) == 3, f"expected one window per scene, got {len(windows)}"
+        per_window = [reduced.read_array().ravel()[0] for _label, reduced in windows]
+        assert per_window == pytest.approx([10.0, 20.0, 30.0]), (
+            f"daily windows should follow the scenes' acquisition order: {per_window}"
         )
 
     def test_returns_dataset_collection(self, three_scenes) -> None:

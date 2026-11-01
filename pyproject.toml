@@ -215,6 +215,7 @@ markers = [
     "fast: mark test as fast (deselect with '-m \"not fast\"')",
     "core: extras-free test (auto-applied when no extras marker is present)",
     "plot: tests requiring the [viz] extra (cleopatra) — plotting tests (deselect with '-m \"not plot\"')",
+    "lazy: tests requiring pyramids-core[lazy] (dask) — DatasetCollection reductions (deselect with '-m \"not lazy\"')",
     "live: live network test against a real external service (deselect with '-m \"not live\"', run with '-m live')",
 ]
 

@@ -24,7 +24,9 @@ def _has(*module_names: str) -> bool:
 
 
 HAS_CLEOPATRA = _has("cleopatra")
+HAS_DASK = _has("dask")
 
 EXTRA_MARKERS: dict[str, tuple[bool, str]] = {
     "plot": (HAS_CLEOPATRA, "requires the [viz] extra (cleopatra)"),
+    "lazy": (HAS_DASK, "requires pyramids-core[lazy] (dask)"),
 }
