@@ -162,7 +162,7 @@ class OlciDriver:
         from pyramids_eo.sensors.readers import read_olci
 
         settings = options_as_dict(options)
-        coerce_booleans(settings, ("geolocation",), driver='olci')
+        coerce_booleans(settings, ("geolocation",), driver="olci")
         channel = settings.pop("channel", None)
         channels = settings.pop("channels", None)
         if channel is not None and channels is not None:

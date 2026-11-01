@@ -180,7 +180,7 @@ class SlstrDriver:
         from pyramids_eo.sensors.readers import read_slstr
 
         settings = options_as_dict(options)
-        coerce_booleans(settings, ("geolocation",), driver='slstr')
+        coerce_booleans(settings, ("geolocation",), driver="slstr")
         channel = settings.pop("channel", None)
         channels = settings.pop("channels", None)
         if channel is not None and channels is not None:
