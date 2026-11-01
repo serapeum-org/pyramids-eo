@@ -80,8 +80,13 @@ dev = [
     # fixed in 2.21.0); it arrives transitively via jupyterlab / notebook.
     "jupyter-server >=2.21.0",
     # Floor tornado past GHSA-chx6-46f5-w4vp / c2m8-h5v5-343r / 3hv7-mjh2-fv65
-    # (fixed in 6.5.9); it arrives transitively via the jupyter stack.
-    "tornado >=6.5.9",
+    # (fixed in 6.5.9) and CVE-2026-115927 / 116577 / 116578 (fixed in 6.6); it
+    # arrives transitively via the jupyter stack.
+    "tornado >=6.6",
+    # Floor filelock past CVE-2026-112907/112908/112909/112910/112911/112913/
+    # 112915/112935/112936/112938/112939/112940 (fixed by 4.2.1); it arrives
+    # transitively via virtualenv / pre-commit.
+    "filelock >=4.2.1",
     # Floor urllib3 past PYSEC-2026-4175/4176/4177 (chunked-encoding memory
     # DoS, fixed in 2.8.0); it arrives transitively via the jupyter / HTTP stack.
     "urllib3 >=2.8.0",
@@ -107,6 +112,10 @@ docs = [
     "jupyter",
     "nbconvert",
     "ipykernel",
+    # Same tornado floor the dev group carries (CVE-2026-115927 / 116577 / 116578,
+    # fixed in 6.6): it arrives here too, via the notebook / jupyter stack. pip-audit
+    # only scans the py311 environment, so this one is not caught by CI.
+    "tornado >=6.6",
 ]
 
 [project.urls]
