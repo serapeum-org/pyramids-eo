@@ -62,7 +62,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -281,7 +281,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="read-file-plugin/" class="md-tabs__link">
+        <a href="stac-signers/" class="md-tabs__link">
           
   
   
@@ -706,34 +706,6 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="read-file-plugin/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Reading EO sources via read_file
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
             
               
                 
@@ -1788,9 +1760,8 @@ scene-classification masking (see <a href="reference/sentinel/">Sentinel</a>).</
 <p>Every reader above is also registered as a <code>pyramids.raster_drivers</code> plugin, so an EO source can be
 opened straight through pyramids' own <code>Dataset.read_file</code> — no pyramids-eo import at the call site;
 installing the package is the whole integration. The typed facades stay the ergonomic API; this is
-the zero-coupling route for code that already speaks pyramids (see the
-<a href="read-file-plugin/">Reading EO sources via <code>read_file</code></a> guide for the full dispatch rules and
-per-source recipes).</p>
+the zero-coupling route for code that already speaks pyramids (see
+<a href="reference/readers/#raster-driver-plugins">Readers → Raster-driver plugins</a>).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1"># GDAL cannot open these, so read_file falls through to the pyramids-eo plugin automatically:</span>
