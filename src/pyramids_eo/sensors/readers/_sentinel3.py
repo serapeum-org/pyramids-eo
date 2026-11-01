@@ -200,11 +200,10 @@ def _wgs84_wkt() -> str:
 
     reference = osr.SpatialReference()
     reference.ImportFromEPSG(4326)
-    # The geolocation arrays are (longitude, latitude), i.e. traditional GIS order,
-    # not EPSG:4326's authority order. Note this only sets an in-memory property of
-    # `reference`: measured, it leaves `ExportToWkt()` byte-identical, so the string
-    # returned below still carries the authority's lat-then-lon AXIS entries.
-    reference.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    # No SetAxisMappingStrategy call here: it sets an in-memory property that
+    # ExportToWkt() ignores -- measured, the emitted string is byte-identical with
+    # and without it -- so it would be dead code. Which array is longitude and
+    # which is latitude is carried by the domain's X_DATASET / Y_DATASET keys.
     return str(reference.ExportToWkt())
 
 
