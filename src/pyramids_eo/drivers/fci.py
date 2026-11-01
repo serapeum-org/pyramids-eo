@@ -15,7 +15,6 @@ requires the channel to be named — via ``bands=["ir_105"]`` or ``open_options=
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from glob import glob
 from pathlib import Path
 from typing import Any
@@ -24,6 +23,7 @@ from pyramids.dataset import Dataset
 
 from pyramids_eo.drivers._base import (
     RASTER_DRIVER_API_VERSION,
+    bands_to_channels,
     expand_sources,
     options_as_dict,
 )
@@ -43,6 +43,9 @@ def _strip_scheme(source: str) -> str:
 def _bands_to_channels(bands: Any) -> tuple[Any, Any]:
     """Map a ``bands`` argument to ``(channel, channels)`` for :func:`read_fci_l1c`.
 
+    A thin wrapper over :func:`~pyramids_eo.drivers._base.bands_to_channels` naming an FCI
+    channel in the error message; the OLCI and SLSTR drivers share the same helper.
+
     Args:
         bands: A list of channel names (one for a single channel, several for a set).
 
@@ -54,23 +57,7 @@ def _bands_to_channels(bands: Any) -> tuple[Any, Any]:
         ValueError: ``bands`` is not a list of channel names — a string, bytes, mapping, or other
             non-sequence.
     """
-    if isinstance(bands, (str, bytes, Mapping)):
-        raise ValueError(
-            f"bands must be a list of channel names, not a "
-            f"{type(bands).__name__} ({bands!r}); pass bands=['ir_105']."
-        )
-    try:
-        names = list(bands)
-    except TypeError as error:
-        raise ValueError(
-            f"bands must be a list of channel names, not a "
-            f"{type(bands).__name__} ({bands!r}); pass bands=['ir_105']."
-        ) from error
-    if len(names) == 1:
-        return names[0], None
-    if len(names) > 1:
-        return None, names
-    return None, None
+    return bands_to_channels(bands, example="ir_105")
 
 
 class FciDriver:

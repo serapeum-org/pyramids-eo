@@ -89,6 +89,66 @@ def options_as_dict(options: Any) -> dict[str, Any]:
     return result
 
 
+def bands_to_channels(bands: Any, *, example: str) -> tuple[Any, Any]:
+    """Map a ``bands`` argument onto a reader's ``(channel, channels)`` pair.
+
+    The channel-at-a-time readers (FCI, OLCI, SLSTR) take either one ``channel``
+    (returning a ``Dataset``) or a ``channels`` sequence (returning a dict), while
+    ``read_file`` speaks the generic ``bands``. One band name maps to ``channel``, several
+    to ``channels``, and an empty list names no channel at all.
+
+    Args:
+        bands: A list of channel names (one for a single channel, several for a set).
+        example: A channel name for the error message, e.g. ``"ir_105"`` or ``"Oa08"``.
+
+    Returns:
+        ``(name, None)`` for a single band, ``(None, [names])`` for several, and
+        ``(None, None)`` for an empty list.
+
+    Raises:
+        ValueError: ``bands`` is not a list of channel names — a string, bytes, mapping, or
+            other non-sequence.
+
+    Examples:
+        - One band becomes ``channel``, several become ``channels``:
+            ```python
+            >>> from pyramids_eo.drivers._base import bands_to_channels
+            >>> bands_to_channels(["Oa08"], example="Oa08")
+            ('Oa08', None)
+            >>> bands_to_channels(["Oa08", "Oa17"], example="Oa08")
+            (None, ['Oa08', 'Oa17'])
+
+            ```
+        - An empty list names no channel; a bare string is rejected:
+            ```python
+            >>> bands_to_channels([], example="Oa08")
+            (None, None)
+            >>> bands_to_channels("Oa08", example="Oa08")
+            Traceback (most recent call last):
+                ...
+            ValueError: bands must be a list of channel names, not a str ('Oa08'); pass bands=['Oa08'].
+
+            ```
+    """
+    if isinstance(bands, (str, bytes, Mapping)):
+        raise ValueError(
+            f"bands must be a list of channel names, not a "
+            f"{type(bands).__name__} ({bands!r}); pass bands=['{example}']."
+        )
+    try:
+        names = list(bands)
+    except TypeError as error:
+        raise ValueError(
+            f"bands must be a list of channel names, not a "
+            f"{type(bands).__name__} ({bands!r}); pass bands=['{example}']."
+        ) from error
+    if len(names) == 1:
+        return names[0], None
+    if len(names) > 1:
+        return None, names
+    return None, None
+
+
 def expand_sources(source: Any, *, pattern: str = "*") -> list[str]:
     """Expand one ``read_file`` source string into the file list a multi-file reader needs.
 
