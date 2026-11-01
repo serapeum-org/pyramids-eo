@@ -40,11 +40,15 @@ from pyramids_eo.sensors.readers.fci_l1c import available_channels, read_fci_l1c
 from pyramids_eo.sensors.readers.harmonise import harmonise
 from pyramids_eo.sensors.readers.olci import available_olci_channels, read_olci
 from pyramids_eo.sensors.readers.seviri import parse_seviri_native, read_seviri
-from pyramids_eo.sensors.readers.slstr import read_slstr
+from pyramids_eo.sensors.readers.slstr import (
+    available_slstr_channels,
+    read_slstr,
+)
 
 __all__ = [
     "available_channels",
     "available_olci_channels",
+    "available_slstr_channels",
     "harmonise",
     "open_fci_l1c_chunk",
     "parse_seviri_native",

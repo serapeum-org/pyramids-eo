@@ -11,10 +11,13 @@ arguments:
 * `view` -- the instrument images each scene twice, `"nadir"` (straight down)
   and `"oblique"` (slanted, ~55 deg forward). Each view is a separate grid.
 * `grid` -- channels live on different resolutions: the solar channels `S1`-`S6`
-  on the 500 m `a` grid, the thermal `S7`-`S9` on the 1 km `i` grid, and the fire
-  channels `F1`-`F2` on the 1 km `f` grid. `read_slstr` picks the channel's usual
-  grid and falls back to discovering the file when a product spells it
-  differently; `grid=` forces a specific one (e.g. the alternative 500 m `b`).
+  on the 500 m `a` grid (with `S4`-`S6` duplicated onto the alternative 500 m
+  `b`), the thermal `S7`-`S9` on the 1 km `i` grid, and of the fire channels
+  **`F1` on the 1 km `f` grid but `F2` on `i`** -- they are asymmetric, and there
+  is no `F2_BT_f*.nc`. `read_slstr` tries each channel's documented grids in
+  order (`F1` falls back to `i` for products predating the `f` baseline), and
+  `grid=` restricts the read to one grid. `available_slstr_channels` reports what
+  a particular granule actually carries.
 
 Because the grids differ in shape, a multi-channel read returns a `dict` rather
 than a stack -- `channels=["S5", "S8"]` yields arrays of different sizes.
@@ -49,22 +52,31 @@ from pyramids_eo.sensors.readers._sentinel3 import (
 #: Sensor key for the bundled channel table (`registry/data/slstr.yaml`).
 SENSOR = "slstr"
 
-#: The usual grid and measured quantity per channel. `a` = 500 m solar,
-#: `i` = 1 km thermal, `f` = 1 km fire. A product that spells a channel's grid
-#: differently is still found by `_discover_band_file`.
-_CHANNEL_GRID: dict[str, tuple[str, str]] = {
-    "S1": ("a", "radiance"),
-    "S2": ("a", "radiance"),
-    "S3": ("a", "radiance"),
-    "S4": ("a", "radiance"),
-    "S5": ("a", "radiance"),
-    "S6": ("a", "radiance"),
-    "S7": ("i", "BT"),
-    "S8": ("i", "BT"),
-    "S9": ("i", "BT"),
-    "F1": ("f", "BT"),
-    "F2": ("f", "BT"),
+#: The grid(s) and measured quantity each channel ships on, per the SLSTR L1 RBT
+#: product-composition table, in preference order. `a`/`b` are the 500 m solar
+#: grids, `i` the 1 km thermal grid and `f` the 1 km fire grid.
+#:
+#: Two asymmetries are easy to get wrong and are the reason this is an explicit
+#: table rather than a rule: the fire channels differ from each other -- F1 has
+#: its own `f` grid while **F2 stays on `i`** (there is no `F2_BT_fn.nc`) -- and
+#: F1 is additionally found on `i` in products predating the `f`-grid baseline.
+#: S4-S6 are duplicated onto the alternative 500 m `b` grid.
+_CHANNEL_GRIDS: dict[str, tuple[tuple[str, ...], str]] = {
+    "S1": (("a",), "radiance"),
+    "S2": (("a",), "radiance"),
+    "S3": (("a",), "radiance"),
+    "S4": (("a", "b"), "radiance"),
+    "S5": (("a", "b"), "radiance"),
+    "S6": (("a", "b"), "radiance"),
+    "S7": (("i",), "BT"),
+    "S8": (("i",), "BT"),
+    "S9": (("i",), "BT"),
+    "F1": (("f", "i"), "BT"),
+    "F2": (("i",), "BT"),
 }
+
+#: The grid letters `grid=` accepts, and their ground sampling distance in metres.
+_GRID_RESOLUTION: dict[str, int] = {"a": 500, "b": 500, "i": 1000, "f": 1000}
 
 #: `view=` spellings mapped to the one-letter product suffix.
 _VIEWS: dict[str, str] = {
@@ -111,12 +123,59 @@ def _canonical_channel(channel: Any, reader: str) -> str:
     """
     match = _CHANNEL_PATTERN.match(str(channel).strip())
     name = f"{match.group(1).upper()}{match.group(2)}" if match else ""
-    if name not in _CHANNEL_GRID:
+    if name not in _CHANNEL_GRIDS:
         raise ReaderError(
             f"{reader}: {str(channel)!r} is not an SLSTR channel; expected one of "
-            f"{', '.join(sorted(_CHANNEL_GRID))}"
+            f"{', '.join(sorted(_CHANNEL_GRIDS))}"
         )
     return name
+
+
+def _resolve_grid(grid: Any, reader: str) -> str | None:
+    """Validate an explicit `grid` argument, or pass `None` through.
+
+    Args:
+        grid: A grid letter (`"a"`, `"b"`, `"i"`, `"f"`), or `None` to use the
+            channel's documented grids.
+        reader: The calling reader's name, for error messages.
+
+    Returns:
+        The lower-cased grid letter, or `None`.
+
+    Raises:
+        ReaderError: When `grid` is not an SLSTR grid letter. Validating it
+            matters because the letter is interpolated into a filename, so an
+            unchecked value silently built a nonsense path (`""` meant "the
+            default grid", and `".."` or `"*"` built separator-bearing names).
+
+    Examples:
+        - A real grid letter is accepted, case-insensitively, and `None` passes through:
+            ```python
+            >>> from pyramids_eo.sensors.readers.slstr import _resolve_grid
+            >>> _resolve_grid("i", "read_slstr"), _resolve_grid("A", "read_slstr")
+            ('i', 'a')
+            >>> _resolve_grid(None, "read_slstr") is None
+            True
+
+            ```
+        - Anything else is rejected rather than interpolated into a path:
+            ```python
+            >>> _resolve_grid("", "read_slstr")
+            Traceback (most recent call last):
+                ...
+            pyramids_eo.errors.ReaderError: read_slstr: grid='' is not an SLSTR grid; expected one of a, b, i, f
+
+            ```
+    """
+    if grid is None:
+        return None
+    key = str(grid).strip().lower()
+    if key not in _GRID_RESOLUTION:
+        raise ReaderError(
+            f"{reader}: grid={grid!r} is not an SLSTR grid; expected one of "
+            f"{', '.join(_GRID_RESOLUTION)}"
+        )
+    return key
 
 
 def _resolve_view(view: Any, reader: str) -> str:
@@ -151,78 +210,69 @@ def _resolve_view(view: Any, reader: str) -> str:
 
 def _discover_band_file(
     granule: Path, channel: str, view: str, reader: str, grid: str | None
-) -> Path:
-    """Locate a channel's measurement file, by convention then by discovery.
+) -> tuple[Path, str]:
+    """Locate a channel's measurement file from its documented grid candidates.
 
-    Tries the channel's usual `<channel>_<quantity>_<grid><view>.nc` name (or the
-    caller's `grid`), then falls back to globbing `<channel>_*<view>.nc` so a
-    product that places a channel on a different grid is still read rather than
-    rejected.
+    Each candidate is an exact `<channel>_<quantity>_<grid><view>.nc` name built
+    from `_CHANNEL_GRIDS`, tried in order; `grid` restricts the search to that one
+    grid. Nothing is globbed, which matters twice: a `*_quality_*` annotation
+    sibling can never be mistaken for the measurement, and an explicit `grid=` can
+    never silently fall back to a different resolution.
 
     Args:
         granule: The `.SEN3` granule directory.
         channel: Canonical channel name.
         view: One-letter view suffix (`"n"` / `"o"`).
         reader: The calling reader's name, for error messages.
-        grid: An explicit grid letter overriding the channel's usual one, or
-            `None`.
+        grid: A validated grid letter restricting the search, or `None` to try
+            the channel's documented grids in order.
 
     Returns:
-        The measurement file's `Path`.
+        The measurement file's `Path`, and the grid letter it was found on.
 
     Raises:
-        ReaderError: When the granule holds no file for the channel and view; when
-            `grid` was given but matches none of the files that do exist; or when
-            several grids carry the channel and no `grid` was given to choose one.
+        ReaderError: When no candidate exists. The message names the grids tried
+            and the measurement files the granule does hold for that channel, so
+            a channel on an unexpected grid is immediately apparent.
     """
-    default_grid, quantity = _CHANNEL_GRID[channel]
-    candidate = granule / f"{channel}_{quantity}_{grid or default_grid}{view}.nc"
-    if candidate.is_file():
-        return candidate
-    matches = sorted(
-        path for path in granule.glob(f"{channel}_*{view}.nc") if path.is_file()
+    candidates, quantity = _CHANNEL_GRIDS[channel]
+    wanted = (grid,) if grid is not None else candidates
+    for letter in wanted:
+        path = granule / f"{channel}_{quantity}_{letter}{view}.nc"
+        if path.is_file():
+            return path, letter
+    # Only for the error message, and restricted to the measured quantity so a
+    # quality sibling is never offered as a choice.
+    present = sorted(
+        path.name for path in granule.glob(f"{channel}_{quantity}_*{view}.nc")
     )
-    if len(matches) == 1:
-        return matches[0]
-    if matches:
-        if grid is not None:
-            raise ReaderError(
-                f"{reader}: granule {granule.name!r} has no {candidate.name!r}; "
-                f"grid={grid!r} does not match any of "
-                f"{[path.name for path in matches]}"
-            )
-        raise ReaderError(
-            f"{reader}: {channel!r} ({view!r} view) is ambiguous in granule "
-            f"{granule.name!r} -- {[path.name for path in matches]} all match; "
-            f"pass grid= to choose one"
-        )
+    tried = f"grid {grid!r}" if grid is not None else f"grid(s) {', '.join(wanted)}"
+    holds = present if present else "no measurement files for this channel"
     raise ReaderError(
-        f"{reader}: granule {granule.name!r} has no file for channel {channel!r} "
-        f"in the {'nadir' if view == 'n' else 'oblique'} view (expected "
-        f"{candidate.name!r})"
+        f"{reader}: granule {granule.name!r} has no {channel!r} measurement for the "
+        f"{'nadir' if view == 'n' else 'oblique'} view on {tried}; it holds {holds}"
     )
 
 
-def _geodetic_domain(granule: Path, band_path: Path, reader: str) -> dict[str, str]:
-    """Build the `GEOLOCATION` domain for the grid a band file sits on.
-
-    The grid+view suffix is taken from the band file's own name (its last
-    underscore-separated token, e.g. `an` in `S1_radiance_an.nc`), so the
-    geolocation always matches the grid actually read -- including when
-    `_discover_band_file` fell back to a non-default grid.
+def _geodetic_domain(
+    granule: Path, grid: str, view: str, reader: str
+) -> dict[str, str]:
+    """Build the `GEOLOCATION` domain for the grid a channel was read from.
 
     Args:
         granule: The `.SEN3` granule directory.
-        band_path: The measurement file being read.
+        grid: The grid letter the measurement was found on.
+        view: One-letter view suffix (`"n"` / `"o"`).
         reader: The calling reader's name, for error messages.
 
     Returns:
         The `GEOLOCATION` domain for the matching `geodetic_<grid><view>.nc`.
 
     Raises:
-        ReaderError: When the granule has no geodetic file for that grid.
+        ReaderError: When the granule has no geodetic file for that grid, or it
+            lacks the longitude / latitude variables.
     """
-    suffix = band_path.stem.rsplit("_", 1)[-1]
+    suffix = f"{grid}{view}"
     geo_path = granule_file(granule, f"geodetic_{suffix}.nc", reader)
     return geolocation_domain(
         geo_path,
@@ -233,33 +283,50 @@ def _geodetic_domain(granule: Path, band_path: Path, reader: str) -> dict[str, s
 
 
 def _channel_metadata(
-    channel: str, granule: Path, band_path: Path, variable_meta: dict[str, str]
+    channel: str,
+    granule: Path,
+    grid: str,
+    view: str,
+    variable_meta: dict[str, str],
+    *,
+    geolocated: bool,
 ) -> dict[str, str]:
     """Build the CF-style metadata carried onto a decoded channel.
 
     Keeps the variable's own CF attributes (`units`, `long_name`,
     `standard_name`) when the granule declares them, and adds the channel's
-    registry `wavelength_um` / `resolution_m` / `kind` plus provenance (sensor,
-    channel, granule name, and the grid and view actually read). Registry lookup
-    failure is tolerated and simply omits those three fields.
+    registry `wavelength_um` / `kind` plus provenance (sensor, channel, granule
+    name, and the grid and view actually read). Registry lookup failure is
+    tolerated and simply omits those fields.
+
+    `resolution_m` comes from the **grid actually read**, not from the channel's
+    nominal registry entry, so a channel read off a non-default grid is labelled
+    with that grid's ground sampling distance rather than its usual one.
 
     Args:
         channel: Canonical channel name.
         granule: The granule directory (for provenance).
-        band_path: The measurement file read (names the grid and view).
+        grid: The grid letter the measurement was read from.
+        view: One-letter view suffix (`"n"` / `"o"`).
         variable_meta: The NetCDF variable's GDAL attribute dict.
+        geolocated: Whether a `GEOLOCATION` domain was attached, so the
+            `geolocation` key describes what the result actually carries.
 
     Returns:
         A flat `str -> str` metadata dict for the output `Dataset`.
     """
-    suffix = band_path.stem.rsplit("_", 1)[-1]
     metadata = {
         "sensor": SENSOR,
         "channel": channel,
         "granule": granule.name,
-        "grid": suffix,
-        "view": "nadir" if suffix.endswith("n") else "oblique",
-        "geolocation": "swath (see the GEOLOCATION metadata domain)",
+        "grid": f"{grid}{view}",
+        "view": "nadir" if view == "n" else "oblique",
+        "resolution_m": str(_GRID_RESOLUTION[grid]),
+        "geolocation": (
+            "swath (see the GEOLOCATION metadata domain)"
+            if geolocated
+            else "none (placeholder pixel grid)"
+        ),
     }
     for key in ("units", "long_name", "standard_name"):
         if key in variable_meta:
@@ -271,9 +338,44 @@ def _channel_metadata(
     except Exception:  # noqa: BLE001 - registry is descriptive, never required
         return metadata
     metadata["wavelength_um"] = str(entry.wavelength_um)
-    metadata["resolution_m"] = str(entry.resolution_m)
     metadata["kind"] = entry.kind
     return metadata
+
+
+def available_slstr_channels(
+    source: Any, *, view: str = "nadir"
+) -> dict[str, list[str]]:
+    """Report which channels a granule carries in one view, and on which grids.
+
+    This is how a caller discovers a product's real layout rather than assuming
+    it -- including that `F2` lives on the 1 km `i` grid while `F1` is on `f`, and
+    which of `S4`-`S6` are duplicated onto the alternative 500 m `b` grid.
+
+    Args:
+        source: The `.SEN3` granule directory, or a file inside it.
+        view: `"nadir"` (default) or `"oblique"`.
+
+    Returns:
+        A `{channel: [grid letters]}` mapping, in canonical channel order, listing
+        only the channels the granule actually holds a measurement for.
+
+    Raises:
+        ReaderError: When `source` is not a granule, or `view` is not an SLSTR
+            view.
+    """
+    reader = "available_slstr_channels"
+    suffix = _resolve_view(view, reader)
+    granule = resolve_granule(source, reader)
+    found: dict[str, list[str]] = {}
+    for channel, (grids, quantity) in _CHANNEL_GRIDS.items():
+        present = [
+            letter
+            for letter in grids
+            if (granule / f"{channel}_{quantity}_{letter}{suffix}.nc").is_file()
+        ]
+        if present:
+            found[channel] = present
+    return found
 
 
 def read_slstr_band(
@@ -302,22 +404,32 @@ def read_slstr_band(
         swath `GEOLOCATION` domain.
 
     Raises:
-        ReaderError: When the channel or view is not an SLSTR one, the granule
-            has no matching band file (or its geodetic file), the channel is
-            ambiguous across grids, or the variable cannot be decoded.
+        ReaderError: When the channel, view or `grid` is not an SLSTR one, or the
+            granule has no measurement for that channel, view and grid (or lacks
+            the matching geodetic file / its longitude-latitude variables).
     """
     reader = "read_slstr"
     name = _canonical_channel(channel, reader)
     suffix = _resolve_view(view, reader)
+    letter = _resolve_grid(grid, reader)
     granule = resolve_granule(source, reader)
-    band_path = _discover_band_file(granule, name, suffix, reader, grid)
+    band_path, found_grid = _discover_band_file(granule, name, suffix, reader, letter)
 
     data, variable_meta = read_packed_variable(band_path, band_path.stem, reader=reader)
-    domain = _geodetic_domain(granule, band_path, reader) if geolocation else {}
+    domain = (
+        _geodetic_domain(granule, found_grid, suffix, reader) if geolocation else {}
+    )
     dataset = wrap_swath(data, domain)
     dataset.band_names = [name]
     dataset.raster.SetMetadata(
-        _channel_metadata(name, granule, band_path, variable_meta)
+        _channel_metadata(
+            name,
+            granule,
+            found_grid,
+            suffix,
+            variable_meta,
+            geolocated=bool(domain),
+        )
     )
     return dataset
 

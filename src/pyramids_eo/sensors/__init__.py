@@ -18,6 +18,7 @@ from __future__ import annotations
 from pyramids_eo.sensors.readers import (
     available_channels,
     available_olci_channels,
+    available_slstr_channels,
     harmonise,
     open_fci_l1c_chunk,
     parse_seviri_native,
@@ -44,6 +45,7 @@ __all__ = [
     "TasseledCapCoefficients",
     "available_channels",
     "available_olci_channels",
+    "available_slstr_channels",
     "available_tasseled_cap_sensors",
     "get_sensor",
     "get_tasseled_cap",

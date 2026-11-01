@@ -14,13 +14,16 @@ import pytest
 from pyramids_eo.errors import ReaderError
 from pyramids_eo.sensors.readers.slstr import (
     _canonical_channel,
+    _resolve_grid,
     _resolve_view,
+    available_slstr_channels,
     read_slstr,
 )
 from tests._sentinel3_granule import (
     expected_radiance,
     packed_counts,
     slstr_granule,
+    slstr_pdfs_granule,
     write_geolocation,
     write_measurement,
 )
@@ -119,8 +122,14 @@ class TestReadSlstr:
             f"the i-grid domain must warp to degrees: {origin_x}"
         )
 
-    def test_discovery_fallback_finds_a_non_default_grid(self, tmp_path):
-        """A channel written on the alternative `b` grid is still found by discovery."""
+    def test_falls_back_to_the_next_documented_grid(self, tmp_path):
+        """A channel absent from its first grid is found on the next documented one.
+
+        Test scenario:
+            `S5` is documented on `a` then `b`, so a granule carrying only the
+            `b` stripe still reads -- without globbing, which is what used to let
+            a quality-annotation file be selected as the measurement.
+        """
         granule = tmp_path / "S3A_SL_1_RBT.SEN3"
         granule.mkdir()
         write_measurement(
@@ -147,18 +156,35 @@ class TestReadSlstr:
             dataset.raster.GetMetadata()
         )
 
-    def test_ambiguous_grid_raises(self, tmp_path):
-        """A channel present on several grids without `grid=` is a clear error."""
-        granule = tmp_path / "S3A_SL_1_RBT.SEN3"
-        granule.mkdir()
-        for grid in ("bn", "cn"):
-            write_measurement(
-                granule / f"S5_radiance_{grid}.nc",
-                f"S5_radiance_{grid}",
-                packed_counts(),
-            )
-        with pytest.raises(ReaderError, match="ambiguous"):
-            read_slstr(granule, channel="S5")
+    def test_explicit_grid_never_falls_back_to_another(self, tmp_path):
+        """`grid=` naming a grid the granule lacks raises instead of substituting one.
+
+        Test scenario:
+            With exactly one file matching the channel and view, the old
+            discovery returned it unconditionally without consulting `grid`, so
+            `grid="i"` (1 km thermal) silently handed back the 500 m `a` grid --
+            a different array shape at a different ground resolution, with no
+            warning. Branch coverage was satisfied by the two-file case, which
+            reached the guard; the realistic single-grid case went untested.
+        """
+        granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+        for wanted in ("b", "i"):
+            with pytest.raises(ReaderError, match="has no 'S5' measurement"):
+                read_slstr(granule, channel="S5", grid=wanted, geolocation=False)
+
+    @pytest.mark.parametrize("bad", ["", "..", "*", "zzz", "A/b"])
+    def test_invalid_grid_is_rejected(self, tmp_path, bad):
+        """An unknown `grid` is rejected rather than interpolated into a filename.
+
+        Test scenario:
+            The letter is substituted straight into the measurement filename, so
+            an unvalidated value built nonsense paths -- `""` silently meant "the
+            default grid", and `".."` / `"*"` produced separator- and
+            wildcard-bearing names that then fell through to the glob.
+        """
+        granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+        with pytest.raises(ReaderError, match="is not an SLSTR grid"):
+            read_slstr(granule, channel="S5", grid=bad, geolocation=False)
 
     def test_channels_returns_a_dict_across_grids(self, tmp_path):
         """A channel set spanning grids returns a dict (shapes may differ)."""
@@ -198,8 +224,43 @@ class TestReadSlstr:
     def test_missing_channel_raises(self, tmp_path):
         """A channel the granule does not carry is a clear error naming the expectation."""
         granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
-        with pytest.raises(ReaderError, match="no file for channel 'S8'"):
+        with pytest.raises(ReaderError, match="has no 'S8' measurement"):
             read_slstr(granule, channel="S8")
+
+    @pytest.mark.parametrize("view", ["nadir", "oblique"])
+    def test_every_channel_reads_on_a_pdfs_accurate_granule(self, tmp_path, view):
+        """All eleven channels read, in both views, off the real PDFS filename set.
+
+        Test scenario:
+            This is the case the invented fixtures could not express. The granule
+            reproduces the product composition verbatim -- S1-S3 on `a`, S4-S6 on
+            `a`+`b`, S7-S9 on `i`, F1 on `f`, **F2 on `i`** -- with a
+            `*_quality_*` sibling beside every measurement. Against it, `F2` used
+            to be unreadable: it was mapped to the `f` grid that does not carry
+            it, and the discovery glob then matched its quality file, producing an
+            ambiguity error for one of the eleven advertised channels.
+        """
+        granule = slstr_pdfs_granule(tmp_path, views=("n", "o"))
+        expected = {
+            "S1": "a",
+            "S2": "a",
+            "S3": "a",
+            "S4": "a",
+            "S5": "a",
+            "S6": "a",
+            "S7": "i",
+            "S8": "i",
+            "S9": "i",
+            "F1": "f",
+            "F2": "i",
+        }
+        suffix = "n" if view == "nadir" else "o"
+        for channel, grid in expected.items():
+            dataset = read_slstr(granule, channel=channel, view=view)
+            assert dataset.raster.GetMetadata()["grid"] == f"{grid}{suffix}", (
+                f"{channel} ({view}) read off the wrong grid: "
+                f"{dataset.raster.GetMetadata()}"
+            )
 
     def test_requires_exactly_one_of_channel_or_channels(self, tmp_path):
         """Neither or both of channel / channels is an error."""
@@ -241,18 +302,25 @@ class TestReadSlstr:
             dataset.raster.GetMetadata()
         )
 
-    def test_explicit_grid_that_matches_nothing_raises(self, tmp_path):
-        """An explicit `grid=` naming a grid the granule lacks reports what it does have."""
+    def test_missing_grid_error_reports_what_the_granule_holds(self, tmp_path):
+        """The error names the grid tried and lists the measurements that do exist.
+
+        Test scenario:
+            A caller asking for a grid the granule lacks needs to see what it
+            does carry -- that is how someone discovers F2 is on `i` -- and the
+            listing must never offer a `*_quality_*` annotation file as a choice.
+        """
         granule = tmp_path / "S3A_SL_1_RBT.SEN3"
         granule.mkdir()
-        for grid in ("bn", "cn"):
-            write_measurement(
-                granule / f"S5_radiance_{grid}.nc",
-                f"S5_radiance_{grid}",
-                packed_counts(),
-            )
-        with pytest.raises(ReaderError, match="does not match any of"):
+        write_measurement(
+            granule / "S5_radiance_bn.nc", "S5_radiance_bn", packed_counts()
+        )
+        write_measurement(granule / "S5_quality_an.nc", "S5_dL_BB_an", packed_counts())
+        with pytest.raises(ReaderError, match="S5_radiance_bn.nc") as error:
             read_slstr(granule, channel="S5", grid="a")
+        assert "quality" not in str(error.value), (
+            f"a quality file must not be offered as a grid choice: {error.value}"
+        )
 
     def test_registry_lookup_failure_still_yields_metadata(self, tmp_path, monkeypatch):
         """An unavailable registry degrades to CF-only metadata rather than failing the read."""
@@ -268,3 +336,71 @@ class TestReadSlstr:
         assert "wavelength_um" not in meta, (
             f"registry fields should be absent when lookup fails: {meta}"
         )
+
+
+class TestResolveGrid:
+    """Tests for `_resolve_grid`."""
+
+    @pytest.mark.parametrize(
+        "given, expected",
+        [("a", "a"), ("B", "b"), ("i", "i"), ("f", "f"), (" I ", "i"), (None, None)],
+    )
+    def test_accepted_grids(self, given, expected):
+        """The four real grid letters are accepted case-insensitively; None passes through."""
+        assert _resolve_grid(given, "read_slstr") == expected
+
+    @pytest.mark.parametrize("given", ["", "c", "zzz", "..", "*", 1])
+    def test_rejected_grids(self, given):
+        """Anything that is not a documented grid letter is rejected.
+
+        Test scenario:
+            `c` is included deliberately: SLSTR has no `c` stripe, though earlier
+            fixtures invented one, which is part of why a wrong grid table went
+            unnoticed.
+        """
+        with pytest.raises(ReaderError, match="is not an SLSTR grid"):
+            _resolve_grid(given, "read_slstr")
+
+
+class TestAvailableSlstrChannels:
+    """Tests for `available_slstr_channels`."""
+
+    def test_reports_the_real_product_layout(self, tmp_path):
+        """A PDFS-accurate granule reports each channel's actual grid(s).
+
+        Test scenario:
+            This is how a caller discovers the fire channels are asymmetric --
+            F1 on `f`, F2 on `i` -- and which of S4-S6 are duplicated onto `b`.
+        """
+        granule = slstr_pdfs_granule(tmp_path, views=("n",))
+        assert available_slstr_channels(granule) == {
+            "S1": ["a"],
+            "S2": ["a"],
+            "S3": ["a"],
+            "S4": ["a", "b"],
+            "S5": ["a", "b"],
+            "S6": ["a", "b"],
+            "S7": ["i"],
+            "S8": ["i"],
+            "S9": ["i"],
+            "F1": ["f"],
+            "F2": ["i"],
+        }
+
+    def test_reports_only_what_is_present(self, tmp_path):
+        """A sparse granule lists only the channels it actually carries."""
+        granule = slstr_granule(
+            tmp_path, channels={"S5": packed_counts(), "S8": packed_counts()}
+        )
+        assert available_slstr_channels(granule) == {"S5": ["a"], "S8": ["i"]}
+
+    def test_the_other_view_is_empty_when_absent(self, tmp_path):
+        """A nadir-only granule reports nothing for the oblique view."""
+        granule = slstr_pdfs_granule(tmp_path, views=("n",))
+        assert available_slstr_channels(granule, view="oblique") == {}
+
+    def test_rejects_an_unknown_view(self, tmp_path):
+        """An unknown view is rejected, as in the readers."""
+        granule = slstr_granule(tmp_path)
+        with pytest.raises(ReaderError, match="is not an SLSTR view"):
+            available_slstr_channels(granule, view="sideways")
