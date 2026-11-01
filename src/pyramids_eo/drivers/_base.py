@@ -89,6 +89,74 @@ def options_as_dict(options: Any) -> dict[str, Any]:
     return result
 
 
+#: Accepted string spellings of a boolean ``open_options`` value.
+_TRUE_WORDS = frozenset({"1", "true", "yes", "on"})
+_FALSE_WORDS = frozenset({"0", "false", "no", "off"})
+
+
+def coerce_booleans(
+    settings: dict[str, Any], keys: tuple[str, ...], *, driver: str
+) -> None:
+    """Coerce string spellings of known boolean reader keywords, in place.
+
+    ``Dataset.read_file`` normalises ``open_options`` to the GDAL ``KEY=VALUE`` list form, so
+    a boolean reader keyword commonly arrives as the **string** ``"false"`` — which is truthy,
+    and would therefore silently turn the option *on*. Every string spelling is mapped here
+    instead, and an unrecognised one is rejected rather than guessed at.
+
+    Args:
+        settings: The options dict, mutated in place.
+        keys: The option names that are booleans for this driver.
+        driver: The driver name, for the error message.
+
+    Raises:
+        ValueError: A named option is a string that is not a recognised boolean spelling.
+
+    Examples:
+        - The string spellings map to real booleans, in either direction:
+            ```python
+            >>> from pyramids_eo.drivers._base import coerce_booleans
+            >>> settings = {"geolocation": "false", "channel": "Oa08"}
+            >>> coerce_booleans(settings, ("geolocation",), driver="olci")
+            >>> settings["geolocation"]
+            False
+            >>> settings = {"calibrate": "YES"}
+            >>> coerce_booleans(settings, ("calibrate",), driver="fci")
+            >>> settings["calibrate"]
+            True
+
+            ```
+        - A real bool passes through, and nonsense is rejected rather than guessed:
+            ```python
+            >>> settings = {"geolocation": True}
+            >>> coerce_booleans(settings, ("geolocation",), driver="olci")
+            >>> settings["geolocation"]
+            True
+            >>> coerce_booleans({"geolocation": "maybe"}, ("geolocation",), driver="olci")
+            Traceback (most recent call last):
+                ...
+            ValueError: olci: open option 'geolocation' must be a boolean; got 'maybe'. Use true/false, yes/no, on/off or 1/0.
+
+            ```
+    """
+    for key in keys:
+        if key not in settings or isinstance(settings[key], bool):
+            continue
+        value = settings[key]
+        if not isinstance(value, str):
+            continue
+        word = value.strip().lower()
+        if word in _TRUE_WORDS:
+            settings[key] = True
+        elif word in _FALSE_WORDS:
+            settings[key] = False
+        else:
+            raise ValueError(
+                f"{driver}: open option {key!r} must be a boolean; got {value!r}. "
+                "Use true/false, yes/no, on/off or 1/0."
+            )
+
+
 def bands_to_channels(bands: Any, *, example: str) -> tuple[Any, Any]:
     """Map a ``bands`` argument onto a reader's ``(channel, channels)`` pair.
 

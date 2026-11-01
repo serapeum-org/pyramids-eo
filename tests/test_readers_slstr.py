@@ -404,3 +404,32 @@ class TestAvailableSlstrChannels:
         granule = slstr_granule(tmp_path)
         with pytest.raises(ReaderError, match="is not an SLSTR view"):
             available_slstr_channels(granule, view="sideways")
+
+
+class TestChannelSpellingSymmetry:
+    """SLSTR accepts the product's variable spelling, as OLCI accepts `Oa08_radiance`."""
+
+    @pytest.mark.parametrize(
+        "given, expected",
+        [
+            ("S5_radiance_an", "S5"),
+            ("S8_BT_in", "S8"),
+            ("F1_BT_fo", "F1"),
+            ("s5_radiance_bn", "S5"),
+        ],
+    )
+    def test_accepts_the_product_variable_spelling(self, given, expected):
+        """A pasted variable or filename stem resolves to its channel."""
+        assert _canonical_channel(given, "read_slstr") == expected
+
+    def test_reads_through_the_product_spelling(self, tmp_path):
+        """The product spelling works end to end, with grid/view still from the arguments."""
+        granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+        dataset = read_slstr(granule, channel="S5_radiance_an")
+        assert dataset.band_names == ["S5"], dataset.band_names
+
+    @pytest.mark.parametrize("given", ["S5_radiance", "S5_reflectance_an", "S5_BT_zz"])
+    def test_rejects_a_malformed_suffix(self, given):
+        """A suffix that is not a real quantity/grid/view combination is still rejected."""
+        with pytest.raises(ReaderError, match="is not an SLSTR channel"):
+            _canonical_channel(given, "read_slstr")

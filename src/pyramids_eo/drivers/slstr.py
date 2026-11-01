@@ -12,6 +12,7 @@ remaining options (``view``, ``grid``, ``geolocation``) through.
 
 from __future__ import annotations
 
+from fnmatch import fnmatch
 from glob import glob
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ from pyramids.dataset import Dataset
 from pyramids_eo.drivers._base import (
     RASTER_DRIVER_API_VERSION,
     bands_to_channels,
+    coerce_booleans,
     options_as_dict,
 )
 
@@ -38,9 +40,18 @@ def _strip_scheme(source: str) -> str:
 
 
 def _holds_measurement(path: Path) -> bool:
-    """Return whether ``path`` is a directory holding any SLSTR measurement file."""
-    return path.is_dir() and any(
-        any(path.glob(pattern)) for pattern in _MEASUREMENT_GLOBS
+    """Return whether ``path`` is a directory holding any SLSTR measurement file.
+
+    One pass over the directory, short-circuiting on the first match, rather than a
+    separate glob per pattern (which enumerated the whole directory up to three times
+    when nothing matched).
+    """
+    if not path.is_dir():
+        return False
+    return any(
+        fnmatch(entry.name, pattern)
+        for entry in path.iterdir()
+        for pattern in _MEASUREMENT_GLOBS
     )
 
 
@@ -80,9 +91,10 @@ class SlstrDriver:
 
         Returns:
             True for a ``slstr://`` source, a directory containing at least one measurement
-            file, or a glob whose matches include such a directory; False otherwise. The bounded
-            directory listing runs only once GDAL has failed to open the source, and any
-            filesystem error is swallowed to False so the method never raises.
+            file, or a glob whose matches include such a directory; False otherwise. The
+            directory listing short-circuits on the first match but enumerates the whole
+            directory when nothing matches; it runs only once GDAL has failed to open the
+            source, and any filesystem error is swallowed to False so the method never raises.
             ``driver="slstr"`` bypasses this entirely.
 
         Examples:
@@ -126,7 +138,7 @@ class SlstrDriver:
         bands: Any = None,
         options: Any = None,
         **_ignored: Any,
-    ) -> Dataset:
+    ) -> Dataset | dict[str, Dataset]:
         """Read one or more SLSTR L1 RBT channels into a :class:`~pyramids.dataset.Dataset`.
 
         Args:
@@ -143,6 +155,12 @@ class SlstrDriver:
                 accepted and ignored — a granule is read whole, carries its own swath geolocation,
                 and needs no credentials.
 
+
+        A channel **set** is a direct-call feature only: ``Dataset.read_file`` requires a driver
+        to return one ``Dataset``, so an ``options={'channels': [...]}`` read raises ``TypeError``
+        from pyramids' plugin layer. Use the reader function (``read_slstr(..., channels=[...])``)
+        for several channels at once. This is shared with the other channel-at-a-time drivers.
+
         Returns:
             A single channel's ``Dataset``, or a ``dict[str, Dataset]`` when several were
             requested.
@@ -155,6 +173,7 @@ class SlstrDriver:
         from pyramids_eo.sensors.readers import read_slstr
 
         settings = options_as_dict(options)
+        coerce_booleans(settings, ("geolocation",), driver='slstr')
         channel = settings.pop("channel", None)
         channels = settings.pop("channels", None)
         if channel is not None and channels is not None:
@@ -168,7 +187,7 @@ class SlstrDriver:
         if channel is None and channels is None:
             raise ValueError(
                 "an SLSTR read needs a channel: pass bands=['S5'], "
-                "open_options={'channel': 'S5'}, or open_options={'channels': [...]}."
+                "open_options={'channel': 'S5'}."
             )
         return read_slstr(
             _strip_scheme(str(source)), channel=channel, channels=channels, **settings

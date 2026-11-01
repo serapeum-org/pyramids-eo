@@ -86,14 +86,20 @@ _VIEWS: dict[str, str] = {
     "o": "o",
 }
 
-_CHANNEL_PATTERN = re.compile(r"^([sf])(\d)$", re.IGNORECASE)
+#: Accepts the bare channel (`S5`, `f1`) and, symmetrically with the OLCI
+#: reader's `Oa08_radiance`, the product's own variable spelling with its
+#: quantity and grid+view suffix (`S5_radiance_an`, `S8_BT_in`, `F1_BT_fo`).
+_CHANNEL_PATTERN = re.compile(
+    r"^([sf])(\d)(?:_(?:radiance|bt)_[abif][no])?$", re.IGNORECASE
+)
 
 
 def _canonical_channel(channel: Any, reader: str) -> str:
     """Normalise an SLSTR channel spelling to its canonical form.
 
     Args:
-        channel: A channel name (`"S5"`, `"s5"`, `"f1"`).
+        channel: A channel name (`"S5"`, `"s5"`, `"f1"`), or the product's own
+            variable spelling (`"S5_radiance_an"`, `"S8_BT_in"`).
         reader: The calling reader's name, for error messages.
 
     Returns:
@@ -110,6 +116,15 @@ def _canonical_channel(channel: Any, reader: str) -> str:
             'S5'
             >>> _canonical_channel("f2", "read_slstr")
             'F2'
+
+            ```
+        - The product's variable spelling is accepted too, as OLCI accepts
+          `Oa08_radiance` (the grid and view there come from `grid=` / `view=`):
+            ```python
+            >>> _canonical_channel("S5_radiance_an", "read_slstr")
+            'S5'
+            >>> _canonical_channel("S8_BT_in", "read_slstr")
+            'S8'
 
             ```
         - A channel the instrument does not have is rejected:

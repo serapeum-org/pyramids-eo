@@ -33,7 +33,16 @@ These two differ from the geostationary readers above in three ways worth knowin
   ground, so no affine geotransform can describe where the pixels are; the product
   instead ships a longitude and a latitude for *every* pixel. The results therefore
   carry a GDAL **`GEOLOCATION` metadata domain** pointing at those arrays, a
-  placeholder pixel/line geotransform, and no CRS. Nothing is resampled — a caller
+  placeholder pixel/line geotransform, and no CRS.
+
+    Sentinel-3 stores those arrays CF-packed as `int32` micro-degrees, and GDAL's
+    geolocation transformer reads geolocation arrays *raw*, without applying
+    `scale_factor`. The readers therefore point the domain at a small generated
+    VRT that applies the packing, so the warp below receives real degrees rather
+    than micro-degrees. The VRT is XML only — no geolocation array is read or
+    copied until a warp pulls from it.
+
+  Nothing is resampled — a caller
   who wants a map grid warps on demand:
 
     ```python
@@ -54,10 +63,30 @@ These two differ from the geostationary readers above in three ways worth knowin
 
 - **SLSTR is dual-view and multi-grid.** It images each scene twice, so
   `view="nadir"` (default) or `view="oblique"` selects one; and its channels sit on
-  different resolutions — `S1`–`S6` on the 500 m `a` grid, `S7`–`S9` on the 1 km
-  `i` grid, `F1`–`F2` on the 1 km `f` grid — which `grid=` can override. Because
-  the grids differ in shape, `channels=[...]` returns a `dict[str, Dataset]` of
-  differently-sized arrays rather than a stack.
+  different resolutions — `S1`–`S6` on the 500 m `a` grid (with `S4`–`S6` also on
+  the alternative 500 m `b`), `S7`–`S9` on the 1 km `i` grid, and of the fire
+  channels **`F1` on the 1 km `f` grid but `F2` on `i`** — they are asymmetric, and
+  there is no `F2_BT_f*.nc`. `grid=` restricts a read to one grid and never falls
+  back to another, so an explicit `grid=` can't quietly hand back a different
+  resolution. `available_slstr_channels(granule)` reports what a particular granule
+  carries, per view and grid, which is how to discover a non-nominal layout.
+  Because the grids differ in shape, `channels=[...]` returns a
+  `dict[str, Dataset]` of differently-sized arrays rather than a stack.
+
+- **OLCI comes as EFR or ERR.** The two share every filename and variable name and
+  differ only in pixel size (300 m against ~1200 m), so `read_olci` detects the
+  product type from the granule name — falling back to `xfdumanifest.xml` — and
+  reports `resolution_m` accordingly. A granule that identifies itself as neither
+  carries no `resolution_m` at all, rather than a figure that could be wrong by a
+  factor of four for resolution-aware consumers like `harmonise`.
+
+A reader keyword passed through `read_file` arrives as a string, because
+`Dataset.read_file` normalises `open_options` to GDAL's `KEY=VALUE` form. The
+drivers therefore accept `geolocation=false` (and `true`/`yes`/`no`/`on`/`off`/`1`/`0`)
+and reject anything else, instead of treating the truthy string `"false"` as
+switching the option on. Note that a channel *set* is a direct-call feature:
+`read_file` requires one `Dataset` back, so use `read_olci(..., channels=[...])`
+when you want several at once.
 
 Himawari AHI (HSD) remains unimplemented: its byte-level layout comes from JMA's
 Himawari Standard Data User's Guide, which is needed before a correct decoder can

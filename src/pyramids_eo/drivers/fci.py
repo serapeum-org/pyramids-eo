@@ -24,6 +24,7 @@ from pyramids.dataset import Dataset
 from pyramids_eo.drivers._base import (
     RASTER_DRIVER_API_VERSION,
     bands_to_channels,
+    coerce_booleans,
     expand_sources,
     options_as_dict,
 )
@@ -38,26 +39,6 @@ _SCHEME = "fci://"
 def _strip_scheme(source: str) -> str:
     """Return ``source`` without a leading ``fci://`` scheme (case-insensitive)."""
     return source[len(_SCHEME) :] if source.lower().startswith(_SCHEME) else source
-
-
-def _bands_to_channels(bands: Any) -> tuple[Any, Any]:
-    """Map a ``bands`` argument to ``(channel, channels)`` for :func:`read_fci_l1c`.
-
-    A thin wrapper over :func:`~pyramids_eo.drivers._base.bands_to_channels` naming an FCI
-    channel in the error message; the OLCI and SLSTR drivers share the same helper.
-
-    Args:
-        bands: A list of channel names (one for a single channel, several for a set).
-
-    Returns:
-        ``(name, None)`` for a single band, ``(None, [names])`` for several, and ``(None, None)``
-        for an empty list (which names no channel).
-
-    Raises:
-        ValueError: ``bands`` is not a list of channel names — a string, bytes, mapping, or other
-            non-sequence.
-    """
-    return bands_to_channels(bands, example="ir_105")
 
 
 class FciDriver:
@@ -147,7 +128,7 @@ class FciDriver:
         bands: Any = None,
         options: Any = None,
         **_ignored: Any,
-    ) -> Dataset:
+    ) -> Dataset | dict[str, Dataset]:
         """Read one or more FCI L1C channels into a :class:`~pyramids.dataset.Dataset`.
 
         Args:
@@ -165,6 +146,12 @@ class FciDriver:
                 accepted and ignored — a granule is read whole, carries its own geostationary CRS,
                 and needs no credentials.
 
+
+        A channel **set** is a direct-call feature only: ``Dataset.read_file`` requires a driver
+        to return one ``Dataset``, so an ``options={'channels': [...]}`` read raises ``TypeError``
+        from pyramids' plugin layer. Use the reader function (``read_fci_l1c(..., channels=[...])``)
+        for several channels at once. This is shared with the other channel-at-a-time drivers.
+
         Returns:
             A single channel's ``Dataset``, or a ``dict[str, Dataset]`` when several channels were
             requested.
@@ -178,6 +165,7 @@ class FciDriver:
         from pyramids_eo.sensors.readers import read_fci_l1c
 
         settings = options_as_dict(options)
+        coerce_booleans(settings, ("calibrate",), driver="fci")
         channel = settings.pop("channel", None)
         channels = settings.pop("channels", None)
         if channel is not None and channels is not None:
@@ -185,13 +173,13 @@ class FciDriver:
                 "pass either a single channel or a channels list, not both."
             )
         if channel is None and channels is None and bands is not None:
-            channel, channels = _bands_to_channels(bands)
+            channel, channels = bands_to_channels(bands, example="ir_105")
         if isinstance(channels, (list, tuple)) and len(channels) == 0:
             channels = None  # an empty channels list names no channel
         if channel is None and channels is None:
             raise ValueError(
                 "an FCI read needs a channel: pass bands=['ir_105'], "
-                "open_options={'channel': 'ir_105'}, or open_options={'channels': [...]}."
+                "open_options={'channel': 'ir_105'}."
             )
         paths = expand_sources(_strip_scheme(str(source)), pattern="*.nc")
         if not paths:

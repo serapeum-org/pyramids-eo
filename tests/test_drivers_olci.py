@@ -13,6 +13,7 @@ import pytest
 
 import pyramids_eo.sensors.readers as readers
 from pyramids_eo.drivers.olci import OlciDriver
+from tests._sentinel3_granule import olci_granule
 
 
 def _granule(tmp_path, names, name="S3A_OL_1_EFR.SEN3"):
@@ -217,3 +218,80 @@ def test_read_rejects_both_channel_and_channels(tmp_path):
         OlciDriver().read(
             str(granule), options={"channel": "Oa08", "channels": ["Oa17"]}
         )
+
+
+def test_read_coerces_a_string_boolean_open_option(tmp_path):
+    """`geolocation=false` as a KEY=VALUE string disables geolocation, not enables it.
+
+    `Dataset.read_file` normalises open_options to the GDAL KEY=VALUE list form, so a
+    boolean reader keyword arrives as the string "false" -- which is truthy, and used to
+    silently turn geolocation ON. That is the common path through read_file, not an
+    exotic one.
+    """
+    granule = olci_granule(tmp_path)
+    dataset = OlciDriver().read(
+        str(granule), options=["channel=Oa08", "geolocation=false"]
+    )
+    assert not dataset.raster.GetMetadata("GEOLOCATION"), (
+        "geolocation=false must disable the domain"
+    )
+
+
+@pytest.mark.parametrize("spelling", ["true", "TRUE", "yes", "on", "1"])
+def test_read_accepts_the_truthy_boolean_spellings(tmp_path, spelling):
+    """Every accepted true spelling enables geolocation."""
+    granule = olci_granule(tmp_path)
+    dataset = OlciDriver().read(
+        str(granule), options=["channel=Oa08", f"geolocation={spelling}"]
+    )
+    assert dataset.raster.GetMetadata("GEOLOCATION"), f"{spelling!r} should enable it"
+
+
+def test_read_rejects_a_non_boolean_spelling(tmp_path):
+    """An unrecognised boolean spelling is rejected rather than guessed at."""
+    granule = olci_granule(tmp_path)
+    with pytest.raises(ValueError, match="must be a boolean"):
+        OlciDriver().read(str(granule), options=["channel=Oa08", "geolocation=maybe"])
+
+
+def test_the_band_error_does_not_advertise_the_channels_option(tmp_path):
+    """The error must not teach `options={'channels': [...]}`, which read_file rejects.
+
+    pyramids' plugin layer requires a driver to return one Dataset, so a channel set
+    through read_file raises `TypeError: raster driver 'olci' returned dict`. The
+    message a user is most likely to hit used to recommend exactly that.
+    """
+    granule = olci_granule(tmp_path)
+    with pytest.raises(ValueError, match="needs a band") as error:
+        OlciDriver().read(str(granule))
+    assert "channels" not in str(error.value), (
+        f"the error must not advertise a channel set: {error.value}"
+    )
+
+
+def test_read_file_routes_a_single_channel_end_to_end(tmp_path):
+    """`Dataset.read_file` reaches the reader through the real plugin path.
+
+    The other driver tests monkeypatch the reader, so nothing exercised the genuine
+    read_file -> entry point -> can_open -> read -> reader chain, which is how the
+    string-boolean and channel-set defects both survived.
+    """
+    from pyramids.dataset import Dataset
+
+    granule = olci_granule(tmp_path)
+    dataset = Dataset.read_file(str(granule), open_options={"channel": "Oa08"})
+    assert dataset.read_array().shape == (2, 3), "read_file should decode the band"
+
+
+@pytest.mark.parametrize("value", [1, 0, None, ["false"]])
+def test_coerce_booleans_leaves_non_string_values_alone(value):
+    """A non-string, non-bool option is passed through for the reader to reject.
+
+    The driver only translates the KEY=VALUE string spellings; it does not try to
+    second-guess a caller who passed some other type in a dict.
+    """
+    from pyramids_eo.drivers._base import coerce_booleans
+
+    settings = {"geolocation": value}
+    coerce_booleans(settings, ("geolocation",), driver="olci")
+    assert settings["geolocation"] is value, settings

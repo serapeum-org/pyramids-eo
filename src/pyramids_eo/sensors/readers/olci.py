@@ -43,6 +43,11 @@ _BAND_COUNT = 21
 #: Geolocation annotation file: a longitude / latitude for every pixel.
 _GEO_FILE = "geo_coordinates.nc"
 
+#: Ground sampling distance per product type. EFR is the full-resolution grid;
+#: ERR is a 4x4 average of it, so neither the filenames nor the variables differ
+#: -- only the pixel size does, which is why the product type has to be detected.
+_PRODUCT_RESOLUTION: dict[str, int] = {"EFR": 300, "ERR": 1200}
+
 #: Accepts `Oa08`, `oa8`, or `Oa08_radiance` and canonicalises to `Oa08`.
 _CHANNEL_PATTERN = re.compile(r"^oa(\d{1,2})(?:_radiance)?$", re.IGNORECASE)
 
@@ -118,22 +123,64 @@ def available_olci_channels(source: Any) -> list[str]:
     return found
 
 
+def product_type(granule: Path) -> str | None:
+    """Detect whether a granule is the full- or reduced-resolution OLCI product.
+
+    EFR and ERR granules hold the **same** `OaNN_radiance.nc` filenames and the
+    same variable names, so the product type -- and therefore the ground
+    resolution, 300 m against ~1200 m -- is only knowable from the granule's own
+    naming or its manifest. Both are checked; `None` means neither said, in which
+    case the reader reports no resolution rather than asserting a wrong one.
+
+    Args:
+        granule: The `.SEN3` granule directory.
+
+    Returns:
+        `"EFR"`, `"ERR"`, or `None` when the granule does not identify itself.
+    """
+    name = granule.name.upper()
+    for product in ("EFR", "ERR"):
+        if f"_OL_1_{product}" in name:
+            return product
+    manifest = granule / "xfdumanifest.xml"
+    if manifest.is_file():
+        try:
+            text = manifest.read_text(encoding="utf-8", errors="replace").upper()
+        except OSError:
+            return None
+        for product in ("EFR", "ERR"):
+            if f"OL_1_{product}" in text:
+                return product
+    return None
+
+
 def _channel_metadata(
-    channel: str, granule: Path, variable_meta: dict[str, str]
+    channel: str,
+    granule: Path,
+    variable_meta: dict[str, str],
+    *,
+    geolocated: bool,
 ) -> dict[str, str]:
     """Build the CF-style metadata carried onto a decoded band.
 
     Keeps the variable's own CF attributes (`units`, `long_name`,
     `standard_name`) when the granule declares them, and adds the channel's
-    registry `wavelength_um` / `resolution_m` / `kind` plus provenance (sensor,
-    channel, granule name and a note that the geolocation is a swath domain).
-    Registry lookup failure is tolerated and simply omits those three fields:
-    the decode must not depend on the bundled table.
+    registry `wavelength_um` / `kind` plus provenance (sensor, channel and
+    granule name). Registry lookup failure is tolerated and simply omits those
+    fields: the decode must not depend on the bundled table.
+
+    `resolution_m` is derived from the detected product type rather than taken
+    from the registry, because EFR and ERR are indistinguishable by filename and
+    the registry carries only the full-resolution figure. When the granule does
+    not identify itself the key is **omitted**, rather than asserting a value
+    that could be wrong by a factor of four for resolution-aware consumers.
 
     Args:
         channel: Canonical channel name.
         granule: The granule directory (for provenance).
         variable_meta: The NetCDF variable's GDAL attribute dict.
+        geolocated: Whether a `GEOLOCATION` domain was attached, so the
+            `geolocation` key describes what the result actually carries.
 
     Returns:
         A flat `str -> str` metadata dict for the output `Dataset`.
@@ -142,8 +189,16 @@ def _channel_metadata(
         "sensor": SENSOR,
         "channel": channel,
         "granule": granule.name,
-        "geolocation": "swath (see the GEOLOCATION metadata domain)",
+        "geolocation": (
+            "swath (see the GEOLOCATION metadata domain)"
+            if geolocated
+            else "none (placeholder pixel grid)"
+        ),
     }
+    product = product_type(granule)
+    if product is not None:
+        metadata["product"] = product
+        metadata["resolution_m"] = str(_PRODUCT_RESOLUTION[product])
     for key in ("units", "long_name", "standard_name"):
         if key in variable_meta:
             metadata[key] = str(variable_meta[key])
@@ -154,7 +209,6 @@ def _channel_metadata(
     except Exception:  # noqa: BLE001 - registry is descriptive, never required
         return metadata
     metadata["wavelength_um"] = str(entry.wavelength_um)
-    metadata["resolution_m"] = str(entry.resolution_m)
     metadata["kind"] = entry.kind
     return metadata
 
@@ -183,18 +237,40 @@ def read_olci_band(source: Any, channel: Any, *, geolocation: bool = True) -> An
     reader = "read_olci"
     name = _canonical_channel(channel, reader)
     granule = resolve_granule(source, reader)
+    domain = _resolve_domain(granule, reader) if geolocation else {}
+    return _decode_band(granule, name, domain, reader)
+
+
+def _resolve_domain(granule: Path, reader: str) -> dict[str, str]:
+    """Build the granule's `GEOLOCATION` domain once, for any number of bands."""
+    return geolocation_domain(granule_file(granule, _GEO_FILE, reader), reader=reader)
+
+
+def _decode_band(granule: Path, name: str, domain: dict[str, str], reader: str) -> Any:
+    """Decode one canonical band from an already-resolved granule and domain.
+
+    Args:
+        granule: The resolved `.SEN3` granule directory.
+        name: The canonical channel name.
+        domain: The `GEOLOCATION` domain to attach, or `{}` for none.
+        reader: The calling reader's name, for error messages.
+
+    Returns:
+        The band's pyramids `Dataset`.
+
+    Raises:
+        ReaderError: When the granule has no such band file, or the variable
+            cannot be decoded.
+    """
     band_path = granule_file(granule, _band_filename(name), reader)
-
-    variable = f"{name}_radiance"
-    data, variable_meta = read_packed_variable(band_path, variable, reader=reader)
-
-    domain: dict[str, str] = {}
-    if geolocation:
-        geo_path = granule_file(granule, _GEO_FILE, reader)
-        domain = geolocation_domain(geo_path, reader=reader)
+    data, variable_meta = read_packed_variable(
+        band_path, f"{name}_radiance", reader=reader
+    )
     dataset = wrap_swath(data, domain)
     dataset.band_names = [name]
-    dataset.raster.SetMetadata(_channel_metadata(name, granule, variable_meta))
+    dataset.raster.SetMetadata(
+        _channel_metadata(name, granule, variable_meta, geolocated=bool(domain))
+    )
     return dataset
 
 
@@ -248,8 +324,11 @@ def read_olci(
             f"read_olci: `channels` names the same band more than once (after "
             f"normalising spellings): {duplicates}"
         )
-    results = {
-        name: read_olci_band(source, name, geolocation=geolocation)
-        for name in canonical
-    }
+    # Resolve the granule and its geolocation domain ONCE for the whole set,
+    # matching read_fci_l1c's documented read-each-chunk-once pattern rather than
+    # re-running them per channel.
+    reader = "read_olci"
+    granule = resolve_granule(source, reader)
+    domain = _resolve_domain(granule, reader) if geolocation else {}
+    results = {name: _decode_band(granule, name, domain, reader) for name in canonical}
     return results[canonical[0]] if single else results

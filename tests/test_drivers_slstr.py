@@ -86,13 +86,17 @@ def test_can_open_existing_single_file_is_false(tmp_path):
 
 
 def test_can_open_never_raises_on_a_filesystem_error(tmp_path, monkeypatch):
-    """A directory whose glob raises OSError yields False, never an exception (contract)."""
+    """A directory whose listing raises OSError yields False, never an exception (contract).
+
+    `_holds_measurement` enumerates with `iterdir` (one pass instead of a glob per
+    pattern), so this patches that -- patching `glob` no longer reaches the probe.
+    """
     from pathlib import Path
 
-    def _boom(self, pattern):
+    def _boom(self):
         raise OSError("permission denied")
 
-    monkeypatch.setattr(Path, "glob", _boom)
+    monkeypatch.setattr(Path, "iterdir", _boom)
     assert SlstrDriver.can_open(str(tmp_path)) is False
 
 
@@ -220,3 +224,18 @@ def test_read_rejects_both_channel_and_channels(tmp_path):
     granule = _granule(tmp_path, ["S5_radiance_an.nc"])
     with pytest.raises(ValueError, match="not both"):
         SlstrDriver().read(str(granule), options={"channel": "S5", "channels": ["S8"]})
+
+
+def test_holds_measurement_rejects_a_file(tmp_path):
+    """A plain file is never treated as a granule directory."""
+    from pyramids_eo.drivers.slstr import _holds_measurement
+
+    band = tmp_path / "S5_radiance_an.nc"
+    band.write_bytes(b"")
+    assert _holds_measurement(band) is False
+
+
+def test_can_open_glob_matching_a_measurement_directory(tmp_path):
+    """A glob whose matches include a measurement-bearing directory is claimed."""
+    granule = _granule(tmp_path, ["S8_BT_in.nc"])
+    assert SlstrDriver.can_open(str(granule.parent / "*.SEN3")) is True

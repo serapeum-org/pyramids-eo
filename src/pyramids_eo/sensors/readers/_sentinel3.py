@@ -311,7 +311,12 @@ def geolocation_domain(
         longitude_variable: Longitude variable name inside it.
         latitude_variable: Latitude variable name inside it.
         pixel_step: Column stride between geolocation samples (`1` for a
-            full-resolution per-pixel grid).
+            full-resolution per-pixel grid). Both readers pass the default,
+            because they use the full-resolution annotation; the parameters exist
+            for the tie-point grids, where OLCI FR subsamples 64 across-track and
+            not at all along-track. A tie-point path should read the granule's own
+            `ac_subsampling_factor` / `al_subsampling_factor` rather than
+            hard-coding either number -- they differ for ERR.
         line_step: Row stride between geolocation samples.
 
     Returns:
@@ -322,25 +327,15 @@ def geolocation_domain(
         so a domain missing any of it is silently unusable by a warp.
 
     Examples:
-        - A full-resolution OLCI geolocation grid:
-            ```python
-            >>> from pyramids_eo.sensors.readers._sentinel3 import geolocation_domain
-            >>> domain = geolocation_domain("g.SEN3/geo_coordinates.nc")
-            >>> domain["X_DATASET"]
-            'NETCDF:"g.SEN3/geo_coordinates.nc":longitude'
-            >>> domain["PIXEL_STEP"], domain["LINE_STEP"]
-            ('1', '1')
-
-            ```
-        - A subsampled tie-point grid records its stride:
-            ```python
-            >>> domain = geolocation_domain(
-            ...     "g.SEN3/tie_geo_coordinates.nc", pixel_step=64
-            ... )
-            >>> domain["PIXEL_STEP"]
-            '64'
-
-            ```
+    Notes:
+        This opens the geolocation variables, so it has no runnable example here --
+        it needs a real annotation file. For an OLCI granule,
+        `geolocation_domain(granule / "geo_coordinates.nc", reader="read_olci")`
+        yields a domain whose `X_DATASET` / `Y_DATASET` are unscaling VRTs over the
+        file's `longitude` / `latitude`, at a stride of one. SLSTR passes the
+        grid-and-view-suffixed variable names (`longitude_an`, `latitude_an`) for
+        the `geodetic_an.nc` of the grid it read. The behaviour is covered end to
+        end -- including a real `gdal.Warp` -- in `tests/test_readers_sentinel3.py`.
     """
     return {
         "X_DATASET": geolocation_source(geo_path, longitude_variable, reader=reader),

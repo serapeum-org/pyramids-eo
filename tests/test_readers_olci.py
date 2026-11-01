@@ -18,7 +18,9 @@ from pyramids_eo.sensors.readers._sentinel3 import PLACEHOLDER_GEOTRANSFORM
 from pyramids_eo.sensors.readers.olci import (
     _canonical_channel,
     available_olci_channels,
+    product_type,
     read_olci,
+    read_olci_band,
 )
 from tests._sentinel3_granule import expected_radiance, olci_granule, packed_counts
 
@@ -281,3 +283,130 @@ class TestAvailableOlciChannels:
         """A missing source is rejected with the granule error."""
         with pytest.raises(ReaderError, match="not a Sentinel-3 granule"):
             available_olci_channels(tmp_path / "missing")
+
+
+class TestProductType:
+    """Tests for `product_type`, which decides the reported resolution."""
+
+    @pytest.mark.parametrize(
+        "granule_name, expected",
+        [
+            ("S3A_OL_1_EFR____20260101T101500.SEN3", "EFR"),
+            ("S3B_OL_1_ERR____20260101T101500.SEN3", "ERR"),
+            ("s3a_ol_1_efr____lowercase.SEN3", "EFR"),
+            ("something_unrelated.SEN3", None),
+        ],
+    )
+    def test_detects_from_the_granule_name(self, tmp_path, granule_name, expected):
+        """EFR and ERR are read off the granule name, which is the only place they differ."""
+        granule = tmp_path / granule_name
+        granule.mkdir()
+        assert product_type(granule) == expected
+
+    def test_falls_back_to_the_manifest(self, tmp_path):
+        """An unconventionally named granule is identified from xfdumanifest.xml."""
+        granule = tmp_path / "renamed.SEN3"
+        granule.mkdir()
+        (granule / "xfdumanifest.xml").write_text(
+            '<xfdu><product>S3A_OL_1_ERR____x</product></xfdu>', encoding="utf-8"
+        )
+        assert product_type(granule) == "ERR"
+
+    def test_reduced_resolution_is_not_labelled_as_full(self, tmp_path):
+        """An ERR granule reports ~1200 m, not the registry's full-resolution 300 m.
+
+        Test scenario:
+            EFR and ERR share every filename and variable name, so the reader used
+            to stamp the registry's single 300 m figure on both -- wrong by a
+            factor of four for an ERR granule, and consumed as authoritative by
+            resolution-aware code such as `harmonise`.
+        """
+        granule = olci_granule(tmp_path, product="ERR")
+        meta = read_olci(granule, channel="Oa08").raster.GetMetadata()
+        assert meta["product"] == "ERR", meta
+        assert meta["resolution_m"] == "1200", meta
+
+    def test_full_resolution_reports_300(self, tmp_path):
+        """An EFR granule reports the full-resolution 300 m."""
+        meta = read_olci(
+            olci_granule(tmp_path, product="EFR"), channel="Oa08"
+        ).raster.GetMetadata()
+        assert meta["resolution_m"] == "300", meta
+
+    def test_an_unidentifiable_granule_omits_the_resolution(self, tmp_path):
+        """A granule that does not state its product type reports no resolution at all.
+
+        Test scenario:
+            Omitting the key is the honest outcome: asserting either 300 or 1200
+            would be a guess, and a wrong resolution is consumed silently.
+        """
+        granule = olci_granule(tmp_path, name="mystery.SEN3")
+        meta = read_olci(granule, channel="Oa08").raster.GetMetadata()
+        assert "resolution_m" not in meta, meta
+        assert "product" not in meta, meta
+
+
+class TestGeolocationMetadataKey:
+    """The `geolocation` metadata key must describe what the result really carries."""
+
+    def test_says_swath_when_a_domain_is_attached(self, tmp_path):
+        """With geolocation on, the key points at the GEOLOCATION domain."""
+        meta = read_olci(olci_granule(tmp_path), channel="Oa08").raster.GetMetadata()
+        assert "GEOLOCATION" in meta["geolocation"], meta
+
+    def test_says_none_when_no_domain_was_attached(self, tmp_path):
+        """With geolocation off, the key must not advertise a domain that is absent.
+
+        Test scenario:
+            It used to claim "swath (see the GEOLOCATION metadata domain)"
+            unconditionally, so code branching on it took the geolocated path on a
+            Dataset carrying only the placeholder (0, 1, 0, 0, 0, -1) grid -- i.e.
+            treating pixel indices as coordinates.
+        """
+        granule = olci_granule(tmp_path, geolocation=False)
+        dataset = read_olci(granule, channel="Oa08", geolocation=False)
+        assert not dataset.raster.GetMetadata("GEOLOCATION"), "domain should be empty"
+        assert dataset.raster.GetMetadata()["geolocation"] == (
+            "none (placeholder pixel grid)"
+        ), dataset.raster.GetMetadata()
+
+
+class TestReadOlciBand:
+    """Tests for the single-band entry point `read_olci_band`."""
+
+    def test_decodes_one_band(self, tmp_path):
+        """The single-band helper decodes and geolocates like `read_olci(channel=...)`."""
+        dataset = read_olci_band(olci_granule(tmp_path), "Oa08")
+        assert dataset.band_names == ["Oa08"], dataset.band_names
+        assert dataset.raster.GetMetadata("GEOLOCATION"), "should carry a domain"
+
+    def test_without_geolocation(self, tmp_path):
+        """`geolocation=False` skips the annotation file entirely."""
+        granule = olci_granule(tmp_path, geolocation=False)
+        dataset = read_olci_band(granule, "oa8", geolocation=False)
+        assert dataset.read_array().shape == (2, 3), "the band should still decode"
+
+
+class TestProductTypeEdgeCases:
+    """Coverage for `product_type`'s manifest branches."""
+
+    def test_a_manifest_without_a_product_type_yields_none(self, tmp_path):
+        """A manifest that names no product type is as good as no manifest."""
+        granule = tmp_path / "mystery.SEN3"
+        granule.mkdir()
+        (granule / "xfdumanifest.xml").write_text("<xfdu/>", encoding="utf-8")
+        assert product_type(granule) is None
+
+    def test_an_unreadable_manifest_yields_none(self, tmp_path, monkeypatch):
+        """An unreadable manifest degrades to None rather than failing the read."""
+        from pathlib import Path as _Path
+
+        granule = tmp_path / "mystery.SEN3"
+        granule.mkdir()
+        (granule / "xfdumanifest.xml").write_text("<xfdu/>", encoding="utf-8")
+
+        def _boom(self, *args, **kwargs):
+            raise OSError("permission denied")
+
+        monkeypatch.setattr(_Path, "read_text", _boom)
+        assert product_type(granule) is None

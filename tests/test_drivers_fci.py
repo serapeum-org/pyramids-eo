@@ -242,3 +242,21 @@ def test_read_empty_channels_list_needs_a_channel(tmp_path):
     driver = FciDriver()
     with pytest.raises(ValueError, match="needs a channel"):
         driver.read(str(granule), options={"channels": []})
+
+
+def test_read_coerces_a_string_boolean_calibrate(tmp_path, monkeypatch):
+    """`calibrate=false` as a KEY=VALUE string reaches the reader as False, not "false".
+
+    The same truthy-string defect as the Sentinel-3 drivers' `geolocation`: read_file
+    normalises open_options to KEY=VALUE strings, so "false" would otherwise switch
+    calibration on.
+    """
+    granule, _ = _make_granule(tmp_path, ["c0.nc"])
+    captured = {}
+    monkeypatch.setattr(
+        readers,
+        "read_fci_l1c",
+        lambda p, *, channel, channels, **o: captured.update(options=o),
+    )
+    FciDriver().read(str(granule), options=["channel=ir_105", "calibrate=false"])
+    assert captured["options"] == {"calibrate": False}, captured

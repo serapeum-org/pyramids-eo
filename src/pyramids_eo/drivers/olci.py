@@ -21,6 +21,7 @@ from pyramids.dataset import Dataset
 from pyramids_eo.drivers._base import (
     RASTER_DRIVER_API_VERSION,
     bands_to_channels,
+    coerce_booleans,
     options_as_dict,
 )
 
@@ -73,8 +74,9 @@ class OlciDriver:
         Returns:
             True for an ``olci://`` source, a directory containing at least one
             ``Oa*_radiance.nc``, or a glob whose matches include one; False otherwise. The
-            bounded directory listing runs only once GDAL has failed to open the source, and any
-            filesystem error is swallowed to False so the method never raises.
+            directory listing short-circuits on the first match but enumerates the whole
+            directory when nothing matches; it runs only once GDAL has failed to open the
+            source, and any filesystem error is swallowed to False so the method never raises.
             ``driver="olci"`` bypasses this entirely.
 
         Examples:
@@ -121,7 +123,7 @@ class OlciDriver:
         bands: Any = None,
         options: Any = None,
         **_ignored: Any,
-    ) -> Dataset:
+    ) -> Dataset | dict[str, Dataset]:
         """Read one or more OLCI L1B bands into a :class:`~pyramids.dataset.Dataset`.
 
         Args:
@@ -137,6 +139,12 @@ class OlciDriver:
                 accepted and ignored — a granule is read whole, carries its own swath geolocation,
                 and needs no credentials.
 
+
+        A channel **set** is a direct-call feature only: ``Dataset.read_file`` requires a driver
+        to return one ``Dataset``, so an ``options={'channels': [...]}`` read raises ``TypeError``
+        from pyramids' plugin layer. Use the reader function (``read_olci(..., channels=[...])``)
+        for several channels at once. This is shared with the other channel-at-a-time drivers.
+
         Returns:
             A single band's ``Dataset``, or a ``dict[str, Dataset]`` when several were requested.
 
@@ -148,6 +156,7 @@ class OlciDriver:
         from pyramids_eo.sensors.readers import read_olci
 
         settings = options_as_dict(options)
+        coerce_booleans(settings, ("geolocation",), driver='olci')
         channel = settings.pop("channel", None)
         channels = settings.pop("channels", None)
         if channel is not None and channels is not None:
@@ -161,7 +170,7 @@ class OlciDriver:
         if channel is None and channels is None:
             raise ValueError(
                 "an OLCI read needs a band: pass bands=['Oa08'], "
-                "open_options={'channel': 'Oa08'}, or open_options={'channels': [...]}."
+                "open_options={'channel': 'Oa08'}."
             )
         return read_olci(
             _strip_scheme(str(source)), channel=channel, channels=channels, **settings

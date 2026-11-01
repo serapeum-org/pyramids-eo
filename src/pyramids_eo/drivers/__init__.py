@@ -15,7 +15,21 @@ open into that driver with no import coupling. This subpackage registers pyramid
 OLCI and SLSTR products share the ``.SEN3`` directory suffix, so both drivers claim it and their
 ``can_open`` predicates disambiguate on content — an OLCI granule holds ``Oa*_radiance.nc`` band
 files, an SLSTR one holds ``S*_radiance_*.nc`` / ``*_BT_*.nc``. An ``olci://`` or ``slstr://``
-prefix (or ``driver=``) names one explicitly.
+prefix (or ``driver=``) names one explicitly. Deciding on content has two consequences worth
+stating, since neither is obvious from the claim set:
+
+- A ``.SEN3`` holding **both** kinds of file is claimed by both drivers, and ``select_driver``
+  takes the first claimant in registration order, which is alphabetical — so ``olci`` wins. The
+  outcome is stable rather than arbitrary, and a scheme prefix or ``driver=`` overrides it.
+- An **empty or incomplete** ``.SEN3`` is claimed by *neither*, so ``read_file`` surfaces GDAL's
+  own "not recognized" error instead of the readers' more useful "the product looks incomplete or
+  is not the expected Sentinel-3 level/type". Calling ``read_olci`` / ``read_slstr`` directly, or
+  passing ``driver=``, reaches that better message.
+
+A boolean reader keyword passed through ``read_file`` arrives as a *string*, because
+``Dataset.read_file`` normalises ``open_options`` to GDAL's ``KEY=VALUE`` form. The drivers
+translate those spellings (see :func:`~pyramids_eo.drivers._base.coerce_booleans`) rather than
+letting the truthy string ``"false"`` switch an option on.
 
 The entry points in ``pyproject.toml`` are the whole integration; installing the package is
 enough for ``read_file`` to find these. Each driver is a thin wrapper over an existing reader
