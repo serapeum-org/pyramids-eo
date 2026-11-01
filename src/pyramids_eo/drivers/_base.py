@@ -14,6 +14,7 @@ once pyramids exposes the contract version from a public module.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from glob import glob as _glob
 from pathlib import Path
@@ -193,7 +194,10 @@ def coerce_floats(
         ``None`` — ``settings`` is modified in place.
 
     Raises:
-        ValueError: A named option is a string that is not a number.
+        ValueError: A named option is a string that is not a **finite** number.
+            `"nan"` and `"inf"` parse as floats but are rejected: a non-finite
+            `sun_earth_distance` would silently void every calibrated pixel, which
+            is the same failure the readers' own packing guard exists to stop.
 
     Examples:
         - A numeric string becomes a float, in plain or scientific notation:
@@ -217,12 +221,16 @@ def coerce_floats(
             ['sun_earth_distance']
 
             ```
-        - A non-numeric string is rejected where the option is named:
+        - A non-numeric or non-finite string is rejected where the option is named:
             ```python
             >>> coerce_floats({"sun_earth_distance": "far"}, ("sun_earth_distance",), driver="fci")
             Traceback (most recent call last):
                 ...
-            ValueError: fci: open option 'sun_earth_distance' must be a number; got 'far'.
+            ValueError: fci: open option 'sun_earth_distance' must be a finite number; got 'far'.
+            >>> coerce_floats({"sun_earth_distance": "nan"}, ("sun_earth_distance",), driver="fci")
+            Traceback (most recent call last):
+                ...
+            ValueError: fci: open option 'sun_earth_distance' must be a finite number; got 'nan'.
 
             ```
 
@@ -234,11 +242,14 @@ def coerce_floats(
         if not isinstance(value, str):
             continue
         try:
-            settings[key] = float(value)
+            number = float(value)
         except ValueError:
+            number = float("nan")
+        if not math.isfinite(number):
             raise ValueError(
-                f"{driver}: open option {key!r} must be a number; got {value!r}."
+                f"{driver}: open option {key!r} must be a finite number; got {value!r}."
             ) from None
+        settings[key] = number
 
 
 def bands_to_channels(bands: Any, *, example: str) -> tuple[Any, Any]:

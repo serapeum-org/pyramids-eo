@@ -268,7 +268,9 @@ def invalid_mask(raw: np.ndarray, meta: Mapping[str, Any]) -> np.ndarray:
             f"ignoring a non-numeric _FillValue {raw_fill!r}: no pixels can be "
             "masked from it, so the result's nodata may be incomplete",
             UserWarning,
-            stacklevel=3,
+            # 5 frames out: invalid_mask -> read_packed_variable -> the reader's
+            # internal band read -> the public read_* -> the caller.
+            stacklevel=5,
         )
     return invalid
 

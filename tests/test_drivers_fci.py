@@ -283,10 +283,16 @@ def test_read_coerces_a_string_numeric_open_option(tmp_path, monkeypatch):
     assert captured["options"] == {"sun_earth_distance": 0.983}, captured
 
 
-def test_read_rejects_a_non_numeric_open_option(tmp_path):
-    """A non-numeric `sun_earth_distance` is rejected where the option is named."""
+@pytest.mark.parametrize("value", ["far", "nan", "inf", "-inf"])
+def test_read_rejects_a_non_finite_open_option(tmp_path, value):
+    """A non-numeric or non-finite `sun_earth_distance` is rejected where it is named.
+
+    "nan" and "inf" parse as floats, so they slipped through a plain float()
+    conversion -- and a non-finite sun-earth distance voids every calibrated pixel,
+    the same failure the readers' own packing guard exists to stop.
+    """
     granule, _ = _make_granule(tmp_path, ["c0.nc"])
-    with pytest.raises(ValueError, match="must be a number"):
+    with pytest.raises(ValueError, match="must be a finite number"):
         FciDriver().read(
-            str(granule), options=["channel=ir_105", "sun_earth_distance=far"]
+            str(granule), options=["channel=ir_105", f"sun_earth_distance={value}"]
         )
