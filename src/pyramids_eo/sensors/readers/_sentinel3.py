@@ -20,8 +20,10 @@ geotransform, not a geographic one; `attach_geolocation` documents that contract
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any
+from xml.sax.saxutils import escape
 
 import numpy as np
 
@@ -177,9 +179,118 @@ def read_packed_variable(
     return values, meta
 
 
+def _wgs84_wkt() -> str:
+    """Return WGS 84 as WKT, in longitude/latitude axis order.
+
+    The `GEOLOCATION` domain's `SRS` key must be **WKT**: GDAL parses it with
+    `importFromWkt`, so an authority string like `"EPSG:4326"` fails silently and
+    leaves the transformer's `bGeographicSRSWithMinus180Plus180LongRange` flag
+    false -- disabling the antimeridian handling a polar-orbiting swath needs.
+
+    Returns:
+        The WGS 84 WKT string.
+    """
+    from osgeo import osr
+
+    reference = osr.SpatialReference()
+    reference.ImportFromEPSG(4326)
+    # The geolocation arrays are (longitude, latitude), i.e. traditional GIS
+    # order, not EPSG:4326's authority order of (latitude, longitude).
+    reference.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    return str(reference.ExportToWkt())
+
+
+def _unscaling_vrt(
+    source: str, variable: str, width: int, height: int, scale: float, offset: float
+) -> str:
+    """Write a `/vsimem` VRT that unpacks `source` to degrees, and return its path.
+
+    GDAL's geolocation transformer reads geolocation arrays **raw** through
+    `RasterIO` and never applies `scale_factor` / `add_offset` (its own
+    `GetScale` documentation says applying them "is of the responsibility of the
+    user"). Sentinel-3 stores longitude / latitude CF-packed as `int32`
+    micro-degrees with `scale_factor = 1e-06`, so handing GDAL the bare
+    subdataset feeds the warp micro-degrees. This wraps the variable in a
+    `ComplexSource` carrying `ScaleRatio` / `ScaleOffset`, which GDAL *does*
+    apply on read, so the transformer sees real degrees.
+
+    The VRT is tiny XML and reads nothing until a warp actually pulls from it, so
+    no geolocation array is loaded or copied at decode time. It lives in
+    `/vsimem` under a name derived from the source, so repeated reads of one
+    granule reuse a single entry; GDAL keeps it for the life of the process.
+
+    Args:
+        source: The GDAL subdataset string of the packed variable.
+        variable: The variable name, used to build a stable `/vsimem` name.
+        width: Raster width in pixels.
+        height: Raster height in pixels.
+        scale: The variable's `scale_factor`.
+        offset: The variable's `add_offset`.
+
+    Returns:
+        The `/vsimem` path of the written VRT.
+    """
+    from osgeo import gdal
+
+    digest = hashlib.sha1(source.encode("utf-8", "replace")).hexdigest()[:16]
+    path = f"/vsimem/pyramids_eo_geoloc/{variable}-{digest}.vrt"
+    xml = (
+        f'<VRTDataset rasterXSize="{width}" rasterYSize="{height}">'
+        f'<VRTRasterBand dataType="Float64" band="1">'
+        f"<ComplexSource>"
+        f'<SourceFilename relativeToVRT="0">{escape(source)}</SourceFilename>'
+        f"<SourceBand>1</SourceBand>"
+        f'<SrcRect xOff="0" yOff="0" xSize="{width}" ySize="{height}"/>'
+        f'<DstRect xOff="0" yOff="0" xSize="{width}" ySize="{height}"/>'
+        f"<ScaleOffset>{offset!r}</ScaleOffset>"
+        f"<ScaleRatio>{scale!r}</ScaleRatio>"
+        f"</ComplexSource>"
+        f"</VRTRasterBand>"
+        f"</VRTDataset>"
+    )
+    gdal.FileFromMemBuffer(path, xml.encode("utf-8"))
+    return path
+
+
+def geolocation_source(geo_path: Any, variable: str, *, reader: str) -> str:
+    """Resolve one geolocation variable to a GDAL source that yields degrees.
+
+    Opens the variable -- which is also what validates that it *exists*, so a
+    truncated or renamed annotation file fails here, in the reader, rather than
+    much later inside the caller's warp -- and inspects its CF packing. A packed
+    variable is wrapped in an unscaling VRT (see `_unscaling_vrt`); an already
+    unpacked one is referenced directly.
+
+    Args:
+        geo_path: Path to the geolocation NetCDF file.
+        variable: The variable to resolve (e.g. `"longitude"`).
+        reader: The calling reader's name, for error messages.
+
+    Returns:
+        A GDAL source string for the `GEOLOCATION` domain, in degrees.
+
+    Raises:
+        ReaderError: When the variable cannot be opened -- which includes the
+            case of the file not carrying it at all.
+    """
+    source = subdataset(geo_path, variable)
+    raster = _open(geo_path, variable, reader)
+    band = raster.GetRasterBand(1)
+    scale, offset = band.GetScale(), band.GetOffset()
+    width, height = raster.RasterXSize, raster.RasterYSize
+    del raster, band
+
+    scale = 1.0 if scale is None else float(scale)
+    offset = 0.0 if offset is None else float(offset)
+    if scale == 1.0 and offset == 0.0:
+        return source
+    return _unscaling_vrt(source, variable, width, height, scale, offset)
+
+
 def geolocation_domain(
     geo_path: Any,
     *,
+    reader: str,
     longitude_variable: str = "longitude",
     latitude_variable: str = "latitude",
     pixel_step: int = 1,
@@ -196,6 +307,7 @@ def geolocation_domain(
     Args:
         geo_path: Path to the geolocation NetCDF file (e.g.
             `geo_coordinates.nc` for OLCI, `geodetic_an.nc` for SLSTR).
+        reader: The calling reader's name, for error messages.
         longitude_variable: Longitude variable name inside it.
         latitude_variable: Latitude variable name inside it.
         pixel_step: Column stride between geolocation samples (`1` for a
@@ -231,16 +343,18 @@ def geolocation_domain(
             ```
     """
     return {
-        "X_DATASET": subdataset(geo_path, longitude_variable),
+        "X_DATASET": geolocation_source(geo_path, longitude_variable, reader=reader),
         "X_BAND": "1",
-        "Y_DATASET": subdataset(geo_path, latitude_variable),
+        "Y_DATASET": geolocation_source(geo_path, latitude_variable, reader=reader),
         "Y_BAND": "1",
         "PIXEL_OFFSET": "0",
         "LINE_OFFSET": "0",
         "PIXEL_STEP": str(pixel_step),
         "LINE_STEP": str(line_step),
-        # The geolocation arrays are plain lon/lat degrees on WGS 84.
-        "SRS": "EPSG:4326",
+        # WKT, not an authority string: GDAL reads this key with importFromWkt.
+        "SRS": _wgs84_wkt(),
+        # Per-pixel lon/lat sample pixel centres, not corners. GDAL defaults to
+        # TOP_LEFT_CORNER, so this must be stated to avoid a half-pixel shift.
         "GEOREFERENCING_CONVENTION": "PIXEL_CENTER",
     }
 

@@ -226,6 +226,7 @@ def _geodetic_domain(granule: Path, band_path: Path, reader: str) -> dict[str, s
     geo_path = granule_file(granule, f"geodetic_{suffix}.nc", reader)
     return geolocation_domain(
         geo_path,
+        reader=reader,
         longitude_variable=f"longitude_{suffix}",
         latitude_variable=f"latitude_{suffix}",
     )

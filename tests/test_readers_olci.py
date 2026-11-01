@@ -99,15 +99,25 @@ class TestReadOlci:
         assert np.isnan(array[0, 2]), f"fill pixel should be NaN, got {array[0, 2]}"
         assert np.isfinite(array[0, 0]), "a valid pixel should stay finite"
 
-    def test_carries_the_geolocation_domain(self, tmp_path):
-        """The result carries a GEOLOCATION domain pointing at geo_coordinates.nc."""
+    def test_carries_a_usable_geolocation_domain(self, tmp_path):
+        """The result's GEOLOCATION domain warps to degrees over the granule's extent.
+
+        Test scenario:
+            Asserting the domain *strings* is what let a completely unusable
+            domain pass at full coverage, so this warps through it instead. The
+            granule's geolocation is packed int32 micro-degrees, as the real
+            products ship, over lon 4-5 / lat 51-52.
+        """
+        from osgeo import gdal
+
         granule = olci_granule(tmp_path)
         dataset = read_olci(granule, channel="Oa08")
         domain = dataset.raster.GetMetadata("GEOLOCATION")
-        assert domain["X_DATASET"].endswith('geo_coordinates.nc":longitude'), domain
-        assert domain["Y_DATASET"].endswith('geo_coordinates.nc":latitude'), domain
         assert (domain["PIXEL_STEP"], domain["LINE_STEP"]) == ("1", "1"), domain
-        assert domain["SRS"] == "EPSG:4326", domain
+        warped = gdal.Warp("", dataset.raster, format="MEM", geoloc=True)
+        origin_x, _, _, origin_y, _, _ = warped.GetGeoTransform()
+        assert 3.0 < origin_x < 6.0, f"longitude origin not in degrees: {origin_x}"
+        assert 50.0 < origin_y < 53.0, f"latitude origin not in degrees: {origin_y}"
 
     def test_swath_has_no_affine_georeference(self, tmp_path):
         """A swath result carries the placeholder pixel grid and no EPSG, by contract."""

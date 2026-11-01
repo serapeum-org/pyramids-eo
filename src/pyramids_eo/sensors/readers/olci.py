@@ -191,7 +191,7 @@ def read_olci_band(source: Any, channel: Any, *, geolocation: bool = True) -> An
     domain: dict[str, str] = {}
     if geolocation:
         geo_path = granule_file(granule, _GEO_FILE, reader)
-        domain = geolocation_domain(geo_path)
+        domain = geolocation_domain(geo_path, reader=reader)
     dataset = wrap_swath(data, domain)
     dataset.band_names = [name]
     dataset.raster.SetMetadata(_channel_metadata(name, granule, variable_meta))

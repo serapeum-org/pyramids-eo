@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from pyramids_eo.errors import ReaderError
-from pyramids_eo.sensors.readers._sentinel3 import (
+from pyramids_eo.sensors.readers._sentinel3 import (  # noqa: I001
     PLACEHOLDER_GEOTRANSFORM,
     SEN3_SUFFIX,
     geolocation_domain,
@@ -23,6 +23,7 @@ from pyramids_eo.sensors.readers._sentinel3 import (
     subdataset,
     wrap_swath,
 )
+from tests._sentinel3_granule import write_geolocation
 
 
 class _FakeBand:
@@ -117,52 +118,132 @@ class TestGranuleFile:
             granule_file(tmp_path, "geo_coordinates.nc", "read_test")
 
 
+def _warp_geotransform(domain, shape=(2, 3)):
+    """Warp a dummy raster through `domain` and return the output geotransform."""
+    from osgeo import gdal
+
+    height, width = shape
+    source = gdal.GetDriverByName("MEM").Create("", width, height, 1, gdal.GDT_Float32)
+    source.GetRasterBand(1).WriteArray(
+        np.arange(width * height, dtype="float32").reshape(height, width)
+    )
+    source.SetMetadata(dict(domain), "GEOLOCATION")
+    warped = gdal.Warp("", source, format="MEM", geoloc=True)
+    return warped.GetGeoTransform()
+
+
 class TestGeolocationDomain:
     """Tests for `geolocation_domain`."""
 
-    def test_defaults_to_a_full_resolution_per_pixel_grid(self):
-        """The default domain references longitude/latitude at a stride of one."""
-        domain = geolocation_domain("g.nc")
-        assert domain["X_DATASET"] == 'NETCDF:"g.nc":longitude'
-        assert domain["Y_DATASET"] == 'NETCDF:"g.nc":latitude'
-        assert domain["PIXEL_STEP"] == "1"
-        assert domain["LINE_STEP"] == "1"
-        assert domain["SRS"] == "EPSG:4326"
-
-    def test_emits_the_full_gdal_key_set(self):
-        """Every key GDAL needs to consume a geolocation array is present.
+    def test_emits_the_required_gdal_key_set(self, tmp_path):
+        """Every key GDAL requires to build a geolocation transformer is present.
 
         Test scenario:
-            A domain missing PIXEL_OFFSET / LINE_OFFSET / SRS is silently unusable by
-            gdal.Warp, so the complete key set is pinned rather than just the datasets.
+            GDAL hard-requires X_BAND, Y_BAND, PIXEL_OFFSET, LINE_OFFSET,
+            PIXEL_STEP and LINE_STEP with no defaults on the metadata-domain path
+            and raises "Missing some geolocation fields" without any of them.
+            `SRS` is optional but must be WKT, and
+            GEOREFERENCING_CONVENTION defaults to TOP_LEFT_CORNER, which is why
+            PIXEL_CENTER has to be stated for per-pixel lon/lat.
         """
-        domain = geolocation_domain("g.nc")
-        expected = {
-            "X_DATASET",
+        geo = write_geolocation(tmp_path / "geo_coordinates.nc")
+        domain = geolocation_domain(geo, reader="read_test")
+        required = {
             "X_BAND",
-            "Y_DATASET",
             "Y_BAND",
             "PIXEL_OFFSET",
             "LINE_OFFSET",
             "PIXEL_STEP",
             "LINE_STEP",
-            "SRS",
-            "GEOREFERENCING_CONVENTION",
         }
-        assert set(domain) == expected, f"domain key set drifted: {sorted(domain)}"
+        assert required <= set(domain), f"missing required keys: {sorted(domain)}"
         assert domain["GEOREFERENCING_CONVENTION"] == "PIXEL_CENTER", domain
+        assert (domain["PIXEL_STEP"], domain["LINE_STEP"]) == ("1", "1"), domain
 
-    def test_custom_variables_and_stride(self):
+    def test_srs_is_parseable_wkt_for_a_geographic_crs(self, tmp_path):
+        """`SRS` must be WKT, because GDAL reads the key with importFromWkt.
+
+        Test scenario:
+            An authority string such as "EPSG:4326" fails importFromWkt
+            *silently*, leaving GDAL's
+            bGeographicSRSWithMinus180Plus180LongRange flag false and skipping
+            the antimeridian handling a polar-orbiting swath needs. Pinning the
+            parse, rather than the string, is what catches that.
+        """
+        from osgeo import osr
+
+        geo = write_geolocation(tmp_path / "geo_coordinates.nc")
+        domain = geolocation_domain(geo, reader="read_test")
+        reference = osr.SpatialReference()
+        assert reference.ImportFromWkt(domain["SRS"]) == 0, (
+            f"SRS is not parseable WKT: {domain['SRS']!r}"
+        )
+        assert reference.IsGeographic(), "the geolocation SRS must be geographic"
+
+    def test_packed_geolocation_warps_to_degrees(self, tmp_path):
+        """A real warp through the domain lands in degrees, not packed units.
+
+        Test scenario:
+            Sentinel-3 stores longitude/latitude CF-packed as int32
+            micro-degrees (scale_factor 1e-06), and GDAL's geolocation
+            transformer reads geolocation arrays raw through RasterIO without
+            applying scale/offset. Handing it the bare subdataset therefore warps
+            to micro-degrees -- silently. This is the end-to-end assertion that
+            the unscaling VRT puts real degrees in front of GDAL.
+        """
+        geo = write_geolocation(tmp_path / "geo_coordinates.nc", packed=True)
+        domain = geolocation_domain(geo, reader="read_test")
+        origin_x, _, _, origin_y, _, _ = _warp_geotransform(domain)
+        assert 3.0 < origin_x < 6.0, f"longitude origin not in degrees: {origin_x}"
+        assert 50.0 < origin_y < 53.0, f"latitude origin not in degrees: {origin_y}"
+
+    def test_unpacked_geolocation_is_referenced_directly(self, tmp_path):
+        """An already-unpacked geolocation variable needs no VRT indirection."""
+        geo = write_geolocation(tmp_path / "geo_coordinates.nc", packed=False)
+        domain = geolocation_domain(geo, reader="read_test")
+        assert domain["X_DATASET"] == f'NETCDF:"{geo}":longitude', domain
+        origin_x = _warp_geotransform(domain)[0]
+        assert 3.0 < origin_x < 6.0, f"longitude origin not in degrees: {origin_x}"
+
+    def test_custom_variables_and_stride(self, tmp_path):
         """SLSTR-style suffixed variables and a tie-point stride are carried through."""
+        geo = write_geolocation(
+            tmp_path / "geodetic_in.nc",
+            longitude_variable="longitude_in",
+            latitude_variable="latitude_in",
+        )
         domain = geolocation_domain(
-            "geodetic_in.nc",
+            geo,
+            reader="read_test",
             longitude_variable="longitude_in",
             latitude_variable="latitude_in",
             pixel_step=16,
             line_step=4,
         )
-        assert domain["X_DATASET"].endswith(":longitude_in")
-        assert (domain["PIXEL_STEP"], domain["LINE_STEP"]) == ("16", "4")
+        assert "longitude_in" in domain["X_DATASET"], domain
+        assert (domain["PIXEL_STEP"], domain["LINE_STEP"]) == ("16", "4"), domain
+
+    def test_a_missing_geolocation_variable_raises(self, tmp_path):
+        """A geolocation file lacking the variable fails in the reader, not in a warp.
+
+        Test scenario:
+            Only the annotation *file*'s existence used to be checked, so a
+            truncated or renamed-variable granule produced a well-formed,
+            completely unusable domain whose failure surfaced much later inside
+            the caller's warp.
+        """
+        from tests._netcdf3 import write_netcdf
+
+        geo = write_netcdf(
+            tmp_path / "geo_coordinates.nc",
+            {"longitude": (np.zeros((2, 3), dtype="int32"), {})},
+        )
+        with pytest.raises(ReaderError, match="latitude"):
+            geolocation_domain(geo, reader="read_test")
+
+
+#: A minimal domain for the `wrap_swath` tests, which only store and return it.
+_DOMAIN = {"X_DATASET": "x.vrt", "X_BAND": "1", "Y_DATASET": "y.vrt", "Y_BAND": "1"}
 
 
 class TestWrapSwath:
@@ -176,7 +257,7 @@ class TestWrapSwath:
             the documented placeholder rather than a plausible-looking geographic one
             that downstream code might trust.
         """
-        dataset = wrap_swath(np.array([[1.0, 2.0]]), geolocation_domain("g.nc"))
+        dataset = wrap_swath(np.array([[1.0, 2.0]]), dict(_DOMAIN))
         assert dataset.geotransform == PLACEHOLDER_GEOTRANSFORM, (
             f"expected the placeholder grid, got {dataset.geotransform}"
         )
@@ -187,16 +268,12 @@ class TestWrapSwath:
 
     def test_attaches_the_domain(self):
         """The GEOLOCATION domain is set on the Dataset's GDAL handle."""
-        domain = geolocation_domain("g.nc")
-        dataset = wrap_swath(np.array([[1.0]]), domain)
-        assert (
-            dataset.raster.GetMetadata("GEOLOCATION")["X_DATASET"]
-            == (domain["X_DATASET"])
-        )
+        dataset = wrap_swath(np.array([[1.0]]), dict(_DOMAIN))
+        assert dataset.raster.GetMetadata("GEOLOCATION")["X_DATASET"] == "x.vrt"
 
     def test_does_not_mutate_the_callers_domain(self):
         """The caller's domain dict is copied, not adopted and later mutated."""
-        domain = geolocation_domain("g.nc")
+        domain = dict(_DOMAIN)
         before = dict(domain)
         dataset = wrap_swath(np.array([[1.0]]), domain)
         dataset.raster.SetMetadata({"sensor": "olci"})

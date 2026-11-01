@@ -21,7 +21,8 @@ from tests._sentinel3_granule import (
     expected_radiance,
     packed_counts,
     slstr_granule,
-    write_variable,
+    write_geolocation,
+    write_measurement,
 )
 
 
@@ -105,22 +106,30 @@ class TestReadSlstr:
     def test_geodetic_domain_matches_the_grid(self, tmp_path):
         """The GEOLOCATION domain points at the geodetic file for the grid actually read."""
         granule = slstr_granule(tmp_path, channels={"S8": packed_counts()})
-        domain = read_slstr(granule, channel="S8").raster.GetMetadata("GEOLOCATION")
-        assert domain["X_DATASET"].endswith('geodetic_in.nc":longitude_in'), domain
-        assert domain["Y_DATASET"].endswith('geodetic_in.nc":latitude_in'), domain
+        dataset = read_slstr(granule, channel="S8")
+        domain = dataset.raster.GetMetadata("GEOLOCATION")
+        assert "longitude_in" in domain["X_DATASET"], domain
+        assert "latitude_in" in domain["Y_DATASET"], domain
+        from osgeo import gdal
+
+        origin_x = gdal.Warp(
+            "", dataset.raster, format="MEM", geoloc=True
+        ).GetGeoTransform()[0]
+        assert 3.0 < origin_x < 6.0, (
+            f"the i-grid domain must warp to degrees: {origin_x}"
+        )
 
     def test_discovery_fallback_finds_a_non_default_grid(self, tmp_path):
         """A channel written on the alternative `b` grid is still found by discovery."""
         granule = tmp_path / "S3A_SL_1_RBT.SEN3"
         granule.mkdir()
-        write_variable(granule / "S5_radiance_bn.nc", "S5_radiance_bn", packed_counts())
-        write_variable(
+        write_measurement(
+            granule / "S5_radiance_bn.nc", "S5_radiance_bn", packed_counts()
+        )
+        write_geolocation(
             granule / "geodetic_bn.nc",
-            "longitude_bn",
-            np.array([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]], dtype="float32"),
-            scale=None,
-            offset=None,
-            fill=None,
+            longitude_variable="longitude_bn",
+            latitude_variable="latitude_bn",
         )
         dataset = read_slstr(granule, channel="S5")
         assert dataset.raster.GetMetadata()["grid"] == "bn", (
@@ -130,7 +139,9 @@ class TestReadSlstr:
     def test_explicit_grid_selects_a_specific_file(self, tmp_path):
         """`grid=` picks one grid when a channel exists on several."""
         granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
-        write_variable(granule / "S5_radiance_bn.nc", "S5_radiance_bn", packed_counts())
+        write_measurement(
+            granule / "S5_radiance_bn.nc", "S5_radiance_bn", packed_counts()
+        )
         dataset = read_slstr(granule, channel="S5", grid="a", geolocation=False)
         assert dataset.raster.GetMetadata()["grid"] == "an", (
             dataset.raster.GetMetadata()
@@ -141,7 +152,7 @@ class TestReadSlstr:
         granule = tmp_path / "S3A_SL_1_RBT.SEN3"
         granule.mkdir()
         for grid in ("bn", "cn"):
-            write_variable(
+            write_measurement(
                 granule / f"S5_radiance_{grid}.nc",
                 f"S5_radiance_{grid}",
                 packed_counts(),
@@ -216,9 +227,7 @@ class TestReadSlstr:
             "S8"
         ].raster.GetMetadata()
         assert (
-            result["S8"]
-            .raster.GetMetadata("GEOLOCATION")["Y_DATASET"]
-            .endswith('geodetic_io.nc":latitude_io')
+            "latitude_io" in result["S8"].raster.GetMetadata("GEOLOCATION")["Y_DATASET"]
         ), result["S8"].raster.GetMetadata("GEOLOCATION")
 
     def test_metadata_geolocation_and_band_names_coexist(self, tmp_path):
@@ -237,7 +246,7 @@ class TestReadSlstr:
         granule = tmp_path / "S3A_SL_1_RBT.SEN3"
         granule.mkdir()
         for grid in ("bn", "cn"):
-            write_variable(
+            write_measurement(
                 granule / f"S5_radiance_{grid}.nc",
                 f"S5_radiance_{grid}",
                 packed_counts(),
