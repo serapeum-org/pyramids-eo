@@ -151,5 +151,6 @@ def test_read_coerces_string_boolean_and_numeric_open_options(monkeypatch):
 )
 def test_read_rejects_unreadable_options(option, message):
     """An unreadable boolean or non-finite numeric option is rejected by name."""
+    driver = SeviriDriver()
     with pytest.raises(ValueError, match=message):
-        SeviriDriver().read("scene.nat", options=["channel=IR_108", option])
+        driver.read("scene.nat", options=["channel=IR_108", option])

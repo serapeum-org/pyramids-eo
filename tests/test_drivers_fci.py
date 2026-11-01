@@ -174,24 +174,27 @@ def test_read_without_channel_raises(tmp_path):
     """An FCI read needs a channel, via bands or options."""
     granule, _ = _make_granule(tmp_path, ["c0.nc"])
     driver = FciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="needs a channel"):
-        driver.read(str(granule))
+        driver.read(source)
 
 
 def test_read_empty_bands_list_needs_a_channel(tmp_path):
     """An empty bands list names no channel, so the clear channel error is raised."""
     granule, _ = _make_granule(tmp_path, ["c0.nc"])
     driver = FciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="needs a channel"):
-        driver.read(str(granule), bands=[])
+        driver.read(source, bands=[])
 
 
 def test_read_rejects_bare_string_bands(tmp_path):
     """A bare-string bands is rejected, not iterated into per-character channels."""
     granule, _ = _make_granule(tmp_path, ["c0.nc"])
     driver = FciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="list of channel names"):
-        driver.read(str(granule), bands="ir_105")
+        driver.read(source, bands="ir_105")
 
 
 def test_read_bands_as_numpy_array_maps_to_channels(tmp_path, monkeypatch):
@@ -223,8 +226,9 @@ def test_read_rejects_both_channel_and_channels(tmp_path):
     """Giving both channel and channels in options is rejected at the driver boundary."""
     granule, _ = _make_granule(tmp_path, ["c0.nc"])
     driver = FciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="not both"):
-        driver.read(str(granule), options={"channel": "ir_105", "channels": ["vis_06"]})
+        driver.read(source, options={"channel": "ir_105", "channels": ["vis_06"]})
 
 
 @pytest.mark.parametrize("bands", [42, np.array("ir_105"), {"ir_105": 1}])
@@ -232,16 +236,18 @@ def test_read_rejects_non_sequence_bands(tmp_path, bands):
     """A non-sequence bands (int, 0-d array, dict) gives the clear channel error, not a TypeError."""
     granule, _ = _make_granule(tmp_path, ["c0.nc"])
     driver = FciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="list of channel names"):
-        driver.read(str(granule), bands=bands)
+        driver.read(source, bands=bands)
 
 
 def test_read_empty_channels_list_needs_a_channel(tmp_path):
     """An empty channels list in options is a clear channel error, symmetric with bands=[]."""
     granule, _ = _make_granule(tmp_path, ["c0.nc"])
     driver = FciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="needs a channel"):
-        driver.read(str(granule), options={"channels": []})
+        driver.read(source, options={"channels": []})
 
 
 def test_read_coerces_a_string_boolean_calibrate(tmp_path, monkeypatch):
@@ -292,7 +298,7 @@ def test_read_rejects_a_non_finite_open_option(tmp_path, value):
     the same failure the readers' own packing guard exists to stop.
     """
     granule, _ = _make_granule(tmp_path, ["c0.nc"])
+    driver = FciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="must be a finite number"):
-        FciDriver().read(
-            str(granule), options=["channel=ir_105", f"sun_earth_distance={value}"]
-        )
+        driver.read(source, options=["channel=ir_105", f"sun_earth_distance={value}"])

@@ -354,7 +354,8 @@ class TestReadPackedVariableUnpacking:
             np.array([[10, 65535]], dtype="uint16"),
             {"_FillValue": "65535"},
         )
-        assert np.isfinite(values[0, 0]) and np.isnan(values[0, 1]), values
+        assert np.isfinite(values[0, 0]), f"the valid pixel must survive: {values}"
+        assert np.isnan(values[0, 1]), f"the fill pixel must be masked: {values}"
 
     def test_non_numeric_fill_value_is_ignored(self, monkeypatch):
         """A non-numeric _FillValue masks nothing rather than failing the read.
@@ -385,7 +386,8 @@ class TestReadPackedVariableUnpacking:
             np.array([[1, 50, 500]], dtype="int32"),
             {"valid_min": "10", "valid_max": "100"},
         )
-        assert np.isnan(values[0, 0]) and np.isnan(values[0, 2]), values
+        assert np.isnan(values[0, 0]), f"the below-range pixel must mask: {values}"
+        assert np.isnan(values[0, 2]), f"the above-range pixel must mask: {values}"
         assert values[0, 1] == 50.0, values
 
     def test_a_single_sentinel3_bound_is_honoured(self, monkeypatch):
@@ -393,11 +395,13 @@ class TestReadPackedVariableUnpacking:
         low_only, _ = _read(
             monkeypatch, np.array([[1, 500]], dtype="int32"), {"valid_min": "10"}
         )
-        assert np.isnan(low_only[0, 0]) and low_only[0, 1] == 500.0, low_only
+        assert np.isnan(low_only[0, 0]), f"below valid_min must mask: {low_only}"
+        assert low_only[0, 1] == 500.0, f"no upper bound was given: {low_only}"
         high_only, _ = _read(
             monkeypatch, np.array([[1, 500]], dtype="int32"), {"valid_max": "100"}
         )
-        assert high_only[0, 0] == 1.0 and np.isnan(high_only[0, 1]), high_only
+        assert high_only[0, 0] == 1.0, f"no lower bound was given: {high_only}"
+        assert np.isnan(high_only[0, 1]), f"above valid_max must mask: {high_only}"
 
     def test_packed_geolocation_bounds_mask_the_fill(self, monkeypatch):
         """A real OLCI latitude variable unpacks to degrees with its fill masked.
@@ -460,7 +464,8 @@ class TestReadPackedVariableUnpacking:
             np.array([[1, 50]], dtype="uint16"),
             {"valid_range": "{10, 100}"},
         )
-        assert np.isnan(values[0, 0]) and np.isfinite(values[0, 1]), values
+        assert np.isnan(values[0, 0]), f"the below-range pixel must mask: {values}"
+        assert np.isfinite(values[0, 1]), f"the in-range pixel must survive: {values}"
 
     def test_values_above_valid_range_are_masked(self, monkeypatch):
         """Counts over valid_max are masked to NaN."""
@@ -487,7 +492,8 @@ class TestReadPackedVariableUnpacking:
             np.array([[1]], dtype="uint16"),
             {"units": "K", "long_name": "bt"},
         )
-        assert meta["units"] == "K" and meta["long_name"] == "bt", meta
+        assert meta["units"] == "K", f"units should round trip: {meta}"
+        assert meta["long_name"] == "bt", f"long_name should round trip: {meta}"
 
     def test_bounds_are_compared_before_unpacking(self, monkeypatch):
         """The validity limits are applied to the raw counts, not the unpacked values.
@@ -799,10 +805,12 @@ class TestGeolocationWarpExtent:
         (origin_x, _, _, origin_y, _, _), (width, height) = _warp(domain, (8, 8))
         assert 3.0 < origin_x < 6.0, f"longitude origin not in degrees: {origin_x}"
         assert 50.0 < origin_y < 53.0, f"latitude origin not in degrees: {origin_y}"
-        assert width <= 32 and height <= 32, (
+        stretched = (
             f"an 8x8 swath warped to {width}x{height}: a coordinate outside the "
             f"granule's footprint has stretched the output bounds"
         )
+        assert width <= 32, stretched
+        assert height <= 32, stretched
 
 
 class TestGeolocationFillValue:
@@ -1224,9 +1232,9 @@ class TestLongitudeDrivesXAndLatitudeDrivesY:
                 latitude_variable="longitude",
             )
         )
-        assert 50.0 < exchanged[0] < 53.0 and 3.0 < exchanged[1] < 6.0, (
-            f"exchanging the variables must put latitude on X, got {exchanged}"
-        )
+        swapped = f"exchanging the variables must put latitude on X, got {exchanged}"
+        assert 50.0 < exchanged[0] < 53.0, swapped
+        assert 3.0 < exchanged[1] < 6.0, swapped
         assert abs(exchanged[0] - correct[0]) > 40.0, (
             f"the two wirings must be distinguishable: {correct} vs {exchanged}"
         )

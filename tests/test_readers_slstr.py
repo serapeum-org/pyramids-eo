@@ -1010,10 +1010,11 @@ class TestParseChannelQuantityMatrix:
             filename, where `IO` would build `geodetic_IO.nc`.
         """
         name, grid, view = _parse_channel(spelling, "read_slstr")
-        assert name[0].isupper() and name[1:].isdigit(), f"odd channel name {name!r}"
-        assert grid == grid.lower() and view == view.lower(), (
-            f"the suffix must be lower-cased for the filename, got {grid!r}{view!r}"
-        )
+        assert name[0].isupper(), f"channel letter must be upper-cased: {name!r}"
+        assert name[1:].isdigit(), f"channel number must be digits: {name!r}"
+        cased = f"the suffix must be lower-cased for the filename, got {grid!r}{view!r}"
+        assert grid == grid.lower(), cased
+        assert view == view.lower(), cased
 
 
 class TestSpelledGridOffTheChannelsTable:

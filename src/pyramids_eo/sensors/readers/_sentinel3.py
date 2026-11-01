@@ -21,6 +21,7 @@ geotransform, not a geographic one; `attach_geolocation` documents that contract
 from __future__ import annotations
 
 import hashlib
+import math
 from pathlib import Path
 from typing import Any
 from xml.sax.saxutils import escape
@@ -44,6 +45,13 @@ PLACEHOLDER_GEOTRANSFORM: tuple[float, float, float, float, float, float] = (
 
 #: Directory suffix of a Sentinel-3 granule (SAFE-style product directory).
 SEN3_SUFFIX = ".SEN3"
+
+#: Below this magnitude a `scale_factor` / `add_offset` is treated as zero. The
+#: packing is compared with a tolerance rather than `==`, because these values come
+#: from a file as decimal text and a float round-trip need not land exactly on 1.0
+#: or 0.0. The bound sits far below any real geolocation scale (Sentinel-3 uses
+#: 1e-06), so a genuine scale is never mistaken for a degenerate one.
+_ZERO_SCALE = 1e-30
 
 
 def resolve_granule(source: Any, reader: str) -> Path:
@@ -365,13 +373,13 @@ def geolocation_source(
 
     scale = 1.0 if raw_scale is None else finite_float(raw_scale)
     offset = 0.0 if raw_offset is None else finite_float(raw_offset)
-    if scale is None or offset is None or scale == 0.0:
+    if scale is None or offset is None or math.isclose(scale, 0.0, abs_tol=_ZERO_SCALE):
         raise ReaderError(
             f"{reader}: geolocation variable {variable!r} has an unusable "
             f"scale_factor / add_offset ({raw_scale!r} / {raw_offset!r}); it must be "
             f"finite and the scale non-zero"
         )
-    if scale == 1.0 and offset == 0.0:
+    if math.isclose(scale, 1.0) and math.isclose(offset, 0.0, abs_tol=_ZERO_SCALE):
         return source
     return _unscaling_vrt(source, variable, width, height, scale, offset, fill)
 

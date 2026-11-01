@@ -55,9 +55,9 @@ class TestWriteNetcdfRejections:
                     "b": (np.zeros((3, 2), dtype="int32"), {}),
                 },
             )
-        assert "(2, 3)" in str(error.value) and "(3, 2)" in str(error.value), (
-            f"the message should name both shapes: {error.value}"
-        )
+        message = str(error.value)
+        assert "(2, 3)" in message, f"the message should name (2, 3): {message}"
+        assert "(3, 2)" in message, f"the message should name (3, 2): {message}"
 
     @pytest.mark.parametrize("dtype", ["int8", "uint16", "uint8", "float16"])
     def test_unsupported_variable_dtype_raises(self, tmp_path, dtype):
@@ -182,9 +182,11 @@ class TestWriteNetcdfRoundTrip:
         assert meta["units"] == "K", meta
         assert float(meta["_FillValue"]) == 65535.0, meta
         assert float(meta["scale_factor"]) == 0.25, meta
-        assert "1" in meta["pair"] and "3" in meta["pair"], (
-            f"a vector attribute should round trip: {meta.get('pair')!r}"
+        pair = meta["pair"]
+        assert "1" in pair, (
+            f"a vector attribute should keep its first element: {pair!r}"
         )
+        assert "3" in pair, f"a vector attribute should keep its last element: {pair!r}"
 
     def test_a_variable_without_attributes_is_written_and_read(self, tmp_path):
         """A variable with no attributes uses the ABSENT marker and still reads.

@@ -184,40 +184,48 @@ def test_read_bands_as_numpy_array_maps_to_channels(tmp_path, monkeypatch):
 def test_read_without_a_band_raises(tmp_path):
     """An OLCI read needs a band, via bands or options."""
     granule = _granule(tmp_path, ["Oa08_radiance.nc"])
+    driver = OlciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="needs a band"):
-        OlciDriver().read(str(granule))
+        driver.read(source)
 
 
 @pytest.mark.parametrize("bands", [[], None])
 def test_read_empty_or_absent_bands_needs_a_band(tmp_path, bands):
     """An empty or absent bands list names no band, so the clear band error is raised."""
     granule = _granule(tmp_path, ["Oa08_radiance.nc"])
+    driver = OlciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="needs a band"):
-        OlciDriver().read(str(granule), bands=bands)
+        driver.read(source, bands=bands)
 
 
 def test_read_empty_channels_list_needs_a_band(tmp_path):
     """An empty channels list in options is a clear band error, symmetric with bands=[]."""
     granule = _granule(tmp_path, ["Oa08_radiance.nc"])
+    driver = OlciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="needs a band"):
-        OlciDriver().read(str(granule), options={"channels": []})
+        driver.read(source, options={"channels": []})
 
 
 @pytest.mark.parametrize("bands", ["Oa08", 42, {"Oa08": 1}])
 def test_read_rejects_non_sequence_bands(tmp_path, bands):
     """A bare string, int or dict bands gives the clear error, not a TypeError."""
     granule = _granule(tmp_path, ["Oa08_radiance.nc"])
+    driver = OlciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="list of channel names"):
-        OlciDriver().read(str(granule), bands=bands)
+        driver.read(source, bands=bands)
 
 
 def test_read_rejects_both_channel_and_channels(tmp_path):
     """Giving both channel and channels in options is rejected at the driver boundary."""
     granule = _granule(tmp_path, ["Oa08_radiance.nc"])
+    driver = OlciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="not both"):
-        OlciDriver().read(
-            str(granule), options={"channel": "Oa08", "channels": ["Oa17"]}
-        )
+        driver.read(source, options={"channel": "Oa08", "channels": ["Oa17"]})
 
 
 def test_read_coerces_a_string_boolean_open_option(tmp_path):
@@ -250,8 +258,10 @@ def test_read_accepts_the_truthy_boolean_spellings(tmp_path, spelling):
 def test_read_rejects_a_non_boolean_spelling(tmp_path):
     """An unrecognised boolean spelling is rejected rather than guessed at."""
     granule = olci_granule(tmp_path)
+    driver = OlciDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="must be a boolean"):
-        OlciDriver().read(str(granule), options=["channel=Oa08", "geolocation=maybe"])
+        driver.read(source, options=["channel=Oa08", "geolocation=maybe"])
 
 
 def test_the_band_error_does_not_advertise_the_channels_option(tmp_path):
@@ -262,8 +272,9 @@ def test_the_band_error_does_not_advertise_the_channels_option(tmp_path):
     message a user is most likely to hit used to recommend exactly that.
     """
     granule = olci_granule(tmp_path)
+    source = str(granule)
     with pytest.raises(ValueError, match="needs a band") as error:
-        OlciDriver().read(str(granule))
+        OlciDriver().read(source)
     assert "channels" not in str(error.value), (
         f"the error must not advertise a channel set: {error.value}"
     )

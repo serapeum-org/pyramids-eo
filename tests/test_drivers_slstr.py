@@ -193,38 +193,48 @@ def test_read_bands_as_numpy_array_maps_to_channels(tmp_path, monkeypatch):
 def test_read_without_a_channel_raises(tmp_path):
     """An SLSTR read needs a channel, via bands or options."""
     granule = _granule(tmp_path, ["S5_radiance_an.nc"])
+    driver = SlstrDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="needs a channel"):
-        SlstrDriver().read(str(granule))
+        driver.read(source)
 
 
 @pytest.mark.parametrize("bands", [[], None])
 def test_read_empty_or_absent_bands_needs_a_channel(tmp_path, bands):
     """An empty or absent bands list names no channel, so the clear error is raised."""
     granule = _granule(tmp_path, ["S5_radiance_an.nc"])
+    driver = SlstrDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="needs a channel"):
-        SlstrDriver().read(str(granule), bands=bands)
+        driver.read(source, bands=bands)
 
 
 def test_read_empty_channels_list_needs_a_channel(tmp_path):
     """An empty channels list in options is a clear error, symmetric with bands=[]."""
     granule = _granule(tmp_path, ["S5_radiance_an.nc"])
+    driver = SlstrDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="needs a channel"):
-        SlstrDriver().read(str(granule), options={"channels": []})
+        driver.read(source, options={"channels": []})
 
 
 @pytest.mark.parametrize("bands", ["S5", 42, {"S5": 1}])
 def test_read_rejects_non_sequence_bands(tmp_path, bands):
     """A bare string, int or dict bands gives the clear error, not a TypeError."""
     granule = _granule(tmp_path, ["S5_radiance_an.nc"])
+    driver = SlstrDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="list of channel names"):
-        SlstrDriver().read(str(granule), bands=bands)
+        driver.read(source, bands=bands)
 
 
 def test_read_rejects_both_channel_and_channels(tmp_path):
     """Giving both channel and channels in options is rejected at the driver boundary."""
     granule = _granule(tmp_path, ["S5_radiance_an.nc"])
+    driver = SlstrDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="not both"):
-        SlstrDriver().read(str(granule), options={"channel": "S5", "channels": ["S8"]})
+        driver.read(source, options={"channel": "S5", "channels": ["S8"]})
 
 
 def test_holds_measurement_rejects_a_file(tmp_path):
@@ -296,8 +306,10 @@ def test_read_accepts_the_falsy_boolean_spellings(tmp_path, spelling):
 def test_read_rejects_a_non_boolean_spelling(tmp_path):
     """An unrecognised boolean spelling is rejected rather than guessed at."""
     granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+    driver = SlstrDriver()
+    source = str(granule)
     with pytest.raises(ValueError, match="must be a boolean"):
-        SlstrDriver().read(str(granule), options=["channel=S5", "geolocation=maybe"])
+        driver.read(source, options=["channel=S5", "geolocation=maybe"])
 
 
 def test_the_channel_error_does_not_advertise_the_channels_option(tmp_path):
@@ -307,8 +319,9 @@ def test_the_channel_error_does_not_advertise_the_channels_option(tmp_path):
     through read_file raises `TypeError: raster driver 'slstr' returned dict`.
     """
     granule = _granule(tmp_path, ["S5_radiance_an.nc"])
+    source = str(granule)
     with pytest.raises(ValueError, match="needs a channel") as error:
-        SlstrDriver().read(str(granule))
+        SlstrDriver().read(source)
     assert "channels" not in str(error.value), (
         f"the error must not advertise a channel set: {error.value}"
     )
@@ -358,9 +371,10 @@ def test_read_file_rejects_a_non_boolean_through_the_plugin_path(tmp_path):
     from pyramids.dataset import Dataset
 
     granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+    source = str(granule)
     with pytest.raises(ValueError, match="must be a boolean"):
         Dataset.read_file(
-            str(granule), open_options={"channel": "S5", "geolocation": "maybe"}
+            source, open_options={"channel": "S5", "geolocation": "maybe"}
         )
 
 

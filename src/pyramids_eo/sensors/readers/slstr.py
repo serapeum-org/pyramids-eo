@@ -430,7 +430,9 @@ def _channel_metadata(
         from pyramids_eo.sensors.registry import get_sensor
 
         entry = get_sensor(SENSOR).get_channel(channel)
-    except Exception:  # noqa: BLE001 - registry is descriptive, never required
+    # The registry is descriptive metadata, never required for a decode, so any
+    # lookup failure degrades to the CF-only metadata rather than failing the read.
+    except Exception:  # noqa: BLE001
         return metadata
     metadata["wavelength_um"] = str(entry.wavelength_um)
     metadata["kind"] = entry.kind
