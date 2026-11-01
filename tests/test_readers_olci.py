@@ -397,6 +397,72 @@ class TestProductTypeEdgeCases:
         (granule / "xfdumanifest.xml").write_text("<xfdu/>", encoding="utf-8")
         assert product_type(granule) is None
 
+    @pytest.mark.parametrize(
+        "granule_name",
+        [
+            "S3A_OL_1_EFR_OL_1_ERR____20260101T101500.SEN3",
+            "S3A_OL_1_ERR_OL_1_EFR____20260101T101500.SEN3",
+        ],
+    )
+    def test_a_name_carrying_both_tokens_resolves_deterministically(
+        self, tmp_path, granule_name
+    ):
+        """A name containing both product tokens resolves to EFR, whatever the order.
+
+        Args:
+            granule_name: A granule directory name holding both `_OL_1_EFR` and
+                `_OL_1_ERR`.
+
+        Test scenario:
+            A substring scan over a name that was renamed, nested or concatenated
+            can see both tokens, and the reported `resolution_m` differs by a
+            factor of four between them. What matters is that the answer does not
+            depend on the order the tokens appear in -- the candidate list is
+            scanned in a fixed order, so EFR wins either way, rather than the
+            result flipping with the filename.
+        """
+        granule = tmp_path / granule_name
+        granule.mkdir()
+        assert product_type(granule) == "EFR", (
+            f"{granule_name} should resolve to EFR regardless of token order"
+        )
+
+    def test_the_granule_name_takes_precedence_over_the_manifest(self, tmp_path):
+        """A name that states its product type is trusted over a disagreeing manifest.
+
+        Test scenario:
+            The manifest is a fallback for granules whose directory was renamed,
+            so a granule whose name *does* say EFR must not be relabelled ERR by
+            a stale or copied manifest -- which would quadruple the reported
+            resolution. Pinning the precedence is what makes the two sources
+            unambiguous.
+        """
+        granule = tmp_path / "S3A_OL_1_EFR____20260101T101500.SEN3"
+        granule.mkdir()
+        (granule / "xfdumanifest.xml").write_text(
+            "<xfdu><product>S3A_OL_1_ERR____other</product></xfdu>", encoding="utf-8"
+        )
+        assert product_type(granule) == "EFR", (
+            "the granule name must win over a disagreeing manifest"
+        )
+
+    def test_a_manifest_naming_both_products_resolves_deterministically(self, tmp_path):
+        """A manifest mentioning both product types also resolves to EFR, not at random.
+
+        Test scenario:
+            A real `xfdumanifest.xml` references other products and processing
+            baselines, so both tokens can legitimately appear in it. The fallback
+            must therefore be as order-independent as the name scan.
+        """
+        granule = tmp_path / "renamed-both.SEN3"
+        granule.mkdir()
+        (granule / "xfdumanifest.xml").write_text(
+            "<xfdu><a>OL_1_ERR</a><b>OL_1_EFR</b></xfdu>", encoding="utf-8"
+        )
+        assert product_type(granule) == "EFR", (
+            "the manifest scan must be order-independent too"
+        )
+
     def test_an_unreadable_manifest_yields_none(self, tmp_path, monkeypatch):
         """An unreadable manifest degrades to None rather than failing the read."""
         from pathlib import Path as _Path

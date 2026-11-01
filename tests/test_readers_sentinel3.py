@@ -13,16 +13,19 @@ import numpy as np
 import pytest
 
 from pyramids_eo.errors import ReaderError
+from pyramids_eo.sensors.readers._common import validity_bounds
 from pyramids_eo.sensors.readers._sentinel3 import (  # noqa: I001
     PLACEHOLDER_GEOTRANSFORM,
     SEN3_SUFFIX,
     geolocation_domain,
+    geolocation_source,
     granule_file,
     read_packed_variable,
     resolve_granule,
     subdataset,
     wrap_swath,
 )
+from tests._netcdf3 import write_netcdf
 from tests._sentinel3_granule import write_geolocation
 
 
@@ -232,8 +235,6 @@ class TestGeolocationDomain:
             completely unusable domain whose failure surfaced much later inside
             the caller's warp.
         """
-        from tests._netcdf3 import write_netcdf
-
         geo = write_netcdf(
             tmp_path / "geo_coordinates.nc",
             {"longitude": (np.zeros((2, 3), dtype="int32"), {})},
@@ -477,3 +478,318 @@ class TestReadPackedVariableUnpacking:
             {"units": "K", "long_name": "bt"},
         )
         assert meta["units"] == "K" and meta["long_name"] == "bt", meta
+
+    def test_bounds_are_compared_before_unpacking(self, monkeypatch):
+        """The validity limits are applied to the raw counts, not the unpacked values.
+
+        Test scenario:
+            With `scale_factor` 0.5 and `add_offset` -1.0, packed bounds of
+            [10, 100] and raw counts of 20 and 150, the two readings disagree:
+            comparing *unpacked* values would mask 20 (it unpacks to 9.0, under
+            10) and keep 150 (it unpacks to 74.0, inside the pair). CF requires
+            the packed comparison, so the opposite must happen. A fixture whose
+            bounds straddle both readings is the only way to tell them apart --
+            which is why a scale of 1.0 would prove nothing here.
+        """
+        values, _ = _read(
+            monkeypatch,
+            np.array([[20, 150]], dtype="int32"),
+            {
+                "scale_factor": "0.5",
+                "add_offset": "-1.0",
+                "valid_min": "10",
+                "valid_max": "100",
+            },
+        )
+        assert values[0, 0] == pytest.approx(9.0), (
+            f"raw 20 is inside the packed bounds and must survive: {values}"
+        )
+        assert np.isnan(values[0, 1]), (
+            f"raw 150 is above the packed valid_max and must mask: {values}"
+        )
+
+    def test_a_fill_value_outside_the_valid_range_still_masks(self, monkeypatch):
+        """A `_FillValue` that the validity limits already exclude masks exactly once.
+
+        Test scenario:
+            Sentinel-3 fill sentinels sit well outside the variable's valid
+            range, so both rules fire on the same pixel. The mask is a boolean
+            or, so the pixel must be NaN and its neighbours untouched -- not, for
+            instance, the whole row.
+        """
+        values, _ = _read(
+            monkeypatch,
+            np.array([[-32768, 20, 30]], dtype="int32"),
+            {
+                "scale_factor": "0.5",
+                "add_offset": "-1.0",
+                "_FillValue": "-32768",
+                "valid_min": "0",
+                "valid_max": "1000",
+            },
+        )
+        assert np.isnan(values[0, 0]), f"the fill pixel must mask: {values}"
+        assert np.all(np.isfinite(values[0, 1:])), (
+            f"only the fill pixel may mask: {values}"
+        )
+
+
+class TestValidityBoundsEdges:
+    """Tests for how `validity_bounds` resolves a half-usable attribute pair."""
+
+    @pytest.mark.parametrize(
+        "meta, expected",
+        [
+            # One bound junk: the other must stay in force rather than both being
+            # discarded, because the bounds are independent CF scalars.
+            ({"valid_min": "10", "valid_max": "junk"}, (10.0, None)),
+            ({"valid_min": "junk", "valid_max": "100"}, (None, 100.0)),
+            # A non-finite bound is as unusable as a non-numeric one.
+            ({"valid_min": "10", "valid_max": "nan"}, (10.0, None)),
+            ({"valid_min": "-inf", "valid_max": "100"}, (None, 100.0)),
+            # Both unusable: fall through to the FCI spelling if it is there.
+            ({"valid_min": "junk", "valid_max": "junk"}, (None, None)),
+            (
+                {"valid_min": "junk", "valid_max": "junk", "valid_range": "{0, 10}"},
+                (0.0, 10.0),
+            ),
+        ],
+    )
+    def test_one_unusable_bound_leaves_the_other_in_force(self, meta, expected):
+        """A junk or non-finite bound is dropped alone, not together with its partner.
+
+        Args:
+            meta: The variable's attribute dict.
+            expected: The `(valid_min, valid_max)` pair that must be resolved.
+
+        Test scenario:
+            Dropping both on one bad value would silently stop masking the side
+            that *was* readable; dropping neither would compare against a NaN or
+            an infinity, which masks everything or nothing at random.
+        """
+        assert validity_bounds(meta) == expected, (
+            f"{meta} should resolve to {expected}, got {validity_bounds(meta)}"
+        )
+
+    def test_the_sentinel3_scalars_win_over_a_combined_valid_range(self):
+        """`valid_min`/`valid_max` take precedence over an also-present `valid_range`.
+
+        Test scenario:
+            `valid_range` is MTG-FCI's spelling and only a fallback here. A
+            granule carrying both must be masked by the Sentinel-3 pair, so the
+            two sets are deliberately disjoint in this fixture.
+        """
+        resolved = validity_bounds(
+            {"valid_min": "10", "valid_max": "100", "valid_range": "{0, 4095}"}
+        )
+        assert resolved == (10.0, 100.0), (
+            f"the separate scalars must win over valid_range, got {resolved}"
+        )
+
+
+def _warp(domain, shape):
+    """Warp a dummy raster of `shape` through `domain`; return its geotransform + size."""
+    from osgeo import gdal
+
+    height, width = shape
+    source = gdal.GetDriverByName("MEM").Create("", width, height, 1, gdal.GDT_Float32)
+    source.GetRasterBand(1).WriteArray(
+        np.arange(width * height, dtype="float32").reshape(height, width)
+    )
+    source.SetMetadata(dict(domain), "GEOLOCATION")
+    warped = gdal.Warp("", source, format="MEM", geoloc=True)
+    return warped.GetGeoTransform(), (warped.RasterXSize, warped.RasterYSize)
+
+
+def _geolocation_file(path, longitude, latitude, attributes):
+    """Write a geolocation file carrying `longitude` and `latitude` with `attributes`."""
+    return write_netcdf(
+        path,
+        {
+            "longitude": (longitude, dict(attributes)),
+            "latitude": (latitude, dict(attributes)),
+        },
+    )
+
+
+class TestUnscalingVrt:
+    """Tests for the `/vsimem` VRT that hands GDAL unpacked degrees."""
+
+    def test_an_offset_without_a_scale_is_applied_with_a_unit_ratio(self, tmp_path):
+        """A variable carrying only `add_offset` is shifted, not multiplied by zero.
+
+        Test scenario:
+            The VRT's `ScaleRatio` and `ScaleOffset` are filled from
+            `GetScale()` / `GetOffset()`, either of which a product may omit. An
+            absent `scale_factor` must default to 1.0: a 0.0 ratio would flatten
+            every coordinate to the offset, putting the whole swath on one point.
+        """
+        raw = np.array([[0, 1000000, 2000000]], dtype="int32")
+        geo = _geolocation_file(
+            tmp_path / "geo_coordinates.nc", raw, raw, {"add_offset": 4.0}
+        )
+        source = geolocation_source(geo, "longitude", reader="read_test")
+        assert source.endswith(".vrt"), f"an offset alone needs a VRT: {source}"
+        from osgeo import gdal
+
+        values = np.asarray(gdal.Open(source).ReadAsArray(), dtype=float)
+        assert np.allclose(values, raw.astype(float) + 4.0), (
+            f"an offset-only variable must be shifted by 4.0, got {values}"
+        )
+
+    def test_a_scale_and_an_offset_are_both_applied(self, tmp_path):
+        """A variable with both packing attributes unpacks as raw * scale + offset.
+
+        Test scenario:
+            The geolocation path is tested mostly against the published
+            scale-only packing, so a product adding an `add_offset` would
+            exercise a combination nothing pins. Both must reach the VRT.
+        """
+        raw = np.array([[0, 1000000, 2000000]], dtype="int32")
+        geo = _geolocation_file(
+            tmp_path / "geo_coordinates.nc",
+            raw,
+            raw,
+            {"scale_factor": 1e-06, "add_offset": 4.0},
+        )
+        source = geolocation_source(geo, "longitude", reader="read_test")
+        from osgeo import gdal
+
+        values = np.asarray(gdal.Open(source).ReadAsArray(), dtype=float)
+        assert np.allclose(values, [[4.0, 5.0, 6.0]]), (
+            f"expected raw * 1e-06 + 4.0, got {values}"
+        )
+
+    def test_two_granules_sharing_a_variable_name_get_distinct_vrts(self, tmp_path):
+        """One `/vsimem` entry per source, so two granules never share a VRT.
+
+        Test scenario:
+            Every OLCI granule names its geolocation variables `longitude` and
+            `latitude`, and the VRT lives in a process-wide `/vsimem` namespace.
+            Keying it on the variable name alone would make the second granule
+            read of a session silently reuse the first granule's coordinates.
+        """
+        first = tmp_path / "a.SEN3"
+        second = tmp_path / "b.SEN3"
+        first.mkdir()
+        second.mkdir()
+        one = geolocation_domain(
+            write_geolocation(first / "geo_coordinates.nc"), reader="read_test"
+        )
+        two = geolocation_domain(
+            write_geolocation(second / "geo_coordinates.nc", shape=(3, 4)),
+            reader="read_test",
+        )
+        assert one["X_DATASET"] != two["X_DATASET"], (
+            f"two granules share a VRT name: {one['X_DATASET']}"
+        )
+        from osgeo import gdal
+
+        assert gdal.Open(one["X_DATASET"]).RasterYSize == 2, "granule A is 2 rows"
+        assert gdal.Open(two["X_DATASET"]).RasterYSize == 3, "granule B is 3 rows"
+
+    def test_the_two_variables_of_one_file_get_distinct_vrts(self, tmp_path):
+        """Longitude and latitude live in one file but need separate VRTs.
+
+        Test scenario:
+            A shared name would make X and Y resolve to the same array, i.e. a
+            swath placed along the line longitude == latitude.
+        """
+        geo = write_geolocation(tmp_path / "geo_coordinates.nc")
+        domain = geolocation_domain(geo, reader="read_test")
+        assert domain["X_DATASET"] != domain["Y_DATASET"], domain
+        from osgeo import gdal
+
+        longitudes = np.asarray(gdal.Open(domain["X_DATASET"]).ReadAsArray(), float)
+        latitudes = np.asarray(gdal.Open(domain["Y_DATASET"]).ReadAsArray(), float)
+        assert 3.0 < longitudes.min() < 6.0, f"X is not longitude: {longitudes}"
+        assert 50.0 < latitudes.min() < 53.0, f"Y is not latitude: {latitudes}"
+
+    def test_a_second_read_of_one_granule_reuses_the_vrt_and_still_warps(
+        self, tmp_path
+    ):
+        """Re-reading a granule rewrites the same `/vsimem` entry without corrupting it.
+
+        Test scenario:
+            The VRT name is derived from the source so repeated reads share one
+            entry, which means the second read overwrites a file the first read
+            may still have cached. The warp has to keep working, and land in the
+            same place.
+        """
+        geo = write_geolocation(tmp_path / "geo_coordinates.nc")
+        first = geolocation_domain(geo, reader="read_test")
+        before = _warp(first, (2, 3))
+        second = geolocation_domain(geo, reader="read_test")
+        assert second["X_DATASET"] == first["X_DATASET"], (
+            "a repeated read should reuse the one /vsimem entry"
+        )
+        assert _warp(second, (2, 3)) == before, (
+            "the second read must warp identically to the first"
+        )
+
+    @pytest.mark.parametrize("shape", [(1, 4), (4, 1), (1, 1)])
+    def test_a_degenerate_grid_still_yields_readable_degrees(self, tmp_path, shape):
+        """A one-row, one-column or one-pixel grid produces a valid, unpacked VRT.
+
+        Args:
+            shape: The degenerate `(rows, columns)` geolocation grid.
+
+        Test scenario:
+            The VRT states its own `rasterXSize` / `rasterYSize` and `SrcRect`,
+            so a grid with a dimension of one is where an off-by-one in those
+            would show. GDAL's own warp cannot back-map such a swath ("Invalid
+            pixel size for backmap"), which is a GDAL limitation rather than a
+            reader one -- the reader's contract is to *describe* the geolocation,
+            so what is asserted is that the described arrays read back as the
+            degrees the file holds.
+        """
+        rows, columns = shape
+        longitude = np.round(
+            np.tile(np.linspace(4.0, 5.0, columns), (rows, 1)) / 1e-06
+        ).astype("int32")
+        latitude = np.round(
+            np.repeat(np.linspace(52.0, 51.0, rows)[:, None], columns, axis=1) / 1e-06
+        ).astype("int32")
+        geo = _geolocation_file(
+            tmp_path / "geo_coordinates.nc",
+            longitude,
+            latitude,
+            {"scale_factor": 1e-06},
+        )
+        domain = geolocation_domain(geo, reader="read_test")
+        from osgeo import gdal
+
+        raster = gdal.Open(domain["X_DATASET"])
+        assert (raster.RasterXSize, raster.RasterYSize) == (columns, rows), (
+            f"the VRT must keep the grid shape, got "
+            f"{(raster.RasterXSize, raster.RasterYSize)}"
+        )
+        values = np.asarray(raster.ReadAsArray(), dtype=float).reshape(rows, columns)
+        assert np.allclose(values, longitude * 1e-06), (
+            f"a {rows}x{columns} grid unpacked wrongly:\n{values}"
+        )
+
+
+class TestGeolocationWarpExtent:
+    """A warp through the domain must land on the granule's own footprint."""
+
+    def test_a_packed_geolocation_warps_to_a_grid_the_size_of_the_swath(self, tmp_path):
+        """The warped grid covers the granule's extent at roughly its own size.
+
+        Test scenario:
+            Asserting only the origin leaves a whole class of defect invisible:
+            any coordinate the transformer reads out of range -- unscaled
+            micro-degrees, or a sentinel value taken as real -- stretches the
+            computed output bounds instead of failing, so the warp still
+            "succeeds" while producing a grid orders of magnitude larger than the
+            swath. Bounding the output size is what detects that.
+        """
+        geo = write_geolocation(tmp_path / "geo_coordinates.nc", shape=(8, 8))
+        domain = geolocation_domain(geo, reader="read_test")
+        (origin_x, _, _, origin_y, _, _), (width, height) = _warp(domain, (8, 8))
+        assert 3.0 < origin_x < 6.0, f"longitude origin not in degrees: {origin_x}"
+        assert 50.0 < origin_y < 53.0, f"latitude origin not in degrees: {origin_y}"
+        assert width <= 32 and height <= 32, (
+            f"an 8x8 swath warped to {width}x{height}: a coordinate outside the "
+            f"granule's footprint has stretched the output bounds"
+        )

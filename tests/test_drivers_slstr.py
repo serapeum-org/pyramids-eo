@@ -13,6 +13,7 @@ import pytest
 
 import pyramids_eo.sensors.readers as readers
 from pyramids_eo.drivers.slstr import SlstrDriver
+from tests._sentinel3_granule import packed_counts, slstr_granule
 
 
 def _granule(tmp_path, names, name="S3A_SL_1_RBT.SEN3"):
@@ -239,3 +240,154 @@ def test_can_open_glob_matching_a_measurement_directory(tmp_path):
     """A glob whose matches include a measurement-bearing directory is claimed."""
     granule = _granule(tmp_path, ["S8_BT_in.nc"])
     assert SlstrDriver.can_open(str(granule.parent / "*.SEN3")) is True
+
+
+def test_read_coerces_a_string_boolean_open_option(tmp_path):
+    """`geolocation=false` as a KEY=VALUE string disables geolocation, not enables it.
+
+    `Dataset.read_file` normalises open_options to the GDAL KEY=VALUE list form, so a
+    boolean reader keyword arrives as the string "false" -- which is truthy, and would
+    therefore silently turn geolocation ON. The OLCI driver has this test; SLSTR shares
+    the helper but had nothing pinning it, so a driver-specific regression (a missing
+    `coerce_booleans` call, or the wrong key tuple) would have passed here.
+    """
+    granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+    dataset = SlstrDriver().read(
+        str(granule), options=["channel=S5", "geolocation=false"]
+    )
+    assert not dataset.raster.GetMetadata("GEOLOCATION"), (
+        "geolocation=false must disable the domain"
+    )
+    assert dataset.raster.GetMetadata()["geolocation"] == (
+        "none (placeholder pixel grid)"
+    ), dataset.raster.GetMetadata()
+
+
+@pytest.mark.parametrize("spelling", ["true", "TRUE", "yes", "on", "1"])
+def test_read_accepts_the_truthy_boolean_spellings(tmp_path, spelling):
+    """Every accepted true spelling enables geolocation.
+
+    Args:
+        spelling: One accepted string spelling of boolean true.
+    """
+    granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+    dataset = SlstrDriver().read(
+        str(granule), options=["channel=S5", f"geolocation={spelling}"]
+    )
+    assert dataset.raster.GetMetadata("GEOLOCATION"), f"{spelling!r} should enable it"
+
+
+@pytest.mark.parametrize("spelling", ["false", "FALSE", "no", "off", "0"])
+def test_read_accepts_the_falsy_boolean_spellings(tmp_path, spelling):
+    """Every accepted false spelling disables geolocation.
+
+    Args:
+        spelling: One accepted string spelling of boolean false.
+    """
+    granule = slstr_granule(tmp_path, channels={"S5": packed_counts()}, geodetic=False)
+    dataset = SlstrDriver().read(
+        str(granule), options=["channel=S5", f"geolocation={spelling}"]
+    )
+    assert not dataset.raster.GetMetadata("GEOLOCATION"), (
+        f"{spelling!r} should disable the domain"
+    )
+
+
+def test_read_rejects_a_non_boolean_spelling(tmp_path):
+    """An unrecognised boolean spelling is rejected rather than guessed at."""
+    granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+    with pytest.raises(ValueError, match="must be a boolean"):
+        SlstrDriver().read(str(granule), options=["channel=S5", "geolocation=maybe"])
+
+
+def test_the_channel_error_does_not_advertise_the_channels_option(tmp_path):
+    """The error must not teach `options={'channels': [...]}`, which read_file rejects.
+
+    pyramids' plugin layer requires a driver to return one Dataset, so a channel set
+    through read_file raises `TypeError: raster driver 'slstr' returned dict`.
+    """
+    granule = _granule(tmp_path, ["S5_radiance_an.nc"])
+    with pytest.raises(ValueError, match="needs a channel") as error:
+        SlstrDriver().read(str(granule))
+    assert "channels" not in str(error.value), (
+        f"the error must not advertise a channel set: {error.value}"
+    )
+
+
+def test_read_file_routes_a_single_channel_end_to_end(tmp_path):
+    """`Dataset.read_file` reaches `read_slstr` through the real plugin path.
+
+    Every other driver test monkeypatches the reader or uses empty placeholder files,
+    so nothing exercised the genuine read_file -> entry point -> can_open -> read ->
+    reader chain for SLSTR against a decodable granule.
+    """
+    from pyramids.dataset import Dataset
+
+    granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+    dataset = Dataset.read_file(str(granule), open_options={"channel": "S5"})
+    assert dataset.read_array().shape == (2, 3), "read_file should decode the channel"
+    assert dataset.raster.GetMetadata()["sensor"] == "slstr", (
+        dataset.raster.GetMetadata()
+    )
+    assert dataset.raster.GetMetadata("GEOLOCATION").get("X_DATASET"), (
+        "the swath domain must survive the trip through read_file"
+    )
+
+
+def test_read_file_coerces_a_string_boolean(tmp_path):
+    """Through `read_file`, `geolocation` given as a string still disables the domain.
+
+    Test scenario:
+        This is the path a caller actually takes, and the one the string-boolean
+        defect lived on: read_file hands the driver the option uninterpreted, so the
+        coercion has to happen inside the driver rather than being assumed of pyramids.
+    """
+    from pyramids.dataset import Dataset
+
+    granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+    dataset = Dataset.read_file(
+        str(granule), open_options={"channel": "S5", "geolocation": "false"}
+    )
+    assert not dataset.raster.GetMetadata("GEOLOCATION"), (
+        "geolocation='false' through read_file must disable the domain"
+    )
+
+
+def test_read_file_rejects_a_non_boolean_through_the_plugin_path(tmp_path):
+    """A nonsense boolean surfaces as the driver's ValueError, not a silent true."""
+    from pyramids.dataset import Dataset
+
+    granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+    with pytest.raises(ValueError, match="must be a boolean"):
+        Dataset.read_file(
+            str(granule), open_options={"channel": "S5", "geolocation": "maybe"}
+        )
+
+
+def test_read_file_passes_the_view_and_grid_through(tmp_path):
+    """`view` and `grid` reach the reader intact through `read_file`.
+
+    Test scenario:
+        These are the two arguments SLSTR adds over OLCI, and both are forwarded as
+        leftover `**settings`. A driver that popped or renamed one would silently read
+        the nadir `a` grid instead, which is a different footprint at a different
+        resolution -- and still a valid-looking Dataset.
+    """
+    from pyramids.dataset import Dataset
+
+    granule = slstr_granule(tmp_path, channels={"S5": packed_counts()}, view="o")
+    dataset = Dataset.read_file(
+        str(granule),
+        open_options={"channel": "S5", "view": "oblique", "grid": "a"},
+    )
+    meta = dataset.raster.GetMetadata()
+    assert (meta["view"], meta["grid"]) == ("oblique", "ao"), meta
+
+
+def test_read_file_accepts_the_slstr_scheme(tmp_path):
+    """A `slstr://` source routes to this driver and is stripped before the reader."""
+    from pyramids.dataset import Dataset
+
+    granule = slstr_granule(tmp_path, channels={"S5": packed_counts()})
+    dataset = Dataset.read_file(f"slstr://{granule}", open_options={"channel": "S5"})
+    assert dataset.read_array().shape == (2, 3), "the scheme should route and strip"

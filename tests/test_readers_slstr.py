@@ -406,6 +406,202 @@ class TestAvailableSlstrChannels:
             available_slstr_channels(granule, view="sideways")
 
 
+def _geodetic(granule, grid, view="n"):
+    """Write the `geodetic_<grid><view>.nc` annotation file for one grid."""
+    suffix = f"{grid}{view}"
+    return write_geolocation(
+        granule / f"geodetic_{suffix}.nc",
+        longitude_variable=f"longitude_{suffix}",
+        latitude_variable=f"latitude_{suffix}",
+    )
+
+
+class TestFireChannelGrids:
+    """The fire channels are asymmetric and F1's grid changed between baselines."""
+
+    def test_f1_on_a_legacy_baseline_granule_falls_back_to_the_i_grid(self, tmp_path):
+        """A granule predating the `f` baseline carries F1 on `i`, and must still read.
+
+        Test scenario:
+            F1 is documented on `f` *then* `i` precisely because products
+            predating the fire-grid baseline ship `F1_BT_in.nc` and no
+            `F1_BT_fn.nc`. The whole reason the candidate list is ordered rather
+            than a single letter is this granule, and the PDFS fixture -- which
+            writes F1 on `f` only -- cannot express it, so the fallback leg was
+            reachable but never exercised against a product that needs it.
+        """
+        granule = tmp_path / "S3A_SL_1_RBT____legacy.SEN3"
+        granule.mkdir()
+        write_measurement(
+            granule / "F1_BT_in.nc", "F1_BT_in", packed_counts(), units="K"
+        )
+        _geodetic(granule, "i")
+        dataset = read_slstr(granule, channel="F1")
+        meta = dataset.raster.GetMetadata()
+        assert meta["grid"] == "in", f"F1 should fall back to the i grid: {meta}"
+        assert meta["resolution_m"] == "1000", f"the i grid is 1 km: {meta}"
+        assert (
+            "latitude_in" in dataset.raster.GetMetadata("GEOLOCATION")["Y_DATASET"]
+        ), "the geodetic file must match the grid actually read"
+        assert available_slstr_channels(granule) == {"F1": ["i"]}, (
+            "discovery should report the grid the granule really carries"
+        )
+
+    def test_f1_on_both_grids_prefers_f_and_honours_an_explicit_i(self, tmp_path):
+        """With F1 on `f` and `i`, the documented order picks `f`; `grid="i"` overrides.
+
+        Test scenario:
+            A reprocessed granule can hold both stripes. The candidate order has
+            to be a real preference rather than "whichever the filesystem lists
+            first", and an explicit `grid=` must still win over it.
+        """
+        granule = tmp_path / "S3A_SL_1_RBT____both.SEN3"
+        granule.mkdir()
+        for grid in ("f", "i"):
+            write_measurement(
+                granule / f"F1_BT_{grid}n.nc",
+                f"F1_BT_{grid}n",
+                packed_counts(),
+                units="K",
+            )
+            _geodetic(granule, grid)
+        assert read_slstr(granule, channel="F1").raster.GetMetadata()["grid"] == "fn", (
+            "the first documented grid must win when both are present"
+        )
+        forced = read_slstr(granule, channel="F1", grid="i").raster.GetMetadata()
+        assert forced["grid"] == "in", (
+            f"grid='i' must override the preference: {forced}"
+        )
+        assert available_slstr_channels(granule) == {"F1": ["f", "i"]}, (
+            "discovery should list both stripes, in documented order"
+        )
+
+    def test_f2_is_never_looked_for_on_the_fire_grid(self, tmp_path):
+        """`grid="f"` for F2 fails: there is no `F2_BT_f*.nc` in any baseline.
+
+        Test scenario:
+            F2 stays on the 1 km `i` grid while F1 moved to `f`. Asking for F2 on
+            `f` must be an error naming the grid tried, not a silent fall back to
+            `i` at a different nominal resolution.
+        """
+        granule = slstr_granule(tmp_path, channels={"F2": packed_counts()})
+        with pytest.raises(ReaderError, match=r"grid 'f'") as error:
+            read_slstr(granule, channel="F2", grid="f", geolocation=False)
+        assert "F2_BT_in.nc" in str(error.value), (
+            f"the error should point the caller at F2's real `i` stripe: {error.value}"
+        )
+        assert read_slstr(granule, channel="F2").raster.GetMetadata()["grid"] == "in", (
+            "F2's own grid is `i`"
+        )
+
+
+class TestGridResolutionReporting:
+    """`resolution_m` must describe the grid read, not the channel's nominal one."""
+
+    @pytest.mark.parametrize(
+        "channel, grid, expected",
+        [
+            ("S5", "a", "500"),
+            ("S5", "b", "500"),
+            ("S8", "i", "1000"),
+            ("F1", "f", "1000"),
+        ],
+    )
+    def test_each_grid_reports_its_own_ground_sampling_distance(
+        self, tmp_path, channel, grid, expected
+    ):
+        """Every documented grid stamps its own GSD onto the result.
+
+        Args:
+            channel: The channel to write and read.
+            grid: The grid letter to write it on.
+            expected: The `resolution_m` the result must carry.
+
+        Test scenario:
+            The 500 m `a`/`b` and 1 km `i`/`f` grids are what makes a multi-grid
+            read return a dict instead of a stack, so a consumer that resamples
+            or harmonises depends on this number being the grid's, not the
+            channel's usual one.
+        """
+        quantity = "radiance" if channel.startswith("S") and channel < "S7" else "BT"
+        granule = tmp_path / "S3A_SL_1_RBT____gsd.SEN3"
+        granule.mkdir(exist_ok=True)
+        stem = f"{channel}_{quantity}_{grid}n"
+        write_measurement(granule / f"{stem}.nc", stem, packed_counts())
+        _geodetic(granule, grid)
+        meta = read_slstr(granule, channel=channel, grid=grid).raster.GetMetadata()
+        assert meta["resolution_m"] == expected, (
+            f"{channel} on grid {grid!r} should report {expected} m: {meta}"
+        )
+        assert meta["grid"] == f"{grid}n", meta
+
+    def test_a_channel_read_off_an_unusual_grid_is_labelled_with_that_grid(
+        self, tmp_path
+    ):
+        """A thermal channel found on a 500 m grid reports 500 m, not its nominal 1 km.
+
+        Test scenario:
+            S7 is a 1 km `i`-grid channel, so a granule offering it on `a`
+            (reprocessed or test data) is exactly the case where taking the
+            resolution from the registry instead of the grid would be wrong by a
+            factor of two -- and silently, since the array shape alone does not
+            say which grid it came from.
+        """
+        granule = tmp_path / "S3A_SL_1_RBT____offgrid.SEN3"
+        granule.mkdir()
+        write_measurement(
+            granule / "S7_BT_an.nc", "S7_BT_an", packed_counts(), units="K"
+        )
+        _geodetic(granule, "a")
+        meta = read_slstr(granule, channel="S7", grid="a").raster.GetMetadata()
+        assert meta["resolution_m"] == "500", (
+            f"the grid read, not S7's nominal 1 km, must set the resolution: {meta}"
+        )
+        assert meta["grid"] == "an", meta
+
+
+class TestExplicitGridIsNotSubstituted:
+    """`grid=` naming a grid real for another channel must not be silently honoured."""
+
+    @pytest.mark.parametrize(
+        "channel, grid",
+        [("S8", "a"), ("S8", "b"), ("S5", "i"), ("S5", "f"), ("F2", "f")],
+    )
+    def test_a_grid_real_elsewhere_in_the_product_still_raises(
+        self, tmp_path, channel, grid
+    ):
+        """Every cross-channel grid request fails, naming the grid and what is held.
+
+        Args:
+            channel: The channel to request.
+            grid: A grid letter that is real for the product but not this channel.
+
+        Test scenario:
+            `a`, `b`, `i` and `f` all pass `_resolve_grid`, so each is a
+            plausible-looking request that reaches discovery. Since the granule
+            holds exactly one file per channel, this is the single-candidate case
+            where discovery used to return whatever it found without consulting
+            `grid` -- handing back a different resolution and a different array
+            shape with no warning.
+        """
+        granule = slstr_granule(
+            tmp_path,
+            channels={
+                "S5": packed_counts(),
+                "S8": packed_counts(),
+                "F2": packed_counts(),
+            },
+        )
+        with pytest.raises(ReaderError, match=f"grid '{grid}'") as error:
+            read_slstr(granule, channel=channel, grid=grid, geolocation=False)
+        assert channel in str(error.value), (
+            f"the error should name the channel asked for: {error.value}"
+        )
+        assert "quality" not in str(error.value), (
+            f"no annotation sibling may be offered as a grid choice: {error.value}"
+        )
+
+
 class TestChannelSpellingSymmetry:
     """SLSTR accepts the product's variable spelling, as OLCI accepts `Oa08_radiance`."""
 
