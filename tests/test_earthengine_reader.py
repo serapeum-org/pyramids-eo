@@ -1351,6 +1351,35 @@ class TestFromEarthengineComposite:
 class TestCollectionFromEarthengine:
     """Tests for :func:`collection_from_earthengine`."""
 
+    def test_returns_dataset_collection(self, three_scenes) -> None:
+        """Discovery + aligned reads produce a per-scene ``DatasetCollection``.
+
+        Args:
+            three_scenes: Fixture patching discovery/open (three scenes).
+
+        Test scenario:
+            Three scenes become a 3-timestep collection with aligned shapes and
+            the acquisition times as the time axis.
+        """
+        dc = collection_from_earthengine(
+            "COPERNICUS/S2_SR_HARMONIZED",
+            window=Window(bbox=_BBOX, shape=(4, 4)),
+            start="2024-06-01",
+            end="2024-06-30",
+        )
+        assert isinstance(dc, DatasetCollection), (
+            f"Expected a DatasetCollection, got {type(dc)}"
+        )
+        assert dc.time_length == 3, f"Expected 3 timesteps, got {dc.time_length}"
+        assert dc.datasets[0].shape == (1, 4, 4), (
+            f"Unexpected scene shape: {dc.datasets[0].shape}"
+        )
+        assert list(dc.time) == [
+            "2024-06-01T00:00:00",
+            "2024-06-02T00:00:00",
+            "2024-06-03T00:00:00",
+        ], f"Unexpected time axis: {list(dc.time)}"
+
     @pytest.mark.lazy
     def test_returned_collection_reduces_over_time(self, three_scenes) -> None:
         """The reader's collection reduces over time, no manual spill-to-disk (#131).
@@ -1446,35 +1475,6 @@ class TestCollectionFromEarthengine:
         assert per_window == pytest.approx([10.0, 20.0, 30.0]), (
             f"daily windows should follow the scenes' acquisition order: {per_window}"
         )
-
-    def test_returns_dataset_collection(self, three_scenes) -> None:
-        """Discovery + aligned reads produce a per-scene ``DatasetCollection``.
-
-        Args:
-            three_scenes: Fixture patching discovery/open (three scenes).
-
-        Test scenario:
-            Three scenes become a 3-timestep collection with aligned shapes and
-            the acquisition times as the time axis.
-        """
-        dc = collection_from_earthengine(
-            "COPERNICUS/S2_SR_HARMONIZED",
-            window=Window(bbox=_BBOX, shape=(4, 4)),
-            start="2024-06-01",
-            end="2024-06-30",
-        )
-        assert isinstance(dc, DatasetCollection), (
-            f"Expected a DatasetCollection, got {type(dc)}"
-        )
-        assert dc.time_length == 3, f"Expected 3 timesteps, got {dc.time_length}"
-        assert dc.datasets[0].shape == (1, 4, 4), (
-            f"Unexpected scene shape: {dc.datasets[0].shape}"
-        )
-        assert list(dc.time) == [
-            "2024-06-01T00:00:00",
-            "2024-06-02T00:00:00",
-            "2024-06-03T00:00:00",
-        ], f"Unexpected time axis: {list(dc.time)}"
 
     def test_scale_and_shape_mutually_exclusive(self) -> None:
         """Passing both ``scale`` and ``shape`` raises ``ValueError``.
