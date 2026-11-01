@@ -175,22 +175,46 @@ def coerce_floats(
     ``str`` and only fails much later inside the reader's arithmetic, with a message
     that names neither the option nor the driver.
 
+    Only ``str`` values are converted, as in ``coerce_booleans``. A real ``int`` or
+    ``float`` is already usable and a value of any other type (``None``, a list) is
+    left **untouched** for the reader to interpret or reject. Conversion is
+    ``float()``'s, so scientific notation works — and so do the non-finite
+    spellings ``"nan"`` and ``"inf"``, which pass through as floats rather than
+    being rejected; use ``finite_float`` where finiteness is what matters.
+
     Args:
-        settings: The options dict, mutated in place.
+        settings: The options dict, mutated in place. Keys in ``keys`` that are
+            absent from it are skipped, so it is safe to name every numeric option
+            a driver accepts.
         keys: The option names that are floats for this driver.
         driver: The driver name, for the error message.
+
+    Returns:
+        ``None`` — ``settings`` is modified in place.
 
     Raises:
         ValueError: A named option is a string that is not a number.
 
     Examples:
-        - A numeric string becomes a float, and a real number passes through:
+        - A numeric string becomes a float, in plain or scientific notation:
             ```python
             >>> from pyramids_eo.drivers._base import coerce_floats
             >>> settings = {"sun_earth_distance": "0.983"}
             >>> coerce_floats(settings, ("sun_earth_distance",), driver="fci")
             >>> settings["sun_earth_distance"]
             0.983
+            >>> settings = {"sun_earth_distance": "1e-3"}
+            >>> coerce_floats(settings, ("sun_earth_distance",), driver="fci")
+            >>> settings["sun_earth_distance"]
+            0.001
+
+            ```
+        - A real number passes through, and an absent option is simply skipped:
+            ```python
+            >>> settings = {"sun_earth_distance": 0.983}
+            >>> coerce_floats(settings, ("sun_earth_distance", "cos_sza"), driver="fci")
+            >>> sorted(settings)
+            ['sun_earth_distance']
 
             ```
         - A non-numeric string is rejected where the option is named:
@@ -201,6 +225,9 @@ def coerce_floats(
             ValueError: fci: open option 'sun_earth_distance' must be a number; got 'far'.
 
             ```
+
+    See Also:
+        coerce_booleans: The same in-place normalisation for boolean options.
     """
     for key in keys:
         value = settings.get(key)

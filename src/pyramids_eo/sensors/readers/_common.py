@@ -116,8 +116,18 @@ def validity_bounds(meta: Mapping[str, Any]) -> tuple[float | None, float | None
     Prefers the **separate** `valid_min` / `valid_max` scalars, which is what the
     Sentinel-3 L1 products carry (`valid_range` appears in neither the OLCI nor
     the SLSTR specification), and falls back to a combined `valid_range`, which
-    is MTG-FCI's spelling. Either bound may be present alone. A reversed pair is
-    discarded, as in `valid_bounds`.
+    is MTG-FCI's spelling. Either bound may be present alone.
+
+    The fallback is applied **per bound**, not all-or-nothing: a variable carrying
+    one scalar alongside a combined range takes the scalar for that bound and the
+    range for the other, so `{valid_min: 10, valid_range: "{0, 50}"}` is
+    `(10.0, 50.0)`. Requiring both scalars to be absent would have ignored the
+    range outright and silently dropped the bound the scalar did not supply.
+
+    A reversed pair is discarded, as in `valid_bounds` -- which applies to the
+    combination too, so a scalar that crosses the range's other end (a `valid_min`
+    of 60 against `"{0, 50}"`) yields `(None, None)` rather than an inverted pair
+    that would mask every pixel.
 
     The limits are in the variable's **packed** units -- the published OLCI
     latitude bounds are literally `-90000000`, not `-90.0` -- so they must be
@@ -147,6 +157,22 @@ def validity_bounds(meta: Mapping[str, Any]) -> tuple[float | None, float | None
             (None, None)
 
             ```
+        - A scalar and a range together fill one bound each, instead of the range
+          being ignored and its bound lost:
+            ```python
+            >>> validity_bounds({"valid_min": "10", "valid_range": "{0, 50}"})
+            (10.0, 50.0)
+            >>> validity_bounds({"valid_max": "50", "valid_range": "{0, 100}"})
+            (0.0, 50.0)
+
+            ```
+        - A combination that comes out reversed masks nothing, rather than
+          masking everything:
+            ```python
+            >>> validity_bounds({"valid_min": "60", "valid_range": "{0, 50}"})
+            (None, None)
+
+            ```
     """
     low = finite_float(meta.get("valid_min"))
     high = finite_float(meta.get("valid_max"))
@@ -169,6 +195,14 @@ def invalid_mask(raw: np.ndarray, meta: Mapping[str, Any]) -> np.ndarray:
     `validity_bounds`) and anything equal to its `_FillValue`. The mask is
     derived from the **raw**, still-packed values, which is what CF requires
     because both the fill value and the limits are expressed in the packed type.
+
+    A `_FillValue` that is present but is **not a finite number** -- a word, or the
+    spellings `"nan"` / `"inf"`, which `finite_float` rejects -- cannot match a
+    numeric array, so nothing can be masked from it. That is a real loss of
+    masking rather than a no-op, so it emits a `UserWarning` instead of being
+    passed over silently; the decode still succeeds, with incomplete nodata. The
+    callers that surface it say so: `read_packed_variable`, and through it
+    `read_olci` and `read_slstr`.
 
     Args:
         raw: The raw, still-packed array as read from the file.
@@ -195,6 +229,23 @@ def invalid_mask(raw: np.ndarray, meta: Mapping[str, Any]) -> np.ndarray:
             >>> from pyramids_eo.sensors.readers._common import invalid_mask
             >>> invalid_mask(np.array([1, 2, 3]), {}).tolist()
             [False, False, False]
+
+            ```
+        - A `_FillValue` that is not a finite number masks nothing and warns, so
+          the lost masking is visible rather than silent:
+            ```python
+            >>> import warnings
+            >>> import numpy as np
+            >>> from pyramids_eo.sensors.readers._common import invalid_mask
+            >>> with warnings.catch_warnings(record=True) as caught:
+            ...     warnings.simplefilter("always")
+            ...     mask = invalid_mask(np.array([1, 2, 3]), {"_FillValue": "no-data"})
+            >>> mask.tolist()
+            [False, False, False]
+            >>> caught[0].category.__name__
+            'UserWarning'
+            >>> str(caught[0].message).split(":")[0]
+            "ignoring a non-numeric _FillValue 'no-data'"
 
             ```
     """

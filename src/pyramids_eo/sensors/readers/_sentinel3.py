@@ -154,6 +154,13 @@ def read_packed_variable(
     Raises:
         ReaderError: When the variable cannot be opened, or carries a
             `scale_factor` / `add_offset` that is not a finite number.
+
+    Note:
+        A `_FillValue` the decoder cannot read as a finite number is not fatal
+        here, unlike an unusable `scale_factor`: nothing can be masked from it, so
+        `invalid_mask` emits a `UserWarning` and the returned array's nodata is
+        incomplete. Callers that surface this (`read_olci`, `read_slstr`) say so
+        too.
     """
     raster = _open(path, variable, reader)
     band = raster.GetRasterBand(1)
@@ -241,11 +248,14 @@ def _unscaling_vrt(
     granule reuse a single entry rather than accumulating copies.
 
     That entry is **process-global and not reference-counted**: GDAL keeps it for
-    the life of the process (about 400 bytes per granule-grid, so ~8 MB across
-    10 000 granules -- negligible for a script, worth bounding in a long-lived
-    service), and a returned `Dataset`'s geolocation stays valid only while it
-    exists. Unlinking it by hand makes a later warp fail with "No such file or
-    directory"; nothing in this package removes it.
+    the life of the process, and a returned `Dataset`'s geolocation stays valid
+    only while it exists. Unlinking it by hand makes a later warp fail with
+    `RuntimeError: No such file or directory`; nothing in this package removes it.
+    Measured on a full-length OLCI product path, one entry is ~0.6 kB and a grid
+    takes two (longitude and latitude), so ~1.2 kB per granule-grid, i.e. ~12 MB
+    across 10 000 granules -- negligible for a script, worth bounding in a
+    long-lived service. The exact size tracks the source path's length, since the
+    path is embedded in the XML.
 
     The variable's fill value must be carried across too. GDAL's geolocation
     transformer consults the band's nodata to decide which samples to skip, so a
@@ -311,17 +321,32 @@ def geolocation_source(
     variable is wrapped in an unscaling VRT (see `_unscaling_vrt`); an already
     unpacked one is referenced directly.
 
+    Existence alone is not enough, which is why `shape` exists: an annotation grid
+    of the wrong size places every pixel wrongly, and an **oversized** one is the
+    dangerous case because GDAL accepts it without a single warning -- the warp
+    simply lands somewhere else. Passing the band's shape turns the open into a
+    conformance check as well. The packing is checked for the same reason: a
+    non-finite or zero scale builds an all-NaN VRT that reads fine and fails only
+    inside the caller's warp, with GDAL's own `Int overflow : -nan(ind)`.
+
     Args:
         geo_path: Path to the geolocation NetCDF file.
         variable: The variable to resolve (e.g. `"longitude"`).
         reader: The calling reader's name, for error messages.
+        shape: The band's `(rows, columns)` for the variable to be checked
+            against. `None` (default) skips that check and validates existence and
+            packing only; both Sentinel-3 readers pass the decoded band's shape.
 
     Returns:
-        A GDAL source string for the `GEOLOCATION` domain, in degrees.
+        A GDAL source string for the `GEOLOCATION` domain, in degrees -- the bare
+        subdataset when the variable is already unpacked, otherwise the `/vsimem`
+        VRT path that unscales it.
 
     Raises:
-        ReaderError: When the variable cannot be opened -- which includes the
-            case of the file not carrying it at all.
+        ReaderError: When the variable cannot be opened -- which includes the case
+            of the file not carrying it at all -- when `shape` is given and the
+            variable's own `(rows, columns)` differ from it, or when its
+            `scale_factor` / `add_offset` is not finite or the scale is zero.
     """
     source = subdataset(geo_path, variable)
     raster = _open(geo_path, variable, reader)
@@ -383,6 +408,10 @@ def geolocation_domain(
             `ac_subsampling_factor` / `al_subsampling_factor` rather than
             hard-coding either number -- they differ for ERR.
         line_step: Row stride between geolocation samples.
+        shape: The band's `(rows, columns)` that both geolocation variables must
+            match, forwarded to `geolocation_source`. `None` (default) builds the
+            domain without that check; both readers pass the decoded band's shape,
+            which is why they decode before building the domain.
 
     Returns:
         The `GEOLOCATION` domain as a dict of GDAL metadata items: the longitude /
@@ -398,6 +427,11 @@ def geolocation_domain(
         one silent failure: `gdal.Warp` simply returns `None`. `SRS` and
         `GEOREFERENCING_CONVENTION` are both optional -- but leaving the convention
         out shifts the result by half a pixel, which is why it is always stated.
+
+    Raises:
+        ReaderError: Propagated from `geolocation_source` -- the file does not
+            carry one of the variables, a variable's grid does not match `shape`,
+            or its `scale_factor` / `add_offset` is unusable.
 
     Notes:
         This opens the geolocation variables, so it has no runnable example here --

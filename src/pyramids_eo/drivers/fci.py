@@ -156,9 +156,12 @@ class FciDriver:
                 ``channels`` list as none); both a single ``channel`` and a ``channels`` list were
                 given; ``bands`` is not a list of channel names (a string, bytes, mapping, or other
                 non-sequence); the source resolved to no chunk files; ``options`` is a bare string
-                or carries an item that is not ``"KEY=VALUE"``; or ``calibrate`` is a string that
+                or carries an item that is not ``"KEY=VALUE"``; ``calibrate`` is a string that
                 is not a recognised boolean spelling (see
-                :func:`~pyramids_eo.drivers._base.coerce_booleans`).
+                :func:`~pyramids_eo.drivers._base.coerce_booleans`); or
+                ``sun_earth_distance`` is a string that is not a number (see
+                :func:`~pyramids_eo.drivers._base.coerce_floats`) — which would otherwise have
+                surfaced as a bare ``TypeError`` out of the calibration arithmetic.
             ReaderError: Propagated from :func:`~pyramids_eo.sensors.readers.read_fci_l1c` — no
                 chunk carries the requested channel, or the chunks are inconsistent.
             CalibrationError: Propagated when ``calibrate`` is on and a channel lacks the

@@ -129,14 +129,21 @@ def product_type(granule: Path) -> str | None:
     EFR and ERR granules hold the **same** `OaNN_radiance.nc` filenames and the
     same variable names, so the product type -- and therefore the ground
     resolution, 300 m against ~1200 m -- is only knowable from the granule's own
-    naming or its manifest. Both are checked; `None` means neither said, in which
-    case the reader reports no resolution rather than asserting a wrong one.
+    naming or its manifest. Both are checked -- the name first, then
+    `xfdumanifest.xml` -- and `None` means neither identified the product, in
+    which case the reader reports no resolution rather than asserting a wrong one.
+
+    An **ambiguous** source is treated exactly like a silent one: a text carrying
+    both tokens yields `None` rather than the first match, because an ERR granule
+    routinely references the EFR product it was derived from, so preferring either
+    one would be a guess (see `_product_tokens`).
 
     Args:
         granule: The `.SEN3` granule directory.
 
     Returns:
-        `"EFR"`, `"ERR"`, or `None` when the granule does not identify itself.
+        `"EFR"`, `"ERR"`, or `None` -- when the granule does not identify itself,
+        and equally when it names both products.
 
     Examples:
         - A standard product name identifies itself, so no file access is needed:
@@ -156,6 +163,15 @@ def product_type(granule: Path) -> str | None:
             >>> from pathlib import Path
             >>> from pyramids_eo.sensors.readers.olci import product_type
             >>> product_type(Path("mystery.SEN3")) is None
+            True
+
+            ```
+        - A name claiming both products is ambiguous, so it too yields `None`
+          rather than the first token found:
+            ```python
+            >>> from pathlib import Path
+            >>> from pyramids_eo.sensors.readers.olci import product_type
+            >>> product_type(Path("S3A_OL_1_ERR____from_OL_1_EFR_source.SEN3")) is None
             True
 
             ```
@@ -218,12 +234,18 @@ def _channel_metadata(
     than asserting a value that could be wrong by a factor of four for
     resolution-aware consumers.
 
+    The product type is passed in rather than detected here, so a multi-band read
+    resolves it once for the whole set instead of re-parsing `xfdumanifest.xml`
+    per band.
+
     Args:
         channel: Canonical channel name.
         granule: The granule directory (for provenance).
         variable_meta: The NetCDF variable's GDAL attribute dict.
         geolocated: Whether a `GEOLOCATION` domain was attached, so the
             `geolocation` key describes what the result actually carries.
+        product: The granule's detected product type from `product_type`, or
+            `None` -- which omits both `product` and `resolution_m`.
 
     Returns:
         A flat `str -> str` metadata dict for the output `Dataset`.
@@ -273,8 +295,17 @@ def read_olci_band(source: Any, channel: Any, *, geolocation: bool = True) -> An
 
     Raises:
         ReaderError: When the channel name is not an OLCI band, the granule has
-            no such band file (or no geolocation file when `geolocation=True`),
-            or the variable cannot be decoded.
+            no such band file, or the variable cannot be decoded. With
+            `geolocation=True` it also raises when `geo_coordinates.nc` or its
+            longitude / latitude variables are missing, when that grid's shape
+            does not match the band (an oversized annotation grid would otherwise
+            place every pixel wrongly, silently), or when its `scale_factor` /
+            `add_offset` is non-finite or the scale is zero.
+
+    Note:
+        A `_FillValue` that is not a finite number cannot mask anything, so the
+        decode emits a `UserWarning` and the result's nodata is incomplete rather
+        than the read failing (see `invalid_mask`).
     """
     reader = "read_olci"
     name = _canonical_channel(channel, reader)
@@ -398,7 +429,19 @@ def read_olci(
     Raises:
         ReaderError: When neither / both of `channel` / `channels` are given,
             `channels` is empty or has duplicates, a band name is not an OLCI
-            band, or the granule lacks a requested band / its geolocation file.
+            band, or the granule lacks a requested band. A channel set whose bands
+            come back on **different** shapes also raises: the one geolocation
+            domain is shared across the set, which is only sound because the bands
+            of a granule share a grid, so a granule that breaks that is reported
+            rather than geolocated against the wrong grid. With
+            `geolocation=True`, also when `geo_coordinates.nc` or its variables are
+            missing, its grid's shape differs from the bands', or it carries an
+            unusable `scale_factor` / `add_offset`.
+
+    Note:
+        A `_FillValue` that is not a finite number cannot mask anything, so the
+        decode emits a `UserWarning` per affected band and the result's nodata is
+        incomplete rather than the read failing (see `invalid_mask`).
     """
     requested, single = resolve_channels(channel, channels, "read_olci")
     # Canonicalise before the duplicate check: `resolve_channels` compares the raw

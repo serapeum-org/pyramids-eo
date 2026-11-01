@@ -99,6 +99,11 @@ _CHANNEL_PATTERN = re.compile(
 def _canonical_channel(channel: Any, reader: str) -> str:
     """Normalise an SLSTR channel spelling to its canonical form.
 
+    This keeps only the channel name: a spelled grid and view are validated but
+    then **discarded**, so this is for the places that key by channel (the
+    duplicate check and the result dict), not for choosing a file. Use
+    `_parse_channel` where the spelled grid and view have to be honoured.
+
     Args:
         channel: A channel name (`"S5"`, `"s5"`, `"f1"`), or the product's own
             variable spelling (`"S5_radiance_an"`, `"S8_BT_in"`).
@@ -108,7 +113,8 @@ def _canonical_channel(channel: Any, reader: str) -> str:
         The canonical name, e.g. `"S5"` or `"F1"`.
 
     Raises:
-        ReaderError: When the name is not an SLSTR channel.
+        ReaderError: When the name is not an SLSTR channel, or a spelled quantity
+            is not the one that channel ships (both come from `_parse_channel`).
 
     Examples:
         - Case is normalised:
@@ -121,12 +127,13 @@ def _canonical_channel(channel: Any, reader: str) -> str:
 
             ```
         - The product's variable spelling is accepted too, as OLCI accepts
-          `Oa08_radiance` (the grid and view there come from `grid=` / `view=`):
+          `Oa08_radiance` -- but the grid and view it carries are dropped here,
+          which is why the readers resolve the file from `_parse_channel` instead:
             ```python
             >>> _canonical_channel("S5_radiance_an", "read_slstr")
             'S5'
-            >>> _canonical_channel("S8_BT_in", "read_slstr")
-            'S8'
+            >>> _canonical_channel("S5_radiance_bo", "read_slstr")
+            'S5'
 
             ```
         - A channel the instrument does not have is rejected:
@@ -137,6 +144,9 @@ def _canonical_channel(channel: Any, reader: str) -> str:
             pyramids_eo.errors.ReaderError: read_slstr: 'S0' is not an SLSTR channel; expected one of F1, F2, S1, S2, S3, S4, S5, S6, S7, S8, S9
 
             ```
+
+    See Also:
+        _parse_channel: Returns the spelled grid and view instead of dropping them.
     """
     return _parse_channel(channel, reader)[0]
 
@@ -186,6 +196,12 @@ def _parse_channel(channel: Any, reader: str) -> tuple[str, str | None, str | No
             Traceback (most recent call last):
                 ...
             pyramids_eo.errors.ReaderError: read_slstr: 'S9_radiance_an' names quantity 'radiance', but S9 ships 'BT'
+
+            ```
+
+    See Also:
+        _canonical_channel: The same validation, keeping only the channel name.
+        _resolve_channel_target: Reconciles a spelled suffix with `grid=` / `view=`.
     """
     match = _CHANNEL_PATTERN.match(str(channel).strip())
     name = f"{match.group(1).upper()}{match.group(2)}" if match else ""
@@ -430,16 +446,23 @@ def available_slstr_channels(
     it -- including that `F2` lives on the 1 km `i` grid while `F1` is on `f`, and
     which of `S4`-`S6` are duplicated onto the alternative 500 m `b` grid.
 
+    A grid is listed only when the granule holds **both** the measurement file and
+    the `geodetic_<grid><view>.nc` the measurement needs, so what this reports is
+    what `read_slstr` can actually return -- a measurement whose annotation file is
+    missing would raise there, and listing it would promise a read that fails. A
+    granule stripped of its geodetic files therefore reports `{}` even though the
+    measurement files are all present.
+
     Args:
         source: The `.SEN3` granule directory, or a file inside it.
         view: `"nadir"` (default) or `"oblique"`.
 
     Returns:
-        A `{channel: [grid letters]}` mapping listing only the channels the
-        granule actually holds a measurement for, in the product's own channel
-        order -- `S1`..`S9` then `F1`, `F2` -- which is not the alphabetical order
-        the error messages use. Each channel's grid letters are likewise in the
-        order `read_slstr` would try them.
+        A `{channel: [grid letters]}` mapping listing only the channels the granule
+        holds a measurement **and** a matching geodetic file for, in the product's
+        own channel order -- `S1`..`S9` then `F1`, `F2` -- which is not the
+        alphabetical order the error messages use. Each channel's grid letters are
+        likewise in the order `read_slstr` would try them.
 
     Raises:
         ReaderError: When `source` is not a granule, or `view` is not an SLSTR
@@ -481,10 +504,43 @@ def _resolve_channel_target(
     Returns:
         A `(name, grid, view_suffix)` triple, where `grid` may be `None` to mean
         "try the channel's documented grids" and `view_suffix` is `"n"` or `"o"`.
+        With neither a spelled nor an explicit view, `view_suffix` falls back to
+        `"n"`, which is what makes nadir the effective default of `view=None`.
 
     Raises:
         ReaderError: When the channel, view or grid is invalid, or a spelled grid
             or view contradicts the explicit argument.
+
+    Examples:
+        - A bare channel leaves the grid open and falls back to the nadir view:
+            ```python
+            >>> from pyramids_eo.sensors.readers.slstr import _resolve_channel_target
+            >>> _resolve_channel_target("S5", None, None, "read_slstr")
+            ('S5', None, 'n')
+            >>> _resolve_channel_target("S5", "oblique", "b", "read_slstr")
+            ('S5', 'b', 'o')
+
+            ```
+        - A spelled suffix supplies both, and an agreeing explicit argument is
+          accepted rather than treated as a conflict:
+            ```python
+            >>> _resolve_channel_target("S5_radiance_bo", None, None, "read_slstr")
+            ('S5', 'b', 'o')
+            >>> _resolve_channel_target("S5_radiance_bo", "o", "b", "read_slstr")
+            ('S5', 'b', 'o')
+
+            ```
+        - A disagreeing pair is an error, not a silent preference either way:
+            ```python
+            >>> _resolve_channel_target("S5_radiance_bn", None, "a", "read_slstr")
+            Traceback (most recent call last):
+                ...
+            pyramids_eo.errors.ReaderError: read_slstr: 'S5_radiance_bn' names grid 'b' but grid='a' was given; pass one or the other
+
+            ```
+
+    See Also:
+        _parse_channel: Splits the spelling the reconciliation starts from.
     """
     name, spelled_grid, spelled_view = _parse_channel(channel, reader)
     wanted_grid = _resolve_grid(grid, reader)
@@ -548,10 +604,20 @@ def read_slstr_band(
 
     Raises:
         ReaderError: When the channel, view or `grid` is not an SLSTR one, when a
-            spelled channel's grid / view contradicts an explicit `grid=` /
-            `view=`, or when the granule has no measurement for that channel, view
-            and grid (or lacks the matching geodetic file / its
-            longitude-latitude variables).
+            spelled channel names a quantity that channel does not ship
+            (`"S9_radiance_an"`), when a spelled channel's grid / view contradicts
+            an explicit `grid=` / `view=`, or when the granule has no measurement
+            for that channel, view and grid. With `geolocation=True` it also raises
+            when the matching geodetic file or its longitude / latitude variables
+            are missing, when that annotation grid's shape does not match the band
+            (an oversized one would otherwise place every pixel wrongly, silently),
+            or when its `scale_factor` / `add_offset` is non-finite or the scale is
+            zero.
+
+    Note:
+        A `_FillValue` that is not a finite number cannot mask anything, so the
+        decode emits a `UserWarning` and the result's nodata is incomplete rather
+        than the read failing (see `invalid_mask`).
     """
     reader = "read_slstr"
     name, letter, suffix = _resolve_channel_target(channel, view, grid, reader)
@@ -602,21 +668,35 @@ def read_slstr(
     `dict[str, Dataset]`). Channels on different grids have **different array
     shapes**, which is why a channel set returns a dict rather than a stack.
 
+    Either may also be given in the product's own variable spelling
+    (`"S5_radiance_bn"`), and the grid and view it carries then **select the
+    file**: they are honoured, not merely tolerated. So a channel set may mix views
+    and grids per channel -- `channels=["S5_radiance_an", "S8_BT_io"]` reads one
+    nadir and one oblique -- while `view=` / `grid=` supply whatever a bare
+    spelling leaves open. A spelling that contradicts an explicit `view=` / `grid=`
+    is an error rather than one of the two being silently ignored.
+
     This reader **decodes only** -- issue #136 scopes radiometric calibration
     choices out. The RBT product is already geophysical, so `S7`-`S9` / `F1`-`F2`
     arrive as brightness temperature in kelvin with no conversion applied.
 
     Args:
         source: The `.SEN3` granule directory, or any file inside it.
-        channel: A single channel (`"S5"`); mutually exclusive with `channels`.
+        channel: A single channel (`"S5"`, or `"S5_radiance_bn"`); mutually
+            exclusive with `channels`.
         channels: A sequence of channels for a `dict` result; mutually exclusive
-            with `channel`.
-        view: `"nadir"` (default) or `"oblique"` -- SLSTR images each scene twice.
+            with `channel`. The dict is keyed by **canonical** channel name, so two
+            spellings of one channel -- even on different grids, as
+            `["S5_radiance_an", "S5_radiance_bn"]` -- are rejected as a duplicate
+            rather than collapsing into one entry.
+        view: `"nadir"` or `"oblique"` -- SLSTR images each scene twice. `None`
+            (default) takes each channel's view from its own spelling, falling back
+            to nadir for a bare one.
         grid: An explicit grid letter (`"a"`, `"b"`, `"i"`, `"f"`) restricting
-            every channel to that one grid. `None` (default) tries each channel's
-            documented grids in order. A restricted read never falls back to
-            another resolution: a channel the granule does not carry on that grid
-            raises instead.
+            every channel to that one grid. `None` (default) uses a spelled grid
+            where one is given and otherwise tries the channel's documented grids
+            in order. A restricted read never falls back to another resolution: a
+            channel the granule does not carry on that grid raises instead.
         geolocation: When `True` (default), attach each result's `GEOLOCATION`
             domain.
 
@@ -627,8 +707,18 @@ def read_slstr(
     Raises:
         ReaderError: When neither / both of `channel` / `channels` are given,
             `channels` is empty or names a channel twice, a channel or the view
-            is not an SLSTR one, `grid` is not one of the four SLSTR grid letters,
-            or the granule lacks a requested channel on the grid(s) tried.
+            is not an SLSTR one, a spelled channel names a quantity that channel
+            does not ship or a grid / view contradicting an explicit `grid=` /
+            `view=`, `grid` is not one of the four SLSTR grid letters, or the
+            granule lacks a requested channel on the grid(s) tried. With
+            `geolocation=True`, also when a channel's geodetic annotation is
+            missing, is on a grid whose shape differs from the band, or carries an
+            unusable `scale_factor` / `add_offset`.
+
+    Note:
+        A `_FillValue` that is not a finite number cannot mask anything, so the
+        decode emits a `UserWarning` per affected channel and the result's nodata
+        is incomplete rather than the read failing (see `invalid_mask`).
     """
     requested, single = resolve_channels(channel, channels, "read_slstr")
     # Canonicalise before the duplicate check: `resolve_channels` compares the raw

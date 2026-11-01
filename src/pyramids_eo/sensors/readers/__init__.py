@@ -22,8 +22,12 @@ Each reader takes a file path / chunk set / `Dataset` and returns a pyramids
   several — `channels=[...]` returns a `dict`) from a `.SEN3` granule onto its
   native swath grid, geolocated by a GDAL `GEOLOCATION` domain.
 * `available_olci_channels` — list the OLCI radiance bands a `.SEN3` granule carries.
+* `product_type` — tell an OLCI granule's EFR / ERR product apart (`None` when the
+  granule names neither, or both), which is what fixes its ground resolution.
 * `read_slstr` — Sentinel-3 SLSTR L1 RBT: decode one channel (or several) for a
   chosen `view` (nadir / oblique) and grid, likewise swath-geolocated.
+* `available_slstr_channels` — list the channels, and grids per channel, an SLSTR
+  granule can actually be read for in one view.
 * `harmonise` — align multi-resolution bands onto one common target grid.
 
 The Sentinel-3 readers decode to arrays plus CF metadata only — radiometric
