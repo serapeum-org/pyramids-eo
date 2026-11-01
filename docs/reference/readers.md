@@ -63,7 +63,9 @@ and a custom `parse` callable can still be injected.
 The EO readers are also registered as `pyramids.raster_drivers` plugins (the hook
 pyramids-core 0.70 added), so `pyramids.dataset.Dataset.read_file(<source>)` can
 route a source straight into pyramids-eo — no import of this package needed at the
-call site. Installing pyramids-eo is the whole integration.
+call site. Installing pyramids-eo is the whole integration. The
+[Reading EO sources via `read_file`](../read-file-plugin.md) guide covers the dispatch
+rules, the `open_options` contract, and per-source recipes in full; the essentials:
 
 | driver name | source | reader |
 | --- | --- | --- |
