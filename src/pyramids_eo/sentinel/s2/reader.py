@@ -149,12 +149,12 @@ def collection_from_sentinel2(
     written files are then assembled into a ``DatasetCollection``.
 
     The collection is **file-backed on purpose**, for the two things that still
-    need it on `pyramids-core` >= 0.73.0: `DatasetCollection.to_zarr` and
-    `to_kerchunk` require a file-backed collection outright, and out-of-core scale
+    need it on ``pyramids-core`` >= 0.73.0: ``DatasetCollection.to_zarr`` and
+    ``to_kerchunk`` require a file-backed collection outright, and out-of-core scale
     depends on it — the in-memory cube reads each scene's array eagerly (only the
     time stack is lazy), whereas a file-backed collection reads tile-by-tile, so a
     series larger than RAM stays readable. Time-axis **reductions** no longer need
-    it: since `pyramids-core` 0.73.0 they also run on a resident `datasets=`
+    it: since ``pyramids-core`` 0.73.0 they also run on a resident ``datasets=``
     collection, which is what :func:`collection_from_earthengine` returns.
 
     Args:
