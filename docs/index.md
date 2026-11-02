@@ -97,8 +97,9 @@ seviri = read_seviri("MSG4-...nat", "IR_108")
 Every reader above is also registered as a `pyramids.raster_drivers` plugin, so an EO source can be
 opened straight through pyramids' own `Dataset.read_file` — no pyramids-eo import at the call site;
 installing the package is the whole integration. The typed facades stay the ergonomic API; this is
-the zero-coupling route for code that already speaks pyramids (see
-[Readers → Raster-driver plugins](reference/readers.md#raster-driver-plugins)).
+the zero-coupling route for code that already speaks pyramids (see the
+[Reading EO sources via `read_file`](read-file-plugin.md) guide for the full dispatch rules and
+per-source recipes).
 
 ```python
 from pyramids.dataset import Dataset

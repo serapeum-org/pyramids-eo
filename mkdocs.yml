@@ -104,6 +104,7 @@ nav:
   - Getting Started:
     - Installation: installation.md
   - Guides:
+    - Reading EO sources via read_file: read-file-plugin.md
     - STAC provider signers: stac-signers.md
   - Examples:
     - Earth Engine reader: examples/earth_engine_reader.ipynb
