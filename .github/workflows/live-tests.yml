@@ -50,4 +50,4 @@ jobs:
         env:
           CDSE_S3_ACCESS_KEY: ${{ secrets.CDSE_S3_ACCESS_KEY }}
           CDSE_S3_SECRET_KEY: ${{ secrets.CDSE_S3_SECRET_KEY }}
-        run: pixi run -e py312 live
+        run: pixi run --frozen -e py312 live
