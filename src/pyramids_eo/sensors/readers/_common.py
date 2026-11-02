@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import re
+import warnings
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -13,6 +15,264 @@ from pyramids_eo.sensors.registry import (
     radiance_to_brightness_temperature,
     radiance_to_reflectance,
 )
+
+#: Matches a signed integer/decimal number, optionally in scientific notation.
+#: Written without overlapping quantifiers so it has linear (no-backtracking) time.
+_NUMBER = r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?"
+
+
+def finite_float(text: Any) -> float | None:
+    """Parse `text` to a float, rejecting non-finite values.
+
+    A CF attribute of `"nan"` or `"inf"` parses happily as a float but is
+    meaningless as a scale, offset or validity bound -- a NaN scale silently
+    voids a whole array, and an infinite one produces values that evade a NaN
+    nodata entirely. Both are treated as unparseable here.
+
+    Args:
+        text: The raw attribute value, or `None`.
+
+    Returns:
+        The finite float, or `None` when `text` is absent, not a number, or not
+        finite.
+
+    Examples:
+        - A numeric attribute parses, in plain or scientific notation:
+            ```python
+            >>> from pyramids_eo.sensors.readers._common import finite_float
+            >>> finite_float("0.5")
+            0.5
+            >>> finite_float("1e-06")
+            1e-06
+
+            ```
+        - Absent, non-numeric and non-finite values are all rejected:
+            ```python
+            >>> finite_float(None) is None
+            True
+            >>> finite_float("nodata") is None
+            True
+            >>> finite_float("nan") is None, finite_float("inf") is None
+            (True, True)
+
+            ```
+    """
+    if text is None:
+        return None
+    try:
+        value = float(str(text))
+    except ValueError:
+        return None
+    return value if np.isfinite(value) else None
+
+
+def valid_bounds(text: Any) -> tuple[float | None, float | None]:
+    """Parse `(min, max)` from a combined CF `valid_range` attribute.
+
+    This is MTG-FCI's spelling of the validity limits (GDAL renders it as a
+    `"{lo, hi}"` string). A missing, unparseable or *reversed* range yields
+    `(None, None)` so it masks nothing -- a `lo > hi` range would otherwise mask
+    every pixel with no diagnostic.
+
+    Args:
+        text: The GDAL `valid_range` metadata value, or `None`.
+
+    Returns:
+        The `(valid_min, valid_max)` pair, or `(None, None)`.
+
+    Examples:
+        - A GDAL-rendered range parses to floats:
+            ```python
+            >>> from pyramids_eo.sensors.readers._common import valid_bounds
+            >>> valid_bounds("{0, 4095}")
+            (0.0, 4095.0)
+
+            ```
+        - Missing, malformed and reversed ranges all mask nothing:
+            ```python
+            >>> valid_bounds(None)
+            (None, None)
+            >>> valid_bounds("not-a-range")
+            (None, None)
+            >>> valid_bounds("{4, 1}")
+            (None, None)
+
+            ```
+    """
+    if not text:
+        return None, None
+    numbers = re.findall(_NUMBER, str(text))
+    if len(numbers) < 2:
+        return None, None
+    low, high = finite_float(numbers[0]), finite_float(numbers[-1])
+    if low is None or high is None or low > high:
+        return None, None
+    return low, high
+
+
+def validity_bounds(meta: Mapping[str, Any]) -> tuple[float | None, float | None]:
+    """Resolve a variable's validity limits from its CF attributes.
+
+    Prefers the **separate** `valid_min` / `valid_max` scalars, which is what the
+    Sentinel-3 L1 products carry (`valid_range` appears in neither the OLCI nor
+    the SLSTR specification), and falls back to a combined `valid_range`, which
+    is MTG-FCI's spelling. Either bound may be present alone.
+
+    The fallback is applied **per bound**, not all-or-nothing: a variable carrying
+    one scalar alongside a combined range takes the scalar for that bound and the
+    range for the other, so `{valid_min: 10, valid_range: "{0, 50}"}` is
+    `(10.0, 50.0)`. Requiring both scalars to be absent would have ignored the
+    range outright and silently dropped the bound the scalar did not supply.
+
+    A reversed pair is discarded, as in `valid_bounds` -- which applies to the
+    combination too, so a scalar that crosses the range's other end (a `valid_min`
+    of 60 against `"{0, 50}"`) yields `(None, None)` rather than an inverted pair
+    that would mask every pixel.
+
+    The limits are in the variable's **packed** units -- the published OLCI
+    latitude bounds are literally `-90000000`, not `-90.0` -- so they must be
+    compared against the raw values, before unpacking.
+
+    Args:
+        meta: The variable's GDAL attribute dict.
+
+    Returns:
+        The `(valid_min, valid_max)` pair, either element `None` when absent.
+
+    Examples:
+        - The Sentinel-3 spelling, as separate scalars:
+            ```python
+            >>> from pyramids_eo.sensors.readers._common import validity_bounds
+            >>> validity_bounds({"valid_min": "-90000000", "valid_max": "90000000"})
+            (-90000000.0, 90000000.0)
+
+            ```
+        - The MTG-FCI spelling is the fallback, and one bound alone is honoured:
+            ```python
+            >>> validity_bounds({"valid_range": "{0, 4095}"})
+            (0.0, 4095.0)
+            >>> validity_bounds({"valid_min": "0"})
+            (0.0, None)
+            >>> validity_bounds({"units": "K"})
+            (None, None)
+
+            ```
+        - A scalar and a range together fill one bound each, instead of the range
+          being ignored and its bound lost:
+            ```python
+            >>> validity_bounds({"valid_min": "10", "valid_range": "{0, 50}"})
+            (10.0, 50.0)
+            >>> validity_bounds({"valid_max": "50", "valid_range": "{0, 100}"})
+            (0.0, 50.0)
+
+            ```
+        - A combination that comes out reversed masks nothing, rather than
+          masking everything:
+            ```python
+            >>> validity_bounds({"valid_min": "60", "valid_range": "{0, 50}"})
+            (None, None)
+
+            ```
+    """
+    low = finite_float(meta.get("valid_min"))
+    high = finite_float(meta.get("valid_max"))
+    if low is None or high is None:
+        # Fill only the bound that is missing. A variable carrying one scalar plus
+        # a combined range would otherwise have the range ignored entirely, which
+        # silently dropped the other bound.
+        fallback_low, fallback_high = valid_bounds(meta.get("valid_range"))
+        low = fallback_low if low is None else low
+        high = fallback_high if high is None else high
+    if low is not None and high is not None and low > high:
+        return None, None
+    return low, high
+
+
+def invalid_mask(raw: np.ndarray, meta: Mapping[str, Any]) -> np.ndarray:
+    """Return a boolean mask, `True` where a raw value is invalid per CF attributes.
+
+    Masks anything outside the variable's validity limits (see
+    `validity_bounds`) and anything equal to its `_FillValue`. The mask is
+    derived from the **raw**, still-packed values, which is what CF requires
+    because both the fill value and the limits are expressed in the packed type.
+
+    A `_FillValue` that is present but is **not a finite number** -- a word, or the
+    spellings `"nan"` / `"inf"`, which `finite_float` rejects -- cannot match a
+    numeric array, so nothing can be masked from it. That is a real loss of
+    masking rather than a no-op, so it emits a `UserWarning` instead of being
+    passed over silently; the decode still succeeds, with incomplete nodata. The
+    callers that surface it say so: `read_packed_variable`, and through it
+    `read_olci` and `read_slstr`.
+
+    Args:
+        raw: The raw, still-packed array as read from the file.
+        meta: The variable's GDAL attribute dict.
+
+    Returns:
+        A boolean array of `raw`'s shape, `True` for an invalid element.
+
+    Examples:
+        - Out-of-range values and the fill value are both flagged, against the
+          Sentinel-3 `valid_min` / `valid_max` spelling:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.sensors.readers._common import invalid_mask
+            >>> raw = np.array([-999, 1, 50, 500], dtype=np.int32)
+            >>> meta = {"valid_min": "10", "valid_max": "100", "_FillValue": "-999"}
+            >>> invalid_mask(raw, meta).tolist()
+            [True, True, False, True]
+
+            ```
+        - With no validity attributes at all, nothing is masked:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.sensors.readers._common import invalid_mask
+            >>> invalid_mask(np.array([1, 2, 3]), {}).tolist()
+            [False, False, False]
+
+            ```
+        - A `_FillValue` that is not a finite number masks nothing and warns, so
+          the lost masking is visible rather than silent:
+            ```python
+            >>> import warnings
+            >>> import numpy as np
+            >>> from pyramids_eo.sensors.readers._common import invalid_mask
+            >>> with warnings.catch_warnings(record=True) as caught:
+            ...     warnings.simplefilter("always")
+            ...     mask = invalid_mask(np.array([1, 2, 3]), {"_FillValue": "no-data"})
+            >>> mask.tolist()
+            [False, False, False]
+            >>> caught[0].category.__name__
+            'UserWarning'
+            >>> str(caught[0].message).split(":")[0]
+            "ignoring a non-numeric _FillValue 'no-data'"
+
+            ```
+    """
+    invalid = np.zeros(raw.shape, dtype=bool)
+    low, high = validity_bounds(meta)
+    if low is not None:
+        invalid |= raw < low
+    if high is not None:
+        invalid |= raw > high
+    raw_fill = meta.get("_FillValue")
+    fill = finite_float(raw_fill)
+    if fill is not None:
+        invalid |= raw == fill
+    elif raw_fill is not None:
+        # A _FillValue that is not a finite number cannot match a numeric array, so
+        # nothing can be masked from it. That is a real loss of masking, so say so
+        # rather than passing over it: before this decoder was shared, the FCI
+        # reader raised on an unparseable fill value.
+        warnings.warn(
+            f"ignoring a non-numeric _FillValue {raw_fill!r}: no pixels can be "
+            "masked from it, so the result's nodata may be incomplete",
+            UserWarning,
+            # 5 frames out: invalid_mask -> read_packed_variable -> the reader's
+            # internal band read -> the public read_* -> the caller.
+            stacklevel=5,
+        )
+    return invalid
 
 
 def resolve_channels(
@@ -36,8 +296,10 @@ def resolve_channels(
         sequence (the caller wants a `dict`).
 
     Raises:
-        ReaderError: When both or neither of `channel` / `channels` are given, or
-            when `channels` is empty.
+        ReaderError: When both or neither of `channel` / `channels` are given;
+            when `channels` is a bare `str` / `bytes` rather than a sequence of
+            names (which would otherwise be read one character at a time); when
+            `channels` is empty; or when `channels` names the same channel twice.
     """
     if (channel is None) == (channels is None):
         raise ReaderError(f"{reader}: pass exactly one of `channel` or `channels`")

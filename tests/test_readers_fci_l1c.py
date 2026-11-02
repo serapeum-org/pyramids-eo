@@ -10,14 +10,13 @@ import pytest
 
 from pyramids_eo.errors import ReaderError
 from pyramids_eo.sensors.readers import fci_l1c
-from pyramids_eo.sensors.readers._common import resolve_channels
+from pyramids_eo.sensors.readers._common import resolve_channels, valid_bounds
 from pyramids_eo.sensors.readers.fci_l1c import (
     _granule_coeffs,
     _measured_group,
     _satellite_height,
     _scalar,
     _unpack_radiance,
-    _valid_bounds,
     available_channels,
     read_fci_l1c,
     read_fci_l1c_chunk,
@@ -175,21 +174,25 @@ class TestUnpackRadiance:
 
 
 class TestValidBounds:
-    """`_valid_bounds` parses (min, max) from a valid_range string."""
+    """`valid_bounds` parses (min, max) from a valid_range string.
+
+    The parser now lives in `_common` and is shared with the Sentinel-3 readers;
+    these cases pin that the lift preserved FCI's behaviour exactly.
+    """
 
     def test_parses_pair(self):
         """A two-number range yields its (min, max)."""
-        assert _valid_bounds("{10, 4095}") == (10.0, 4095.0)
+        assert valid_bounds("{10, 4095}") == (10.0, 4095.0)
 
     def test_missing_or_degenerate_yields_none(self):
         """None or a string without two numbers yields (None, None)."""
-        assert _valid_bounds(None) == (None, None)
-        assert _valid_bounds("{}") == (None, None)
-        assert _valid_bounds("{5}") == (None, None)
+        assert valid_bounds(None) == (None, None)
+        assert valid_bounds("{}") == (None, None)
+        assert valid_bounds("{5}") == (None, None)
 
     def test_scientific_and_negative(self):
         """Scientific-notation and negative bounds parse correctly."""
-        assert _valid_bounds("{-1.5e2, 4.0e3}") == (-150.0, 4000.0)
+        assert valid_bounds("{-1.5e2, 4.0e3}") == (-150.0, 4000.0)
 
 
 class TestMeasuredGroup:

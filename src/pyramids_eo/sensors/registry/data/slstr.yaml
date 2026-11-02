@@ -1,0 +1,36 @@
+# Sentinel-3 SLSTR channel table (Level-1 RBT).
+#
+# DESCRIPTIVE constants only, from ESA SentiWiki's SLSTR products page, Table 2
+# ("The radiometric bands of SLSTR"). wavelength_um is the published band centre;
+# `kind` records the radiometric family (`solar` channels ship as radiance,
+# `thermal` channels ship as brightness temperature). F1 and F2 share S7's and
+# S8's centres because they use the same detectors with an increased dynamic
+# range to avoid saturating over fires.
+#
+# resolution_m is the channel's NOMINAL grid: 500 m for the solar S1-S6, 1 km for
+# the thermal S7-S9 and the fire F1-F2. A reader must prefer the resolution of
+# the grid it actually read, since S4-S6 are duplicated onto the alternative
+# 500 m `b` grid and the fire channels are asymmetric -- F1 is on the 1 km `f`
+# grid while F2 stays on `i`. `read_slstr` does exactly that, so this column is
+# documentation rather than something it consumes.
+#
+# NO calibration coefficients are listed, deliberately, and none are needed for
+# the thermal channels: the RBT product is already geophysical, so S7-S9 / F1-F2
+# arrive as brightness temperature in kelvin and `read_slstr` applies no Planck
+# conversion. A caller converting the solar channels to reflectance must use the
+# granule's OWN `solar_irradiance_*` from its quality annotation file rather than
+# a nominal value baked in here. Verify the band centres against the ESA
+# Sentinel-3 SLSTR product documentation before relying on them quantitatively.
+name: slstr
+channels:
+  S1: {wavelength_um: 0.55427, resolution_m: 500,  kind: solar}
+  S2: {wavelength_um: 0.65947, resolution_m: 500,  kind: solar}
+  S3: {wavelength_um: 0.868,   resolution_m: 500,  kind: solar}
+  S4: {wavelength_um: 1.3748,  resolution_m: 500,  kind: solar}
+  S5: {wavelength_um: 1.6134,  resolution_m: 500,  kind: solar}
+  S6: {wavelength_um: 2.2557,  resolution_m: 500,  kind: solar}
+  S7: {wavelength_um: 3.742,   resolution_m: 1000, kind: thermal}
+  S8: {wavelength_um: 10.854,  resolution_m: 1000, kind: thermal}
+  S9: {wavelength_um: 12.0225, resolution_m: 1000, kind: thermal}
+  F1: {wavelength_um: 3.742,   resolution_m: 1000, kind: thermal}
+  F2: {wavelength_um: 10.854,  resolution_m: 1000, kind: thermal}

@@ -15,7 +15,6 @@ requires the channel to be named — via ``bands=["ir_105"]`` or ``open_options=
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from glob import glob
 from pathlib import Path
 from typing import Any
@@ -24,6 +23,9 @@ from pyramids.dataset import Dataset
 
 from pyramids_eo.drivers._base import (
     RASTER_DRIVER_API_VERSION,
+    bands_to_channels,
+    coerce_booleans,
+    coerce_floats,
     expand_sources,
     options_as_dict,
 )
@@ -38,39 +40,6 @@ _SCHEME = "fci://"
 def _strip_scheme(source: str) -> str:
     """Return ``source`` without a leading ``fci://`` scheme (case-insensitive)."""
     return source[len(_SCHEME) :] if source.lower().startswith(_SCHEME) else source
-
-
-def _bands_to_channels(bands: Any) -> tuple[Any, Any]:
-    """Map a ``bands`` argument to ``(channel, channels)`` for :func:`read_fci_l1c`.
-
-    Args:
-        bands: A list of channel names (one for a single channel, several for a set).
-
-    Returns:
-        ``(name, None)`` for a single band, ``(None, [names])`` for several, and ``(None, None)``
-        for an empty list (which names no channel).
-
-    Raises:
-        ValueError: ``bands`` is not a list of channel names — a string, bytes, mapping, or other
-            non-sequence.
-    """
-    if isinstance(bands, (str, bytes, Mapping)):
-        raise ValueError(
-            f"bands must be a list of channel names, not a "
-            f"{type(bands).__name__} ({bands!r}); pass bands=['ir_105']."
-        )
-    try:
-        names = list(bands)
-    except TypeError as error:
-        raise ValueError(
-            f"bands must be a list of channel names, not a "
-            f"{type(bands).__name__} ({bands!r}); pass bands=['ir_105']."
-        ) from error
-    if len(names) == 1:
-        return names[0], None
-    if len(names) > 1:
-        return None, names
-    return None, None
 
 
 class FciDriver:
@@ -160,7 +129,7 @@ class FciDriver:
         bands: Any = None,
         options: Any = None,
         **_ignored: Any,
-    ) -> Dataset:
+    ) -> Dataset | dict[str, Dataset]:
         """Read one or more FCI L1C channels into a :class:`~pyramids.dataset.Dataset`.
 
         Args:
@@ -186,11 +155,30 @@ class FciDriver:
             ValueError: No channel was given (via ``bands`` or ``options``, counting an empty
                 ``channels`` list as none); both a single ``channel`` and a ``channels`` list were
                 given; ``bands`` is not a list of channel names (a string, bytes, mapping, or other
-                non-sequence); or the source resolved to no chunk files.
+                non-sequence); the source resolved to no chunk files; ``options`` is a bare string
+                or carries an item that is not ``"KEY=VALUE"``; ``calibrate`` is a string that
+                is not a recognised boolean spelling (see
+                :func:`~pyramids_eo.drivers._base.coerce_booleans`); or
+                ``sun_earth_distance`` is a string that is not a number (see
+                :func:`~pyramids_eo.drivers._base.coerce_floats`) — which would otherwise have
+                surfaced as a bare ``TypeError`` out of the calibration arithmetic.
+            ReaderError: Propagated from :func:`~pyramids_eo.sensors.readers.read_fci_l1c` — no
+                chunk carries the requested channel, or the chunks are inconsistent.
+            CalibrationError: Propagated when ``calibrate`` is on and a channel lacks the
+                constants its radiometric kind needs.
+
+        Note:
+            A channel **set** is a direct-call feature only: ``Dataset.read_file`` requires a
+            driver to return one ``Dataset``, so an ``options={'channels': [...]}`` read raises
+            ``TypeError`` from pyramids' plugin layer. Use the reader function
+            (``read_fci_l1c(..., channels=[...])``) for several channels at once. This is shared
+            with the other channel-at-a-time drivers.
         """
         from pyramids_eo.sensors.readers import read_fci_l1c
 
         settings = options_as_dict(options)
+        coerce_booleans(settings, ("calibrate",), driver="fci")
+        coerce_floats(settings, ("sun_earth_distance",), driver="fci")
         channel = settings.pop("channel", None)
         channels = settings.pop("channels", None)
         if channel is not None and channels is not None:
@@ -198,13 +186,13 @@ class FciDriver:
                 "pass either a single channel or a channels list, not both."
             )
         if channel is None and channels is None and bands is not None:
-            channel, channels = _bands_to_channels(bands)
+            channel, channels = bands_to_channels(bands, example="ir_105")
         if isinstance(channels, (list, tuple)) and len(channels) == 0:
             channels = None  # an empty channels list names no channel
         if channel is None and channels is None:
             raise ValueError(
                 "an FCI read needs a channel: pass bands=['ir_105'], "
-                "open_options={'channel': 'ir_105'}, or open_options={'channels': [...]}."
+                "open_options={'channel': 'ir_105'}."
             )
         paths = expand_sources(_strip_scheme(str(source)), pattern="*.nc")
         if not paths:
