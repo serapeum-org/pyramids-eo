@@ -474,7 +474,8 @@ class TestReadPackedVariableUnpacking:
             np.array([[50, 500]], dtype="uint16"),
             {"valid_range": "{10, 100}"},
         )
-        assert np.isfinite(values[0, 0]) and np.isnan(values[0, 1]), values
+        assert np.isfinite(values[0, 0]), f"the in-range pixel must survive: {values}"
+        assert np.isnan(values[0, 1]), f"the out-of-range pixel must mask: {values}"
 
     def test_malformed_valid_range_masks_nothing(self, monkeypatch):
         """An unparseable valid_range is ignored rather than masking everything."""

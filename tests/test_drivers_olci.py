@@ -273,8 +273,9 @@ def test_the_band_error_does_not_advertise_the_channels_option(tmp_path):
     """
     granule = olci_granule(tmp_path)
     source = str(granule)
+    driver = OlciDriver()
     with pytest.raises(ValueError, match="needs a band") as error:
-        OlciDriver().read(source)
+        driver.read(source)
     assert "channels" not in str(error.value), (
         f"the error must not advertise a channel set: {error.value}"
     )

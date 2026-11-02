@@ -320,8 +320,9 @@ def test_the_channel_error_does_not_advertise_the_channels_option(tmp_path):
     """
     granule = _granule(tmp_path, ["S5_radiance_an.nc"])
     source = str(granule)
+    driver = SlstrDriver()
     with pytest.raises(ValueError, match="needs a channel") as error:
-        SlstrDriver().read(source)
+        driver.read(source)
     assert "channels" not in str(error.value), (
         f"the error must not advertise a channel set: {error.value}"
     )
