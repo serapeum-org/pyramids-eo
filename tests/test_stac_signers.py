@@ -13,6 +13,7 @@ import pytest
 from pyramids_eo.errors import AuthenticationError
 from pyramids_eo.stac import auth_cdse
 from pyramids_eo.stac.signers import (
+    _SIGNER_FACTORIES,
     BdcTokenSigner,
     CdseS3Signer,
     CDSESigner,
@@ -20,6 +21,7 @@ from pyramids_eo.stac.signers import (
     PlanetaryComputerSigner,
     _AnonymousS3Signer,
     _BearerProviderSigner,
+    available_signers,
     build_signer,
 )
 
@@ -768,6 +770,70 @@ class TestBuildSigner:
         """An unknown signer name raises ValueError naming the choices."""
         with pytest.raises(ValueError, match="unknown signer_type"):
             build_signer("nope")
+
+    def test_unknown_signer_message_is_unchanged(self):
+        """The rejection text is byte-identical to the pre-registry message."""
+        with pytest.raises(ValueError) as excinfo:
+            build_signer("nope")
+        assert str(excinfo.value) == (
+            "unknown signer_type 'nope'; expected one of 'anonymous', "
+            "'aws-requester-pays', 'mpc-sas', 'earthdata', 'cdse', 'cdse-s3', "
+            "'bdc-token'."
+        )
+
+    def test_unknown_signer_message_lists_every_available_signer(self):
+        """The message is derived from the registry, so it can never drift from it.
+
+        This is the regression the registry exists to prevent: before it, the
+        name list was written out a second time in the error string and a new
+        provider could be dispatched correctly yet omitted from the message.
+        """
+        with pytest.raises(ValueError) as excinfo:
+            build_signer("nope")
+        message = str(excinfo.value)
+        for name in available_signers():
+            assert repr(name) in message
+
+
+class TestAvailableSigners:
+    """`available_signers` publishes the registry's keys for catalog validation."""
+
+    def test_lists_every_known_signer_in_declaration_order(self):
+        """The generic signers lead, then the provider signers."""
+        assert available_signers() == (
+            "anonymous",
+            "aws-requester-pays",
+            "mpc-sas",
+            "earthdata",
+            "cdse",
+            "cdse-s3",
+            "bdc-token",
+        )
+
+    def test_is_the_registry_keys(self):
+        """The registry is the single source of the known names."""
+        assert available_signers() == tuple(_SIGNER_FACTORIES)
+
+    def test_returns_an_immutable_tuple(self):
+        """Callers get a snapshot they cannot use to mutate the registry."""
+        assert isinstance(available_signers(), tuple)
+
+    def test_every_name_is_accepted_by_build_signer(self):
+        """No listed name is rejected as unknown.
+
+        Only the dispatch is under test, so the providers that mint credentials
+        get throwaway ones. A `ValueError` escaping here fails the test, which
+        is the point: a name may never be listed without being dispatchable.
+        """
+        for name in available_signers():
+            try:
+                build_signer(name, access_key="ak", secret_key="sk", token="t")
+            except AuthenticationError:
+                pass
+
+    def test_a_typo_is_not_listed(self):
+        """A near-miss catalog value is reported absent, which is the use case."""
+        assert "mpc_sas" not in available_signers()
 
 
 class TestBdcTokenSigner:
