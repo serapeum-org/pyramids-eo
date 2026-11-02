@@ -281,7 +281,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../stac-signers/" class="md-tabs__link">
+        <a href="../../read-file-plugin/" class="md-tabs__link">
           
   
   
@@ -567,6 +567,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../read-file-plugin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading EO sources via read_file
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -11193,7 +11221,9 @@ reflectance / brightness-temperature bands.</p>
 <p>The EO readers are also registered as <code>pyramids.raster_drivers</code> plugins (the hook
 pyramids-core 0.70 added), so <code>pyramids.dataset.Dataset.read_file(&lt;source&gt;)</code> can
 route a source straight into pyramids-eo — no import of this package needed at the
-call site. Installing pyramids-eo is the whole integration.</p>
+call site. Installing pyramids-eo is the whole integration. The
+<a href="../../read-file-plugin/">Reading EO sources via <code>read_file</code></a> guide covers the dispatch
+rules, the <code>open_options</code> contract, and per-source recipes in full; the essentials:</p>
 <table>
 <thead>
 <tr>
