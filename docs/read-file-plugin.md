@@ -164,11 +164,14 @@ A channel **set** is a direct-call feature only. `read_file` requires a driver t
 ### Sentinel-3 OLCI and SLSTR — a `.SEN3` granule
 
 Both Sentinel-3 readers take a `.SEN3` granule **directory**, so both auto-route (GDAL cannot open a directory).
-They are the one pair that **share a suffix**: `olci` and `slstr` both declare `.sen3`. Each one's `can_open`
-inspects the granule's contents to decide whether to claim it — OLCI looks for `Oa*_radiance.nc`, SLSTR for
-`S*_radiance_*.nc` / `*_BT_*.nc`. If a granule holds **both** kinds, both claim it and the tiebreak is *registration
-order*, which is alphabetical, so `olci` wins; if it holds neither, nothing claims it and you get GDAL's
-"not recognized" error rather than the readers' clearer one. Use the `olci://` / `slstr://` scheme, or `driver=`,
+They are the one pair that **share a suffix**: `olci` and `slstr` both declare `.sen3`. Each one's
+`can_open` inspects the granule's contents to decide whether to claim it — OLCI looks for
+`Oa*_radiance.nc`, SLSTR for `S*_radiance_*.nc`, `S*_BT_*.nc` or `F*_BT_*.nc`. If a granule holds
+**both** kinds, both claim it, and the tiebreak is the order pyramids discovers the entry points in:
+`importlib.metadata` hands them over sorted by name, so `olci` precedes `slstr` and wins, whatever
+order they appear in `pyproject.toml`. If it holds neither, nothing claims it and you get whatever
+GDAL raises for that path (for a directory, typically a permission error) instead of the readers'
+clearer "the product looks incomplete" message. Use the `olci://` / `slstr://` scheme, or `driver=`,
 to name one explicitly and skip the guesswork.
 
 Both read **one channel at a time** and the channel is required. Note that `read_file` forwards only
@@ -190,12 +193,15 @@ s8 = Dataset.read_file("S3A_SL_1_RBT.SEN3", open_options={"channel": "S8", "view
 s5 = Dataset.read_file("S3A_SL_1_RBT.SEN3", open_options={"channel": "S5", "grid": "a"})
 ```
 
-`view` takes `"nadir"` / `"n"` or `"oblique"` / `"o"` (case-insensitive). Its default is `None`, which the
-reader resolves to the nadir view — so nadir is what you get by leaving it out, but the parameter's default is
-not the string `"nadir"`. SLSTR's channels sit on different grids — `S1`–`S6` on the
+`view` takes `"nadir"` / `"n"` or `"oblique"` / `"o"` (case-insensitive) and defaults to `None`. `None` does
+**not** simply mean nadir: a channel name may spell the view itself (`"S8_BT_io"` ends in `io`, the
+oblique `i` grid), and a spelled view wins. Nadir is only the fallback when neither the channel nor
+`view=` names one, so `read_file("…SEN3", open_options={"channel": "S8_BT_io"})` reads **oblique** with
+no `view=` at all. SLSTR's channels sit on different grids — `S1`–`S6` on the
 500 m `a` grid (`S4`–`S6` also on the alternative `b`), `S7`–`S9` on the 1 km `i` grid, and of the fire channels
-`F1` on `f` but `F2` on `i`. A `grid=` restricts the read to that grid and never falls back to another, so it
-cannot quietly hand back a different resolution.
+`F1` on `f` *or* `i` while `F2` is `i`-only — so an `f`-less granule still reads `F1`, from `i`. A
+`grid=` restricts the read to that grid and never falls back to another, so it cannot quietly hand back
+a different resolution.
 
 These are **swath** readers, so the result carries a GDAL `GEOLOCATION` metadata domain, a placeholder
 pixel/line geotransform and no CRS — nothing is resampled. Warp it yourself when you want a map grid:
@@ -207,8 +213,9 @@ swath = Dataset.read_file("S3A_OL_1_EFR.SEN3", open_options={"channel": "Oa08"})
 gdal.Warp("oa08.tif", swath.raster, geoloc=True)
 ```
 
-Pass `open_options={"geolocation": False}` to leave the result on its pixel grid alone, with no geolocation
-arrays attached. Because a `KEY=VALUE` list stringifies values, the two drivers translate the **string** spellings
+Pass `open_options={"geolocation": False}` to skip attaching the geolocation arrays: the `GEOLOCATION`
+domain is still present but empty, and the placeholder geotransform is unchanged, so the result stays
+on its pixel grid. Because a `KEY=VALUE` list stringifies values, the two drivers translate the **string** spellings
 (`"false"`, `"no"`, `"off"`, `"0"`, and their positive counterparts, case-insensitively) and reject a string they
 do not recognise — so the truthy `"false"` cannot silently switch the option on. A value that is not a string is
 passed through to the reader untouched, which is what makes the dict form with a real `False` the unambiguous
@@ -216,8 +223,9 @@ way to write it.
 
 As with FCI, a channel **set** is a direct-call feature only — `open_options={"channels": [...]}` raises
 `TypeError` from pyramids' plugin layer, so call `read_olci(..., channels=[...])` /
-`read_slstr(..., channels=[...])` for several channels at once. `available_olci_channels` /
-`available_slstr_channels` report what a given granule carries.
+`read_slstr(..., channels=[...])` for several channels at once. `available_olci_channels` reports what a granule
+carries; `available_slstr_channels` does the same for **one view** per call, taking `view="nadir"` by
+default, so check the oblique side with `view="oblique"`.
 
 ## Facade or `read_file` — which to use
 
