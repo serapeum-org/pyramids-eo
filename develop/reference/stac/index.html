@@ -4961,6 +4961,11 @@ moment a read is attempted.</p>
 </ul>
 
 
+<details class="see-also" open>
+  <summary>See Also</summary>
+  <p>build_signer: Builds the signer one of these names refers to.</p>
+</details>
+
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/stac/signers.py</code></summary>
               <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1178">1178</a></span>
@@ -4992,7 +4997,11 @@ moment a read is attempted.</p>
 <span class="normal"><a href="#__codelineno-0-1204">1204</a></span>
 <span class="normal"><a href="#__codelineno-0-1205">1205</a></span>
 <span class="normal"><a href="#__codelineno-0-1206">1206</a></span>
-<span class="normal"><a href="#__codelineno-0-1207">1207</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1178" name="__codelineno-0-1178"></a><span class="k">def</span><span class="w"> </span><span class="nf">available_signers</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="normal"><a href="#__codelineno-0-1207">1207</a></span>
+<span class="normal"><a href="#__codelineno-0-1208">1208</a></span>
+<span class="normal"><a href="#__codelineno-0-1209">1209</a></span>
+<span class="normal"><a href="#__codelineno-0-1210">1210</a></span>
+<span class="normal"><a href="#__codelineno-0-1211">1211</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1178" name="__codelineno-0-1178"></a><span class="k">def</span><span class="w"> </span><span class="nf">available_signers</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
 <a id="__codelineno-0-1179" name="__codelineno-0-1179"></a><span class="w">    </span><span class="sd">"""Return the signer names a catalog `signer:` field may carry.</span>
 <a id="__codelineno-0-1180" name="__codelineno-0-1180"></a>
 <a id="__codelineno-0-1181" name="__codelineno-0-1181"></a><span class="sd">    Lets a consumer validate a catalog value when the catalog is parsed, rather</span>
@@ -5020,8 +5029,12 @@ moment a read is attempted.</p>
 <a id="__codelineno-0-1203" name="__codelineno-0-1203"></a><span class="sd">            False</span>
 <a id="__codelineno-0-1204" name="__codelineno-0-1204"></a>
 <a id="__codelineno-0-1205" name="__codelineno-0-1205"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-1206" name="__codelineno-0-1206"></a><span class="sd">    """</span>
-<a id="__codelineno-0-1207" name="__codelineno-0-1207"></a>    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">_SIGNER_FACTORIES</span><span class="p">)</span>
+<a id="__codelineno-0-1206" name="__codelineno-0-1206"></a>
+<a id="__codelineno-0-1207" name="__codelineno-0-1207"></a><span class="sd">    See Also:</span>
+<a id="__codelineno-0-1208" name="__codelineno-0-1208"></a><span class="sd">        build_signer: Builds the signer one of these names refers to.</span>
+<a id="__codelineno-0-1209" name="__codelineno-0-1209"></a>
+<a id="__codelineno-0-1210" name="__codelineno-0-1210"></a><span class="sd">    """</span>
+<a id="__codelineno-0-1211" name="__codelineno-0-1211"></a>    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">_SIGNER_FACTORIES</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -5140,7 +5153,8 @@ CDSE S3 credential resolution kwargs for <code>cdse-s3</code> (see
             </td>
             <td>
               <div class="doc-md-description">
-                <p>When <code>signer_type</code> is not a known signer name.</p>
+                <p>When <code>signer_type</code> is not a known signer name — including
+when it is not a string at all, or is unhashable.</p>
               </div>
             </td>
           </tr>
@@ -5175,13 +5189,15 @@ CDSE S3 credential resolution kwargs for <code>cdse-s3</code> (see
 </ul>
 
 
+<details class="see-also" open>
+  <summary>See Also</summary>
+  <p>available_signers: The names this factory accepts, for validating a
+    catalog value before building anything.</p>
+</details>
+
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/stac/signers.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1210">1210</a></span>
-<span class="normal"><a href="#__codelineno-0-1211">1211</a></span>
-<span class="normal"><a href="#__codelineno-0-1212">1212</a></span>
-<span class="normal"><a href="#__codelineno-0-1213">1213</a></span>
-<span class="normal"><a href="#__codelineno-0-1214">1214</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1214">1214</a></span>
 <span class="normal"><a href="#__codelineno-0-1215">1215</a></span>
 <span class="normal"><a href="#__codelineno-0-1216">1216</a></span>
 <span class="normal"><a href="#__codelineno-0-1217">1217</a></span>
@@ -5243,73 +5259,95 @@ CDSE S3 credential resolution kwargs for <code>cdse-s3</code> (see
 <span class="normal"><a href="#__codelineno-0-1273">1273</a></span>
 <span class="normal"><a href="#__codelineno-0-1274">1274</a></span>
 <span class="normal"><a href="#__codelineno-0-1275">1275</a></span>
-<span class="normal"><a href="#__codelineno-0-1276">1276</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1210" name="__codelineno-0-1210"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_signer</span><span class="p">(</span><span class="n">signer_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">creds</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-1211" name="__codelineno-0-1211"></a><span class="w">    </span><span class="sd">"""Build the signer named by a catalog `signer:` field.</span>
-<a id="__codelineno-0-1212" name="__codelineno-0-1212"></a>
-<a id="__codelineno-0-1213" name="__codelineno-0-1213"></a><span class="sd">    Dispatches through :data:`_SIGNER_FACTORIES`. The `anonymous` signer is the</span>
-<a id="__codelineno-0-1214" name="__codelineno-0-1214"></a><span class="sd">    pyramids-eo-local `_AnonymousS3Signer` and the `aws-requester-pays` signer</span>
-<a id="__codelineno-0-1215" name="__codelineno-0-1215"></a><span class="sd">    comes from `pyramids.stac` (imported lazily so the package imports without</span>
-<a id="__codelineno-0-1216" name="__codelineno-0-1216"></a><span class="sd">    the `[stac]` extra); the `mpc-sas` / `earthdata` / `cdse` / `cdse-s3` /</span>
-<a id="__codelineno-0-1217" name="__codelineno-0-1217"></a><span class="sd">    `bdc-token` provider signers are the pyramids-eo-local classes above.</span>
-<a id="__codelineno-0-1218" name="__codelineno-0-1218"></a>
-<a id="__codelineno-0-1219" name="__codelineno-0-1219"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-1220" name="__codelineno-0-1220"></a><span class="sd">        signer_type: A name from :func:`available_signers` — `"anonymous"`,</span>
-<a id="__codelineno-0-1221" name="__codelineno-0-1221"></a><span class="sd">            `"aws-requester-pays"`, `"mpc-sas"`, `"earthdata"`, `"cdse"`,</span>
-<a id="__codelineno-0-1222" name="__codelineno-0-1222"></a><span class="sd">            `"cdse-s3"` or `"bdc-token"`.</span>
-<a id="__codelineno-0-1223" name="__codelineno-0-1223"></a><span class="sd">        **creds: Extra credentials forwarded to the selected signer — `region`</span>
-<a id="__codelineno-0-1224" name="__codelineno-0-1224"></a><span class="sd">            for `anonymous` (pins GDAL at an opt-in region's S3 endpoint) and</span>
-<a id="__codelineno-0-1225" name="__codelineno-0-1225"></a><span class="sd">            `aws-requester-pays`; `username` / `password` / `token` for</span>
-<a id="__codelineno-0-1226" name="__codelineno-0-1226"></a><span class="sd">            `earthdata`; `username` / `password` / `client_id` for `cdse`; the</span>
-<a id="__codelineno-0-1227" name="__codelineno-0-1227"></a><span class="sd">            CDSE S3 credential resolution kwargs for `cdse-s3` (see</span>
-<a id="__codelineno-0-1228" name="__codelineno-0-1228"></a><span class="sd">            `auth_cdse.s3_credentials`); `token` for `bdc-token` (defaults to</span>
-<a id="__codelineno-0-1229" name="__codelineno-0-1229"></a><span class="sd">            `$BDC_ACCESS_TOKEN`).</span>
-<a id="__codelineno-0-1230" name="__codelineno-0-1230"></a>
-<a id="__codelineno-0-1231" name="__codelineno-0-1231"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-1232" name="__codelineno-0-1232"></a><span class="sd">        A signer satisfying the `pyramids.stac.Signer` protocol.</span>
-<a id="__codelineno-0-1233" name="__codelineno-0-1233"></a>
-<a id="__codelineno-0-1234" name="__codelineno-0-1234"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-1235" name="__codelineno-0-1235"></a><span class="sd">        ValueError: When `signer_type` is not a known signer name.</span>
-<a id="__codelineno-0-1236" name="__codelineno-0-1236"></a>
-<a id="__codelineno-0-1237" name="__codelineno-0-1237"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-1238" name="__codelineno-0-1238"></a><span class="sd">        - The MPC key maps to the native SAS signer (no SDK):</span>
-<a id="__codelineno-0-1239" name="__codelineno-0-1239"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-1240" name="__codelineno-0-1240"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.stac import build_signer</span>
-<a id="__codelineno-0-1241" name="__codelineno-0-1241"></a><span class="sd">            &gt;&gt;&gt; build_signer("mpc-sas").name</span>
-<a id="__codelineno-0-1242" name="__codelineno-0-1242"></a><span class="sd">            'planetary-computer'</span>
-<a id="__codelineno-0-1243" name="__codelineno-0-1243"></a>
-<a id="__codelineno-0-1244" name="__codelineno-0-1244"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-1245" name="__codelineno-0-1245"></a><span class="sd">        - Build the CDSE S3 signer from explicit S3 keys:</span>
-<a id="__codelineno-0-1246" name="__codelineno-0-1246"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-1247" name="__codelineno-0-1247"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.stac import build_signer</span>
-<a id="__codelineno-0-1248" name="__codelineno-0-1248"></a><span class="sd">            &gt;&gt;&gt; build_signer("cdse-s3", access_key="ak", secret_key="sk").gdal_env()["AWS_ACCESS_KEY_ID"]</span>
-<a id="__codelineno-0-1249" name="__codelineno-0-1249"></a><span class="sd">            'ak'</span>
-<a id="__codelineno-0-1250" name="__codelineno-0-1250"></a>
-<a id="__codelineno-0-1251" name="__codelineno-0-1251"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-1252" name="__codelineno-0-1252"></a><span class="sd">        - Build the BDC token signer with an explicit token:</span>
-<a id="__codelineno-0-1253" name="__codelineno-0-1253"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-1254" name="__codelineno-0-1254"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.stac import build_signer</span>
-<a id="__codelineno-0-1255" name="__codelineno-0-1255"></a><span class="sd">            &gt;&gt;&gt; build_signer("bdc-token", token="abc").name</span>
-<a id="__codelineno-0-1256" name="__codelineno-0-1256"></a><span class="sd">            'bdc-token'</span>
-<a id="__codelineno-0-1257" name="__codelineno-0-1257"></a>
-<a id="__codelineno-0-1258" name="__codelineno-0-1258"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-1259" name="__codelineno-0-1259"></a><span class="sd">        - An unknown signer name is rejected:</span>
-<a id="__codelineno-0-1260" name="__codelineno-0-1260"></a><span class="sd">            ```python</span>
-<a id="__codelineno-0-1261" name="__codelineno-0-1261"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.stac import build_signer</span>
-<a id="__codelineno-0-1262" name="__codelineno-0-1262"></a><span class="sd">            &gt;&gt;&gt; build_signer("nope")  # doctest: +ELLIPSIS</span>
-<a id="__codelineno-0-1263" name="__codelineno-0-1263"></a><span class="sd">            Traceback (most recent call last):</span>
-<a id="__codelineno-0-1264" name="__codelineno-0-1264"></a><span class="sd">                ...</span>
-<a id="__codelineno-0-1265" name="__codelineno-0-1265"></a><span class="sd">            ValueError: unknown signer_type 'nope'; expected one of ... 'bdc-token'.</span>
-<a id="__codelineno-0-1266" name="__codelineno-0-1266"></a>
-<a id="__codelineno-0-1267" name="__codelineno-0-1267"></a><span class="sd">            ```</span>
-<a id="__codelineno-0-1268" name="__codelineno-0-1268"></a><span class="sd">    """</span>
-<a id="__codelineno-0-1269" name="__codelineno-0-1269"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-1270" name="__codelineno-0-1270"></a>        <span class="n">factory</span> <span class="o">=</span> <span class="n">_SIGNER_FACTORIES</span><span class="p">[</span><span class="n">signer_type</span><span class="p">]</span>
-<a id="__codelineno-0-1271" name="__codelineno-0-1271"></a>    <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-<a id="__codelineno-0-1272" name="__codelineno-0-1272"></a>        <span class="n">names</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">available_signers</span><span class="p">())</span>
-<a id="__codelineno-0-1273" name="__codelineno-0-1273"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-<a id="__codelineno-0-1274" name="__codelineno-0-1274"></a>            <span class="sa">f</span><span class="s2">"unknown signer_type </span><span class="si">{</span><span class="n">signer_type</span><span class="si">!r}</span><span class="s2">; expected one of </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2">."</span>
-<a id="__codelineno-0-1275" name="__codelineno-0-1275"></a>        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
-<a id="__codelineno-0-1276" name="__codelineno-0-1276"></a>    <span class="k">return</span> <span class="n">factory</span><span class="p">(</span><span class="o">**</span><span class="n">creds</span><span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-1276">1276</a></span>
+<span class="normal"><a href="#__codelineno-0-1277">1277</a></span>
+<span class="normal"><a href="#__codelineno-0-1278">1278</a></span>
+<span class="normal"><a href="#__codelineno-0-1279">1279</a></span>
+<span class="normal"><a href="#__codelineno-0-1280">1280</a></span>
+<span class="normal"><a href="#__codelineno-0-1281">1281</a></span>
+<span class="normal"><a href="#__codelineno-0-1282">1282</a></span>
+<span class="normal"><a href="#__codelineno-0-1283">1283</a></span>
+<span class="normal"><a href="#__codelineno-0-1284">1284</a></span>
+<span class="normal"><a href="#__codelineno-0-1285">1285</a></span>
+<span class="normal"><a href="#__codelineno-0-1286">1286</a></span>
+<span class="normal"><a href="#__codelineno-0-1287">1287</a></span>
+<span class="normal"><a href="#__codelineno-0-1288">1288</a></span>
+<span class="normal"><a href="#__codelineno-0-1289">1289</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1214" name="__codelineno-0-1214"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_signer</span><span class="p">(</span><span class="n">signer_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">creds</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-1215" name="__codelineno-0-1215"></a><span class="w">    </span><span class="sd">"""Build the signer named by a catalog `signer:` field.</span>
+<a id="__codelineno-0-1216" name="__codelineno-0-1216"></a>
+<a id="__codelineno-0-1217" name="__codelineno-0-1217"></a><span class="sd">    Dispatches through :data:`_SIGNER_FACTORIES`. The `anonymous` signer is the</span>
+<a id="__codelineno-0-1218" name="__codelineno-0-1218"></a><span class="sd">    pyramids-eo-local `_AnonymousS3Signer` and the `aws-requester-pays` signer</span>
+<a id="__codelineno-0-1219" name="__codelineno-0-1219"></a><span class="sd">    comes from `pyramids.stac` (imported lazily so the package imports without</span>
+<a id="__codelineno-0-1220" name="__codelineno-0-1220"></a><span class="sd">    the `[stac]` extra); the `mpc-sas` / `earthdata` / `cdse` / `cdse-s3` /</span>
+<a id="__codelineno-0-1221" name="__codelineno-0-1221"></a><span class="sd">    `bdc-token` provider signers are the pyramids-eo-local classes above.</span>
+<a id="__codelineno-0-1222" name="__codelineno-0-1222"></a>
+<a id="__codelineno-0-1223" name="__codelineno-0-1223"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-1224" name="__codelineno-0-1224"></a><span class="sd">        signer_type: A name from :func:`available_signers` — `"anonymous"`,</span>
+<a id="__codelineno-0-1225" name="__codelineno-0-1225"></a><span class="sd">            `"aws-requester-pays"`, `"mpc-sas"`, `"earthdata"`, `"cdse"`,</span>
+<a id="__codelineno-0-1226" name="__codelineno-0-1226"></a><span class="sd">            `"cdse-s3"` or `"bdc-token"`.</span>
+<a id="__codelineno-0-1227" name="__codelineno-0-1227"></a><span class="sd">        **creds: Extra credentials forwarded to the selected signer — `region`</span>
+<a id="__codelineno-0-1228" name="__codelineno-0-1228"></a><span class="sd">            for `anonymous` (pins GDAL at an opt-in region's S3 endpoint) and</span>
+<a id="__codelineno-0-1229" name="__codelineno-0-1229"></a><span class="sd">            `aws-requester-pays`; `username` / `password` / `token` for</span>
+<a id="__codelineno-0-1230" name="__codelineno-0-1230"></a><span class="sd">            `earthdata`; `username` / `password` / `client_id` for `cdse`; the</span>
+<a id="__codelineno-0-1231" name="__codelineno-0-1231"></a><span class="sd">            CDSE S3 credential resolution kwargs for `cdse-s3` (see</span>
+<a id="__codelineno-0-1232" name="__codelineno-0-1232"></a><span class="sd">            `auth_cdse.s3_credentials`); `token` for `bdc-token` (defaults to</span>
+<a id="__codelineno-0-1233" name="__codelineno-0-1233"></a><span class="sd">            `$BDC_ACCESS_TOKEN`).</span>
+<a id="__codelineno-0-1234" name="__codelineno-0-1234"></a>
+<a id="__codelineno-0-1235" name="__codelineno-0-1235"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-1236" name="__codelineno-0-1236"></a><span class="sd">        A signer satisfying the `pyramids.stac.Signer` protocol.</span>
+<a id="__codelineno-0-1237" name="__codelineno-0-1237"></a>
+<a id="__codelineno-0-1238" name="__codelineno-0-1238"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-1239" name="__codelineno-0-1239"></a><span class="sd">        ValueError: When `signer_type` is not a known signer name — including</span>
+<a id="__codelineno-0-1240" name="__codelineno-0-1240"></a><span class="sd">            when it is not a string at all, or is unhashable.</span>
+<a id="__codelineno-0-1241" name="__codelineno-0-1241"></a>
+<a id="__codelineno-0-1242" name="__codelineno-0-1242"></a><span class="sd">    Examples:</span>
+<a id="__codelineno-0-1243" name="__codelineno-0-1243"></a><span class="sd">        - The MPC key maps to the native SAS signer (no SDK):</span>
+<a id="__codelineno-0-1244" name="__codelineno-0-1244"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-1245" name="__codelineno-0-1245"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.stac import build_signer</span>
+<a id="__codelineno-0-1246" name="__codelineno-0-1246"></a><span class="sd">            &gt;&gt;&gt; build_signer("mpc-sas").name</span>
+<a id="__codelineno-0-1247" name="__codelineno-0-1247"></a><span class="sd">            'planetary-computer'</span>
+<a id="__codelineno-0-1248" name="__codelineno-0-1248"></a>
+<a id="__codelineno-0-1249" name="__codelineno-0-1249"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-1250" name="__codelineno-0-1250"></a><span class="sd">        - Build the CDSE S3 signer from explicit S3 keys:</span>
+<a id="__codelineno-0-1251" name="__codelineno-0-1251"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-1252" name="__codelineno-0-1252"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.stac import build_signer</span>
+<a id="__codelineno-0-1253" name="__codelineno-0-1253"></a><span class="sd">            &gt;&gt;&gt; build_signer("cdse-s3", access_key="ak", secret_key="sk").gdal_env()["AWS_ACCESS_KEY_ID"]</span>
+<a id="__codelineno-0-1254" name="__codelineno-0-1254"></a><span class="sd">            'ak'</span>
+<a id="__codelineno-0-1255" name="__codelineno-0-1255"></a>
+<a id="__codelineno-0-1256" name="__codelineno-0-1256"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-1257" name="__codelineno-0-1257"></a><span class="sd">        - Build the BDC token signer with an explicit token:</span>
+<a id="__codelineno-0-1258" name="__codelineno-0-1258"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-1259" name="__codelineno-0-1259"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.stac import build_signer</span>
+<a id="__codelineno-0-1260" name="__codelineno-0-1260"></a><span class="sd">            &gt;&gt;&gt; build_signer("bdc-token", token="abc").name</span>
+<a id="__codelineno-0-1261" name="__codelineno-0-1261"></a><span class="sd">            'bdc-token'</span>
+<a id="__codelineno-0-1262" name="__codelineno-0-1262"></a>
+<a id="__codelineno-0-1263" name="__codelineno-0-1263"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-1264" name="__codelineno-0-1264"></a><span class="sd">        - An unknown signer name is rejected:</span>
+<a id="__codelineno-0-1265" name="__codelineno-0-1265"></a><span class="sd">            ```python</span>
+<a id="__codelineno-0-1266" name="__codelineno-0-1266"></a><span class="sd">            &gt;&gt;&gt; from pyramids_eo.stac import build_signer</span>
+<a id="__codelineno-0-1267" name="__codelineno-0-1267"></a><span class="sd">            &gt;&gt;&gt; build_signer("nope")  # doctest: +ELLIPSIS</span>
+<a id="__codelineno-0-1268" name="__codelineno-0-1268"></a><span class="sd">            Traceback (most recent call last):</span>
+<a id="__codelineno-0-1269" name="__codelineno-0-1269"></a><span class="sd">                ...</span>
+<a id="__codelineno-0-1270" name="__codelineno-0-1270"></a><span class="sd">            ValueError: unknown signer_type 'nope'; expected one of ... 'bdc-token'.</span>
+<a id="__codelineno-0-1271" name="__codelineno-0-1271"></a>
+<a id="__codelineno-0-1272" name="__codelineno-0-1272"></a><span class="sd">            ```</span>
+<a id="__codelineno-0-1273" name="__codelineno-0-1273"></a>
+<a id="__codelineno-0-1274" name="__codelineno-0-1274"></a><span class="sd">    See Also:</span>
+<a id="__codelineno-0-1275" name="__codelineno-0-1275"></a><span class="sd">        available_signers: The names this factory accepts, for validating a</span>
+<a id="__codelineno-0-1276" name="__codelineno-0-1276"></a><span class="sd">            catalog value before building anything.</span>
+<a id="__codelineno-0-1277" name="__codelineno-0-1277"></a>
+<a id="__codelineno-0-1278" name="__codelineno-0-1278"></a><span class="sd">    """</span>
+<a id="__codelineno-0-1279" name="__codelineno-0-1279"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-1280" name="__codelineno-0-1280"></a>        <span class="n">factory</span> <span class="o">=</span> <span class="n">_SIGNER_FACTORIES</span><span class="p">[</span><span class="n">signer_type</span><span class="p">]</span>
+<a id="__codelineno-0-1281" name="__codelineno-0-1281"></a>    <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+<a id="__codelineno-0-1282" name="__codelineno-0-1282"></a>        <span class="c1"># TypeError covers an unhashable `signer_type` (a list or dict from a</span>
+<a id="__codelineno-0-1283" name="__codelineno-0-1283"></a>        <span class="c1"># malformed catalog). The pre-registry `if/elif` chain compared with</span>
+<a id="__codelineno-0-1284" name="__codelineno-0-1284"></a>        <span class="c1"># `==`, which tolerates any type, so both must still raise ValueError.</span>
+<a id="__codelineno-0-1285" name="__codelineno-0-1285"></a>        <span class="n">names</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">available_signers</span><span class="p">())</span>
+<a id="__codelineno-0-1286" name="__codelineno-0-1286"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+<a id="__codelineno-0-1287" name="__codelineno-0-1287"></a>            <span class="sa">f</span><span class="s2">"unknown signer_type </span><span class="si">{</span><span class="n">signer_type</span><span class="si">!r}</span><span class="s2">; expected one of </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2">."</span>
+<a id="__codelineno-0-1288" name="__codelineno-0-1288"></a>        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+<a id="__codelineno-0-1289" name="__codelineno-0-1289"></a>    <span class="k">return</span> <span class="n">factory</span><span class="p">(</span><span class="o">**</span><span class="n">creds</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
