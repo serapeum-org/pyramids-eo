@@ -2617,14 +2617,19 @@ gdal.Warp("oa08.tif", swath.raster, geoloc=True)   # user-driven reprojection
 </li>
 <li>
 <p><strong>SLSTR is dual-view and multi-grid.</strong> It images each scene twice, so
-  <code>view="nadir"</code> (default) or <code>view="oblique"</code> selects one; and its channels sit on
-  different resolutions — <code>S1</code>–<code>S6</code> on the 500 m <code>a</code> grid (with <code>S4</code>–<code>S6</code> also on
-  the alternative 500 m <code>b</code>), <code>S7</code>–<code>S9</code> on the 1 km <code>i</code> grid, and of the fire
-  channels <strong><code>F1</code> on the 1 km <code>f</code> grid but <code>F2</code> on <code>i</code></strong> — they are asymmetric, and
-  there is no <code>F2_BT_f*.nc</code>. <code>grid=</code> restricts a read to one grid and never falls
-  back to another, so an explicit <code>grid=</code> can't quietly hand back a different
-  resolution. <code>available_slstr_channels(granule)</code> reports what a particular granule
-  carries, per view and grid, which is how to discover a non-nominal layout.
+  <code>view="nadir"</code> / <code>"n"</code> or <code>"oblique"</code> / <code>"o"</code> selects one. <code>view</code> defaults to
+  <code>None</code>, which is <em>not</em> a synonym for nadir: a channel name may spell the view
+  itself (<code>"S8_BT_io"</code>), and a spelled view wins — nadir is the fallback only when
+  neither the channel nor <code>view=</code> names one. Its channels sit on different
+  resolutions — <code>S1</code>–<code>S6</code> on the 500 m <code>a</code> grid (with <code>S4</code>–<code>S6</code> also on the
+  alternative 500 m <code>b</code>), <code>S7</code>–<code>S9</code> on the 1 km <code>i</code> grid, and of the fire channels
+  <strong><code>F1</code> on <code>f</code> <em>or</em> <code>i</code> while <code>F2</code> is <code>i</code>-only</strong> — they are asymmetric, and there
+  is no <code>F2_BT_f*.nc</code>, so an <code>f</code>-less granule still reads <code>F1</code> from <code>i</code>. <code>grid=</code>
+  restricts a read to one grid and never falls back to another, so an explicit
+  <code>grid=</code> can't quietly hand back a different resolution.
+  <code>available_slstr_channels(granule)</code> reports what a granule carries on the grids
+  of <strong>one view</strong> per call — <code>view="nadir"</code> unless you ask for <code>"oblique"</code> — which
+  is how to discover a non-nominal layout.
   Because the grids differ in shape, <code>channels=[...]</code> returns a
   <code>dict[str, Dataset]</code> of differently-sized arrays rather than a stack.</p>
 </li>
@@ -2639,11 +2644,14 @@ gdal.Warp("oa08.tif", swath.raster, geoloc=True)   # user-driven reprojection
   the stack.)</p>
 </li>
 </ul>
-<p>A reader keyword passed through <code>read_file</code> arrives as a string, because
-<code>Dataset.read_file</code> normalises <code>open_options</code> to GDAL's <code>KEY=VALUE</code> form. The
-drivers therefore accept <code>geolocation=false</code> (and <code>true</code>/<code>yes</code>/<code>no</code>/<code>on</code>/<code>off</code>/<code>1</code>/<code>0</code>)
-and reject anything else, instead of treating the truthy string <code>"false"</code> as
-switching the option on. Note that a channel <em>set</em> is a direct-call feature:
+<p>A reader keyword passed through <code>read_file</code> as a <code>KEY=VALUE</code> list arrives as a
+string, because <code>Dataset.read_file</code> normalises <code>open_options</code> to GDAL's form. The
+drivers therefore translate the <strong>string</strong> spellings of a boolean
+(<code>false</code>/<code>true</code>, <code>yes</code>/<code>no</code>, <code>on</code>/<code>off</code>, <code>1</code>/<code>0</code>, case-insensitively) and reject a
+string they do not recognise, instead of treating the truthy <code>"false"</code> as
+switching the option on. A value that is not a string reaches the reader
+untouched, so the dict form with a real <code>False</code> is the unambiguous way to write
+it. Note that a channel <em>set</em> is a direct-call feature:
 <code>read_file</code> requires one <code>Dataset</code> back, so use <code>read_olci(..., channels=[...])</code>
 when you want several at once.</p>
 <p>Himawari AHI (HSD) remains unimplemented: its byte-level layout comes from JMA's
