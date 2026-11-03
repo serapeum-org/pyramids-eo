@@ -21,6 +21,7 @@ from pyramids_eo.stac.signers import (
     PlanetaryComputerSigner,
     _AnonymousS3Signer,
     _BearerProviderSigner,
+    _select,
     available_signers,
     build_signer,
 )
@@ -794,6 +795,103 @@ class TestBuildSigner:
         for name in available_signers():
             assert repr(name) in message
 
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            pytest.param(None, id="none"),
+            pytest.param(42, id="int"),
+            pytest.param("", id="empty-string"),
+            pytest.param("ANONYMOUS", id="wrong-case"),
+            pytest.param(("anonymous",), id="tuple"),
+            pytest.param(["anonymous"], id="unhashable-list"),
+            pytest.param({"name": "anonymous"}, id="unhashable-dict"),
+        ],
+    )
+    def test_non_name_input_always_raises_value_error(self, bad):
+        """Test build_signer rejects any non-name input with ValueError.
+
+        Args:
+            bad: A signer_type that is not a known name — wrong type, wrong
+                case, empty, or unhashable.
+
+        Test scenario:
+            The pre-registry implementation compared `signer_type == "..."`,
+            which tolerates any type and falls through to ValueError. A dict
+            lookup instead raises TypeError for an unhashable key, so the
+            unhashable cases here guard that the registry did not narrow the
+            contract. Lookup is also exact, so wrong case is not a match.
+        """
+        with pytest.raises(ValueError, match="unknown signer_type") as excinfo:
+            build_signer(bad)
+        assert repr(bad) in str(excinfo.value), (
+            f"the rejection should echo the offending value {bad!r}, "
+            f"got: {excinfo.value}"
+        )
+
+
+class TestSelect:
+    """`_select` whitelists the kwargs a signer accepts from the full bundle."""
+
+    def test_keeps_only_whitelisted_keys(self):
+        """Test _select drops keys the target signer does not accept.
+
+        Test scenario:
+            The STAC backend forwards one credential bundle for every signer,
+            so a stray `region` must not reach a bearer signer.
+        """
+        creds = {"username": "u", "password": "p", "region": "eu", "access_key": "ak"}
+        result = _select(creds, ("username", "password"))
+        assert result == {"username": "u", "password": "p"}, (
+            f"only the whitelisted keys should survive, got {result}"
+        )
+
+    def test_missing_keys_are_omitted_not_defaulted(self):
+        """Test _select omits absent keys rather than inserting None.
+
+        Test scenario:
+            A signer's own default must apply when a credential is absent, so
+            `_select` must not pass an explicit None that would override it.
+        """
+        result = _select({"username": "u"}, ("username", "password", "timeout"))
+        assert result == {"username": "u"}, (
+            f"absent keys must not appear at all, got {result}"
+        )
+
+    def test_order_follows_keys_not_creds(self):
+        """Test _select returns keys in the whitelist's order.
+
+        Test scenario:
+            Insertion order is taken from `keys`, so the result is stable
+            regardless of how the caller happened to order the bundle.
+        """
+        creds = {"timeout": 1, "password": "p", "username": "u"}
+        result = _select(creds, ("username", "password", "timeout"))
+        assert list(result) == ["username", "password", "timeout"], (
+            f"order should follow `keys`, got {list(result)}"
+        )
+
+    def test_does_not_mutate_the_input_bundle(self):
+        """Test _select leaves the caller's credential bundle untouched.
+
+        Test scenario:
+            `build_signer` may consult the bundle again, and the backend reuses
+            it across signers, so selection must be pure.
+        """
+        creds = {"username": "u", "region": "eu"}
+        before = dict(creds)
+        _select(creds, ("username",))
+        assert creds == before, f"the input bundle was mutated: {creds} != {before}"
+
+    def test_empty_whitelist_yields_empty_mapping(self):
+        """Test _select returns an empty dict when no keys are accepted.
+
+        Test scenario:
+            A signer taking no credentials gets nothing forwarded, rather than
+            the whole bundle.
+        """
+        result = _select({"username": "u"}, ())
+        assert result == {}, f"an empty whitelist should select nothing, got {result}"
+
 
 class TestAvailableSigners:
     """`available_signers` publishes the registry's keys for catalog validation."""
@@ -817,6 +915,16 @@ class TestAvailableSigners:
     def test_returns_an_immutable_tuple(self):
         """Callers get a snapshot they cannot use to mutate the registry."""
         assert isinstance(available_signers(), tuple)
+
+    def test_each_call_returns_an_equal_snapshot(self):
+        """Test available_signers is stable across calls.
+
+        Test scenario:
+            A consumer may cache the result or call it per validation; both
+            must agree, and neither may be affected by the other.
+        """
+        first, second = available_signers(), available_signers()
+        assert first == second, f"snapshots disagree: {first} != {second}"
 
     def test_every_name_is_accepted_by_build_signer(self):
         """No listed name is rejected as unknown.

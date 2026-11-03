@@ -1203,6 +1203,10 @@ def available_signers() -> tuple[str, ...]:
             False
 
             ```
+
+    See Also:
+        build_signer: Builds the signer one of these names refers to.
+
     """
     return tuple(_SIGNER_FACTORIES)
 
@@ -1232,7 +1236,8 @@ def build_signer(signer_type: str, **creds: Any) -> Any:
         A signer satisfying the `pyramids.stac.Signer` protocol.
 
     Raises:
-        ValueError: When `signer_type` is not a known signer name.
+        ValueError: When `signer_type` is not a known signer name — including
+            when it is not a string at all, or is unhashable.
 
     Examples:
         - The MPC key maps to the native SAS signer (no SDK):
@@ -1265,10 +1270,18 @@ def build_signer(signer_type: str, **creds: Any) -> Any:
             ValueError: unknown signer_type 'nope'; expected one of ... 'bdc-token'.
 
             ```
+
+    See Also:
+        available_signers: The names this factory accepts, for validating a
+            catalog value before building anything.
+
     """
     try:
         factory = _SIGNER_FACTORIES[signer_type]
-    except KeyError:
+    except (KeyError, TypeError):
+        # TypeError covers an unhashable `signer_type` (a list or dict from a
+        # malformed catalog). The pre-registry `if/elif` chain compared with
+        # `==`, which tolerates any type, so both must still raise ValueError.
         names = ", ".join(repr(name) for name in available_signers())
         raise ValueError(
             f"unknown signer_type {signer_type!r}; expected one of {names}."
