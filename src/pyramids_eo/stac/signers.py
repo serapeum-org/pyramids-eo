@@ -1135,8 +1135,6 @@ def _build_cdse(**creds: Any) -> Any:
 def _build_cdse_s3(**creds: Any) -> Any:
     """Build the Copernicus Data Space S3-credential signer.
 
-    `auth_cdse` is imported lazily to keep the module's import graph flat.
-
     Args:
         **creds: Credential bundle forwarded to `auth_cdse.s3_credentials`,
             which resolves the S3 key pair from kwargs then the environment.

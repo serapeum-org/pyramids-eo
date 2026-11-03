@@ -139,8 +139,8 @@ if endpoint["signer"] not in available_signers():
     )
 ```
 
-The names themselves are deliberately not repeated here — `available_signers()` is the list, and the section
-above shows each one in use.
+`available_signers()` is the authoritative list; the calls above are illustrative, so prefer the function over
+copying them when you need to validate a value.
 
 See the [`stac` API reference](reference/stac.md) for the full signature of each
 signer.

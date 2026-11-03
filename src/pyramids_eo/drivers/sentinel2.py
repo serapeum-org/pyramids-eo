@@ -7,11 +7,11 @@ own container view.
 GDAL ships a ``SENTINEL2`` driver and *opens* a ``.SAFE`` itself, so on the plain
 ``read_file(path)`` path GDAL wins and returns a bare container — this driver is reached only via
 an explicit ``driver="s2"``. pyramids-core 0.71 added the way out — a driver listing a suffix in
-``preempts`` is tried *before* GDAL (serapeum-org/pyramids-core#1344) — but pre-emption is opt-in
-and this driver does not declare it, so the bare path still reaches GDAL first. ``can_open`` does
-claim ``.SAFE``, which catches the rare case where GDAL fails on one; adopting ``preempts`` is what
-would make the bare path auto-route. :func:`~pyramids_eo.from_sentinel2` reads a single ``.SAFE``, so no source expansion is
-needed.
+``preempts`` is tried *before* GDAL (serapeum-org/pyramids-core#1344) — but pre-emption is
+opt-in and this driver does not declare it, so the bare path still reaches GDAL first.
+``can_open`` does claim ``.SAFE``, which catches the rare case where GDAL fails on one;
+adopting ``preempts`` is what would make the bare path auto-route.
+:func:`~pyramids_eo.from_sentinel2` reads a single ``.SAFE``, so no source expansion is needed.
 """
 
 from __future__ import annotations
