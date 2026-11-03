@@ -1822,7 +1822,7 @@ options through it, and the per-source recipes.</p>
 <h2 id="what-the-plugin-is"><a class="toclink" href="#what-the-plugin-is">What the plugin is</a><a class="headerlink" href="#what-the-plugin-is" title="Permanent link">#</a></h2>
 <p>pyramids-core 0.70 added an entry-point group, <code>pyramids.raster_drivers</code>. A package registers a <em>driver</em> class
 there; pyramids discovers it lazily the first time <code>read_file</code> needs a non-GDAL reader. <strong>Installing pyramids-eo is
-the whole integration</strong> — there is nothing to import or configure. The four drivers it registers:</p>
+the whole integration</strong> — there is nothing to import or configure. The six drivers it registers:</p>
 <table>
 <thead>
 <tr>
@@ -1869,16 +1869,20 @@ the whole integration</strong> — there is nothing to import or configure. The 
 <p><code>Dataset.read_file(path, *, driver=None, open_options=None, ...)</code> dispatches in a fixed order:</p>
 <ol>
 <li><strong><code>driver="&lt;name&gt;"</code> given</strong> → that registered driver is used and <strong>GDAL is bypassed entirely</strong>.</li>
-<li><strong>otherwise GDAL is tried first</strong> → if GDAL can open the source, you get GDAL's result and no plugin runs.</li>
+<li><strong>a driver that <em>pre-empts</em> GDAL for this source</strong> → one that lists the source's suffix or scheme in its
+   <code>preempts</code> <em>and</em> confirms it via <code>can_open</code> is tried <strong>before</strong> GDAL. This is opt-in, and <strong>no pyramids-eo
+   driver declares <code>preempts</code> today</strong>, so this step currently never fires here. An explicit <code>vsi=</code> outranks it.</li>
+<li><strong>otherwise GDAL is tried</strong> → if GDAL can open the source, you get GDAL's result and no plugin runs.</li>
 <li><strong>only if GDAL fails</strong> → each registered driver's <code>can_open(source)</code> is asked, and the first to claim it reads it.</li>
 </ol>
 <p>The consequence is the single rule worth remembering:</p>
 <ul>
 <li><code>ee://…</code>, a <code>.nat</code> granule, and the granule <strong>directories</strong> (FCI's chunk set, a Sentinel-3 <code>.SEN3</code>) auto-route
-  to pyramids-eo, because GDAL cannot open any of them (step 2 fails, step 3 claims them).</li>
+  to pyramids-eo, because GDAL cannot open any of them (step 3 fails, step 4 claims them).</li>
 <li>a Sentinel-2 <code>.SAFE</code> does <strong>not</strong> auto-route: GDAL ships its own <code>SENTINEL2</code> driver and opens it at step 2, so a
   bare <code>read_file("…SAFE")</code> returns GDAL's raw <em>container</em> (0 bands + a <code>ContainerRasterWarning</code>). Ask for the
-  pyramids-eo reader explicitly with <code>driver="s2"</code> (step 1).</li>
+  pyramids-eo reader explicitly with <code>driver="s2"</code> (step 1) — step 2 would be the other way out, but the S2
+  driver does not declare <code>preempts</code>.</li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Why S2 still needs <code>driver=</code></p>
@@ -1970,9 +1974,12 @@ holding the chunks, a glob matching them, or an <code>fci://</code> path — and
 <code>read_fci_l1c(..., channels=[...])</code> when you want several channels at once.</p>
 <h3 id="sentinel-3-olci-and-slstr-a-sen3-granule"><a class="toclink" href="#sentinel-3-olci-and-slstr-a-sen3-granule">Sentinel-3 OLCI and SLSTR — a <code>.SEN3</code> granule</a><a class="headerlink" href="#sentinel-3-olci-and-slstr-a-sen3-granule" title="Permanent link">#</a></h3>
 <p>Both Sentinel-3 readers take a <code>.SEN3</code> granule <strong>directory</strong>, so both auto-route (GDAL cannot open a directory).
-They are the one pair that <strong>share a suffix</strong>: <code>olci</code> and <code>slstr</code> both declare <code>.sen3</code>, so a bare path is
-ambiguous and the driver that claims it is decided by inspecting the granule's contents. Use the <code>olci://</code> /
-<code>slstr://</code> scheme, or <code>driver=</code>, when you want to name one explicitly.</p>
+They are the one pair that <strong>share a suffix</strong>: <code>olci</code> and <code>slstr</code> both declare <code>.sen3</code>. Each one's <code>can_open</code>
+inspects the granule's contents to decide whether to claim it — OLCI looks for <code>Oa*_radiance.nc</code>, SLSTR for
+<code>S*_radiance_*.nc</code> / <code>*_BT_*.nc</code>. If a granule holds <strong>both</strong> kinds, both claim it and the tiebreak is <em>registration
+order</em>, which is alphabetical, so <code>olci</code> wins; if it holds neither, nothing claims it and you get GDAL's
+"not recognized" error rather than the readers' clearer one. Use the <code>olci://</code> / <code>slstr://</code> scheme, or <code>driver=</code>,
+to name one explicitly and skip the guesswork.</p>
 <p>Both read <strong>one channel at a time</strong> and the channel is required. Note that <code>read_file</code> forwards only
 <code>open_options</code>, never a <code>bands</code> argument, so the channel must travel inside <code>open_options</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
@@ -1989,7 +1996,9 @@ ambiguous and the driver that claims it is decided by inspecting the granule's c
 <a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="n">s8</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_SL_1_RBT.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"S8"</span><span class="p">,</span> <span class="s2">"view"</span><span class="p">:</span> <span class="s2">"oblique"</span><span class="p">})</span>
 <a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="n">s5</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_SL_1_RBT.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"S5"</span><span class="p">,</span> <span class="s2">"grid"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">})</span>
 </code></pre></div>
-<p><code>view</code> is <code>"nadir"</code> (the default) or <code>"oblique"</code>. SLSTR's channels sit on different grids — <code>S1</code>–<code>S6</code> on the
+<p><code>view</code> takes <code>"nadir"</code> / <code>"n"</code> or <code>"oblique"</code> / <code>"o"</code> (case-insensitive). Its default is <code>None</code>, which the
+reader resolves to the nadir view — so nadir is what you get by leaving it out, but the parameter's default is
+not the string <code>"nadir"</code>. SLSTR's channels sit on different grids — <code>S1</code>–<code>S6</code> on the
 500 m <code>a</code> grid (<code>S4</code>–<code>S6</code> also on the alternative <code>b</code>), <code>S7</code>–<code>S9</code> on the 1 km <code>i</code> grid, and of the fire channels
 <code>F1</code> on <code>f</code> but <code>F2</code> on <code>i</code>. A <code>grid=</code> restricts the read to that grid and never falls back to another, so it
 cannot quietly hand back a different resolution.</p>
@@ -2000,9 +2009,12 @@ pixel/line geotransform and no CRS — nothing is resampled. Warp it yourself wh
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">swath</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_OL_1_EFR.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"Oa08"</span><span class="p">})</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">gdal</span><span class="o">.</span><span class="n">Warp</span><span class="p">(</span><span class="s2">"oa08.tif"</span><span class="p">,</span> <span class="n">swath</span><span class="o">.</span><span class="n">raster</span><span class="p">,</span> <span class="n">geoloc</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
-<p>Pass <code>geolocation=False</code> to skip building that domain. Because a <code>KEY=VALUE</code> list stringifies values, the two
-drivers accept the string forms (<code>"false"</code>, <code>"no"</code>, <code>"off"</code>, <code>"0"</code>, and their positive counterparts) and reject
-anything else, rather than treating the truthy string <code>"false"</code> as switching the option on.</p>
+<p>Pass <code>open_options={"geolocation": False}</code> to leave the result on its pixel grid alone, with no geolocation
+arrays attached. Because a <code>KEY=VALUE</code> list stringifies values, the two drivers translate the <strong>string</strong> spellings
+(<code>"false"</code>, <code>"no"</code>, <code>"off"</code>, <code>"0"</code>, and their positive counterparts, case-insensitively) and reject a string they
+do not recognise — so the truthy <code>"false"</code> cannot silently switch the option on. A value that is not a string is
+passed through to the reader untouched, which is what makes the dict form with a real <code>False</code> the unambiguous
+way to write it.</p>
 <p>As with FCI, a channel <strong>set</strong> is a direct-call feature only — <code>open_options={"channels": [...]}</code> raises
 <code>TypeError</code> from pyramids' plugin layer, so call <code>read_olci(..., channels=[...])</code> /
 <code>read_slstr(..., channels=[...])</code> for several channels at once. <code>available_olci_channels</code> /
@@ -2039,9 +2051,11 @@ anything else, rather than treating the truthy string <code>"false"</code> as sw
   strings. Pass <code>open_options</code> as a <strong>dict</strong> so the <code>int</code> survives.</li>
 <li><strong><code>FciDriver</code> raised "no chunk files found for FCI source …".</strong> Point the source at the granule <strong>directory</strong>, a
   glob of its <code>*FDHSI*.nc</code> chunks, or an <code>fci://</code> path — not a single non-chunk file.</li>
-<li><strong>A <code>.SEN3</code> read raised "pass either a single channel or a channels list, not both" — or returned the wrong
-  instrument.</strong> OLCI and SLSTR share the <code>.SEN3</code> suffix, so name one with <code>driver="olci"</code> / <code>driver="slstr"</code> or
-  an <code>olci://</code> / <code>slstr://</code> path when a granule could be claimed by either.</li>
+<li><strong>A <code>.SEN3</code> read raised "pass either a single channel or a channels list, not both".</strong> <code>open_options</code> carried
+  both keys; drop one. This is unrelated to which instrument claimed the granule, and <code>driver=</code> will not change it.</li>
+<li><strong>A <code>.SEN3</code> read returned the wrong instrument.</strong> OLCI and SLSTR share the <code>.SEN3</code> suffix, and a granule holding
+  both kinds of measurement file is claimed by whichever driver registers first (<code>olci</code>). Name the one you want
+  with <code>driver="olci"</code> / <code>driver="slstr"</code>, or an <code>olci://</code> / <code>slstr://</code> path.</li>
 <li><strong>A <code>.SEN3</code> read complained that no channel was given.</strong> <code>read_file</code> forwards only <code>open_options</code>, so the
   channel cannot come from a <code>bands</code> argument — pass <code>open_options={"channel": "Oa08"}</code>.</li>
 <li><strong><code>open_options={"channels": [...]}</code> raised <code>TypeError</code>.</strong> A channel set is direct-call only — <code>read_file</code>
