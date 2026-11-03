@@ -11335,14 +11335,20 @@ translate those spellings (see :func:<code>~pyramids_eo.drivers._base.coerce_boo
 letting the truthy string <code>"false"</code> switch an option on.</p>
 <p>The entry points in <code>pyproject.toml</code> are the whole integration; installing the package is
 enough for <code>read_file</code> to find these. Each driver is a thin wrapper over an existing reader
-(<code>from_earthengine</code> / <code>read_seviri</code> / <code>from_sentinel2</code> / <code>read_fci_l1c</code>), which stays the
-ergonomic public API.</p>
+(<code>from_earthengine</code> / <code>read_seviri</code> / <code>from_sentinel2</code> / <code>read_fci_l1c</code> / <code>read_olci</code> /
+<code>read_slstr</code>), which stays the ergonomic public API.</p>
+<p>Only a driver's <code>read</code> is reachable this way: <code>Dataset.read_file</code> never dispatches
+<code>read_collection</code>, so :meth:<code>~pyramids_eo.drivers.earthengine.EarthEngineDriver.read_collection</code>
+is declared and implemented but unreachable through the facade — a temporal stack goes through
+<code>collection_from_earthengine</code>.</p>
 <p>A single <code>read_file</code> source string can name a <em>set</em> of files — a directory, a glob, or an
 <code>fci://</code> path — which is how a multi-chunk FCI granule is addressed (see
 :func:<code>~pyramids_eo.drivers._base.expand_sources</code>). The one reader reachable only via an explicit
 <code>driver="s2"</code> is Sentinel-2: GDAL ships its own <code>SENTINEL2</code> driver and opens a <code>.SAFE</code> on the
-plain <code>read_file</code> path before any plugin, so a bare-path auto-route waits on the upstream
-suffix-pre-emption feature requested in serapeum-org/pyramids#1344.</p>
+plain <code>read_file</code> path before any plugin. pyramids-core 0.71 added a way out — a driver that
+declares <code>preempts</code> for a suffix or scheme is tried <em>before</em> GDAL
+(serapeum-org/pyramids-core#1344) — but pre-emption is opt-in and no driver here declares it yet,
+so a bare <code>.SAFE</code> path still needs <code>driver="s2"</code>.</p>
 
 
 
