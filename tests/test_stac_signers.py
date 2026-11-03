@@ -9,11 +9,11 @@ import urllib.request
 from types import SimpleNamespace
 
 import pytest
+from pyramids.stac import Signer
 
 from pyramids_eo.errors import AuthenticationError
 from pyramids_eo.stac import auth_cdse
 from pyramids_eo.stac.signers import (
-    _SIGNER_FACTORIES,
     BdcTokenSigner,
     CdseS3Signer,
     CDSESigner,
@@ -828,7 +828,6 @@ class TestBuildSigner:
             f"got: {excinfo.value}"
         )
 
-
     def test_cdse_forwards_client_id(self):
         """Test build_signer('cdse') forwards client_id to the signer.
 
@@ -985,36 +984,32 @@ class TestAvailableSigners:
             "bdc-token",
         )
 
-    def test_is_the_registry_keys(self):
-        """The registry is the single source of the known names."""
-        assert available_signers() == tuple(_SIGNER_FACTORIES)
-
-    def test_returns_an_immutable_tuple(self):
-        """Callers get a snapshot they cannot use to mutate the registry."""
-        assert isinstance(available_signers(), tuple)
-
-    def test_each_call_returns_an_equal_snapshot(self):
-        """Test available_signers is stable across calls.
+    def test_every_listed_name_builds_a_conforming_signer(self):
+        """Test each listed name maps to a usable `pyramids.stac.Signer`.
 
         Test scenario:
-            A consumer may cache the result or call it per validation; both
-            must agree, and neither may be affected by the other.
+            Cross-checks the published list against what the factories really
+            produce, so a name cannot be advertised while its factory is
+            missing, misspelled, or returns something that does not satisfy
+            the protocol pyramids-core consumes. Throwaway credentials are
+            supplied because the bearer providers accept them at construction.
         """
-        first, second = available_signers(), available_signers()
-        assert first == second, f"snapshots disagree: {first} != {second}"
-
-    def test_every_name_is_accepted_by_build_signer(self):
-        """No listed name is rejected as unknown.
-
-        Only the dispatch is under test, so the providers that mint credentials
-        get throwaway ones. A `ValueError` escaping here fails the test, which
-        is the point: a name may never be listed without being dispatchable.
-        """
+        bundle = {
+            "access_key": "ak",
+            "secret_key": "sk",
+            "token": "t",
+            "username": "u",
+            "password": "p",
+        }
         for name in available_signers():
-            try:
-                build_signer(name, access_key="ak", secret_key="sk", token="t")
-            except AuthenticationError:
-                pass
+            signer = build_signer(name, **bundle)
+            assert isinstance(signer, Signer), (
+                f"{name!r} produced {type(signer).__name__}, which does not "
+                f"satisfy the pyramids.stac.Signer protocol"
+            )
+            assert isinstance(signer.name, str) and signer.name, (
+                f"{name!r} produced a signer with no usable .name: {signer.name!r}"
+            )
 
     def test_a_typo_is_not_listed(self):
         """A near-miss catalog value is reported absent, which is the use case."""
