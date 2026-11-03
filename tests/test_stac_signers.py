@@ -887,22 +887,39 @@ class TestBuildSigner:
             "expected `from None` to suppress the lookup error's context"
         )
 
-    def test_a_hostile_hash_propagates_rather_than_becoming_value_error(self):
-        """Test an exception from a custom __hash__ is not converted.
+    def test_a_type_error_from_hash_is_converted_like_an_unhashable_type(self):
+        """Test a TypeError out of `__hash__` becomes ValueError.
 
         Test scenario:
-            Only KeyError and TypeError are caught, so a `signer_type` whose
-            `__hash__` raises something else surfaces that error unchanged.
-            Pinned deliberately: no catalog value can reach this, and widening
-            the except clause would mask real faults.
+            The lookup cannot tell a TypeError raised inside `__hash__` from
+            the TypeError CPython raises for an unhashable type, so both take
+            the rejection path. Pinned so the Raises section stays honest about
+            which failures convert and which do not.
         """
 
-        class Hostile:
+        class HashRaisesTypeError:
+            def __hash__(self):
+                raise TypeError("from __hash__")
+
+        with pytest.raises(ValueError, match="unknown signer_type"):
+            build_signer(HashRaisesTypeError())
+
+    def test_a_non_type_error_from_hash_propagates(self):
+        """Test any other exception from `__hash__` surfaces unchanged.
+
+        Test scenario:
+            Only KeyError and TypeError are caught, so a `__hash__` raising
+            something else is not converted. Pinned deliberately: no catalog
+            value can reach this, and widening the clause would mask real
+            faults.
+        """
+
+        class HashRaisesRuntimeError:
             def __hash__(self):
                 raise RuntimeError("boom")
 
         with pytest.raises(RuntimeError, match="boom"):
-            build_signer(Hostile())
+            build_signer(HashRaisesRuntimeError())
 
 
 class TestSelect:

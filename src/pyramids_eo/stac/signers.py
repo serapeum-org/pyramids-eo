@@ -1243,9 +1243,11 @@ def build_signer(signer_type: str, **creds: Any) -> Any:
     Raises:
         ValueError: When `signer_type` is not a known signer name — including
             when it is not a string at all, or is unhashable (a list or dict
-            from a malformed catalog). An exception raised by a custom
-            `__hash__` is *not* converted; it propagates, since widening the
-            except clause would mask real faults.
+            from a malformed catalog). A `TypeError` raised by a custom
+            `__hash__` or `__eq__` is indistinguishable from an unhashable
+            type and is converted too; any *other* exception from them
+            propagates, since widening the except clause further would mask
+            real faults.
 
     Examples:
         - The MPC key maps to the native SAS signer (no SDK):
@@ -1288,8 +1290,10 @@ def build_signer(signer_type: str, **creds: Any) -> Any:
         factory = _SIGNER_FACTORIES[signer_type]
     except (KeyError, TypeError):
         # TypeError covers an unhashable `signer_type` (a list or dict from a
-        # malformed catalog). The pre-registry `if/elif` chain compared with
-        # `==`, which tolerates any type, so both must still raise ValueError.
+        # malformed catalog) and a TypeError out of a custom `__hash__`/`__eq__`,
+        # which is not distinguishable from it. The pre-registry `if/elif` chain
+        # compared with `==`, which tolerates any type, so both must still raise
+        # ValueError. Anything else from `__hash__` propagates.
         names = ", ".join(repr(name) for name in available_signers())
         raise ValueError(
             f"unknown signer_type {signer_type!r}; expected one of {names}."
