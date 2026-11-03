@@ -132,6 +132,7 @@ Changelog = "https://github.com/serapeum-org/pyramids-eo/blob/main/docs/change-l
 # so a time series goes through `collection_from_*`. Sentinel-2 is registered but
 # needs an explicit `driver="s2"`, since GDAL claims a `.SAFE` first.
 [project.entry-points."pyramids.raster_drivers"]
+ahi = "pyramids_eo.drivers.ahi:AhiDriver"
 earthengine = "pyramids_eo.drivers.earthengine:EarthEngineDriver"
 seviri = "pyramids_eo.drivers.seviri:SeviriDriver"
 s2 = "pyramids_eo.drivers.sentinel2:Sentinel2Driver"

@@ -22,6 +22,7 @@ the whole integration** — there is nothing to import or configure. The six dri
 |---------------|-----------------------------------------------|------------------------------------------------|
 | `earthengine` | an `ee://<asset-id>` URL                      | [`from_earthengine`](reference/earthengine.md) |
 | `seviri`      | a SEVIRI native `.nat` granule                | [`read_seviri`](reference/readers.md)          |
+| `ahi`         | a Himawari AHI HSD `HS_….DAT` granule         | [`read_ahi`](reference/readers.md)             |
 | `s2`          | a Sentinel-2 `.SAFE` product (or `.SAFE.zip`) | [`from_sentinel2`](reference/sentinel.md)      |
 | `fci`         | an MTG-FCI L1C FDHSI granule (a chunk set)    | [`read_fci_l1c`](reference/readers.md)         |
 | `olci`        | a Sentinel-3 OLCI L1B `.SEN3` granule         | [`read_olci`](reference/readers.md)            |
@@ -116,6 +117,29 @@ ir = Dataset.read_file("MSG4-SEVIRI-MSG15.nat", open_options={"channel": "IR_108
 ```
 
 The read covers the whole granule, so `bbox` / `crs` do not apply.
+
+### Himawari AHI — an HSD `.DAT` granule
+
+`.dat` is too generic to claim by extension, so this driver claims the HSD **file-name**
+convention instead (`HS_aaa_yyyymmdd_hhnn_Bbb_cccc_Rjj_Skkll.DAT`, optionally `.bz2`). A
+granule names its own band, so `open_options` can be omitted entirely:
+
+```python
+from pyramids.dataset import Dataset
+
+
+bt = Dataset.read_file("HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT")
+
+# pass calibrate=false for raw radiance; through read_file it arrives as a string,
+# which the driver coerces rather than reading the truthy "false" as on
+raw = Dataset.read_file(
+    "HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT", open_options={"calibrate": "false"}
+)
+```
+
+A renamed granule is still readable with an explicit `driver="ahi"`. `read_file` dispatches
+one source, so a segmented full disk is stitched by calling
+[`read_ahi`](reference/readers.md) with the segment paths directly.
 
 ### Sentinel-2 — a `.SAFE` product (needs `driver="s2"`)
 
