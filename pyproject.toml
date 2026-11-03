@@ -126,8 +126,11 @@ Changelog = "https://github.com/serapeum-org/pyramids-eo/blob/main/docs/change-l
 
 # Raster-reader plugins discovered by pyramids-core's `pyramids.raster_drivers`
 # hook: installing this package lets `Dataset.read_file(<source>)` route into these.
-# Only readers that fit the single-source read_file model are registered (see
-# src/pyramids_eo/drivers/__init__.py); S2 and FCI stay facade-only.
+# Every reader that fits the single-source read_file model is registered (see
+# src/pyramids_eo/drivers/__init__.py). What stays facade-only is the temporal
+# path: read_file only ever dispatches a driver's `read`, never `read_collection`,
+# so a time series goes through `collection_from_*`. Sentinel-2 is registered but
+# needs an explicit `driver="s2"`, since GDAL claims a `.SAFE` first.
 [project.entry-points."pyramids.raster_drivers"]
 earthengine = "pyramids_eo.drivers.earthengine:EarthEngineDriver"
 seviri = "pyramids_eo.drivers.seviri:SeviriDriver"
