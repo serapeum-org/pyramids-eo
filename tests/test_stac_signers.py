@@ -828,39 +828,60 @@ class TestBuildSigner:
             f"got: {excinfo.value}"
         )
 
-    def test_cdse_forwards_client_id(self):
-        """Test build_signer('cdse') forwards client_id to the signer.
+    @pytest.mark.parametrize(
+        "signer_type, kwarg, value, attribute",
+        [
+            ("mpc-sas", "sas_url", "https://custom/token", "_sas_url"),
+            ("mpc-sas", "subscription_key", "sub-key", "_subscription_key"),
+            ("mpc-sas", "refresh_window", 11, "_refresh_window"),
+            ("mpc-sas", "timeout", 12, "_timeout"),
+            ("earthdata", "username", "edl-user", "_username"),
+            ("earthdata", "password", "edl-pass", "_password"),
+            ("earthdata", "token", "edl-tok", "_static_token"),
+            ("earthdata", "refresh_window", 13, "_refresh_window"),
+            ("earthdata", "timeout", 14, "_timeout"),
+            ("cdse", "username", "cdse-user", "_username"),
+            ("cdse", "password", "cdse-pass", "_password"),
+            ("cdse", "client_id", "my-client", "_client_id"),
+            ("cdse", "refresh_window", 15, "_refresh_window"),
+            ("cdse", "timeout", 16, "_timeout"),
+            ("anonymous", "region", "af-south-1", "_region"),
+            ("aws-requester-pays", "region", "us-west-2", "region"),
+            ("bdc-token", "token", "bdc-tok", "_explicit_token"),
+        ],
+    )
+    def test_every_whitelisted_credential_reaches_its_signer(
+        self, signer_type, kwarg, value, attribute
+    ):
+        """Test each whitelist entry actually arrives at the signer.
+
+        Args:
+            signer_type: The catalog name to build.
+            kwarg: The credential kwarg under test.
+            value: A distinctive value to look for on the built signer.
+            attribute: Where the signer stores it.
 
         Test scenario:
-            `client_id` is in the cdse whitelist. Dropping it would silently
-            fall back to the signer's default client, so a deployment using a
-            non-default Keycloak client would authenticate as the wrong one.
+            Covers every entry of every factory's whitelist, so dropping any
+            one of them fails. Five of these have a silent `os.environ`
+            fallback (`earthdata` and `cdse` username/password, `mpc-sas`
+            subscription_key), which means a dropped kwarg would not raise —
+            it would authenticate with a *different* credential.
         """
-        signer = build_signer("cdse", username="u", password="p", client_id="my-client")
-        assert signer._client_id == "my-client", (
-            f"client_id should reach the signer, got {signer._client_id!r}"
+        signer = build_signer(signer_type, **{kwarg: value})
+        assert getattr(signer, attribute) == value, (
+            f"{signer_type!r} dropped {kwarg!r}: expected {value!r} at "
+            f"{attribute!r}, found {getattr(signer, attribute)!r}"
         )
 
-    def test_mpc_sas_forwards_timeout(self):
-        """Test build_signer('mpc-sas') forwards timeout to the signer.
+    def test_bdc_token_kwarg_wins_over_the_environment(self, monkeypatch):
+        """Test the explicit BDC token beats `$BDC_ACCESS_TOKEN` end to end.
 
         Test scenario:
-            `timeout` is in the mpc-sas whitelist. Dropping it would silently
-            restore the default HTTP timeout for SAS minting.
-        """
-        signer = build_signer("mpc-sas", timeout=99)
-        assert signer._timeout == 99, (
-            f"timeout should reach the signer, got {signer._timeout!r}"
-        )
-
-    def test_bdc_token_forwards_the_explicit_token(self, monkeypatch):
-        """Test build_signer('bdc-token') uses the kwarg token, not the env one.
-
-        Test scenario:
-            `BdcTokenSigner` falls back to `$BDC_ACCESS_TOKEN`, so ignoring the
-            explicit token would not raise — it would sign with a *different*
-            credential. The env var is set to a distinct value here so that
-            failure mode is visible rather than silent.
+            The behavioural counterpart to the matrix above, through the public
+            `sign_href`. The env var is set to a different value so the failure
+            mode is visible: ignoring the kwarg would sign successfully with
+            the wrong credential rather than raising.
         """
         monkeypatch.setenv("BDC_ACCESS_TOKEN", "env-token")
         signer = build_signer("bdc-token", token="kwarg-token")
