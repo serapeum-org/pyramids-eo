@@ -1042,9 +1042,13 @@ class _AnonymousS3Signer:
 def _select(creds: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
     """Return the subset of `creds` whose keys are in `keys`.
 
-    The STAC backend forwards one credential bundle for every signer, so each
-    factory whitelists the kwargs its signer actually accepts and drops the
-    rest (a stray `region` must not reach the CDSE bearer signer).
+    The STAC backend forwards one credential bundle for every signer, so a
+    factory taking several optional kwargs uses this to keep the ones its
+    signer accepts and drop the rest (a stray `region` must not reach the CDSE
+    bearer signer). Only `_build_mpc_sas`, `_build_earthdata` and `_build_cdse`
+    need it: the others read a single key, and `_build_cdse_s3` forwards the
+    whole bundle to `auth_cdse.s3_credentials`, which ignores what it does not
+    use.
 
     Args:
         creds: The full credential bundle handed to `build_signer`.
@@ -1071,8 +1075,9 @@ def _build_anonymous(**creds: Any) -> Any:
 def _build_aws_requester_pays(**creds: Any) -> Any:
     """Build pyramids' generic requester-pays signer.
 
-    `pyramids.stac` is imported lazily so pyramids-eo imports without the
-    `[stac]` extra installed.
+    `pyramids.stac` is imported inside the factory, not at module scope, so
+    importing `pyramids_eo.stac` does not pull in pyramids' STAC stack for
+    callers that never build this signer.
 
     Args:
         **creds: Credential bundle; only `region` is used.
@@ -1189,7 +1194,7 @@ def available_signers() -> tuple[str, ...]:
     Examples:
         - The generic signers lead and every name is a valid `build_signer` key:
             ```python
-            >>> from pyramids_eo.stac import available_signers, build_signer
+            >>> from pyramids_eo.stac import available_signers
             >>> available_signers()[:2]
             ('anonymous', 'aws-requester-pays')
             >>> all(n in available_signers() for n in ("mpc-sas", "cdse-s3"))
@@ -1216,8 +1221,8 @@ def build_signer(signer_type: str, **creds: Any) -> Any:
 
     Dispatches through :data:`_SIGNER_FACTORIES`. The `anonymous` signer is the
     pyramids-eo-local `_AnonymousS3Signer` and the `aws-requester-pays` signer
-    comes from `pyramids.stac` (imported lazily so the package imports without
-    the `[stac]` extra); the `mpc-sas` / `earthdata` / `cdse` / `cdse-s3` /
+    comes from `pyramids.stac` (imported inside its factory, so importing this
+    module pulls in no STAC stack); the `mpc-sas` / `earthdata` / `cdse` / `cdse-s3` /
     `bdc-token` provider signers are the pyramids-eo-local classes above.
 
     Args:
@@ -1237,7 +1242,10 @@ def build_signer(signer_type: str, **creds: Any) -> Any:
 
     Raises:
         ValueError: When `signer_type` is not a known signer name — including
-            when it is not a string at all, or is unhashable.
+            when it is not a string at all, or is unhashable (a list or dict
+            from a malformed catalog). An exception raised by a custom
+            `__hash__` is *not* converted; it propagates, since widening the
+            except clause would mask real faults.
 
     Examples:
         - The MPC key maps to the native SAS signer (no SDK):
