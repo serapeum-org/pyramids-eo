@@ -9,7 +9,6 @@ import urllib.request
 from types import SimpleNamespace
 
 import pytest
-from pyramids.stac import Signer
 
 from pyramids_eo.errors import AuthenticationError
 from pyramids_eo.stac import auth_cdse
@@ -922,8 +921,9 @@ class TestBuildSigner:
             def __hash__(self):
                 raise TypeError("from __hash__")
 
+        hostile = HashRaisesTypeError()
         with pytest.raises(ValueError, match="unknown signer_type"):
-            build_signer(HashRaisesTypeError())
+            build_signer(hostile)
 
     def test_a_non_type_error_from_hash_propagates(self):
         """Test any other exception from `__hash__` surfaces unchanged.
@@ -939,8 +939,9 @@ class TestBuildSigner:
             def __hash__(self):
                 raise RuntimeError("boom")
 
+        hostile = HashRaisesRuntimeError()
         with pytest.raises(RuntimeError, match="boom"):
-            build_signer(HashRaisesRuntimeError())
+            build_signer(hostile)
 
 
 class TestSelect:
@@ -996,6 +997,27 @@ class TestSelect:
         _select(creds, ("username",))
         assert creds == before, f"the input bundle was mutated: {creds} != {before}"
 
+    def test_a_present_none_is_forwarded_and_overrides_the_default(self):
+        """Test `_select` keeps a key whose value is None.
+
+        Test scenario:
+            Only *absence* protects a signer's default. A bundle that carries
+            an explicit `None` forwards it, which overrides the default — e.g.
+            `timeout=None` disables the SAS-mint timeout rather than leaving it
+            at 30s. This matches the pre-registry chain, whose dict
+            comprehension was identical, so it is pinned as the inherited
+            contract rather than changed here.
+        """
+        assert _select({"timeout": None}, ("timeout",)) == {"timeout": None}, (
+            "an explicit None must be forwarded, not dropped"
+        )
+        assert build_signer("mpc-sas")._timeout == 30.0, (
+            "omitting timeout should leave the signer's own default"
+        )
+        assert build_signer("mpc-sas", timeout=None)._timeout is None, (
+            "an explicit timeout=None should override the signer's default"
+        )
+
     def test_empty_whitelist_yields_empty_mapping(self):
         """Test _select returns an empty dict when no keys are accepted.
 
@@ -1028,9 +1050,15 @@ class TestAvailableSigners:
         Test scenario:
             Cross-checks the published list against what the factories really
             produce, so a name cannot be advertised while its factory is
-            missing, misspelled, or returns something that does not satisfy
-            the protocol pyramids-core consumes. Throwaway credentials are
-            supplied because the bearer providers accept them at construction.
+            missing, misspelled, or returns something unusable. Each of the
+            protocol's side-effect-free surfaces is *called* rather than
+            merely looked up: `isinstance(x, Signer)` against a
+            `runtime_checkable` Protocol only checks that five attributes
+            exist, so a namespace of integers satisfies it. `gdal_env` is
+            checked for callability only, never invoked — on a bearer provider
+            it mints a token, which would put this test on the network. The
+            host in `sign_href` belongs to no provider, so every signer passes
+            it through without minting either.
         """
         bundle = {
             "access_key": "ak",
@@ -1041,13 +1069,36 @@ class TestAvailableSigners:
         }
         for name in available_signers():
             signer = build_signer(name, **bundle)
-            assert isinstance(signer, Signer), (
-                f"{name!r} produced {type(signer).__name__}, which does not "
-                f"satisfy the pyramids.stac.Signer protocol"
+            assert isinstance(signer.name, str), (
+                f"{name!r} produced a non-string .name: {signer.name!r}"
             )
-            assert isinstance(signer.name, str) and signer.name, (
-                f"{name!r} produced a signer with no usable .name: {signer.name!r}"
+            assert signer.name, f"{name!r} produced a signer with an empty .name"
+            assert callable(signer.gdal_env), f"{name!r}: gdal_env is not callable"
+            signed = signer.sign_href("https://example.invalid/a.tif")
+            assert isinstance(signed, str), (
+                f"{name!r}: sign_href() returned {type(signed).__name__}, not a str"
             )
+            assert signer.sign_item(None) is None, (
+                f"{name!r}: sign_item() must return None for pystac-client's "
+                f"modifier contract"
+            )
+
+    def test_is_re_exported_from_the_package_root(self):
+        """Test `available_signers` is reachable from `pyramids_eo.stac`.
+
+        Test scenario:
+            Consumers import it from the package, not the private module, and
+            `__all__` is what the docs promise — so both the re-export and the
+            `__all__` entry are pinned here rather than only in a doctest.
+        """
+        import pyramids_eo.stac as pkg
+
+        assert pkg.available_signers is available_signers, (
+            "the package re-export should be the same object as the module's"
+        )
+        assert "available_signers" in pkg.__all__, (
+            f"available_signers missing from __all__: {pkg.__all__}"
+        )
 
     def test_a_typo_is_not_listed(self):
         """A near-miss catalog value is reported absent, which is the use case."""
