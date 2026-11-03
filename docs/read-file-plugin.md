@@ -16,7 +16,7 @@ options through it, and the per-source recipes.
 
 pyramids-core 0.70 added an entry-point group, `pyramids.raster_drivers`. A package registers a *driver* class
 there; pyramids discovers it lazily the first time `read_file` needs a non-GDAL reader. **Installing pyramids-eo is
-the whole integration** — there is nothing to import or configure. The four drivers it registers:
+the whole integration** — there is nothing to import or configure. The six drivers it registers:
 
 | driver name   | source it opens                               | reader it delegates to                         |
 |---------------|-----------------------------------------------|------------------------------------------------|
@@ -34,16 +34,20 @@ Every reader stays pure pyramids-eo over pyramids' bundled GDAL — no `eartheng
 `Dataset.read_file(path, *, driver=None, open_options=None, ...)` dispatches in a fixed order:
 
 1. **`driver="<name>"` given** → that registered driver is used and **GDAL is bypassed entirely**.
-2. **otherwise GDAL is tried first** → if GDAL can open the source, you get GDAL's result and no plugin runs.
-3. **only if GDAL fails** → each registered driver's `can_open(source)` is asked, and the first to claim it reads it.
+2. **a driver that *pre-empts* GDAL for this source** → one that lists the source's suffix or scheme in its
+   `preempts` *and* confirms it via `can_open` is tried **before** GDAL. This is opt-in, and **no pyramids-eo
+   driver declares `preempts` today**, so this step currently never fires here. An explicit `vsi=` outranks it.
+3. **otherwise GDAL is tried** → if GDAL can open the source, you get GDAL's result and no plugin runs.
+4. **only if GDAL fails** → each registered driver's `can_open(source)` is asked, and the first to claim it reads it.
 
 The consequence is the single rule worth remembering:
 
 - `ee://…`, a `.nat` granule, and the granule **directories** (FCI's chunk set, a Sentinel-3 `.SEN3`) auto-route
-  to pyramids-eo, because GDAL cannot open any of them (step 2 fails, step 3 claims them).
+  to pyramids-eo, because GDAL cannot open any of them (step 3 fails, step 4 claims them).
 - a Sentinel-2 `.SAFE` does **not** auto-route: GDAL ships its own `SENTINEL2` driver and opens it at step 2, so a
   bare `read_file("…SAFE")` returns GDAL's raw *container* (0 bands + a `ContainerRasterWarning`). Ask for the
-  pyramids-eo reader explicitly with `driver="s2"` (step 1).
+  pyramids-eo reader explicitly with `driver="s2"` (step 1) — step 2 would be the other way out, but the S2
+  driver does not declare `preempts`.
 
 !!! note "Why S2 still needs `driver=`"
 
@@ -160,9 +164,12 @@ A channel **set** is a direct-call feature only. `read_file` requires a driver t
 ### Sentinel-3 OLCI and SLSTR — a `.SEN3` granule
 
 Both Sentinel-3 readers take a `.SEN3` granule **directory**, so both auto-route (GDAL cannot open a directory).
-They are the one pair that **share a suffix**: `olci` and `slstr` both declare `.sen3`, so a bare path is
-ambiguous and the driver that claims it is decided by inspecting the granule's contents. Use the `olci://` /
-`slstr://` scheme, or `driver=`, when you want to name one explicitly.
+They are the one pair that **share a suffix**: `olci` and `slstr` both declare `.sen3`. Each one's `can_open`
+inspects the granule's contents to decide whether to claim it — OLCI looks for `Oa*_radiance.nc`, SLSTR for
+`S*_radiance_*.nc` / `*_BT_*.nc`. If a granule holds **both** kinds, both claim it and the tiebreak is *registration
+order*, which is alphabetical, so `olci` wins; if it holds neither, nothing claims it and you get GDAL's
+"not recognized" error rather than the readers' clearer one. Use the `olci://` / `slstr://` scheme, or `driver=`,
+to name one explicitly and skip the guesswork.
 
 Both read **one channel at a time** and the channel is required. Note that `read_file` forwards only
 `open_options`, never a `bands` argument, so the channel must travel inside `open_options`:
@@ -183,7 +190,9 @@ s8 = Dataset.read_file("S3A_SL_1_RBT.SEN3", open_options={"channel": "S8", "view
 s5 = Dataset.read_file("S3A_SL_1_RBT.SEN3", open_options={"channel": "S5", "grid": "a"})
 ```
 
-`view` is `"nadir"` (the default) or `"oblique"`. SLSTR's channels sit on different grids — `S1`–`S6` on the
+`view` takes `"nadir"` / `"n"` or `"oblique"` / `"o"` (case-insensitive). Its default is `None`, which the
+reader resolves to the nadir view — so nadir is what you get by leaving it out, but the parameter's default is
+not the string `"nadir"`. SLSTR's channels sit on different grids — `S1`–`S6` on the
 500 m `a` grid (`S4`–`S6` also on the alternative `b`), `S7`–`S9` on the 1 km `i` grid, and of the fire channels
 `F1` on `f` but `F2` on `i`. A `grid=` restricts the read to that grid and never falls back to another, so it
 cannot quietly hand back a different resolution.
@@ -198,9 +207,12 @@ swath = Dataset.read_file("S3A_OL_1_EFR.SEN3", open_options={"channel": "Oa08"})
 gdal.Warp("oa08.tif", swath.raster, geoloc=True)
 ```
 
-Pass `geolocation=False` to skip building that domain. Because a `KEY=VALUE` list stringifies values, the two
-drivers accept the string forms (`"false"`, `"no"`, `"off"`, `"0"`, and their positive counterparts) and reject
-anything else, rather than treating the truthy string `"false"` as switching the option on.
+Pass `open_options={"geolocation": False}` to leave the result on its pixel grid alone, with no geolocation
+arrays attached. Because a `KEY=VALUE` list stringifies values, the two drivers translate the **string** spellings
+(`"false"`, `"no"`, `"off"`, `"0"`, and their positive counterparts, case-insensitively) and reject a string they
+do not recognise — so the truthy `"false"` cannot silently switch the option on. A value that is not a string is
+passed through to the reader untouched, which is what makes the dict form with a real `False` the unambiguous
+way to write it.
 
 As with FCI, a channel **set** is a direct-call feature only — `open_options={"channels": [...]}` raises
 `TypeError` from pyramids' plugin layer, so call `read_olci(..., channels=[...])` /
@@ -225,9 +237,11 @@ The facades are the source of truth for the reader options; the driver simply ma
   strings. Pass `open_options` as a **dict** so the `int` survives.
 - **`FciDriver` raised "no chunk files found for FCI source …".** Point the source at the granule **directory**, a
   glob of its `*FDHSI*.nc` chunks, or an `fci://` path — not a single non-chunk file.
-- **A `.SEN3` read raised "pass either a single channel or a channels list, not both" — or returned the wrong
-  instrument.** OLCI and SLSTR share the `.SEN3` suffix, so name one with `driver="olci"` / `driver="slstr"` or
-  an `olci://` / `slstr://` path when a granule could be claimed by either.
+- **A `.SEN3` read raised "pass either a single channel or a channels list, not both".** `open_options` carried
+  both keys; drop one. This is unrelated to which instrument claimed the granule, and `driver=` will not change it.
+- **A `.SEN3` read returned the wrong instrument.** OLCI and SLSTR share the `.SEN3` suffix, and a granule holding
+  both kinds of measurement file is claimed by whichever driver registers first (`olci`). Name the one you want
+  with `driver="olci"` / `driver="slstr"`, or an `olci://` / `slstr://` path.
 - **A `.SEN3` read complained that no channel was given.** `read_file` forwards only `open_options`, so the
   channel cannot come from a `bands` argument — pass `open_options={"channel": "Oa08"}`.
 - **`open_options={"channels": [...]}` raised `TypeError`.** A channel set is direct-call only — `read_file`
