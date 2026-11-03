@@ -133,6 +133,8 @@ earthengine = "pyramids_eo.drivers.earthengine:EarthEngineDriver"
 seviri = "pyramids_eo.drivers.seviri:SeviriDriver"
 s2 = "pyramids_eo.drivers.sentinel2:Sentinel2Driver"
 fci = "pyramids_eo.drivers.fci:FciDriver"
+olci = "pyramids_eo.drivers.olci:OlciDriver"
+slstr = "pyramids_eo.drivers.slstr:SlstrDriver"
 
 
 [build-system]

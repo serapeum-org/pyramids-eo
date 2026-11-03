@@ -1,0 +1,41 @@
+# Sentinel-3 OLCI channel table (Level-1B EFR / ERR).
+#
+# DESCRIPTIVE constants only. wavelength_um is the published OLCI band centre and
+# resolution_m the full-resolution (EFR) ground sampling distance; the reduced
+# resolution (ERR) product is ~1200 m on the same bands. Every OLCI band is solar
+# (reflective) -- the instrument carries no thermal channel.
+#
+# NO calibration coefficients are listed, deliberately: `read_olci` decodes
+# radiance and does not convert to reflectance (issue #136 scopes radiometric
+# calibration choices out of these readers). A caller converting to reflectance
+# must use the granule's OWN per-detector `solar_flux` from `instrument_data.nc`
+# together with the solar zenith angle from `tie_geometries.nc` -- those are
+# granule-accurate, whereas a nominal band irradiance baked in here would not be.
+# The band centres are ESA SentiWiki's OLCI products page, Table 2 (the OLCI
+# spectral bands). Note a documentation trap: ESA's OLCI *instrument* page prints
+# Oa9 = 673.25 and Oa16 = 778.85, contradicting the *product* table on exactly
+# those two rows. The product table (673.75 / 778.75) is the L1B convention and is
+# what is used here -- do not "correct" these two into the instrument-page values.
+name: olci
+channels:
+  Oa01: {wavelength_um: 0.400,    resolution_m: 300, kind: solar}
+  Oa02: {wavelength_um: 0.4125,   resolution_m: 300, kind: solar}
+  Oa03: {wavelength_um: 0.4425,   resolution_m: 300, kind: solar}
+  Oa04: {wavelength_um: 0.490,    resolution_m: 300, kind: solar}
+  Oa05: {wavelength_um: 0.510,    resolution_m: 300, kind: solar}
+  Oa06: {wavelength_um: 0.560,    resolution_m: 300, kind: solar}
+  Oa07: {wavelength_um: 0.620,    resolution_m: 300, kind: solar}
+  Oa08: {wavelength_um: 0.665,    resolution_m: 300, kind: solar}
+  Oa09: {wavelength_um: 0.67375,  resolution_m: 300, kind: solar}
+  Oa10: {wavelength_um: 0.68125,  resolution_m: 300, kind: solar}
+  Oa11: {wavelength_um: 0.70875,  resolution_m: 300, kind: solar}
+  Oa12: {wavelength_um: 0.75375,  resolution_m: 300, kind: solar}
+  Oa13: {wavelength_um: 0.76125,  resolution_m: 300, kind: solar}
+  Oa14: {wavelength_um: 0.764375, resolution_m: 300, kind: solar}
+  Oa15: {wavelength_um: 0.7675,   resolution_m: 300, kind: solar}
+  Oa16: {wavelength_um: 0.77875,  resolution_m: 300, kind: solar}
+  Oa17: {wavelength_um: 0.865,    resolution_m: 300, kind: solar}
+  Oa18: {wavelength_um: 0.885,    resolution_m: 300, kind: solar}
+  Oa19: {wavelength_um: 0.900,    resolution_m: 300, kind: solar}
+  Oa20: {wavelength_um: 0.940,    resolution_m: 300, kind: solar}
+  Oa21: {wavelength_um: 1.020,    resolution_m: 300, kind: solar}

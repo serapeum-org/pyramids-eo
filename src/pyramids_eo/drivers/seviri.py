@@ -25,7 +25,12 @@ from typing import Any
 
 from pyramids.dataset import Dataset
 
-from pyramids_eo.drivers._base import RASTER_DRIVER_API_VERSION, options_as_dict
+from pyramids_eo.drivers._base import (
+    RASTER_DRIVER_API_VERSION,
+    coerce_booleans,
+    coerce_floats,
+    options_as_dict,
+)
 
 
 class SeviriDriver:
@@ -94,7 +99,11 @@ class SeviriDriver:
                 more than one band is rejected rather than silently truncated.
             options: Extra :func:`~pyramids_eo.sensors.readers.read_seviri` keywords —
                 ``channel``, ``parse`` (the ``.nat`` decoder), ``calibrate``, ``coeffs``, … — as
-                a dict or ``KEY=VALUE`` list.
+                a dict or ``KEY=VALUE`` list. ``read_file`` normalises options to the
+                ``KEY=VALUE`` form, so ``calibrate`` and the two numeric keywords are coerced
+                from their string spellings (see
+                :func:`~pyramids_eo.drivers._base.coerce_booleans`); without that, the truthy
+                string ``"false"`` would switch calibration *on*.
             **_ignored: The generic driver-read parameters a SEVIRI read does not use — ``bbox``,
                 ``crs``, ``auth`` and any future one — are accepted and ignored: a granule is read
                 whole, carries its own geostationary CRS, and needs no credentials.
@@ -103,12 +112,18 @@ class SeviriDriver:
             The calibrated, geolocated channel.
 
         Raises:
-            ValueError: No channel was given (via ``bands`` or ``options``), or more than one
-                band was given.
+            ValueError: No channel was given (via ``bands`` or ``options``), more than one
+                band was given, or a boolean / numeric option could not be read from its
+                ``KEY=VALUE`` string spelling (``calibrate``, ``sun_earth_distance``,
+                ``subsatellite_longitude``).
         """
         from pyramids_eo.sensors.readers import read_seviri
 
         settings = options_as_dict(options)
+        coerce_booleans(settings, ("calibrate",), driver="seviri")
+        coerce_floats(
+            settings, ("sun_earth_distance", "subsatellite_longitude"), driver="seviri"
+        )
         channel = settings.pop("channel", None)
         if channel is None and bands:
             if isinstance(bands, (str, bytes)):

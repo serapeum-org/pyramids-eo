@@ -47,7 +47,11 @@ from typing import Any
 import numpy as np
 
 from pyramids_eo.errors import ReaderError
-from pyramids_eo.sensors.readers._common import calibrate_channel, resolve_channels
+from pyramids_eo.sensors.readers._common import (
+    calibrate_channel,
+    invalid_mask,
+    resolve_channels,
+)
 
 #: Group holding a channel's measured radiance and per-granule coefficients.
 _MEASURED_GROUP = "/data/{channel}/measured"
@@ -168,26 +172,9 @@ def _granule_coeffs(group: Any) -> dict[str, Any]:
 
 #: Matches a signed integer/decimal number, optionally in scientific notation.
 #: Written without overlapping quantifiers so it has linear (no-backtracking) time.
+#: Used to pull the satellite height out of a PROJ string (`+h=...`); the CF
+#: attribute parsing it used to serve now lives in `_common`.
 _NUMBER = r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?"
-
-
-def _valid_bounds(text: Any) -> tuple[float | None, float | None]:
-    """Parse `(min, max)` from a `valid_range` metadata string.
-
-    Args:
-        text: The GDAL `valid_range` metadata value (e.g. `"{0, 4095}"`), or
-            `None`/an unparseable string.
-
-    Returns:
-        The `(valid_min, valid_max)` pair, or `(None, None)` when the string is
-        missing or does not contain two numbers.
-    """
-    if not text:
-        return None, None
-    numbers = re.findall(_NUMBER, str(text))
-    if len(numbers) < 2:
-        return None, None
-    return float(numbers[0]), float(numbers[-1])
 
 
 def _unpack_radiance(
@@ -228,16 +215,11 @@ def _unpack_radiance(
             f"scale_factor / add_offset ({exc!r})"
         ) from exc
     radiance = raw.astype(float) * scale + offset
-
-    invalid = np.zeros(raw.shape, dtype=bool)
-    valid_min, valid_max = _valid_bounds(meta.get("valid_range"))
-    if valid_min is not None:
-        invalid |= raw < valid_min
-    if valid_max is not None:
-        invalid |= raw > valid_max
-    if "_FillValue" in meta:
-        invalid |= raw == float(meta["_FillValue"])
-    radiance[invalid] = np.nan
+    # Masking goes through the shared CF decoder in `_common`, so FCI's
+    # `valid_range` and Sentinel-3's `valid_min`/`valid_max` spellings are both
+    # resolved in one place (this block used to be duplicated per reader, which is
+    # how the FCI-only `valid_range` assumption reached the Sentinel-3 readers).
+    radiance[invalid_mask(raw, meta)] = np.nan
     geotransform, crs = raster.GetGeoTransform(), raster.GetProjection()
     # Drop both the band and the dataset: a live band reference keeps the owning
     # dataset open, so release both to free the handle at function return.
