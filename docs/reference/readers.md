@@ -187,8 +187,9 @@ s2 = Dataset.read_file("S2A_MSIL2A.SAFE", driver="s2", open_options={"bands": ["
 `read_file` forwards only `open_options` to a driver, so reader keywords (channel,
 bbox, bands, credentials, …) are passed there; options needing a non-string type
 (e.g. S2 `resolution=10`) must be given in dict form, not a `KEY=VALUE` list. A
-bare `read_file("…SAFE")` without `driver="s2"` returns GDAL's container until the
-upstream suffix-pre-emption feature (serapeum-org/pyramids#1344) lands.
+bare `read_file("…SAFE")` without `driver="s2"` returns GDAL's container: pyramids-core
+0.71 added driver pre-emption (serapeum-org/pyramids-core#1344), but it is opt-in and
+this driver does not declare `preempts`, so GDAL still wins the bare path.
 
 ::: pyramids_eo.drivers
     options:
