@@ -132,13 +132,15 @@ read time:
 ```python
 from pyramids_eo.stac import available_signers
 
-available_signers()
-# ('anonymous', 'aws-requester-pays', 'mpc-sas', 'earthdata', 'cdse',
-#  'cdse-s3', 'bdc-token')
-
 if endpoint["signer"] not in available_signers():
-    raise ValueError(f"catalog names an unknown signer: {endpoint['signer']!r}")
+    raise ValueError(
+        f"catalog names an unknown signer: {endpoint['signer']!r}; "
+        f"expected one of {available_signers()}"
+    )
 ```
+
+The names themselves are deliberately not repeated here — `available_signers()` is the list, and the section
+above shows each one in use.
 
 See the [`stac` API reference](reference/stac.md) for the full signature of each
 signer.
