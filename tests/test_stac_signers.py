@@ -829,6 +829,83 @@ class TestBuildSigner:
         )
 
 
+    def test_cdse_forwards_client_id(self):
+        """Test build_signer('cdse') forwards client_id to the signer.
+
+        Test scenario:
+            `client_id` is in the cdse whitelist. Dropping it would silently
+            fall back to the signer's default client, so a deployment using a
+            non-default Keycloak client would authenticate as the wrong one.
+        """
+        signer = build_signer("cdse", username="u", password="p", client_id="my-client")
+        assert signer._client_id == "my-client", (
+            f"client_id should reach the signer, got {signer._client_id!r}"
+        )
+
+    def test_mpc_sas_forwards_timeout(self):
+        """Test build_signer('mpc-sas') forwards timeout to the signer.
+
+        Test scenario:
+            `timeout` is in the mpc-sas whitelist. Dropping it would silently
+            restore the default HTTP timeout for SAS minting.
+        """
+        signer = build_signer("mpc-sas", timeout=99)
+        assert signer._timeout == 99, (
+            f"timeout should reach the signer, got {signer._timeout!r}"
+        )
+
+    def test_bdc_token_forwards_the_explicit_token(self, monkeypatch):
+        """Test build_signer('bdc-token') uses the kwarg token, not the env one.
+
+        Test scenario:
+            `BdcTokenSigner` falls back to `$BDC_ACCESS_TOKEN`, so ignoring the
+            explicit token would not raise — it would sign with a *different*
+            credential. The env var is set to a distinct value here so that
+            failure mode is visible rather than silent.
+        """
+        monkeypatch.setenv("BDC_ACCESS_TOKEN", "env-token")
+        signer = build_signer("bdc-token", token="kwarg-token")
+        out = signer.sign_href("https://data.inpe.br/x.tif")
+        assert out.endswith("access_token=kwarg-token"), (
+            f"the explicit token must win over $BDC_ACCESS_TOKEN, got {out!r}"
+        )
+
+    def test_rejection_does_not_chain_the_lookup_error(self):
+        """Test the ValueError hides the KeyError/TypeError it came from.
+
+        Test scenario:
+            `raise ... from None` keeps the traceback as it was before the
+            registry, when the chain ended in a bare `raise ValueError`. A
+            chained KeyError would leak the dict lookup as an implementation
+            detail into every caller's traceback.
+        """
+        with pytest.raises(ValueError) as excinfo:
+            build_signer("nope")
+        assert excinfo.value.__cause__ is None, (
+            f"expected no chained cause, got {excinfo.value.__cause__!r}"
+        )
+        assert excinfo.value.__suppress_context__ is True, (
+            "expected `from None` to suppress the lookup error's context"
+        )
+
+    def test_a_hostile_hash_propagates_rather_than_becoming_value_error(self):
+        """Test an exception from a custom __hash__ is not converted.
+
+        Test scenario:
+            Only KeyError and TypeError are caught, so a `signer_type` whose
+            `__hash__` raises something else surfaces that error unchanged.
+            Pinned deliberately: no catalog value can reach this, and widening
+            the except clause would mask real faults.
+        """
+
+        class Hostile:
+            def __hash__(self):
+                raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            build_signer(Hostile())
+
+
 class TestSelect:
     """`_select` whitelists the kwargs a signer accepts from the full bundle."""
 
