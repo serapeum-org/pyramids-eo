@@ -125,5 +125,22 @@ build_signer("anonymous", region="af-south-1")     # pyramids-eo _AnonymousS3Sig
 build_signer("aws-requester-pays", region="us-west-2")  # pyramids generic signer
 ```
 
+`available_signers()` returns the names `build_signer` accepts, so a catalog
+value can be validated when the catalog is parsed rather than failing later at
+read time:
+
+```python
+from pyramids_eo.stac import available_signers
+
+if endpoint["signer"] not in available_signers():
+    raise ValueError(
+        f"catalog names an unknown signer: {endpoint['signer']!r}; "
+        f"expected one of {available_signers()}"
+    )
+```
+
+`available_signers()` is the authoritative list; the calls above are illustrative, so prefer the function over
+copying them when you need to validate a value.
+
 See the [`stac` API reference](reference/stac.md) for the full signature of each
 signer.

@@ -33,15 +33,22 @@ letting the truthy string ``"false"`` switch an option on.
 
 The entry points in ``pyproject.toml`` are the whole integration; installing the package is
 enough for ``read_file`` to find these. Each driver is a thin wrapper over an existing reader
-(``from_earthengine`` / ``read_seviri`` / ``from_sentinel2`` / ``read_fci_l1c``), which stays the
-ergonomic public API.
+(``from_earthengine`` / ``read_seviri`` / ``from_sentinel2`` / ``read_fci_l1c`` / ``read_olci`` /
+``read_slstr``), which stays the ergonomic public API.
+
+Only a driver's ``read`` is reachable this way: ``Dataset.read_file`` never dispatches
+``read_collection``, so :meth:`~pyramids_eo.drivers.earthengine.EarthEngineDriver.read_collection`
+is declared and implemented but unreachable through the facade — a temporal stack goes through
+``collection_from_earthengine``.
 
 A single ``read_file`` source string can name a *set* of files — a directory, a glob, or an
 ``fci://`` path — which is how a multi-chunk FCI granule is addressed (see
 :func:`~pyramids_eo.drivers._base.expand_sources`). The one reader reachable only via an explicit
 ``driver="s2"`` is Sentinel-2: GDAL ships its own ``SENTINEL2`` driver and opens a ``.SAFE`` on the
-plain ``read_file`` path before any plugin, so a bare-path auto-route waits on the upstream
-suffix-pre-emption feature requested in serapeum-org/pyramids#1344.
+plain ``read_file`` path before any plugin. pyramids-core 0.71 added a way out — a driver that
+declares ``preempts`` for a suffix or scheme is tried *before* GDAL
+(serapeum-org/pyramids-core#1344) — but pre-emption is opt-in and no driver here declares it yet,
+so a bare ``.SAFE`` path still needs ``driver="s2"``.
 """
 
 from __future__ import annotations

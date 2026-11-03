@@ -20,6 +20,8 @@ from pyramids_eo.stac.signers import (
     PlanetaryComputerSigner,
     _AnonymousS3Signer,
     _BearerProviderSigner,
+    _select,
+    available_signers,
     build_signer,
 )
 
@@ -768,6 +770,339 @@ class TestBuildSigner:
         """An unknown signer name raises ValueError naming the choices."""
         with pytest.raises(ValueError, match="unknown signer_type"):
             build_signer("nope")
+
+    def test_unknown_signer_message_is_unchanged(self):
+        """The rejection text is byte-identical to the pre-registry message."""
+        with pytest.raises(ValueError) as excinfo:
+            build_signer("nope")
+        assert str(excinfo.value) == (
+            "unknown signer_type 'nope'; expected one of 'anonymous', "
+            "'aws-requester-pays', 'mpc-sas', 'earthdata', 'cdse', 'cdse-s3', "
+            "'bdc-token'."
+        )
+
+    def test_unknown_signer_message_lists_every_available_signer(self):
+        """The message is derived from the registry, so it can never drift from it.
+
+        This is the regression the registry exists to prevent: before it, the
+        name list was written out a second time in the error string and a new
+        provider could be dispatched correctly yet omitted from the message.
+        """
+        with pytest.raises(ValueError) as excinfo:
+            build_signer("nope")
+        message = str(excinfo.value)
+        for name in available_signers():
+            assert repr(name) in message
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            pytest.param(None, id="none"),
+            pytest.param(42, id="int"),
+            pytest.param("", id="empty-string"),
+            pytest.param("ANONYMOUS", id="wrong-case"),
+            pytest.param(("anonymous",), id="tuple"),
+            pytest.param(["anonymous"], id="unhashable-list"),
+            pytest.param({"name": "anonymous"}, id="unhashable-dict"),
+        ],
+    )
+    def test_non_name_input_always_raises_value_error(self, bad):
+        """Test build_signer rejects any non-name input with ValueError.
+
+        Args:
+            bad: A signer_type that is not a known name — wrong type, wrong
+                case, empty, or unhashable.
+
+        Test scenario:
+            The pre-registry implementation compared `signer_type == "..."`,
+            which tolerates any type and falls through to ValueError. A dict
+            lookup instead raises TypeError for an unhashable key, so the
+            unhashable cases here guard that the registry did not narrow the
+            contract. Lookup is also exact, so wrong case is not a match.
+        """
+        with pytest.raises(ValueError, match="unknown signer_type") as excinfo:
+            build_signer(bad)
+        assert repr(bad) in str(excinfo.value), (
+            f"the rejection should echo the offending value {bad!r}, "
+            f"got: {excinfo.value}"
+        )
+
+    @pytest.mark.parametrize(
+        "signer_type, kwarg, value, attribute",
+        [
+            ("mpc-sas", "sas_url", "https://custom/token", "_sas_url"),
+            ("mpc-sas", "subscription_key", "sub-key", "_subscription_key"),
+            ("mpc-sas", "refresh_window", 11, "_refresh_window"),
+            ("mpc-sas", "timeout", 12, "_timeout"),
+            ("earthdata", "username", "edl-user", "_username"),
+            ("earthdata", "password", "edl-pass", "_password"),
+            ("earthdata", "token", "edl-tok", "_static_token"),
+            ("earthdata", "refresh_window", 13, "_refresh_window"),
+            ("earthdata", "timeout", 14, "_timeout"),
+            ("cdse", "username", "cdse-user", "_username"),
+            ("cdse", "password", "cdse-pass", "_password"),
+            ("cdse", "client_id", "my-client", "_client_id"),
+            ("cdse", "refresh_window", 15, "_refresh_window"),
+            ("cdse", "timeout", 16, "_timeout"),
+            ("anonymous", "region", "af-south-1", "_region"),
+            ("aws-requester-pays", "region", "us-west-2", "region"),
+            ("bdc-token", "token", "bdc-tok", "_explicit_token"),
+        ],
+    )
+    def test_every_whitelisted_credential_reaches_its_signer(
+        self, signer_type, kwarg, value, attribute
+    ):
+        """Test each whitelist entry actually arrives at the signer.
+
+        Args:
+            signer_type: The catalog name to build.
+            kwarg: The credential kwarg under test.
+            value: A distinctive value to look for on the built signer.
+            attribute: Where the signer stores it.
+
+        Test scenario:
+            Covers every entry of every factory's whitelist, so dropping any
+            one of them fails. Five of these have a silent `os.environ`
+            fallback (`earthdata` and `cdse` username/password, `mpc-sas`
+            subscription_key), which means a dropped kwarg would not raise —
+            it would authenticate with a *different* credential.
+        """
+        signer = build_signer(signer_type, **{kwarg: value})
+        assert getattr(signer, attribute) == value, (
+            f"{signer_type!r} dropped {kwarg!r}: expected {value!r} at "
+            f"{attribute!r}, found {getattr(signer, attribute)!r}"
+        )
+
+    def test_bdc_token_kwarg_wins_over_the_environment(self, monkeypatch):
+        """Test the explicit BDC token beats `$BDC_ACCESS_TOKEN` end to end.
+
+        Test scenario:
+            The behavioural counterpart to the matrix above, through the public
+            `sign_href`. The env var is set to a different value so the failure
+            mode is visible: ignoring the kwarg would sign successfully with
+            the wrong credential rather than raising.
+        """
+        monkeypatch.setenv("BDC_ACCESS_TOKEN", "env-token")
+        signer = build_signer("bdc-token", token="kwarg-token")
+        out = signer.sign_href("https://data.inpe.br/x.tif")
+        assert out.endswith("access_token=kwarg-token"), (
+            f"the explicit token must win over $BDC_ACCESS_TOKEN, got {out!r}"
+        )
+
+    def test_rejection_does_not_chain_the_lookup_error(self):
+        """Test the ValueError hides the KeyError/TypeError it came from.
+
+        Test scenario:
+            `raise ... from None` keeps the traceback as it was before the
+            registry, when the chain ended in a bare `raise ValueError`. A
+            chained KeyError would leak the dict lookup as an implementation
+            detail into every caller's traceback.
+        """
+        with pytest.raises(ValueError) as excinfo:
+            build_signer("nope")
+        assert excinfo.value.__cause__ is None, (
+            f"expected no chained cause, got {excinfo.value.__cause__!r}"
+        )
+        assert excinfo.value.__suppress_context__ is True, (
+            "expected `from None` to suppress the lookup error's context"
+        )
+
+    def test_a_type_error_from_hash_is_converted_like_an_unhashable_type(self):
+        """Test a TypeError out of `__hash__` becomes ValueError.
+
+        Test scenario:
+            The lookup cannot tell a TypeError raised inside `__hash__` from
+            the TypeError CPython raises for an unhashable type, so both take
+            the rejection path. Pinned so the Raises section stays honest about
+            which failures convert and which do not.
+        """
+
+        class HashRaisesTypeError:
+            def __hash__(self):
+                raise TypeError("from __hash__")
+
+        hostile = HashRaisesTypeError()
+        with pytest.raises(ValueError, match="unknown signer_type"):
+            build_signer(hostile)
+
+    def test_a_non_type_error_from_hash_propagates(self):
+        """Test any other exception from `__hash__` surfaces unchanged.
+
+        Test scenario:
+            Only KeyError and TypeError are caught, so a `__hash__` raising
+            something else is not converted. Pinned deliberately: no catalog
+            value can reach this, and widening the clause would mask real
+            faults.
+        """
+
+        class HashRaisesRuntimeError:
+            def __hash__(self):
+                raise RuntimeError("boom")
+
+        hostile = HashRaisesRuntimeError()
+        with pytest.raises(RuntimeError, match="boom"):
+            build_signer(hostile)
+
+
+class TestSelect:
+    """`_select` whitelists the kwargs a signer accepts from the full bundle."""
+
+    def test_keeps_only_whitelisted_keys(self):
+        """Test _select drops keys the target signer does not accept.
+
+        Test scenario:
+            The STAC backend forwards one credential bundle for every signer,
+            so a stray `region` must not reach a bearer signer.
+        """
+        creds = {"username": "u", "password": "p", "region": "eu", "access_key": "ak"}
+        result = _select(creds, ("username", "password"))
+        assert result == {"username": "u", "password": "p"}, (
+            f"only the whitelisted keys should survive, got {result}"
+        )
+
+    def test_missing_keys_are_omitted_not_defaulted(self):
+        """Test _select omits absent keys rather than inserting None.
+
+        Test scenario:
+            A signer's own default must apply when a credential is absent, so
+            `_select` must not pass an explicit None that would override it.
+        """
+        result = _select({"username": "u"}, ("username", "password", "timeout"))
+        assert result == {"username": "u"}, (
+            f"absent keys must not appear at all, got {result}"
+        )
+
+    def test_order_follows_keys_not_creds(self):
+        """Test _select returns keys in the whitelist's order.
+
+        Test scenario:
+            Insertion order is taken from `keys`, so the result is stable
+            regardless of how the caller happened to order the bundle.
+        """
+        creds = {"timeout": 1, "password": "p", "username": "u"}
+        result = _select(creds, ("username", "password", "timeout"))
+        assert list(result) == ["username", "password", "timeout"], (
+            f"order should follow `keys`, got {list(result)}"
+        )
+
+    def test_does_not_mutate_the_input_bundle(self):
+        """Test _select leaves the caller's credential bundle untouched.
+
+        Test scenario:
+            `build_signer` may consult the bundle again, and the backend reuses
+            it across signers, so selection must be pure.
+        """
+        creds = {"username": "u", "region": "eu"}
+        before = dict(creds)
+        _select(creds, ("username",))
+        assert creds == before, f"the input bundle was mutated: {creds} != {before}"
+
+    def test_a_present_none_is_forwarded_and_overrides_the_default(self):
+        """Test `_select` keeps a key whose value is None.
+
+        Test scenario:
+            Only *absence* protects a signer's default. A bundle that carries
+            an explicit `None` forwards it, which overrides the default — e.g.
+            `timeout=None` disables the SAS-mint timeout rather than leaving it
+            at 30s. This matches the pre-registry chain, whose dict
+            comprehension was identical, so it is pinned as the inherited
+            contract rather than changed here.
+        """
+        assert _select({"timeout": None}, ("timeout",)) == {"timeout": None}, (
+            "an explicit None must be forwarded, not dropped"
+        )
+        assert build_signer("mpc-sas")._timeout == 30.0, (
+            "omitting timeout should leave the signer's own default"
+        )
+        assert build_signer("mpc-sas", timeout=None)._timeout is None, (
+            "an explicit timeout=None should override the signer's default"
+        )
+
+    def test_empty_whitelist_yields_empty_mapping(self):
+        """Test _select returns an empty dict when no keys are accepted.
+
+        Test scenario:
+            A signer taking no credentials gets nothing forwarded, rather than
+            the whole bundle.
+        """
+        result = _select({"username": "u"}, ())
+        assert result == {}, f"an empty whitelist should select nothing, got {result}"
+
+
+class TestAvailableSigners:
+    """`available_signers` publishes the registry's keys for catalog validation."""
+
+    def test_lists_every_known_signer_in_declaration_order(self):
+        """The generic signers lead, then the provider signers."""
+        assert available_signers() == (
+            "anonymous",
+            "aws-requester-pays",
+            "mpc-sas",
+            "earthdata",
+            "cdse",
+            "cdse-s3",
+            "bdc-token",
+        )
+
+    def test_every_listed_name_builds_a_conforming_signer(self):
+        """Test each listed name maps to a usable `pyramids.stac.Signer`.
+
+        Test scenario:
+            Cross-checks the published list against what the factories really
+            produce, so a name cannot be advertised while its factory is
+            missing, misspelled, or returns something unusable. Each of the
+            protocol's side-effect-free surfaces is *called* rather than
+            merely looked up: `isinstance(x, Signer)` against a
+            `runtime_checkable` Protocol only checks that five attributes
+            exist, so a namespace of integers satisfies it. `gdal_env` is
+            checked for callability only, never invoked — on a bearer provider
+            it mints a token, which would put this test on the network. The
+            host in `sign_href` belongs to no provider, so every signer passes
+            it through without minting either.
+        """
+        bundle = {
+            "access_key": "ak",
+            "secret_key": "sk",
+            "token": "t",
+            "username": "u",
+            "password": "p",
+        }
+        for name in available_signers():
+            signer = build_signer(name, **bundle)
+            assert isinstance(signer.name, str), (
+                f"{name!r} produced a non-string .name: {signer.name!r}"
+            )
+            assert signer.name, f"{name!r} produced a signer with an empty .name"
+            assert callable(signer.gdal_env), f"{name!r}: gdal_env is not callable"
+            signed = signer.sign_href("https://example.invalid/a.tif")
+            assert isinstance(signed, str), (
+                f"{name!r}: sign_href() returned {type(signed).__name__}, not a str"
+            )
+            assert signer.sign_item(None) is None, (
+                f"{name!r}: sign_item() must return None for pystac-client's "
+                f"modifier contract"
+            )
+
+    def test_is_re_exported_from_the_package_root(self):
+        """Test `available_signers` is reachable from `pyramids_eo.stac`.
+
+        Test scenario:
+            Consumers import it from the package, not the private module, and
+            `__all__` is what the docs promise — so both the re-export and the
+            `__all__` entry are pinned here rather than only in a doctest.
+        """
+        import pyramids_eo.stac as pkg
+
+        assert pkg.available_signers is available_signers, (
+            "the package re-export should be the same object as the module's"
+        )
+        assert "available_signers" in pkg.__all__, (
+            f"available_signers missing from __all__: {pkg.__all__}"
+        )
+
+    def test_a_typo_is_not_listed(self):
+        """A near-miss catalog value is reported absent, which is the use case."""
+        assert "mpc_sas" not in available_signers()
 
 
 class TestBdcTokenSigner:

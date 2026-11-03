@@ -62,14 +62,19 @@ These two differ from the geostationary readers above in three ways worth knowin
   with no Planck conversion applied.
 
 - **SLSTR is dual-view and multi-grid.** It images each scene twice, so
-  `view="nadir"` (default) or `view="oblique"` selects one; and its channels sit on
-  different resolutions — `S1`–`S6` on the 500 m `a` grid (with `S4`–`S6` also on
-  the alternative 500 m `b`), `S7`–`S9` on the 1 km `i` grid, and of the fire
-  channels **`F1` on the 1 km `f` grid but `F2` on `i`** — they are asymmetric, and
-  there is no `F2_BT_f*.nc`. `grid=` restricts a read to one grid and never falls
-  back to another, so an explicit `grid=` can't quietly hand back a different
-  resolution. `available_slstr_channels(granule)` reports what a particular granule
-  carries, per view and grid, which is how to discover a non-nominal layout.
+  `view="nadir"` / `"n"` or `"oblique"` / `"o"` selects one. `view` defaults to
+  `None`, which is *not* a synonym for nadir: a channel name may spell the view
+  itself (`"S8_BT_io"`), and a spelled view wins — nadir is the fallback only when
+  neither the channel nor `view=` names one. Its channels sit on different
+  resolutions — `S1`–`S6` on the 500 m `a` grid (with `S4`–`S6` also on the
+  alternative 500 m `b`), `S7`–`S9` on the 1 km `i` grid, and of the fire channels
+  **`F1` on `f` *or* `i` while `F2` is `i`-only** — they are asymmetric, and there
+  is no `F2_BT_f*.nc`, so an `f`-less granule still reads `F1` from `i`. `grid=`
+  restricts a read to one grid and never falls back to another, so an explicit
+  `grid=` can't quietly hand back a different resolution.
+  `available_slstr_channels(granule)` reports what a granule carries on the grids
+  of **one view** per call — `view="nadir"` unless you ask for `"oblique"` — which
+  is how to discover a non-nominal layout.
   Because the grids differ in shape, `channels=[...]` returns a
   `dict[str, Dataset]` of differently-sized arrays rather than a stack.
 
@@ -82,11 +87,14 @@ These two differ from the geostationary readers above in three ways worth knowin
   an explicit reference grid — so it is provenance for a caller, not an input to
   the stack.)
 
-A reader keyword passed through `read_file` arrives as a string, because
-`Dataset.read_file` normalises `open_options` to GDAL's `KEY=VALUE` form. The
-drivers therefore accept `geolocation=false` (and `true`/`yes`/`no`/`on`/`off`/`1`/`0`)
-and reject anything else, instead of treating the truthy string `"false"` as
-switching the option on. Note that a channel *set* is a direct-call feature:
+A reader keyword passed through `read_file` as a `KEY=VALUE` list arrives as a
+string, because `Dataset.read_file` normalises `open_options` to GDAL's form. The
+drivers therefore translate the **string** spellings of a boolean
+(`false`/`true`, `yes`/`no`, `on`/`off`, `1`/`0`, case-insensitively) and reject a
+string they do not recognise, instead of treating the truthy `"false"` as
+switching the option on. A value that is not a string reaches the reader
+untouched, so the dict form with a real `False` is the unambiguous way to write
+it. Note that a channel *set* is a direct-call feature:
 `read_file` requires one `Dataset` back, so use `read_olci(..., channels=[...])`
 when you want several at once.
 
@@ -187,8 +195,9 @@ s2 = Dataset.read_file("S2A_MSIL2A.SAFE", driver="s2", open_options={"bands": ["
 `read_file` forwards only `open_options` to a driver, so reader keywords (channel,
 bbox, bands, credentials, …) are passed there; options needing a non-string type
 (e.g. S2 `resolution=10`) must be given in dict form, not a `KEY=VALUE` list. A
-bare `read_file("…SAFE")` without `driver="s2"` returns GDAL's container until the
-upstream suffix-pre-emption feature (serapeum-org/pyramids#1344) lands.
+bare `read_file("…SAFE")` without `driver="s2"` returns GDAL's container: pyramids-core
+0.71 added driver pre-emption (serapeum-org/pyramids-core#1344), but it is opt-in and
+this driver does not declare `preempts`, so GDAL still wins the bare path.
 
 ::: pyramids_eo.drivers
     options:

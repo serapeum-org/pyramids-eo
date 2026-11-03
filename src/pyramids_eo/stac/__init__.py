@@ -17,7 +17,9 @@ They satisfy pyramids' `Signer` protocol, so they drop into
 `build_signer` maps a catalog `signer:` string to the right object: the
 `anonymous` case is the pyramids-eo-local `_AnonymousS3Signer` (which adds
 `AWS_NO_SIGN_REQUEST` and region pinning), while `aws-requester-pays` reuses the
-pyramids generic signer.
+pyramids generic signer. `available_signers` lists the names it accepts, so a
+consumer can validate a catalog value when the catalog is parsed instead of
+discovering a typo at read time.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from pyramids_eo.stac.signers import (
     CDSESigner,
     EarthdataSigner,
     PlanetaryComputerSigner,
+    available_signers,
     build_signer,
 )
 
@@ -37,5 +40,6 @@ __all__ = [
     "CdseS3Signer",
     "EarthdataSigner",
     "PlanetaryComputerSigner",
+    "available_signers",
     "build_signer",
 ]

@@ -30,6 +30,11 @@ asset-read boundary needs credentials. The `build_signer` factory maps a catalog
 `signer:` string to the right object: the `anonymous` case is the
 pyramids-eo-local `_AnonymousS3Signer` (which adds `AWS_NO_SIGN_REQUEST` and
 region pinning), while `aws-requester-pays` reuses the pyramids generic signer.
+
+The name -> object mapping lives in one place, the `_SIGNER_FACTORIES` registry:
+`build_signer` dispatches through it and derives its rejection message from it,
+and `available_signers` publishes its keys so a consumer can validate a catalog
+`signer:` value at parse time. Adding a provider means adding one entry there.
 """
 
 from __future__ import annotations
@@ -41,6 +46,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import parse_qs, quote, urlencode, urlparse, urlsplit, urlunsplit
@@ -1033,18 +1039,194 @@ class _AnonymousS3Signer:
         return None
 
 
+def _select(creds: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
+    """Return the subset of `creds` whose keys are in `keys`.
+
+    The STAC backend forwards one credential bundle for every signer, so a
+    factory taking several optional kwargs uses this to keep the ones its
+    signer accepts and drop the rest (a stray `region` must not reach the CDSE
+    bearer signer). Only `_build_mpc_sas`, `_build_earthdata` and `_build_cdse`
+    need it: the others read a single key, and `_build_cdse_s3` forwards the
+    whole bundle to `auth_cdse.s3_credentials`, which ignores what it does not
+    use.
+
+    Args:
+        creds: The full credential bundle handed to `build_signer`.
+        keys: The kwarg names the target signer accepts.
+
+    Returns:
+        dict[str, Any]: The whitelisted subset, preserving `keys` order.
+    """
+    return {k: creds[k] for k in keys if k in creds}
+
+
+def _build_anonymous(**creds: Any) -> Any:
+    """Build the pyramids-eo-local anonymous S3 signer.
+
+    Args:
+        **creds: Credential bundle; only `region` is used.
+
+    Returns:
+        An `_AnonymousS3Signer` pinned to `region` when one is given.
+    """
+    return _AnonymousS3Signer(region=creds.get("region"))
+
+
+def _build_aws_requester_pays(**creds: Any) -> Any:
+    """Build pyramids' generic requester-pays signer.
+
+    `pyramids.stac` is imported inside the factory, not at module scope, so
+    importing `pyramids_eo.stac` does not pull in pyramids' STAC stack for
+    callers that never build this signer.
+
+    Args:
+        **creds: Credential bundle; only `region` is used.
+
+    Returns:
+        A `pyramids.stac.AWSRequesterPaysSigner` for `region`.
+    """
+    from pyramids.stac import AWSRequesterPaysSigner
+
+    return AWSRequesterPaysSigner(region=creds.get("region"))
+
+
+def _build_mpc_sas(**creds: Any) -> Any:
+    """Build the Planetary Computer SAS signer.
+
+    Args:
+        **creds: Credential bundle; `sas_url`, `subscription_key`,
+            `refresh_window` and `timeout` are forwarded.
+
+    Returns:
+        A `PlanetaryComputerSigner`.
+    """
+    keys = ("sas_url", "subscription_key", "refresh_window", "timeout")
+    return PlanetaryComputerSigner(**_select(creds, keys))
+
+
+def _build_earthdata(**creds: Any) -> Any:
+    """Build the NASA Earthdata (EDL) bearer signer.
+
+    Args:
+        **creds: Credential bundle; `username`, `password`, `token`,
+            `refresh_window` and `timeout` are forwarded.
+
+    Returns:
+        An `EarthdataSigner`.
+    """
+    keys = ("username", "password", "token", "refresh_window", "timeout")
+    return EarthdataSigner(**_select(creds, keys))
+
+
+def _build_cdse(**creds: Any) -> Any:
+    """Build the Copernicus Data Space Keycloak bearer signer.
+
+    Args:
+        **creds: Credential bundle; `username`, `password`, `client_id`,
+            `refresh_window` and `timeout` are forwarded.
+
+    Returns:
+        A `CDSESigner`.
+    """
+    keys = ("username", "password", "client_id", "refresh_window", "timeout")
+    return CDSESigner(**_select(creds, keys))
+
+
+def _build_cdse_s3(**creds: Any) -> Any:
+    """Build the Copernicus Data Space S3-credential signer.
+
+    Args:
+        **creds: Credential bundle forwarded to `auth_cdse.s3_credentials`,
+            which resolves the S3 key pair from kwargs then the environment.
+
+    Returns:
+        A `CdseS3Signer` carrying the resolved key pair.
+    """
+    from pyramids_eo.stac import auth_cdse
+
+    access_key, secret_key = auth_cdse.s3_credentials(**creds)
+    return CdseS3Signer(access_key=access_key, secret_key=secret_key)
+
+
+def _build_bdc_token(**creds: Any) -> Any:
+    """Build the Brazil Data Cube token signer.
+
+    Args:
+        **creds: Credential bundle; only `token` is used (the signer falls back
+            to `$BDC_ACCESS_TOKEN` when it is absent).
+
+    Returns:
+        A `BdcTokenSigner`.
+    """
+    return BdcTokenSigner(token=creds.get("token"))
+
+
+#: Catalog `signer:` name -> factory. This mapping is the single source of the
+#: known signer names: :func:`available_signers` reads it, and
+#: :func:`build_signer` builds its rejection message from it, so a new provider
+#: is added here and nowhere else. Insertion order is the documented order —
+#: the two generic signers first, then the provider signers — and is what
+#: `available_signers()` and the error message report.
+_SIGNER_FACTORIES: dict[str, Callable[..., Any]] = {
+    "anonymous": _build_anonymous,
+    "aws-requester-pays": _build_aws_requester_pays,
+    "mpc-sas": _build_mpc_sas,
+    "earthdata": _build_earthdata,
+    "cdse": _build_cdse,
+    "cdse-s3": _build_cdse_s3,
+    "bdc-token": _build_bdc_token,
+}
+
+
+def available_signers() -> tuple[str, ...]:
+    """Return the signer names a catalog `signer:` field may carry.
+
+    Lets a consumer validate a catalog value when the catalog is parsed, rather
+    than discovering a typo as a `ValueError` from :func:`build_signer` at the
+    moment a read is attempted.
+
+    Returns:
+        tuple[str, ...]: Every known signer name, in declaration order (the two
+        generic signers first, then the provider signers).
+
+    Examples:
+        - The generic signers lead and every name is a valid `build_signer` key:
+            ```python
+            >>> from pyramids_eo.stac import available_signers
+            >>> available_signers()[:2]
+            ('anonymous', 'aws-requester-pays')
+            >>> all(n in available_signers() for n in ("mpc-sas", "cdse-s3"))
+            True
+
+            ```
+        - Use it to validate a catalog value before building anything:
+            ```python
+            >>> from pyramids_eo.stac import available_signers
+            >>> "mpc_sas" in available_signers()  # a typo for 'mpc-sas'
+            False
+
+            ```
+
+    See Also:
+        build_signer: Builds the signer one of these names refers to.
+
+    """
+    return tuple(_SIGNER_FACTORIES)
+
+
 def build_signer(signer_type: str, **creds: Any) -> Any:
     """Build the signer named by a catalog `signer:` field.
 
-    The `anonymous` signer is the pyramids-eo-local `_AnonymousS3Signer` and the
-    `aws-requester-pays` signer comes from `pyramids.stac` (imported lazily so
-    the package imports without the `[stac]` extra); the `mpc-sas` /
-    `earthdata` / `cdse` / `cdse-s3` / `bdc-token` provider signers are the
-    pyramids-eo-local classes above.
+    Dispatches through :data:`_SIGNER_FACTORIES`. The `anonymous` signer is the
+    pyramids-eo-local `_AnonymousS3Signer` and the `aws-requester-pays` signer
+    comes from `pyramids.stac` (imported inside its factory, so importing this
+    module pulls in no STAC stack); the `mpc-sas` / `earthdata` / `cdse` / `cdse-s3` /
+    `bdc-token` provider signers are the pyramids-eo-local classes above.
 
     Args:
-        signer_type: One of `"anonymous"`, `"aws-requester-pays"`, `"mpc-sas"`,
-            `"earthdata"`, `"cdse"`, `"cdse-s3"`, `"bdc-token"`.
+        signer_type: A name from :func:`available_signers` — `"anonymous"`,
+            `"aws-requester-pays"`, `"mpc-sas"`, `"earthdata"`, `"cdse"`,
+            `"cdse-s3"` or `"bdc-token"`.
         **creds: Extra credentials forwarded to the selected signer — `region`
             for `anonymous` (pins GDAL at an opt-in region's S3 endpoint) and
             `aws-requester-pays`; `username` / `password` / `token` for
@@ -1057,7 +1239,13 @@ def build_signer(signer_type: str, **creds: Any) -> Any:
         A signer satisfying the `pyramids.stac.Signer` protocol.
 
     Raises:
-        ValueError: When `signer_type` is not a known signer name.
+        ValueError: When `signer_type` is not a known signer name — including
+            when it is not a string at all, or is unhashable (a list or dict
+            from a malformed catalog). A `TypeError` raised by a custom
+            `__hash__` or `__eq__` is indistinguishable from an unhashable
+            type and is converted too; any *other* exception from them
+            propagates, since widening the except clause further would mask
+            real faults.
 
     Examples:
         - The MPC key maps to the native SAS signer (no SDK):
@@ -1090,31 +1278,22 @@ def build_signer(signer_type: str, **creds: Any) -> Any:
             ValueError: unknown signer_type 'nope'; expected one of ... 'bdc-token'.
 
             ```
+
+    See Also:
+        available_signers: The names this factory accepts, for validating a
+            catalog value before building anything.
+
     """
-    if signer_type == "anonymous":
-        return _AnonymousS3Signer(region=creds.get("region"))
-    if signer_type == "aws-requester-pays":
-        from pyramids.stac import AWSRequesterPaysSigner
-
-        return AWSRequesterPaysSigner(region=creds.get("region"))
-    if signer_type == "mpc-sas":
-        pc_keys = ("sas_url", "subscription_key", "refresh_window", "timeout")
-        return PlanetaryComputerSigner(**{k: creds[k] for k in pc_keys if k in creds})
-    if signer_type == "earthdata":
-        keys = ("username", "password", "token", "refresh_window", "timeout")
-        return EarthdataSigner(**{k: creds[k] for k in keys if k in creds})
-    if signer_type == "cdse":
-        keys = ("username", "password", "client_id", "refresh_window", "timeout")
-        return CDSESigner(**{k: creds[k] for k in keys if k in creds})
-    if signer_type == "cdse-s3":
-        from pyramids_eo.stac import auth_cdse
-
-        access_key, secret_key = auth_cdse.s3_credentials(**creds)
-        return CdseS3Signer(access_key=access_key, secret_key=secret_key)
-    if signer_type == "bdc-token":
-        return BdcTokenSigner(token=creds.get("token"))
-    raise ValueError(
-        f"unknown signer_type {signer_type!r}; expected one of "
-        "'anonymous', 'aws-requester-pays', 'mpc-sas', 'earthdata', 'cdse', "
-        "'cdse-s3', 'bdc-token'."
-    )
+    try:
+        factory = _SIGNER_FACTORIES[signer_type]
+    except (KeyError, TypeError):
+        # TypeError covers an unhashable `signer_type` (a list or dict from a
+        # malformed catalog) and a TypeError out of a custom `__hash__`/`__eq__`,
+        # which is not distinguishable from it. The pre-registry `if/elif` chain
+        # compared with `==`, which tolerates any type, so both must still raise
+        # ValueError. Anything else from `__hash__` propagates.
+        names = ", ".join(repr(name) for name in available_signers())
+        raise ValueError(
+            f"unknown signer_type {signer_type!r}; expected one of {names}."
+        ) from None
+    return factory(**creds)

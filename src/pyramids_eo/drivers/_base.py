@@ -5,11 +5,12 @@ two things :meth:`pyramids.dataset.Dataset.read_file` needs to route a source in
 a class-level claim set plus a ``can_open`` predicate — and maps the generic ``read`` arguments
 onto the reader's own keywords. The reader bodies are untouched; a driver only delegates.
 
-The contract version is declared as the literal ``1`` on each driver, matching pyramids' own
-"writing a raster driver" guidance (pyramids does not re-export ``RASTER_DRIVER_API_VERSION``
-publicly — it lives in the private ``pyramids.dataset._drivers`` — so importing the constant
-would couple to a private module). This should become ``api_version = RASTER_DRIVER_API_VERSION``
-once pyramids exposes the contract version from a public module.
+The contract version reaches each driver as ``api_version = RASTER_DRIVER_API_VERSION``, the
+constant defined in *this* module. It is hard-coded to ``1`` here rather than imported from
+pyramids, which keeps its own copy in the private ``pyramids.dataset._drivers`` and does not
+re-export it (``from pyramids.dataset import RASTER_DRIVER_API_VERSION`` raises ``ImportError`` on
+the 0.73 floor). Sourcing it from pyramids instead of restating it is what should happen once
+pyramids exposes the contract version from a public module.
 """
 
 from __future__ import annotations
