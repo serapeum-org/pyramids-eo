@@ -707,10 +707,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#sentinel-2-a-safe-product" class="md-nav__link">
+  <a href="#himawari-ahi-an-hsd-dat-granule" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sentinel-2 — a .SAFE product
+        Himawari AHI — an HSD .DAT granule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sentinel-2-a-safe-product-needs-drivers2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sentinel-2 — a .SAFE product (needs driver="s2")
       
     </span>
   </a>
@@ -1704,10 +1715,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#sentinel-2-a-safe-product" class="md-nav__link">
+  <a href="#himawari-ahi-an-hsd-dat-granule" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sentinel-2 — a .SAFE product
+        Himawari AHI — an HSD .DAT granule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sentinel-2-a-safe-product-needs-drivers2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sentinel-2 — a .SAFE product (needs driver="s2")
       
     </span>
   </a>
@@ -1843,6 +1865,11 @@ the whole integration</strong> — there is nothing to import or configure. The 
 <td><a href="../reference/readers/"><code>read_seviri</code></a></td>
 </tr>
 <tr>
+<td><code>ahi</code></td>
+<td>a Himawari AHI HSD <code>HS_….DAT</code> granule</td>
+<td><a href="../reference/readers/"><code>read_ahi</code></a></td>
+</tr>
+<tr>
 <td><code>s2</code></td>
 <td>a Sentinel-2 <code>.SAFE</code> product (or <code>.SAFE.zip</code>)</td>
 <td><a href="../reference/sentinel/"><code>from_sentinel2</code></a></td>
@@ -1870,8 +1897,8 @@ the whole integration</strong> — there is nothing to import or configure. The 
 <ol>
 <li><strong><code>driver="&lt;name&gt;"</code> given</strong> → that registered driver is used and <strong>GDAL is bypassed entirely</strong>.</li>
 <li><strong>a driver that <em>pre-empts</em> GDAL for this source</strong> → one that lists the source's suffix or scheme in its
-   <code>preempts</code> <em>and</em> confirms it via <code>can_open</code> is tried <strong>before</strong> GDAL. This is opt-in; of the six drivers only
-   <code>s2</code> declares it, for <code>.safe</code>. An explicit <code>vsi=</code> outranks it.</li>
+   <code>preempts</code> <em>and</em> confirms it via <code>can_open</code> is tried <strong>before</strong> GDAL. This is opt-in, and <strong>no pyramids-eo
+   driver declares <code>preempts</code> today</strong>, so this step currently never fires here. An explicit <code>vsi=</code> outranks it.</li>
 <li><strong>otherwise GDAL is tried</strong> → if GDAL can open the source, you get GDAL's result and no plugin runs.</li>
 <li><strong>only if GDAL fails</strong> → each registered driver's <code>can_open(source)</code> is asked, and the first to claim it reads it.</li>
 </ol>
@@ -1879,22 +1906,19 @@ the whole integration</strong> — there is nothing to import or configure. The 
 <ul>
 <li><code>ee://…</code>, a <code>.nat</code> granule, and the granule <strong>directories</strong> (FCI's chunk set, a Sentinel-3 <code>.SEN3</code>) auto-route
   to pyramids-eo, because GDAL cannot open any of them (step 3 fails, step 4 claims them).</li>
-<li>a Sentinel-2 <code>.SAFE</code> <strong>product directory</strong> auto-routes too, but by a different step: GDAL ships its own
-  <code>SENTINEL2</code> driver and would open it at step 3 and hand back a bare <em>container</em> (0 bands + a
-  <code>ContainerRasterWarning</code>), so the <code>s2</code> driver declares <code>preempts = (".safe",)</code> and wins at <strong>step 2</strong>, before
-  GDAL is tried.</li>
-<li>a <strong>zipped</strong> product (<code>.SAFE.zip</code>) is the one case still needing <code>driver="s2"</code>. pyramids matches a source's
-  <em>final</em> suffix, so a zipped product presents as <code>.zip</code>: <code>".safe.zip"</code> in <code>preempts</code> could never match it, and
-  <code>".zip"</code> would claim every archive. It keeps the GDAL-first order.</li>
+<li>a Sentinel-2 <code>.SAFE</code> does <strong>not</strong> auto-route: GDAL ships its own <code>SENTINEL2</code> driver and opens it at step 2, so a
+  bare <code>read_file("…SAFE")</code> returns GDAL's raw <em>container</em> (0 bands + a <code>ContainerRasterWarning</code>). Ask for the
+  pyramids-eo reader explicitly with <code>driver="s2"</code> (step 1) — step 2 would be the other way out, but the S2
+  driver does not declare <code>preempts</code>.</li>
 </ul>
 <div class="admonition note">
-<p class="admonition-title">What pre-emption does and does not cover</p>
-<p>Pre-emption shipped in pyramids-core 0.71
-(<a href="https://github.com/serapeum-org/pyramids-core/issues/1344">serapeum-org/pyramids-core#1344</a>), below this
-package's floor, so every supported version has it. It is opt-in per driver and deliberately narrow here:
-only <code>s2</code> declares it, and only for the <code>.safe</code> directory form. The other five drivers read formats GDAL
-cannot open at all, so they already auto-route at step 4 and would gain nothing. An explicit <code>vsi=</code> skips
-the pre-empt scan entirely, since that is a deliberate "open member N of this archive" intent.</p>
+<p class="admonition-title">Why S2 still needs <code>driver=</code></p>
+<p>pyramids-core <em>does</em> offer a way out: a driver that declares <code>preempts</code> for a suffix or scheme is tried
+<strong>before</strong> GDAL rather than after it — shipped in pyramids-core 0.71
+(<a href="https://github.com/serapeum-org/pyramids-core/issues/1344">serapeum-org/pyramids-core#1344</a>), so every
+version pyramids-eo supports already has it. Pre-emption is opt-in, though, and no pyramids-eo driver
+declares <code>preempts</code> yet — so GDAL-first remains the behaviour above, and <code>driver="s2"</code> is still required
+for a bare <code>.SAFE</code> path.</p>
 </div>
 <h2 id="passing-reader-options"><a class="toclink" href="#passing-reader-options">Passing reader options</a><a class="headerlink" href="#passing-reader-options" title="Permanent link">#</a></h2>
 <p><code>read_file</code> forwards <strong>only</strong> its <code>open_options</code> to a driver — it has no <code>bbox</code> / <code>bands</code> / <code>crs</code> parameters of its
@@ -1940,43 +1964,55 @@ The drivers pull the window/band/credential keys out of <code>open_options</code
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">ir</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"MSG4-SEVIRI-MSG15.nat"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"IR_108"</span><span class="p">})</span>
 </code></pre></div>
 <p>The read covers the whole granule, so <code>bbox</code> / <code>crs</code> do not apply.</p>
-<h3 id="sentinel-2-a-safe-product"><a class="toclink" href="#sentinel-2-a-safe-product">Sentinel-2 — a <code>.SAFE</code> product</a><a class="headerlink" href="#sentinel-2-a-safe-product" title="Permanent link">#</a></h3>
+<h3 id="himawari-ahi-an-hsd-dat-granule"><a class="toclink" href="#himawari-ahi-an-hsd-dat-granule">Himawari AHI — an HSD <code>.DAT</code> granule</a><a class="headerlink" href="#himawari-ahi-an-hsd-dat-granule" title="Permanent link">#</a></h3>
+<p><code>.dat</code> is too generic to claim by extension, so this driver claims the HSD <strong>file-name</strong>
+convention instead (<code>HS_aaa_yyyymmdd_hhnn_Bbb_cccc_Rjj_Skkll.DAT</code>, optionally <code>.bz2</code>). A
+granule names its own band, so <code>open_options</code> can be omitted entirely:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># A product directory auto-routes: the s2 driver pre-empts GDAL, so no driver= is needed</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">scene</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="s2">"S2A_MSIL2A.SAFE"</span><span class="p">,</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bands"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"B04"</span><span class="p">,</span> <span class="s2">"B08"</span><span class="p">],</span> <span class="s2">"resolution"</span><span class="p">:</span> <span class="mi">10</span><span class="p">},</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">)</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># driver="s2" still works and short-circuits ahead of pre-emption — useful to be explicit</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">scene</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="s2">"S2A_MSIL2A.SAFE"</span><span class="p">,</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="n">driver</span><span class="o">=</span><span class="s2">"s2"</span><span class="p">,</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bands"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"B04"</span><span class="p">,</span> <span class="s2">"B08"</span><span class="p">],</span> <span class="s2">"resolution"</span><span class="p">:</span> <span class="mi">10</span><span class="p">},</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="p">)</span>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="c1"># A zipped product is NOT pre-empted (it presents as `.zip`), so name the driver for it</span>
-<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="n">scene</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S2A_MSIL2A.SAFE.zip"</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s2">"s2"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bands"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"B04"</span><span class="p">]})</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">bt</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT"</span><span class="p">)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># pass calibrate=false for raw radiance; through read_file it arrives as a string,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># which the driver coerces rather than reading the truthy "false" as on</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">raw</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="s2">"HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"calibrate"</span><span class="p">:</span> <span class="s2">"false"</span><span class="p">}</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">)</span>
+</code></pre></div>
+<p>A renamed granule is still readable with an explicit <code>driver="ahi"</code>. <code>read_file</code> dispatches
+one source, so a segmented full disk is stitched by calling
+<a href="../reference/readers/"><code>read_ahi</code></a> with the segment paths directly.</p>
+<h3 id="sentinel-2-a-safe-product-needs-drivers2"><a class="toclink" href="#sentinel-2-a-safe-product-needs-drivers2">Sentinel-2 — a <code>.SAFE</code> product (needs <code>driver="s2"</code>)</a><a class="headerlink" href="#sentinel-2-a-safe-product-needs-drivers2" title="Permanent link">#</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Band selection + DN -&gt; reflectance (the pyramids-eo reader, not GDAL's container):</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">scene</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="s2">"S2A_MSIL2A.SAFE"</span><span class="p">,</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">driver</span><span class="o">=</span><span class="s2">"s2"</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bands"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"B04"</span><span class="p">,</span> <span class="s2">"B08"</span><span class="p">],</span> <span class="s2">"resolution"</span><span class="p">:</span> <span class="mi">10</span><span class="p">},</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">)</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="c1"># A zipped product is also claimed:</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="n">scene</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S2A_MSIL2A.SAFE.zip"</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s2">"s2"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bands"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"B04"</span><span class="p">]})</span>
 </code></pre></div>
 <p>Scene-classification masking and the other <code>from_sentinel2</code> keywords (<code>reflectance</code>, <code>mask_scl</code>, <code>epsg</code>,
 <code>resample</code>) go in <code>open_options</code> too.</p>
 <h3 id="fci-an-l1c-fdhsi-granule-a-chunk-set"><a class="toclink" href="#fci-an-l1c-fdhsi-granule-a-chunk-set">FCI — an L1C FDHSI granule (a chunk set)</a><a class="headerlink" href="#fci-an-l1c-fdhsi-granule-a-chunk-set" title="Permanent link">#</a></h3>
 <p>A real FCI L1C granule is a <em>set</em> of NetCDF chunk files, so the source string names the <strong>set</strong> — a directory
 holding the chunks, a glob matching them, or an <code>fci://</code> path — and the driver stitches them:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># A granule directory (GDAL cannot open a directory, so this auto-routes):</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">ir</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"/data/MTI1_FCI_L1C_granule"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"ir_105"</span><span class="p">})</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># A glob of the chunks, or an explicit fci:// path:</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">ir</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"/data/granule/*FDHSI*.nc"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"ir_105"</span><span class="p">})</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="n">ir</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"fci:///data/MTI1_FCI_L1C_granule"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"ir_105"</span><span class="p">})</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="c1"># A channel set is NOT available here - see the note below:</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="c1"># Dataset.read_file("/data/granule", open_options={"channels": ["vis_06", "ir_105"]})  # TypeError</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># A granule directory (GDAL cannot open a directory, so this auto-routes):</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">ir</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"/data/MTI1_FCI_L1C_granule"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"ir_105"</span><span class="p">})</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># A glob of the chunks, or an explicit fci:// path:</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="n">ir</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"/data/granule/*FDHSI*.nc"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"ir_105"</span><span class="p">})</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">ir</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"fci:///data/MTI1_FCI_L1C_granule"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"ir_105"</span><span class="p">})</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="c1"># A channel set is NOT available here - see the note below:</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="c1"># Dataset.read_file("/data/granule", open_options={"channels": ["vis_06", "ir_105"]})  # TypeError</span>
 </code></pre></div>
 <p>A channel <strong>set</strong> is a direct-call feature only. <code>read_file</code> requires a driver to hand back exactly one
 <code>Dataset</code>, so <code>open_options={"channels": [...]}</code> raises <code>TypeError</code> from pyramids' plugin layer. Call
@@ -1994,19 +2030,19 @@ clearer "the product looks incomplete" message. Use the <code>olci://</code> / <
 to name one explicitly and skip the guesswork.</p>
 <p>Both read <strong>one channel at a time</strong> and the channel is required. Note that <code>read_file</code> forwards only
 <code>open_options</code>, never a <code>bands</code> argument, so the channel must travel inside <code>open_options</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># OLCI L1B (EFR or ERR) — the channel is required:</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">oa08</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_OL_1_EFR.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"Oa08"</span><span class="p">})</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Name the reader explicitly, by scheme or by driver:</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="n">oa08</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"olci:///data/S3A_OL_1_EFR.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"Oa08"</span><span class="p">})</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">oa08</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_OL_1_EFR.SEN3"</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s2">"olci"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"Oa08"</span><span class="p">})</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="c1"># SLSTR L1 RBT — dual-view and multi-grid, so `view` and `grid` select which:</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="n">s8</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_SL_1_RBT.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"S8"</span><span class="p">,</span> <span class="s2">"view"</span><span class="p">:</span> <span class="s2">"oblique"</span><span class="p">})</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="n">s5</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_SL_1_RBT.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"S5"</span><span class="p">,</span> <span class="s2">"grid"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">})</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># OLCI L1B (EFR or ERR) — the channel is required:</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">oa08</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_OL_1_EFR.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"Oa08"</span><span class="p">})</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Name the reader explicitly, by scheme or by driver:</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">oa08</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"olci:///data/S3A_OL_1_EFR.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"Oa08"</span><span class="p">})</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="n">oa08</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_OL_1_EFR.SEN3"</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s2">"olci"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"Oa08"</span><span class="p">})</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="c1"># SLSTR L1 RBT — dual-view and multi-grid, so `view` and `grid` select which:</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="n">s8</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_SL_1_RBT.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"S8"</span><span class="p">,</span> <span class="s2">"view"</span><span class="p">:</span> <span class="s2">"oblique"</span><span class="p">})</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="n">s5</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_SL_1_RBT.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"S5"</span><span class="p">,</span> <span class="s2">"grid"</span><span class="p">:</span> <span class="s2">"a"</span><span class="p">})</span>
 </code></pre></div>
 <p><code>view</code> takes <code>"nadir"</code> / <code>"n"</code> or <code>"oblique"</code> / <code>"o"</code> (case-insensitive) and defaults to <code>None</code>. <code>None</code> does
 <strong>not</strong> simply mean nadir: a channel name may spell the view itself (<code>"S8_BT_io"</code> ends in <code>io</code>, the
@@ -2019,10 +2055,10 @@ no <code>view=</code> at all. SLSTR's channels sit on different grids — <code>
 a different resolution.</p>
 <p>These are <strong>swath</strong> readers, so the result carries a GDAL <code>GEOLOCATION</code> metadata domain, a placeholder
 pixel/line geotransform and no CRS — nothing is resampled. Warp it yourself when you want a map grid:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">swath</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_OL_1_EFR.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"Oa08"</span><span class="p">})</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">gdal</span><span class="o">.</span><span class="n">Warp</span><span class="p">(</span><span class="s2">"oa08.tif"</span><span class="p">,</span> <span class="n">swath</span><span class="o">.</span><span class="n">raster</span><span class="p">,</span> <span class="n">geoloc</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">swath</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S3A_OL_1_EFR.SEN3"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"Oa08"</span><span class="p">})</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">gdal</span><span class="o">.</span><span class="n">Warp</span><span class="p">(</span><span class="s2">"oa08.tif"</span><span class="p">,</span> <span class="n">swath</span><span class="o">.</span><span class="n">raster</span><span class="p">,</span> <span class="n">geoloc</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
 <p>Pass <code>open_options={"geolocation": False}</code> to skip attaching the geolocation arrays: the <code>GEOLOCATION</code>
 domain is still present but empty, and the placeholder geotransform is unchanged, so the result stays
@@ -2062,10 +2098,8 @@ default, so check the oblique side with <code>view="oblique"</code>.</p>
 <p>The facades are the source of truth for the reader options; the driver simply maps <code>open_options</code> onto them.</p>
 <h2 id="troubleshooting"><a class="toclink" href="#troubleshooting">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Permanent link">#</a></h2>
 <ul>
-<li><strong>A bare <code>read_file("X.SAFE.zip")</code> gave a 0-band dataset and a <code>ContainerRasterWarning</code>.</strong> GDAL opened the
-  archive before the plugin. A <em>zipped</em> product is not pre-empted, because pyramids matches the final suffix and
-  sees <code>.zip</code> — pass <code>driver="s2"</code>. A <code>.SAFE</code> <strong>directory</strong> needs no <code>driver=</code>; if one gave you a container, check
-  that pyramids-eo is installed (<code>Dataset.read_file</code> can only pre-empt a driver it discovered).</li>
+<li><strong>A bare <code>read_file("X.SAFE")</code> gave a 0-band dataset and a <code>ContainerRasterWarning</code>.</strong> GDAL opened the <code>.SAFE</code>
+  before the plugin. Pass <code>driver="s2"</code> to reach the pyramids-eo reader.</li>
 <li><strong>A Sentinel-2 <code>resolution</code>/<code>epsg</code> was ignored or mistyped.</strong> You passed a <code>KEY=VALUE</code> list, which keeps values as
   strings. Pass <code>open_options</code> as a <strong>dict</strong> so the <code>int</code> survives.</li>
 <li><strong><code>FciDriver</code> raised "no chunk files found for FCI source …".</strong> Point the source at the granule <strong>directory</strong>, a
