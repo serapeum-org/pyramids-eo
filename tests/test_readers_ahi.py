@@ -238,7 +238,7 @@ class TestHeaderFields:
                 band=13,
                 columns=6,
                 lines=3,
-                satellite="H09",
+                satellite="Himawari-9",
                 sub_lon=140.7,
                 slope=0.25,
                 intercept=-5.0,
@@ -249,7 +249,7 @@ class TestHeaderFields:
             )
         )
         assert isinstance(header, HsdHeader)
-        assert header.satellite == "H09"
+        assert header.satellite == "Himawari-9"
         assert (header.band, header.band_number, header.kind) == ("B13", 13, "thermal")
         assert (header.columns, header.lines) == (6, 3)
         assert (header.bits_per_pixel, header.valid_bits) == (16, 14)
@@ -904,7 +904,7 @@ def test_read_ahi_real_granule_matches_the_published_registration():
     assert 139.0 < header.sub_lon < 142.0, (
         f"Himawari sits near 140.7E, got {header.sub_lon}"
     )
-    assert header.satellite in {"H08", "H09"}, header.satellite
+    assert header.satellite in {"Himawari-8", "Himawari-9"}, header.satellite
     assert header.rs_km == pytest.approx(42164.0, abs=1.0)
     assert header.req_km == pytest.approx(6378.137, abs=0.01)
     assert header.total_segments >= 1

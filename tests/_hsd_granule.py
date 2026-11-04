@@ -34,6 +34,13 @@ FIXED_BLOCK_LENGTHS = {1: 282, 2: 50, 3: 127, 4: 139, 5: 147, 6: 259, 7: 47, 11:
 #: another and from every fixed length, so the header walk is genuinely tested.
 VARIABLE_BLOCK_LENGTHS = {8: 61, 9: 93, 10: 134}
 
+#: Block #1 field 5 carries a 16-byte ASCII satellite name, which the
+#: specification gives as ``Himawari-8`` / ``Himawari-9``. That is NOT the
+#: ``aaa`` token of the file name (Table 4), which is ``H08`` / ``H09``; the two
+#: vocabularies are different and a fixture that uses one for both hides the
+#: difference. This maps the header name onto the file-name token.
+SATELLITE_FILE_TOKENS = {"Himawari-8": "H08", "Himawari-9": "H09"}
+
 #: Published Himawari full-disk navigation: the column/line scaling factor for
 #: each native grid, with the sub-satellite point at the grid centre.
 CFAC_BY_RESOLUTION_M = {2000: 20466275, 1000: 40932550, 500: 81865100}
@@ -228,7 +235,7 @@ def granule_bytes(
     columns: int = 8,
     lines: int = 4,
     resolution_m: int = 2000,
-    satellite: str = "H08",
+    satellite: str = "Himawari-8",
     sub_lon: float = 140.7,
     coff: float | None = None,
     loff: float | None = None,
@@ -255,7 +262,9 @@ def granule_bytes(
         lines: Lines in this granule / segment.
         resolution_m: Native grid whose published ``CFAC`` / ``LFAC`` to write
             (2000, 1000 or 500).
-        satellite: Satellite name for block #1.
+        satellite: Satellite name for block #1, as the specification spells it
+            (``"Himawari-8"`` / ``"Himawari-9"``) -- not the file name's ``H08``
+            token.
         sub_lon: Sub-satellite longitude, degrees east.
         coff: Column offset; defaults to the grid centre for a full disk of this
             resolution, which is what a real granule carries.
@@ -371,9 +380,10 @@ def write_granule(directory: Any, *, compress: bool = False, **kwargs: Any) -> P
     Returns:
         The path written.
     """
+    satellite = kwargs.get("satellite", "Himawari-8")
     name = hsd_filename(
         band=kwargs.get("band", 13),
-        satellite=kwargs.get("satellite", "H08"),
+        satellite=SATELLITE_FILE_TOKENS.get(satellite, "H08"),
         resolution_m=kwargs.get("resolution_m", 2000),
         segment_number=kwargs.get("segment_number", 1),
         total_segments=kwargs.get("total_segments", 1),

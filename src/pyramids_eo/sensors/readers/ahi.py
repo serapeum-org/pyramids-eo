@@ -93,7 +93,9 @@ _FIXED_BLOCK_LENGTHS = {
 #: either way — which is what breaks the chicken-and-egg of needing to know the
 #: byte order in order to read the byte order.
 _B1_BYTE_ORDER = 5
-#: ``Satellite name`` (``C`` x 16), e.g. ``H08`` / ``H09``.
+#: ``Satellite name`` (``C`` x 16), which the specification spells
+#: ``Himawari-8`` / ``Himawari-9``. The ``H08`` / ``H09`` form belongs to the
+#: file name's ``aaa`` token (Guide Table 4), not to this field.
 _B1_SATELLITE = 6
 _B1_SATELLITE_BYTES = 16
 
@@ -411,7 +413,10 @@ class HsdHeader:
     """The HSD header fields a read needs, decoded from one granule.
 
     Attributes:
-        satellite: Satellite name from block #1 (e.g. ``"H08"``).
+        satellite: Satellite name from block #1, as the granule spells it --
+            ``"Himawari-8"`` or ``"Himawari-9"``. This is a different vocabulary
+            from the file name's ``H08`` / ``H09`` token, which
+            :func:`band_from_filename` parses instead.
         band_number: AHI band number, 1-16 (block #5).
         columns: Pixels per line in this granule / segment (block #2).
         lines: Lines in this granule / segment (block #2).
@@ -455,7 +460,7 @@ class HsdHeader:
             ```python
             >>> from pyramids_eo.sensors.readers.ahi import HsdHeader
             >>> header = HsdHeader(
-            ...     satellite="H08", band_number=13, columns=5500, lines=5500,
+            ...     satellite="Himawari-8", band_number=13, columns=5500, lines=5500,
             ...     bits_per_pixel=16, valid_bits=14, compression=0, sub_lon=140.7,
             ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
             ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
@@ -712,7 +717,7 @@ def pixel_size_m(header: HsdHeader) -> tuple[float, float]:
             ```python
             >>> from pyramids_eo.sensors.readers.ahi import HsdHeader, pixel_size_m
             >>> header = HsdHeader(
-            ...     satellite="H08", band_number=13, columns=5500, lines=5500,
+            ...     satellite="Himawari-8", band_number=13, columns=5500, lines=5500,
             ...     bits_per_pixel=16, valid_bits=14, compression=0, sub_lon=140.7,
             ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
             ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
@@ -733,7 +738,7 @@ def pixel_size_m(header: HsdHeader) -> tuple[float, float]:
             >>> import dataclasses
             >>> from pyramids_eo.sensors.readers.ahi import HsdHeader, pixel_size_m
             >>> header = HsdHeader(
-            ...     satellite="H08", band_number=13, columns=5500, lines=5500,
+            ...     satellite="Himawari-8", band_number=13, columns=5500, lines=5500,
             ...     bits_per_pixel=16, valid_bits=14, compression=0, sub_lon=140.7,
             ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
             ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
@@ -797,7 +802,7 @@ def geotransform(header: HsdHeader, first_line: int) -> tuple[float, ...]:
             ```python
             >>> from pyramids_eo.sensors.readers.ahi import HsdHeader, geotransform
             >>> header = HsdHeader(
-            ...     satellite="H08", band_number=13, columns=5500, lines=5500,
+            ...     satellite="Himawari-8", band_number=13, columns=5500, lines=5500,
             ...     bits_per_pixel=16, valid_bits=14, compression=0, sub_lon=140.7,
             ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
             ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
@@ -822,7 +827,7 @@ def geotransform(header: HsdHeader, first_line: int) -> tuple[float, ...]:
             ```python
             >>> from pyramids_eo.sensors.readers.ahi import HsdHeader, geotransform
             >>> header = HsdHeader(
-            ...     satellite="H08", band_number=13, columns=5500, lines=5500,
+            ...     satellite="Himawari-8", band_number=13, columns=5500, lines=5500,
             ...     bits_per_pixel=16, valid_bits=14, compression=0, sub_lon=140.7,
             ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
             ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
