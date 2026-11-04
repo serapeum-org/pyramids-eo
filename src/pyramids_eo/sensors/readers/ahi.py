@@ -98,6 +98,20 @@ _B1_BYTE_ORDER = 5
 #: file name's ``aaa`` token (Guide Table 4), not to this field.
 _B1_SATELLITE = 6
 _B1_SATELLITE_BYTES = 16
+#: ``Observation area`` (``C`` x 4), the same token as the file name's ``cccc``
+#: field — ``FLDK`` for a full disk, ``JP01`` for a Japan-area scan.
+_B1_AREA = 38
+_B1_AREA_BYTES = 4
+#: ``Observation timeline`` (``I2``), as ``hhmm``.
+_B1_TIMELINE = 44
+#: ``Observation start time`` (``R8``), Modified Julian Date.
+_B1_START_MJD = 46
+#: ``Total header length`` (``I4``) and ``Total data length`` (``I4``). The
+#: granule states both, which makes them an independent check on the header
+#: walk: if the walk ends somewhere other than the declared header length, it
+#: went wrong, whatever the individual blocks claimed.
+_B1_TOTAL_HEADER_LENGTH = 70
+_B1_TOTAL_DATA_LENGTH = 74
 
 # --- #2 Data information block (50 bytes) ------------------------------------
 _B2_BITS_PER_PIXEL = 3  # I2
@@ -419,6 +433,14 @@ def walk_header_blocks(buffer: bytes, order: ByteOrder) -> dict[int, tuple[int, 
             )
         blocks[expected] = (offset, length)
         offset += length
+    declared = _unpack(buffer, order, "I", _B1_TOTAL_HEADER_LENGTH)
+    if declared and declared != offset:
+        # Block #1 states the whole header's length, so this catches a walk that
+        # drifted even though every individual block looked self-consistent.
+        raise ReaderError(
+            f"read_ahi: the header walk ended at byte {offset} but block #1 "
+            f"declares a total header length of {declared} — unexpected HSD layout"
+        )
     blocks[_DATA_BLOCK] = (offset, len(buffer) - offset)
     return blocks
 
@@ -468,6 +490,14 @@ class HsdHeader:
         total_segments: Number of segments the full image is split into (#7).
         segment_number: This granule's segment sequence number (block #7).
         first_line: 1-based line of this segment within the full image (#7).
+        observation_area: Observation-area token from block #1 (``"FLDK"`` for a
+            full disk), the same vocabulary as the file name's ``cccc`` field.
+        observation_timeline: Observation timeline as ``hhmm`` (block #1).
+        observation_start_mjd: Observation start time in Modified Julian Date
+            (block #1), which is what identifies segments as one acquisition.
+        total_header_length: Header length the granule declares (block #1), used
+            to check the header walk rather than trusted blindly.
+        total_data_length: Pixel-payload length the granule declares (block #1).
 
     Examples:
         - A decoded band-13 full-disk header reports its band, its radiometric
@@ -485,6 +515,9 @@ class HsdHeader:
             ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
             ...     boltzmann_constant=1.3806488e-23,
             ...     total_segments=10, segment_number=1, first_line=1,
+            ...     observation_area="FLDK", observation_timeline=230,
+            ...     observation_start_mjd=57127.1041666667,
+            ...     total_header_length=1598, total_data_length=60500000,
             ... )
             >>> header.band
             'B13'
@@ -526,6 +559,11 @@ class HsdHeader:
     total_segments: int
     segment_number: int
     first_line: int
+    observation_area: str
+    observation_timeline: int
+    observation_start_mjd: float
+    total_header_length: int
+    total_data_length: int
 
     @property
     def band(self) -> str:
@@ -700,6 +738,19 @@ def parse_hsd_header(buffer: bytes) -> HsdHeader:
         total_segments=int(buffer[segment + _B7_TOTAL_SEGMENTS]),
         segment_number=int(buffer[segment + _B7_SEGMENT_NUMBER]),
         first_line=int(_unpack(buffer, order, "H", segment + _B7_FIRST_LINE)),
+        observation_area=buffer[basic + _B1_AREA : basic + _B1_AREA + _B1_AREA_BYTES]
+        .decode("ascii", "replace")
+        .strip()
+        .strip("\x00")
+        .strip(),
+        observation_timeline=int(_unpack(buffer, order, "H", basic + _B1_TIMELINE)),
+        observation_start_mjd=float(_unpack(buffer, order, "d", basic + _B1_START_MJD)),
+        total_header_length=int(
+            _unpack(buffer, order, "I", basic + _B1_TOTAL_HEADER_LENGTH)
+        ),
+        total_data_length=int(
+            _unpack(buffer, order, "I", basic + _B1_TOTAL_DATA_LENGTH)
+        ),
     )
 
 
@@ -742,6 +793,9 @@ def pixel_size_m(header: HsdHeader) -> tuple[float, float]:
             ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
             ...     boltzmann_constant=1.3806488e-23,
             ...     total_segments=10, segment_number=1, first_line=1,
+            ...     observation_area="FLDK", observation_timeline=230,
+            ...     observation_start_mjd=57127.1041666667,
+            ...     total_header_length=1598, total_data_length=60500000,
             ... )
             >>> [round(step, 4) for step in pixel_size_m(header)]
             [2000.0, 2000.0]
@@ -763,6 +817,9 @@ def pixel_size_m(header: HsdHeader) -> tuple[float, float]:
             ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
             ...     boltzmann_constant=1.3806488e-23,
             ...     total_segments=10, segment_number=1, first_line=1,
+            ...     observation_area="FLDK", observation_timeline=230,
+            ...     observation_start_mjd=57127.1041666667,
+            ...     total_header_length=1598, total_data_length=60500000,
             ... )
             >>> fine = dataclasses.replace(header, cfac=81865100, lfac=81865100)
             >>> [round(step, 4) for step in pixel_size_m(fine)]
@@ -827,6 +884,9 @@ def geotransform(header: HsdHeader, first_line: int) -> tuple[float, ...]:
             ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
             ...     boltzmann_constant=1.3806488e-23,
             ...     total_segments=10, segment_number=1, first_line=1,
+            ...     observation_area="FLDK", observation_timeline=230,
+            ...     observation_start_mjd=57127.1041666667,
+            ...     total_header_length=1598, total_data_length=60500000,
             ... )
             >>> x_min, dx, _, y_max, _, dy = geotransform(header, 1)
             >>> round(x_min), round(y_max)
@@ -852,6 +912,9 @@ def geotransform(header: HsdHeader, first_line: int) -> tuple[float, ...]:
             ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
             ...     boltzmann_constant=1.3806488e-23,
             ...     total_segments=10, segment_number=1, first_line=1,
+            ...     observation_area="FLDK", observation_timeline=230,
+            ...     observation_start_mjd=57127.1041666667,
+            ...     total_header_length=1598, total_data_length=60500000,
             ... )
             >>> whole = geotransform(header, 1)
             >>> segment = geotransform(header, 1651)
@@ -1124,14 +1187,21 @@ def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
         paths: An iterable of HSD segment paths of the **same** band and
             timestamp.
 
+    A **contiguous subset** is accepted and returns only the lines it covers,
+    georeferenced where those lines belong in the disk — reading one segment is
+    already supported, so a run of several is not a different kind of request.
+    What is rejected is a set with a gap or a duplicate, and a set whose members
+    are not from one acquisition.
+
     Returns:
         A ``(radiance, header)`` pair: the stitched array covering every line the
         segments carry, and the header of the first (northernmost) segment.
 
     Raises:
-        ReaderError: When no path is given, the segments disagree on band, grid
-            width or projection, a segment repeats, or the segments leave a gap
-            (which would otherwise yield a silently part-blank disk).
+        ReaderError: When no path is given; the segments disagree on band, grid
+            width, projection, satellite, observation (time or area), or how many
+            segments the image has; a segment repeats; or the segments leave a
+            gap, which would otherwise yield a silently part-blank disk.
     """
     decoded: list[tuple[HsdHeader, Any]] = []
     for path in paths:
@@ -1164,6 +1234,41 @@ def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
             raise ReaderError(
                 "read_ahi: segments disagree on the projection block; they are "
                 "not segments of one image"
+            )
+        # Contiguous line numbers do NOT establish that segments belong
+        # together: every timeline numbers its segments the same way, so two
+        # acquisitions ten minutes apart stitch into a seamless-looking image
+        # made of two different scenes. These are the fields that actually
+        # identify one acquisition.
+        if header.satellite != first.satellite:
+            raise ReaderError(
+                f"read_ahi: segments come from different satellites "
+                f"({first.satellite!r} and {header.satellite!r})"
+            )
+        if (header.observation_start_mjd, header.observation_area) != (
+            first.observation_start_mjd,
+            first.observation_area,
+        ):
+            raise ReaderError(
+                f"read_ahi: segments come from different observations "
+                f"({first.observation_area!r} at MJD "
+                f"{first.observation_start_mjd!r} and "
+                f"{header.observation_area!r} at MJD "
+                f"{header.observation_start_mjd!r}); stitch one acquisition at a time"
+            )
+        if header.total_segments != first.total_segments:
+            raise ReaderError(
+                f"read_ahi: segments disagree on how many segments the image has "
+                f"({first.total_segments} and {header.total_segments})"
+            )
+        if (header.sub_lon, header.req_km, header.rpol_km) != (
+            first.sub_lon,
+            first.req_km,
+            first.rpol_km,
+        ):
+            raise ReaderError(
+                "read_ahi: segments disagree on the projection (sub-satellite "
+                "longitude or ellipsoid); they are not segments of one image"
             )
 
     expected_line = decoded[0][0].first_line
@@ -1205,7 +1310,11 @@ def read_ahi(
 
     Pass the segment paths of one band together to read a stitched full disk;
     pass one path to read that segment alone, georeferenced where it belongs in
-    the disk.
+    the disk. A contiguous subset of the segments is also accepted and returns
+    just those lines, so a partial download reads as the band of the disk it
+    actually covers rather than being padded out or refused. The segments must
+    come from one acquisition — same band, satellite, observation time and area
+    — since line numbers alone repeat across timelines.
 
     Args:
         source: Path to an HSD ``.DAT`` / ``.DAT.bz2`` granule, an iterable of

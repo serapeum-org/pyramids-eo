@@ -1222,3 +1222,96 @@ class TestCalibrationExtras:
         path = fixture.write_granule(tmp_path, compression=flag)
         with pytest.raises(ReaderError, match=f"compression flag {flag}"):
             parse_ahi_hsd(path)
+
+
+class TestSegmentIdentity:
+    """Segments must come from ONE acquisition of one band on one satellite.
+
+    Contiguous line numbers are not enough: two timelines ten minutes apart have
+    the same per-segment first lines, so they stitch into a seamless-looking
+    image made of two different scenes.
+    """
+
+    def _segment(self, directory, index, **kwargs):
+        """Write segment `index` of a four-segment band-13 set."""
+        return fixture.write_granule(
+            directory,
+            band=kwargs.pop("band", 13),
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), index + 1, dtype=np.uint16),
+            total_segments=4,
+            segment_number=index + 1,
+            first_line=index * 3 + 1,
+            slope=1.0,
+            intercept=0.0,
+            **kwargs,
+        )
+
+    def test_rejects_segments_from_two_timelines(self, tmp_path):
+        first = self._segment(tmp_path / "a", 0, start_mjd=57127.1041666667)
+        second = self._segment(tmp_path / "b", 1, start_mjd=57127.1111111111)
+        with pytest.raises(ReaderError, match="different observation"):
+            read_ahi([first, second])
+
+    def test_rejects_segments_from_two_satellites(self, tmp_path):
+        first = self._segment(tmp_path / "a", 0, satellite="Himawari-8")
+        second = self._segment(tmp_path / "b", 1, satellite="Himawari-9")
+        with pytest.raises(ReaderError, match="different satellite"):
+            read_ahi([first, second])
+
+    def test_rejects_segments_from_two_observation_areas(self, tmp_path):
+        first = self._segment(tmp_path / "a", 0, area="FLDK")
+        second = self._segment(tmp_path / "b", 1, area="JP01")
+        with pytest.raises(ReaderError, match="different observation"):
+            read_ahi([first, second])
+
+    def test_rejects_segments_disagreeing_on_the_sub_satellite_longitude(
+        self, tmp_path
+    ):
+        first = self._segment(tmp_path / "a", 0, sub_lon=140.7)
+        second = self._segment(tmp_path / "b", 1, sub_lon=104.0)
+        with pytest.raises(ReaderError, match="projection"):
+            read_ahi([first, second])
+
+    def test_rejects_segments_disagreeing_on_the_segment_total(self, tmp_path):
+        """A set whose members disagree on how many segments exist is incoherent."""
+        first = self._segment(tmp_path / "a", 0)
+        second = fixture.write_granule(
+            tmp_path / "b",
+            band=13,
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), 2, dtype=np.uint16),
+            total_segments=7,
+            segment_number=2,
+            first_line=4,
+            slope=1.0,
+            intercept=0.0,
+        )
+        with pytest.raises(ReaderError, match="how many segments"):
+            read_ahi([first, second])
+
+    def test_accepts_a_contiguous_subset_of_the_disk(self, tmp_path):
+        """A partial read is in contract and georeferenced where it belongs.
+
+        One segment already reads on its own, so a contiguous run of two is not
+        a different kind of request. What matters is that the result is placed
+        correctly rather than passed off as the whole disk.
+        """
+        paths = [self._segment(tmp_path / f"s{i}", i) for i in range(4)]
+        middle = read_ahi(paths[1:3], calibrate=False)
+        assert middle.read_array().shape == (6, 4)
+        assert middle.read_array()[:, 0] == pytest.approx([2.0] * 3 + [3.0] * 3)
+        whole = read_ahi(paths, calibrate=False)
+        dy = whole.geotransform[5]
+        assert middle.geotransform[3] == pytest.approx(whole.geotransform[3] + 3 * dy)
+
+    def test_segments_of_one_acquisition_still_stitch(self, tmp_path):
+        """The identity checks must not reject a legitimate set."""
+        paths = [self._segment(tmp_path / f"s{i}", i) for i in range(4)]
+        values = read_ahi(paths, calibrate=False).read_array()
+        assert values.shape == (12, 4)
+        assert values[:, 0] == pytest.approx(
+            [1.0] * 3 + [2.0] * 3 + [3.0] * 3 + [4.0] * 3
+        )

@@ -125,13 +125,47 @@ class _BlockWriter:
         return body.ljust(self.length, b"\x00")
 
 
-def _basic_block(order: str, satellite: str) -> bytes:
-    """Build block #1, basic information (282 bytes)."""
+def _basic_block(
+    order: str,
+    satellite: str,
+    *,
+    area: str,
+    timeline: int,
+    start_mjd: float,
+    header_length: int,
+    data_length: int,
+) -> bytes:
+    """Build block #1, basic information (282 bytes).
+
+    Writes fields 7-14 as well as 1-6, so a reader can cross-check its header
+    walk against the granule's own declared total header and data lengths. A
+    fixture that left those zero could not exercise that check.
+
+    Args:
+        order: A `struct` byte-order prefix.
+        satellite: Satellite name as the spec spells it (``"Himawari-8"``).
+        area: Observation area token (field 7, e.g. ``"FLDK"``).
+        timeline: Observation timeline as ``hhmm`` (field 9).
+        start_mjd: Observation start time in Modified Julian Date (field 10).
+        header_length: Total header length in bytes (field 13).
+        data_length: Total data length in bytes (field 14).
+
+    Returns:
+        The 282-byte block.
+    """
     block = _BlockWriter(1, FIXED_BLOCK_LENGTHS[1], order)
     block.i2(11)  # 3 total number of header blocks
     block.i1(0 if order == "<" else 1)  # 4 byte order
     block.text(satellite, 16)  # 5 satellite name
     block.text("MSC", 16)  # 6 processing center name
+    block.text(area, 4)  # 7 observation area
+    block.text("  ", 2)  # 8 other observation information
+    block.i2(timeline)  # 9 observation timeline, hhmm
+    block.r8(start_mjd)  # 10 observation start time [MJD]
+    block.r8(start_mjd + 600.0 / 86400.0)  # 11 observation end time [MJD]
+    block.r8(start_mjd + 0.01)  # 12 file creation time [MJD]
+    block.i4(header_length)  # 13 total header length
+    block.i4(data_length)  # 14 total data length
     return block.done()
 
 
@@ -252,6 +286,11 @@ def granule_bytes(
     compression: int = 0,
     error_count: int = ERROR_COUNT,
     outside_count: int = OUTSIDE_COUNT,
+    area: str = "FLDK",
+    timeline: int = 230,
+    start_mjd: float = 57127.1041666667,
+    header_length: int | None = None,
+    data_length: int | None = None,
     order: str = "<",
 ) -> bytes:
     """Build one synthetic HSD granule.
@@ -287,6 +326,15 @@ def granule_bytes(
             honours the granule's own declaration rather than the constant.
         outside_count: The count value block #5 declares for a pixel outside the
             scan area (default 65534).
+        area: Observation area token for block #1 field 7.
+        timeline: Observation timeline (``hhmm``) for block #1 field 9.
+        start_mjd: Observation start time (MJD) for block #1 field 10. Segments
+            of one image share it; change it to build a granule from another
+            timeline.
+        header_length: Override block #1 field 13. Defaults to the real summed
+            header length, so a reader's walk can be checked against it.
+        data_length: Override block #1 field 14. Defaults to the real pixel
+            payload size.
         order: Byte order to write — ``"<"`` little-endian or ``">"`` big-endian.
 
     Returns:
@@ -299,8 +347,9 @@ def granule_bytes(
         counts = np.arange(lines * columns, dtype=np.uint16).reshape(lines, columns)
     counts = np.asarray(counts, dtype=np.uint16)
 
-    blocks = [
-        _basic_block(order, satellite),
+    # Blocks #2-#11 are built first so block #1 can declare the true total
+    # header length, which is how a reader can verify its own walk.
+    tail = [
         _data_info_block(order, columns, lines, compression),
         _projection_block(
             order,
@@ -330,8 +379,21 @@ def granule_bytes(
         _filler_block(order, 10, VARIABLE_BLOCK_LENGTHS[10]),
         _filler_block(order, 11, FIXED_BLOCK_LENGTHS[11]),
     ]
-    dtype = np.dtype(np.uint16).newbyteorder(order)
-    return b"".join(blocks) + counts.astype(dtype).tobytes()
+    payload = counts.astype(np.dtype(np.uint16).newbyteorder(order)).tobytes()
+    header = _basic_block(
+        order,
+        satellite,
+        area=area,
+        timeline=timeline,
+        start_mjd=start_mjd,
+        header_length=(
+            FIXED_BLOCK_LENGTHS[1] + sum(len(b) for b in tail)
+            if header_length is None
+            else header_length
+        ),
+        data_length=len(payload) if data_length is None else data_length,
+    )
+    return b"".join([header, *tail]) + payload
 
 
 def hsd_filename(
@@ -389,7 +451,9 @@ def write_granule(directory: Any, *, compress: bool = False, **kwargs: Any) -> P
         total_segments=kwargs.get("total_segments", 1),
     )
     payload = granule_bytes(**kwargs)
-    path = Path(directory) / (f"{name}.bz2" if compress else name)
+    folder = Path(directory)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / (f"{name}.bz2" if compress else name)
     path.write_bytes(bz2.compress(payload) if compress else payload)
     return path
 

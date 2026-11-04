@@ -34,9 +34,19 @@ with the granule's own `c` / `h` / `k` and applies its quadratic
 A granule names its own band, so `band` is optional and merely asserts the
 expectation. A full disk ships as 10 segment files; pass the segment paths of one
 band together and they are stitched by their block #7 first-line numbers, with a
-gap or a duplicate reported rather than silently left blank. A single segment
-reads on its own, georeferenced at its true place in the disk. `.DAT.bz2`
-granules are decompressed transparently.
+gap or a duplicate reported rather than silently left blank. A **contiguous
+subset** is accepted too and returns only the lines it covers, georeferenced
+where they belong in the disk — so a partial download reads as the band of the
+disk it actually covers; completeness is not required, only contiguity. A single
+segment reads on its own the same way. `.DAT.bz2` granules are decompressed
+transparently.
+
+The segments must come from one acquisition. Line numbers alone do not establish
+that, because every timeline numbers its segments identically — two scenes ten
+minutes apart would otherwise stitch into a seamless-looking image of two
+different moments. `read_ahi` therefore checks the satellite, observation time
+and area, the declared segment count, and the projection block, and refuses a
+mixed set.
 
 ```python
 from pyramids_eo.sensors.readers import read_ahi
