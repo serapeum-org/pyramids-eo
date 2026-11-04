@@ -57,6 +57,28 @@ class AhiDriver:
         capabilities: ``read`` only (one granule is one band at one timestep).
         extra: ``None`` — HSD is decoded in-process from the standard library, so there is no
             optional backend to gate on.
+
+    Examples:
+        - The driver identifies itself to ``describe_drivers`` and reads a single granule:
+            ```python
+            >>> from pyramids_eo.drivers.ahi import AhiDriver
+            >>> AhiDriver.name
+            'ahi'
+            >>> AhiDriver.suffixes
+            ('.dat',)
+            >>> sorted(AhiDriver.capabilities)
+            ['read']
+
+            ```
+        - It claims a granule by its HSD name, so an unrelated ``.dat`` is left to GDAL:
+            ```python
+            >>> from pyramids_eo.drivers.ahi import AhiDriver
+            >>> AhiDriver.can_open("HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT")
+            True
+            >>> AhiDriver.can_open("measurements.dat")
+            False
+
+            ```
     """
 
     name = "ahi"
@@ -134,6 +156,43 @@ class AhiDriver:
             ValueError: More than one band was given, or a boolean / numeric option could not
                 be read from its ``KEY=VALUE`` string spelling (``calibrate``,
                 ``sun_earth_distance``).
+
+        Examples:
+            - An AHI read is one band, so several are refused rather than silently
+              truncated. The check happens before the granule is opened, so no file is
+              needed to see it:
+                ```python
+                >>> from pyramids_eo.drivers.ahi import AhiDriver
+                >>> AhiDriver().read(  # doctest: +ELLIPSIS
+                ...     "scene.DAT", bands=["B13", "B14"]
+                ... )
+                Traceback (most recent call last):
+                    ...
+                ValueError: an AHI read is one band, but 2 bands were given ...
+
+                ```
+            - A bare string would be read one character at a time, so it is refused with
+              the spelling that works:
+                ```python
+                >>> from pyramids_eo.drivers.ahi import AhiDriver
+                >>> AhiDriver().read("scene.DAT", bands="B13")
+                Traceback (most recent call last):
+                    ...
+                ValueError: bands must be a list of band names, not a bare str ('B13'); pass bands=['B13'].
+
+                ```
+            - ``read_file`` normalises options to ``KEY=VALUE`` strings, so a boolean that
+              cannot be read from its spelling is reported instead of being taken as truthy:
+                ```python
+                >>> from pyramids_eo.drivers.ahi import AhiDriver
+                >>> AhiDriver().read(  # doctest: +ELLIPSIS
+                ...     "scene.DAT", options=["calibrate=maybe"]
+                ... )
+                Traceback (most recent call last):
+                    ...
+                ValueError: ahi: open option 'calibrate' must be a boolean; got 'maybe'. ...
+
+                ```
         """
         from pyramids_eo.sensors.readers import read_ahi
 

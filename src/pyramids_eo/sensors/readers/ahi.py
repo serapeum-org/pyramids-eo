@@ -195,6 +195,39 @@ def _canonical_band(band: Any) -> str:
 
     Raises:
         ReaderError: When `band` does not name an AHI band in 1-16.
+
+    Examples:
+        - Several spellings canonicalise to the same band:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import _canonical_band
+            >>> _canonical_band(13)
+            'B13'
+            >>> _canonical_band("b13")
+            'B13'
+            >>> _canonical_band("band13")
+            'B13'
+
+            ```
+        - A single-digit band is zero-padded, and a padded spelling is accepted:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import _canonical_band
+            >>> _canonical_band(3)
+            'B03'
+            >>> _canonical_band("3")
+            'B03'
+            >>> _canonical_band("B03")
+            'B03'
+
+            ```
+        - A band outside AHI's 1-16 is refused rather than silently clamped:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import _canonical_band
+            >>> _canonical_band(17)
+            Traceback (most recent call last):
+                ...
+            pyramids_eo.errors.ReaderError: read_ahi: AHI band number 17 is out of range 1-16
+
+            ```
     """
     if isinstance(band, (int, np.integer)) and not isinstance(band, bool):
         number = int(band)
@@ -401,6 +434,32 @@ class HsdHeader:
         total_segments: Number of segments the full image is split into (#7).
         segment_number: This granule's segment sequence number (block #7).
         first_line: 1-based line of this segment within the full image (#7).
+
+    Examples:
+        - A decoded band-13 full-disk header reports its band, its radiometric
+          kind, and the satellite height the projection is built from:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import HsdHeader
+            >>> header = HsdHeader(
+            ...     satellite="H08", band_number=13, columns=5500, lines=5500,
+            ...     bits_per_pixel=16, valid_bits=14, compression=0, sub_lon=140.7,
+            ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
+            ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
+            ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
+            ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+            ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
+            ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
+            ...     boltzmann_constant=1.3806488e-23,
+            ...     total_segments=10, segment_number=1, first_line=1,
+            ... )
+            >>> header.band
+            'B13'
+            >>> header.kind
+            'thermal'
+            >>> round(header.satellite_height_m)
+            35785863
+
+            ```
     """
 
     satellite: str
@@ -436,12 +495,24 @@ class HsdHeader:
 
     @property
     def band(self) -> str:
-        """Return the registry band key for this granule (e.g. ``"B13"``)."""
+        """Return the registry band key for this granule.
+
+        Returns:
+            The zero-padded ``"B<nn>"`` key for :attr:`band_number`, which is
+            both the bundled registry's channel key and the band field of the
+            HSD file name (e.g. ``"B13"``).
+        """
         return band_name(self.band_number)
 
     @property
     def kind(self) -> str:
-        """Return ``"solar"`` for bands 1-6, ``"thermal"`` for bands 7-16."""
+        """Return the band's radiometric kind.
+
+        Returns:
+            ``"solar"`` for bands 1-6 and ``"thermal"`` for bands 7-16 - the
+            same split the specification uses to decide which variant of
+            calibration block #5 a granule carries.
+        """
         return "solar" if self.band_number <= _SOLAR_BAND_MAX else "thermal"
 
     @property
@@ -451,6 +522,10 @@ class HsdHeader:
         The projection block gives the distance from the Earth's *centre*; the
         geostationary CRS wants the perspective-point height above the equator,
         which is that distance less the equatorial radius.
+
+        Returns:
+            The perspective-point height in metres, derived from the granule's
+            own ``Rs`` and ``req`` rather than from a hard-coded constant.
         """
         return (self.rs_km - self.req_km) * 1000.0
 
@@ -615,6 +690,51 @@ def pixel_size_m(header: HsdHeader) -> tuple[float, float]:
             is outside the plausible 100 m - 20 km window — which is how a
             misread projection block (wrong byte order or offsets) surfaces,
             rather than as a silently wrong geotransform.
+
+    Examples:
+        - Himawari's published 2 km scaling factor reproduces a 2 km grid.
+          ``CFAC`` is an integer, so it cannot encode the step exactly - the
+          residual here is well under a millimetre:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import HsdHeader, pixel_size_m
+            >>> header = HsdHeader(
+            ...     satellite="H08", band_number=13, columns=5500, lines=5500,
+            ...     bits_per_pixel=16, valid_bits=14, compression=0, sub_lon=140.7,
+            ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
+            ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
+            ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
+            ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+            ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
+            ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
+            ...     boltzmann_constant=1.3806488e-23,
+            ...     total_segments=10, segment_number=1, first_line=1,
+            ... )
+            >>> [round(step, 4) for step in pixel_size_m(header)]
+            [2000.0, 2000.0]
+
+            ```
+        - Band 3's 0.5 km grid quadruples the factor, and the step follows, so
+          the grid comes from the granule rather than from a built-in default:
+            ```python
+            >>> import dataclasses
+            >>> from pyramids_eo.sensors.readers.ahi import HsdHeader, pixel_size_m
+            >>> header = HsdHeader(
+            ...     satellite="H08", band_number=13, columns=5500, lines=5500,
+            ...     bits_per_pixel=16, valid_bits=14, compression=0, sub_lon=140.7,
+            ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
+            ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
+            ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
+            ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+            ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
+            ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
+            ...     boltzmann_constant=1.3806488e-23,
+            ...     total_segments=10, segment_number=1, first_line=1,
+            ... )
+            >>> fine = dataclasses.replace(header, cfac=81865100, lfac=81865100)
+            >>> [round(step, 4) for step in pixel_size_m(fine)]
+            [500.0, 500.0]
+
+            ```
     """
     if header.cfac == 0 or header.lfac == 0:
         raise ReaderError(
@@ -656,6 +776,55 @@ def geotransform(header: HsdHeader, first_line: int) -> tuple[float, ...]:
     Returns:
         A GDAL geotransform ``(x_min, dx, 0, y_max, 0, -dy)`` in projection
         metres.
+
+    Examples:
+        - A full disk registers symmetrically about the sub-satellite point at
+          the grid centre, and runs north-up, so ``dy`` is negative:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import HsdHeader, geotransform
+            >>> header = HsdHeader(
+            ...     satellite="H08", band_number=13, columns=5500, lines=5500,
+            ...     bits_per_pixel=16, valid_bits=14, compression=0, sub_lon=140.7,
+            ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
+            ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
+            ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
+            ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+            ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
+            ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
+            ...     boltzmann_constant=1.3806488e-23,
+            ...     total_segments=10, segment_number=1, first_line=1,
+            ... )
+            >>> x_min, dx, _, y_max, _, dy = geotransform(header, 1)
+            >>> round(x_min), round(y_max)
+            (-5500000, 5500000)
+            >>> dy < 0
+            True
+            >>> round(x_min + 5500 * dx)
+            5500000
+
+            ```
+        - A segment starting further down the disk shifts the north edge south
+          by exactly its line offset, so one segment lands where it belongs:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import HsdHeader, geotransform
+            >>> header = HsdHeader(
+            ...     satellite="H08", band_number=13, columns=5500, lines=5500,
+            ...     bits_per_pixel=16, valid_bits=14, compression=0, sub_lon=140.7,
+            ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
+            ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
+            ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
+            ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+            ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
+            ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
+            ...     boltzmann_constant=1.3806488e-23,
+            ...     total_segments=10, segment_number=1, first_line=1,
+            ... )
+            >>> whole = geotransform(header, 1)
+            >>> segment = geotransform(header, 1651)
+            >>> round((whole[3] - segment[3]) / abs(whole[5]))
+            1650
+
+            ```
     """
     dx, dy = pixel_size_m(header)
     # Column / line centres sit at (c - COFF) and -(l - LOFF) steps from the
