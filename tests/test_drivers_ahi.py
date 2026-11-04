@@ -120,14 +120,16 @@ class TestRead:
         assert captured["band"] is None
 
     def test_rejects_several_bands(self, tmp_path):
+        source = str(tmp_path / fixture.hsd_filename())
+        driver = AhiDriver()
         with pytest.raises(ValueError, match="an AHI read is one band"):
-            AhiDriver().read(
-                str(tmp_path / fixture.hsd_filename()), bands=["B13", "B14"]
-            )
+            driver.read(source, bands=["B13", "B14"])
 
     def test_rejects_a_bare_string_band(self, tmp_path):
+        source = str(tmp_path / fixture.hsd_filename())
+        driver = AhiDriver()
         with pytest.raises(ValueError, match="must be a list of band names"):
-            AhiDriver().read(str(tmp_path / fixture.hsd_filename()), bands="B13")
+            driver.read(source, bands="B13")
 
     def test_ignores_the_generic_read_parameters(self, tmp_path, monkeypatch):
         captured: dict = {}
@@ -186,17 +188,17 @@ class TestRead:
 
     @pytest.mark.parametrize("bad", ["maybe", "", "2.5x"])
     def test_an_unreadable_boolean_is_reported(self, tmp_path, bad):
+        source = str(tmp_path / fixture.hsd_filename())
+        options = [f"calibrate={bad}"]
+        driver = AhiDriver()
         with pytest.raises(ValueError, match="calibrate"):
-            AhiDriver().read(
-                str(tmp_path / fixture.hsd_filename()), options=[f"calibrate={bad}"]
-            )
+            driver.read(source, options=options)
 
     def test_an_unreadable_float_is_reported(self, tmp_path):
+        source = str(tmp_path / fixture.hsd_filename())
+        driver = AhiDriver()
         with pytest.raises(ValueError, match="sun_earth_distance"):
-            AhiDriver().read(
-                str(tmp_path / fixture.hsd_filename()),
-                options=["sun_earth_distance=soon"],
-            )
+            driver.read(source, options=["sun_earth_distance=soon"])
 
 
 class TestEndToEnd:
@@ -236,3 +238,84 @@ class TestEndToEnd:
         )
         dataset = Dataset.read_file(str(path), open_options={"calibrate": "false"})
         assert dataset.read_array().shape == (2, 4)
+
+
+class TestArgumentPrecedence:
+    """Rules about how `bands` and `options` combine, which callers depend on."""
+
+    def test_options_band_wins_over_bands(self, tmp_path, monkeypatch):
+        """`options` is popped first, so it takes precedence over `bands`."""
+        captured: dict = {}
+        monkeypatch.setattr(
+            readers, "read_ahi", lambda s, b=None, **k: captured.update(band=b)
+        )
+        AhiDriver().read(
+            str(tmp_path / fixture.hsd_filename()),
+            bands=["B07"],
+            options={"band": "B13"},
+        )
+        assert captured["band"] == "B13", (
+            f"options={{'band': ...}} should win over bands, got {captured['band']}"
+        )
+
+    def test_an_empty_bands_list_leaves_the_band_unset(self, tmp_path, monkeypatch):
+        """An empty list names no band, so the granule's own band is used."""
+        captured: dict = {}
+        monkeypatch.setattr(
+            readers, "read_ahi", lambda s, b=None, **k: captured.update(band=b)
+        )
+        AhiDriver().read(str(tmp_path / fixture.hsd_filename()), bands=[])
+        assert captured["band"] is None, captured
+
+    def test_a_numpy_array_of_one_band_is_accepted(self, tmp_path, monkeypatch):
+        """`read_file` may hand `bands` through as an array rather than a list."""
+        captured: dict = {}
+        monkeypatch.setattr(
+            readers, "read_ahi", lambda s, b=None, **k: captured.update(band=b)
+        )
+        AhiDriver().read(
+            str(tmp_path / fixture.hsd_filename()), bands=np.array(["B13"])
+        )
+        assert captured["band"] == "B13", captured
+
+    def test_a_generator_of_one_band_is_accepted(self, tmp_path, monkeypatch):
+        """A generator must be materialised before `len()`, not consumed twice."""
+        captured: dict = {}
+        monkeypatch.setattr(
+            readers, "read_ahi", lambda s, b=None, **k: captured.update(band=b)
+        )
+        AhiDriver().read(
+            str(tmp_path / fixture.hsd_filename()), bands=(b for b in ["B13"])
+        )
+        assert captured["band"] == "B13", captured
+
+    def test_a_generator_of_several_bands_is_still_rejected(self, tmp_path):
+        """Materialising the generator must not lose the too-many-bands check."""
+        source = str(tmp_path / fixture.hsd_filename())
+        bands = (b for b in ["B13", "B14"])
+        driver = AhiDriver()
+        with pytest.raises(ValueError, match="an AHI read is one band"):
+            driver.read(source, bands=bands)
+
+    def test_an_already_boolean_calibrate_is_left_alone(self, tmp_path, monkeypatch):
+        """Dict-form options need no coercion and must not be mangled."""
+        captured: dict = {}
+        monkeypatch.setattr(
+            readers, "read_ahi", lambda s, b=None, **k: captured.update(**k)
+        )
+        AhiDriver().read(
+            str(tmp_path / fixture.hsd_filename()), options={"calibrate": False}
+        )
+        assert captured["calibrate"] is False, captured
+
+    def test_unrelated_options_pass_straight_through(self, tmp_path, monkeypatch):
+        """`coeffs` and friends are reader keywords the driver must not touch."""
+        captured: dict = {}
+        coeffs = {"kind": "solar", "solar_irradiance": 400.0}
+        monkeypatch.setattr(
+            readers, "read_ahi", lambda s, b=None, **k: captured.update(**k)
+        )
+        AhiDriver().read(
+            str(tmp_path / fixture.hsd_filename()), options={"coeffs": coeffs}
+        )
+        assert captured["coeffs"] == coeffs, captured

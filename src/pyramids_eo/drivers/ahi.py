@@ -36,7 +36,9 @@ from pyramids_eo.drivers._base import (
 #: The HSD file-name convention (Guide Table 4), optionally ``.bz2``-compressed. Matched on the
 #: base name only, so a granule in any directory is recognised.
 _HSD_NAME_RE = re.compile(
-    r"^HS_H\d{2}_\d{8}_\d{4}_B\d{2}_[A-Za-z0-9]{4}_R\d{2}_S\d{4}\.DAT(\.bz2)?$",
+    # `A-Z` alone: the IGNORECASE flag below already covers the lowercase spellings,
+    # so adding `a-z` would just duplicate the class.
+    r"^HS_H\d{2}_\d{8}_\d{4}_B\d{2}_[A-Z0-9]{4}_R\d{2}_S\d{4}\.DAT(\.bz2)?$",
     re.IGNORECASE,
 )
 

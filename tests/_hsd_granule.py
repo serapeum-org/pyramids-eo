@@ -160,14 +160,16 @@ def _calibration_block(
     albedo_coefficient: float,
     planck: tuple[float, float, float],
     updated: tuple[float, float] | None,
+    error_count: int,
+    outside_count: int,
 ) -> bytes:
     """Build block #5, calibration information (147 bytes), in the band's variant."""
     block = _BlockWriter(5, FIXED_BLOCK_LENGTHS[5], order)
     block.i2(band)  # 3 band number
     block.r8(wavelength_m)  # 4 central wave length
     block.i2(11 if band <= 6 else 14)  # 5 valid number of bits per pixel
-    block.i2(ERROR_COUNT)  # 6 count value of error pixels
-    block.i2(OUTSIDE_COUNT)  # 7 count value of pixels outside scan area
+    block.i2(error_count)  # 6 count value of error pixels
+    block.i2(outside_count)  # 7 count value of pixels outside scan area
     block.r8(slope)  # 8 slope for count-radiance conversion
     block.r8(intercept)  # 9 intercept for count-radiance conversion
     if band <= 6:  # visible / near-infrared variant
@@ -223,6 +225,8 @@ def granule_bytes(
     segment_number: int = 1,
     first_line: int = 1,
     compression: int = 0,
+    error_count: int = ERROR_COUNT,
+    outside_count: int = OUTSIDE_COUNT,
     order: str = "<",
 ) -> bytes:
     """Build one synthetic HSD granule.
@@ -251,6 +255,11 @@ def granule_bytes(
         segment_number: This granule's segment sequence number.
         first_line: 1-based first line of this segment in the full image.
         compression: Block #2's data-block compression flag.
+        error_count: The count value block #5 declares for an error pixel. The
+            default is the specification's 65535; override it to prove a reader
+            honours the granule's own declaration rather than the constant.
+        outside_count: The count value block #5 declares for a pixel outside the
+            scan area (default 65534).
         order: Byte order to write — ``"<"`` little-endian or ``">"`` big-endian.
 
     Returns:
@@ -284,6 +293,8 @@ def granule_bytes(
             albedo_coefficient=albedo_coefficient,
             planck=planck,
             updated=updated,
+            error_count=error_count,
+            outside_count=outside_count,
         ),
         _filler_block(order, 6, FIXED_BLOCK_LENGTHS[6]),
         _segment_block(order, total_segments, segment_number, first_line),

@@ -115,29 +115,33 @@ class TestHeaderWalk:
         buffer = bytearray(fixture.granule_bytes())
         blocks = walk_header_blocks(bytes(buffer), "<")
         buffer[blocks[5][0]] = 9  # block #5 claims to be #9
+        payload = bytes(buffer)
         with pytest.raises(ReaderError, match="declares number 9, expected #5"):
-            walk_header_blocks(bytes(buffer), "<")
+            walk_header_blocks(payload, "<")
 
     def test_rejects_a_zero_length_block(self):
         buffer = bytearray(fixture.granule_bytes())
         offset = walk_header_blocks(bytes(buffer), "<")[8][0]
         struct.pack_into("<H", buffer, offset + 1, 0)
+        payload = bytes(buffer)
         with pytest.raises(ReaderError, match="zero length"):
-            walk_header_blocks(bytes(buffer), "<")
+            walk_header_blocks(payload, "<")
 
     def test_rejects_a_fixed_block_of_the_wrong_length(self):
         buffer = bytearray(fixture.granule_bytes())
         offset = walk_header_blocks(bytes(buffer), "<")[7][0]
         struct.pack_into("<H", buffer, offset + 1, 48)
+        payload = bytes(buffer)
         with pytest.raises(ReaderError, match=r"block #7 declares 48 bytes"):
-            walk_header_blocks(bytes(buffer), "<")
+            walk_header_blocks(payload, "<")
 
     def test_rejects_a_block_running_past_the_end(self):
         buffer = bytearray(fixture.granule_bytes())
         offset = walk_header_blocks(bytes(buffer), "<")[9][0]
         struct.pack_into("<H", buffer, offset + 1, 60000)
+        payload = bytes(buffer)
         with pytest.raises(ReaderError, match="runs past the end"):
-            walk_header_blocks(bytes(buffer), "<")
+            walk_header_blocks(payload, "<")
 
     def test_rejects_a_header_truncated_mid_block(self):
         """Blocks #1 + #2 end at byte 332, so 333 bytes cut block #3's own header."""
@@ -176,8 +180,9 @@ class TestByteOrder:
     def test_rejects_a_file_not_starting_with_block_one(self):
         buffer = bytearray(fixture.granule_bytes())
         buffer[0] = 7
+        payload = bytes(buffer)
         with pytest.raises(ReaderError, match="does not start with header block #1"):
-            _byte_order(bytes(buffer))
+            _byte_order(payload)
 
     def test_rejects_a_file_shorter_than_block_one(self):
         with pytest.raises(ReaderError, match="shorter than the 282-byte"):
@@ -186,8 +191,9 @@ class TestByteOrder:
     def test_rejects_a_byte_order_flag_contradicting_the_block_length(self):
         buffer = bytearray(fixture.granule_bytes(order="<"))
         buffer[5] = 1  # claim big-endian while the length is little-endian
+        payload = bytes(buffer)
         with pytest.raises(ReaderError, match="unexpected byte order or layout"):
-            _byte_order(bytes(buffer))
+            _byte_order(payload)
 
 
 def parse_ahi_hsd_array(buffer: bytes) -> np.ndarray:
@@ -286,17 +292,20 @@ class TestHeaderFields:
         buffer = bytearray(fixture.granule_bytes())
         offset = walk_header_blocks(bytes(buffer), "<")[5][0]
         struct.pack_into("<H", buffer, offset + 3, 42)
+        payload = bytes(buffer)
         with pytest.raises(ReaderError, match="band number 42"):
-            parse_hsd_header(bytes(buffer))
+            parse_hsd_header(payload)
 
     def test_rejects_an_empty_grid(self):
+        buffer = fixture.granule_bytes(columns=0, lines=4)
         with pytest.raises(ReaderError, match="empty grid"):
-            parse_hsd_header(fixture.granule_bytes(columns=0, lines=4))
+            parse_hsd_header(buffer)
 
     @pytest.mark.parametrize("slope", [0.0, float("nan"), float("inf")])
     def test_rejects_a_non_physical_slope(self, slope):
+        buffer = fixture.granule_bytes(band=13, slope=slope)
         with pytest.raises(ReaderError, match="non-physical count-to-radiance slope"):
-            parse_hsd_header(fixture.granule_bytes(band=13, slope=slope))
+            parse_hsd_header(buffer)
 
 
 class TestProjection:
@@ -350,15 +359,17 @@ class TestProjection:
         buffer = bytearray(fixture.granule_bytes())
         offset = walk_header_blocks(bytes(buffer), "<")[3][0]
         struct.pack_into("<I", buffer, offset + 11, factor)
+        header = parse_hsd_header(bytes(buffer))
         with pytest.raises(ReaderError, match="zero CFAC|outside the plausible"):
-            pixel_size_m(parse_hsd_header(bytes(buffer)))
+            pixel_size_m(header)
 
     def test_rejects_a_non_physical_satellite_height(self):
         buffer = bytearray(fixture.granule_bytes())
         offset = walk_header_blocks(bytes(buffer), "<")[3][0]
         struct.pack_into("<d", buffer, offset + 27, 1.0)  # Rs below the Earth's radius
+        header = parse_hsd_header(bytes(buffer))
         with pytest.raises(ReaderError, match="non-physical satellite height"):
-            pixel_size_m(parse_hsd_header(bytes(buffer)))
+            pixel_size_m(header)
 
     def test_the_crs_is_geostationary_at_the_sub_satellite_longitude(self, tmp_path):
         path = fixture.write_granule(tmp_path, band=13, sub_lon=140.7)
@@ -384,8 +395,10 @@ class TestRadiance:
         )
         path = fixture.write_granule(tmp_path, columns=2, lines=2, counts=counts)
         values = parse_ahi_hsd(path).read_array()
-        assert np.isnan(values[0, 1]) and np.isnan(values[1, 0])
-        assert np.isfinite(values[0, 0]) and np.isfinite(values[1, 1])
+        assert np.isnan(values[0, 1]), "the error-count pixel must be masked"
+        assert np.isnan(values[1, 0]), "the outside-scan pixel must be masked"
+        assert np.isfinite(values[0, 0]), f"valid pixel masked: {values[0, 0]}"
+        assert np.isfinite(values[1, 1]), f"valid pixel masked: {values[1, 1]}"
 
     def test_rows_are_stored_north_up_and_not_flipped(self, tmp_path):
         """Positive LFAC means line 1 is northernmost, so the rows stand as stored."""
@@ -507,7 +520,8 @@ class TestCalibration:
             intercept=0.0,
         )
         result = read_ahi(path, "B13").read_array()
-        assert np.isfinite(result[0, 0]) and np.isnan(result[0, 1])
+        assert np.isfinite(result[0, 0]), f"valid pixel lost: {result[0, 0]}"
+        assert np.isnan(result[0, 1]), "the error-count pixel must stay masked"
 
     def test_solar_uses_the_granule_irradiance_in_the_standard_convention(
         self, tmp_path
@@ -874,3 +888,194 @@ def test_read_ahi_real_granule_matches_the_published_registration():
     full_lines = header.total_segments * header.lines
     assert header.coff == pytest.approx(header.columns / 2.0 + 0.5, abs=1.0)
     assert header.loff == pytest.approx(full_lines / 2.0 + 0.5, abs=1.0)
+
+
+class TestGranuleGovernsDecoding:
+    """Values the reader must take FROM the granule, not from its own constants.
+
+    Line coverage cannot distinguish "reads the granule's field" from "happens to
+    agree with the module constant", because the fixtures use the specification's
+    own values. These cases make the granule disagree with the constant and check
+    the granule wins — which is what a real product with a different declaration
+    depends on.
+    """
+
+    def test_sentinel_counts_come_from_the_granule(self, tmp_path):
+        """A granule declaring non-standard sentinels must still mask correctly."""
+        counts = np.array([[10, 60000], [60001, 20]], dtype=np.uint16)
+        path = fixture.write_granule(
+            tmp_path,
+            columns=2,
+            lines=2,
+            counts=counts,
+            slope=1.0,
+            intercept=0.0,
+            error_count=60000,
+            outside_count=60001,
+        )
+        values = parse_ahi_hsd(path).read_array()
+        assert np.isnan(values[0, 1]), "the granule's declared error count must mask"
+        assert np.isnan(values[1, 0]), "the granule's declared outside count must mask"
+        assert values[0, 0] == pytest.approx(10.0)
+        assert values[1, 1] == pytest.approx(20.0)
+
+    def test_the_standard_sentinels_are_not_masked_when_not_declared(self, tmp_path):
+        """65535 is only special because block #5 says so, not inherently."""
+        counts = np.array([[65535, 65534]], dtype=np.uint16)
+        path = fixture.write_granule(
+            tmp_path,
+            columns=2,
+            lines=1,
+            counts=counts,
+            slope=1.0,
+            intercept=0.0,
+            error_count=60000,
+            outside_count=60001,
+        )
+        values = parse_ahi_hsd(path).read_array()
+        assert np.isfinite(values[0, 0]), "65535 must be ordinary data here"
+        assert values[0, 0] == pytest.approx(65535.0)
+        assert values[0, 1] == pytest.approx(65534.0)
+
+    @pytest.mark.parametrize("order", ["<", ">"])
+    def test_a_granule_decodes_end_to_end_in_either_byte_order(self, tmp_path, order):
+        """The whole file path, not just the header, must honour block #1's flag."""
+        counts = np.array([[100, 200], [300, 400]], dtype=np.uint16)
+        path = tmp_path / f"HS_H08_20150415_0230_B13_FLDK_R20_S0101_{order == '>'}.DAT"
+        path.write_bytes(
+            fixture.granule_bytes(
+                order=order,
+                columns=2,
+                lines=2,
+                counts=counts,
+                slope=0.5,
+                intercept=-10.0,
+            )
+        )
+        values = parse_ahi_hsd(path).read_array()
+        assert values.ravel() == pytest.approx([40.0, 90.0, 140.0, 190.0])
+
+    @pytest.mark.parametrize(
+        ("resolution_m", "band"), [(2000, 13), (1000, 1), (500, 3)]
+    )
+    def test_the_grid_step_comes_from_the_granule(self, tmp_path, resolution_m, band):
+        """Each native grid must register its own step, not a built-in default."""
+        path = fixture.write_granule(
+            tmp_path, resolution_m=resolution_m, band=band, columns=2, lines=2
+        )
+        dataset = parse_ahi_hsd(path)
+        assert abs(dataset.geotransform[1]) == pytest.approx(resolution_m, rel=1e-5)
+        assert abs(dataset.geotransform[5]) == pytest.approx(resolution_m, rel=1e-5)
+
+    def test_solar_bands_declare_eleven_valid_bits(self, tmp_path):
+        header = parse_hsd_header(fixture.granule_bytes(band=3))
+        assert header.valid_bits == 11, header.valid_bits
+
+
+class TestSourceForms:
+    """The shapes `source` may legitimately take."""
+
+    def test_a_single_element_list_reads_as_one_granule(self, tmp_path):
+        paths = fixture.segment_set(
+            tmp_path,
+            segments=1,
+            lines_per_segment=3,
+            columns=4,
+            slope=1.0,
+            intercept=0.0,
+        )
+        values = read_ahi(paths, "B13", calibrate=False).read_array()
+        assert values.shape == (3, 4)
+
+    def test_an_iterator_of_segments_is_accepted(self, tmp_path):
+        """`source` is consumed once, so a generator must not be exhausted early."""
+        paths = fixture.segment_set(
+            tmp_path,
+            segments=3,
+            lines_per_segment=2,
+            columns=3,
+            slope=1.0,
+            intercept=0.0,
+        )
+        values = read_ahi(iter(paths), "B13", calibrate=False).read_array()
+        assert values.shape == (6, 3)
+        assert values[:, 0] == pytest.approx([1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
+
+    def test_a_tuple_of_segments_is_accepted(self, tmp_path):
+        paths = fixture.segment_set(
+            tmp_path,
+            segments=2,
+            lines_per_segment=2,
+            columns=3,
+            slope=1.0,
+            intercept=0.0,
+        )
+        values = read_ahi(tuple(paths), "B13", calibrate=False).read_array()
+        assert values.shape == (4, 3)
+
+    def test_a_string_path_is_accepted(self, tmp_path):
+        path = fixture.write_granule(tmp_path, band=13, columns=2, lines=1)
+        assert read_ahi(str(path), calibrate=False).read_array().shape == (1, 2)
+
+    def test_a_band_contradicting_a_stitched_set_is_rejected(self, tmp_path):
+        """The band assertion must also apply on the multi-segment path."""
+        paths = fixture.segment_set(
+            tmp_path, segments=2, lines_per_segment=2, columns=3
+        )
+        with pytest.raises(
+            ReaderError, match="B14 was requested but the granule carries B13"
+        ):
+            read_ahi(paths, "B14")
+
+
+class TestCalibrationExtras:
+    """Calibration paths not exercised above."""
+
+    def test_cos_sza_applies_the_sun_angle_correction(self, tmp_path):
+        path = fixture.write_granule(
+            tmp_path,
+            band=3,
+            columns=1,
+            lines=1,
+            counts=np.array([[100]], dtype=np.uint16),
+            slope=1.0,
+            intercept=0.0,
+            albedo_coefficient=0.0025,
+        )
+        plain = float(read_ahi(path, "B03").read_array()[0, 0])
+        corrected = float(read_ahi(path, "B03", cos_sza=0.5).read_array()[0, 0])
+        assert corrected == pytest.approx(plain / 0.5)
+
+    def test_cos_sza_at_the_terminator_is_nan(self, tmp_path):
+        path = fixture.write_granule(
+            tmp_path,
+            band=3,
+            columns=1,
+            lines=1,
+            counts=np.array([[100]], dtype=np.uint16),
+            slope=1.0,
+            intercept=0.0,
+        )
+        result = read_ahi(path, "B03", cos_sza=0.0).read_array()
+        assert np.isnan(result[0, 0]), "a non-positive cos(sza) has no reflectance"
+
+    def test_non_positive_thermal_radiance_is_nan_not_an_error(self, tmp_path):
+        """Planck has no inverse at or below zero radiance; those pixels go NaN."""
+        path = fixture.write_granule(
+            tmp_path,
+            band=13,
+            columns=3,
+            lines=1,
+            counts=np.array([[0, 5, 1000]], dtype=np.uint16),
+            slope=1e-8,
+            intercept=-1e-8,  # the first two pixels land <= 0
+        )
+        result = read_ahi(path, "B13").read_array()
+        assert np.isnan(result[0, 0]), "zero radiance must be NaN"
+        assert np.isfinite(result[0, 2]), f"positive radiance lost: {result[0, 2]}"
+
+    @pytest.mark.parametrize("flag", [1, 2])
+    def test_both_compressed_data_block_flags_are_reported(self, tmp_path, flag):
+        path = fixture.write_granule(tmp_path, compression=flag)
+        with pytest.raises(ReaderError, match=f"compression flag {flag}"):
+            parse_ahi_hsd(path)

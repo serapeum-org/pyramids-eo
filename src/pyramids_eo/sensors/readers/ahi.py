@@ -107,20 +107,20 @@ _B3_RPOL_KM = 43  # R8, polar radius (WGS84)
 _B5_BAND_NUMBER = 3  # I2
 _B5_CENTRAL_WAVELENGTH_M = 5  # R8, metres
 _B5_VALID_BITS = 13  # I2
-_B5_ERROR_COUNT = 15  # I2, = 65535
-_B5_OUTSIDE_COUNT = 17  # I2, = 65534
-_B5_SLOPE = 19  # R8, radiance = slope * count + intercept
+_B5_ERROR_COUNT = 15  # I2, sentinel 65535
+_B5_OUTSIDE_COUNT = 17  # I2, sentinel 65534
+_B5_SLOPE = 19  # R8, radiance from slope times count plus intercept
 _B5_INTERCEPT = 27  # R8
 # Infrared variant (bands 7-16), from offset 35: the Planck correction
 # coefficients and the physical constants the granule was calibrated with.
-_B5_IR_C0 = 35  # R8, Tb = c0 + c1 * Te + c2 * Te^2
+_B5_IR_C0 = 35  # R8, quadratic Te-to-Tb correction, constant term
 _B5_IR_C1 = 43  # R8
 _B5_IR_C2 = 51  # R8
 _B5_IR_LIGHT_SPEED = 83  # R8, m/s
 _B5_IR_PLANCK = 91  # R8, J s
 _B5_IR_BOLTZMANN = 99  # R8, J/K
 # Visible / near-infrared variant (bands 1-6), from offset 35.
-_B5_VIS_ALBEDO_COEFF = 35  # R8, albedo = c' * radiance, so c' = 1 / S0
+_B5_VIS_ALBEDO_COEFF = 35  # R8, the albedo coefficient c-prime, i.e. 1 over S0
 _B5_VIS_SLOPE = 51  # R8, updated (calibrated) slope
 _B5_VIS_INTERCEPT = 59  # R8, updated (calibrated) intercept
 
@@ -141,6 +141,11 @@ _BAND_MAX = 16
 _MIN_PIXEL_M = 100.0
 _MAX_PIXEL_M = 20000.0
 
+#: Absolute tolerance for treating a decoded float as zero. HSD leaves an unused
+#: calibration field as literal zero bytes, so this only has to separate "the
+#: field is unset" from any real gain, which is many orders of magnitude larger.
+_ZERO_TOLERANCE = 1e-30
+
 #: Scaling denominator of the normalised geostationary projection: the
 #: ``2**-16`` factor of ``c = COFF + nint(x * 2**-16 * CFAC)`` (LRIT/HRIT 4.4).
 _PROJECTION_SCALE = 65536.0
@@ -149,7 +154,9 @@ _PROJECTION_SCALE = 65536.0
 #: convention (Guide Table 4).
 _FILENAME_RE = re.compile(
     r"^HS_(?P<satellite>H\d{2})_(?P<date>\d{8})_(?P<time>\d{4})_B(?P<band>\d{2})"
-    r"_(?P<area>[A-Za-z0-9]{4})_R(?P<resolution>\d{2})_S(?P<segment>\d{4})",
+    # `A-Z` alone: the IGNORECASE flag already covers the lowercase spellings, so
+    # adding `a-z` would just duplicate the class.
+    r"_(?P<area>[A-Z0-9]{4})_R(?P<resolution>\d{2})_S(?P<segment>\d{4})",
     re.IGNORECASE,
 )
 
@@ -246,11 +253,13 @@ def _read_bytes(path: Any) -> bytes:
     name = str(path)
     try:
         if name.lower().endswith(".bz2"):
-            with bz2.open(name, "rb") as handle:
-                return handle.read()
-        with open(name, "rb") as handle:
-            with mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ) as mapped:
-                return bytes(mapped)
+            with bz2.open(name, "rb") as compressed:
+                return compressed.read()
+        with (
+            open(name, "rb") as handle,
+            mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ) as mapped,
+        ):
+            return bytes(mapped)
     except (OSError, EOFError, ValueError) as exc:
         raise ReaderError(f"read_ahi: cannot read {name} ({exc})") from exc
 
@@ -526,7 +535,9 @@ def parse_hsd_header(buffer: bytes) -> HsdHeader:
         # back to fields 8 / 9 rather than reading a zero gain.
         updated_slope = _unpack(buffer, order, "d", calibration + _B5_VIS_SLOPE)
         updated_intercept = _unpack(buffer, order, "d", calibration + _B5_VIS_INTERCEPT)
-        if updated_slope != 0.0 and math.isfinite(updated_slope):
+        if math.isfinite(updated_slope) and not math.isclose(
+            updated_slope, 0.0, abs_tol=_ZERO_TOLERANCE
+        ):
             slope, intercept = updated_slope, updated_intercept
     else:
         planck = tuple(
@@ -540,7 +551,7 @@ def parse_hsd_header(buffer: bytes) -> HsdHeader:
                 _B5_IR_BOLTZMANN,
             )
         )
-    if not math.isfinite(slope) or slope == 0.0:
+    if not math.isfinite(slope) or math.isclose(slope, 0.0, abs_tol=_ZERO_TOLERANCE):
         raise ReaderError(
             f"read_ahi: granule declares a non-physical count-to-radiance slope "
             f"({slope!r}) — unexpected HSD layout"
