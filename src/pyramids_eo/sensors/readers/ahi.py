@@ -6,10 +6,14 @@ band, brightness temperature for a thermal one).
 
 HSD is a packed binary of **12 blocks**: 11 fixed-layout header blocks followed
 by the image data block. Every header block opens with its own block number
-(`I1`) and block length (`I2`), so the header is *self-describing* and is walked
+(`I1`) and its own block length, so the header is *self-describing* and is walked
 rather than assumed — blocks #8, #9 and #10 are variable length (they carry
-per-line repeats), so a fixed offset table would not reach the data. All integer
-fields are **unsigned**, and block #1 field 4 declares the file's byte order.
+per-line repeats), so a fixed offset table would not reach the data. The length
+field is an `I2` for every block **except #10**, where the specification makes it
+an `I4`; reading that one as an `I2` happens to work on a little-endian granule
+and fails on a big-endian one, so the width is per-block rather than assumed. All
+integer fields are **unsigned**, and block #1 field 4 declares the file's byte
+order.
 
 `parse_ahi_hsd` walks the header, reads the grid from block #2, the normalised
 geostationary projection from block #3, the per-granule count-to-radiance
@@ -65,6 +69,12 @@ _CALIBRATION = 5
 _SEGMENT = 7
 
 # --- Fixed block lengths, used as layout cross-checks ------------------------
+#: Block numbers whose ``Block length`` field the specification declares as an
+#: ``I4`` rather than the usual ``I2``. Only #10 (error information) is one. A
+#: little-endian ``I4`` holding a value under 65536 reads identically to an
+#: ``I2``, so getting this wrong is invisible until a big-endian granule arrives.
+_LONG_LENGTH_BLOCKS = frozenset({10})
+
 #: Declared lengths of the fixed-size header blocks, by block number. Blocks #8,
 #: #9 and #10 are variable length (per-line repeats) and so are absent here.
 _FIXED_BLOCK_LENGTHS = {
@@ -360,12 +370,16 @@ def walk_header_blocks(buffer: bytes, order: ByteOrder) -> dict[int, tuple[int, 
     blocks: dict[int, tuple[int, int]] = {}
     offset = 0
     for expected in range(1, _HEADER_BLOCK_COUNT + 1):
-        if offset + 3 > len(buffer):
+        # 1 byte of block number plus the length field itself, which is wider
+        # for the one block the specification gives an I4.
+        preamble = 5 if expected in _LONG_LENGTH_BLOCKS else 3
+        if offset + preamble > len(buffer):
             raise ReaderError(
                 f"read_ahi: granule is truncated inside header block #{expected}"
             )
         number = buffer[offset]
-        length = struct.unpack_from(f"{order}H", buffer, offset + 1)[0]
+        width = "I" if expected in _LONG_LENGTH_BLOCKS else "H"
+        length = _unpack(buffer, order, width, offset + 1)
         if number != expected:
             raise ReaderError(
                 f"read_ahi: header block at offset {offset} declares number "

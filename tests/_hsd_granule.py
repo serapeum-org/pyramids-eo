@@ -51,19 +51,30 @@ BOLTZMANN_CONSTANT = 1.3806488e-23
 class _BlockWriter:
     """Accumulate a block's fields in declaration order, then pad to length."""
 
-    def __init__(self, number: int, length: int, order: str) -> None:
+    def __init__(
+        self, number: int, length: int, order: str, *, long_length: bool = False
+    ) -> None:
         """Start a block.
 
         Args:
             number: The block number, written as the block's first field.
             length: The block's declared length in bytes, written as the second.
             order: A `struct` byte-order prefix, ``"<"`` or ``">"``.
+            long_length: Write the length as ``I4`` instead of ``I2``. Block #10
+                (error information) is the one block the specification gives a
+                4-byte length; every other block uses 2. Writing it the
+                specification's way is what makes a byte-order mistake in a
+                reader visible, since a little-endian ``I4`` whose value fits in
+                16 bits reads the same as an ``I2`` by coincidence.
         """
         self.length = length
         self.order = order
         self.parts: list[bytes] = []
         self.i1(number)
-        self.i2(length)
+        if long_length:
+            self.i4(length)
+        else:
+            self.i2(length)
 
     def i1(self, value: int) -> None:
         """Append an unsigned 1-byte integer."""
@@ -199,9 +210,16 @@ def _segment_block(order: str, total: int, number: int, first_line: int) -> byte
     return block.done()
 
 
+#: Block #10 (error information) is the only block whose length field the
+#: specification declares as ``I4``; every other block uses ``I2``.
+LONG_LENGTH_BLOCKS = frozenset({10})
+
+
 def _filler_block(order: str, number: int, length: int) -> bytes:
     """Build a block carrying nothing but its number, length and spare bytes."""
-    return _BlockWriter(number, length, order).done()
+    return _BlockWriter(
+        number, length, order, long_length=number in LONG_LENGTH_BLOCKS
+    ).done()
 
 
 def granule_bytes(

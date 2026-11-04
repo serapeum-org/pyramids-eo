@@ -105,6 +105,30 @@ class TestHeaderWalk:
             assert blocks[number][1] == length
             assert length not in fixture.FIXED_BLOCK_LENGTHS.values()
 
+    @pytest.mark.parametrize("order", ["<", ">"])
+    def test_block_ten_declares_its_length_as_an_i4(self, order):
+        """Block #10 is the one block the spec gives a 4-byte length field.
+
+        A little-endian ``I4`` under 65536 reads identically to an ``I2``, so a
+        reader using one width for every block passes on a little-endian granule
+        and fails on a big-endian one. Both orders are asserted here so the
+        coincidence cannot hide the mistake.
+        """
+        buffer = fixture.granule_bytes(order=order)
+        blocks = walk_header_blocks(buffer, order)
+        assert blocks[10][1] == fixture.VARIABLE_BLOCK_LENGTHS[10]
+        # The I4 is what the fixture wrote, so the two high bytes are zero and an
+        # I2 read of a big-endian granule would see 0 rather than the length.
+        offset = blocks[10][0]
+        assert struct.unpack_from(f"{order}I", buffer, offset + 1)[0] == blocks[10][1]
+
+    def test_only_block_ten_has_a_long_length_field(self):
+        """Every other block's length is an I2; widening them all would misparse."""
+        from pyramids_eo.sensors.readers.ahi import _LONG_LENGTH_BLOCKS
+
+        assert _LONG_LENGTH_BLOCKS == frozenset({10})
+        assert _LONG_LENGTH_BLOCKS == fixture.LONG_LENGTH_BLOCKS
+
     def test_fixed_block_lengths_match_the_specification(self):
         buffer = fixture.granule_bytes()
         blocks = walk_header_blocks(buffer, "<")
