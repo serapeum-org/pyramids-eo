@@ -16,6 +16,7 @@ from pyramids_eo.sensors.readers.ahi import (
     HsdHeader,
     _byte_order,
     _canonical_band,
+    _read_header_bytes,
     _unpack,
     band_from_filename,
     band_name,
@@ -178,6 +179,117 @@ class TestHeaderWalk:
         buffer = fixture.granule_bytes()[:400]
         with pytest.raises(ReaderError, match="runs past the end"):
             walk_header_blocks(buffer, "<")
+
+    def test_rejects_a_granule_cut_inside_block_tens_length_field(self):
+        """Block #10's length field is an I4, so four bytes of it is a cut block.
+
+        A walk assuming the three-byte preamble every other block has would read
+        a length out of the two bytes that are there and report the wrong fault
+        (an overrun) instead of the truncation.
+        """
+        buffer = fixture.granule_bytes()
+        offset = walk_header_blocks(buffer, "<")[10][0]
+        with pytest.raises(ReaderError, match="truncated inside header block #10"):
+            walk_header_blocks(buffer[: offset + 4], "<")
+
+    def test_rejects_a_walk_disagreeing_with_the_declared_total(self):
+        """Block #1's total header length is the walk's independent check.
+
+        Every block can be self-consistent while the walk still drifted, so where
+        the walk ends is compared with the total block #1 declares.
+        """
+        buffer = fixture.granule_bytes(columns=8, lines=4, header_length=12345)
+        with pytest.raises(
+            ReaderError, match=r"header walk ended at byte \d+ but block #1"
+        ):
+            walk_header_blocks(buffer, "<")
+
+
+class TestHeaderOnlyRead:
+    """The header fetch a stitch's first pass runs on.
+
+    A full-disk segment is tens of megabytes and sizing a stitch needs every
+    segment's header before any pixel is wanted, so `_read_header_bytes` takes
+    the header in two small reads guided by block #1's declared total instead of
+    pulling whole granules into memory.
+    """
+
+    def test_reads_the_header_without_the_pixels(self, tmp_path):
+        """The returned prefix decodes as a header and stops short of the payload."""
+        path = fixture.write_granule(tmp_path, columns=64, lines=16)
+        head = _read_header_bytes(path)
+        whole = path.read_bytes()
+        assert len(head) < len(whole), (
+            f"read {len(head)} of {len(whole)} bytes — the payload came too"
+        )
+        assert head == whole[: len(head)], "the header is not the file's own prefix"
+        assert parse_hsd_header(head).columns == 64
+
+    def test_reads_a_compressed_granule_through_bz2(self, tmp_path):
+        """A ``.DAT.bz2`` segment is decompressed, not read as raw bytes."""
+        path = fixture.write_granule(tmp_path, columns=8, lines=4, compress=True)
+        assert parse_hsd_header(_read_header_bytes(path)).columns == 8
+
+    @pytest.mark.parametrize("declared", [0, (1 << 20) + 1])
+    def test_an_unusable_declared_length_reads_the_whole_file(self, tmp_path, declared):
+        """Zero means "not stated" and a huge figure means "not a length".
+
+        Args:
+            declared: The value written into block #1's total-header-length field.
+
+        Test scenario:
+            Neither value can size a second read, so the read falls back to the
+            whole granule rather than guessing a header size.
+        """
+        path = fixture.write_granule(
+            tmp_path, columns=8, lines=4, header_length=declared
+        )
+        assert _read_header_bytes(path) == path.read_bytes(), (
+            f"a declared length of {declared} should fall back to the whole file"
+        )
+
+    def test_the_ceiling_is_far_above_a_real_header(self):
+        """The ceiling has to separate "not a length" from a large real header."""
+        from pyramids_eo.sensors.readers.ahi import _MAX_HEADER_BYTES
+
+        header_end = walk_header_blocks(fixture.granule_bytes(), "<")[12][0]
+        assert _MAX_HEADER_BYTES == 1 << 20
+        assert header_end * 100 < _MAX_HEADER_BYTES, (
+            f"a {header_end}-byte header is not comfortably under the ceiling"
+        )
+
+    @pytest.mark.parametrize("declared", [1, fixture.FIXED_BLOCK_LENGTHS[1]])
+    def test_a_declaration_inside_the_first_read_needs_no_second_read(
+        self, tmp_path, declared
+    ):
+        """A total no longer than block #1 is already satisfied by the first read.
+
+        Args:
+            declared: The value written into block #1's total-header-length field.
+
+        Test scenario:
+            Both values are covered by the 282 bytes already in hand, so the read
+            returns them unchanged instead of asking the file for more.
+        """
+        path = fixture.write_granule(
+            tmp_path, columns=8, lines=4, header_length=declared
+        )
+        head = _read_header_bytes(path)
+        assert len(head) == fixture.FIXED_BLOCK_LENGTHS[1], (
+            f"expected only the 282-byte first read, got {len(head)}"
+        )
+
+    def test_reports_an_unreadable_path(self, tmp_path):
+        """A missing granule is a `ReaderError`, not a bare `OSError`."""
+        with pytest.raises(ReaderError, match="cannot read"):
+            _read_header_bytes(tmp_path / "absent.DAT")
+
+    def test_reports_a_corrupt_bzip2_granule(self, tmp_path):
+        """A ``.bz2`` name over non-bzip2 bytes fails on the first read."""
+        path = tmp_path / "HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT.bz2"
+        path.write_bytes(b"not bzip2 at all")
+        with pytest.raises(ReaderError, match="cannot read"):
+            _read_header_bytes(path)
 
 
 class TestByteOrder:
@@ -750,6 +862,24 @@ class TestThermalUnits:
         with pytest.raises(ReaderError, match="non-physical central wavelength"):
             read_ahi(path, "B13")
 
+    @pytest.mark.parametrize("bad", [0.0, -1.0e-6, float("nan"), float("inf")])
+    def test_the_conversion_refuses_a_non_physical_wavelength(self, bad):
+        """The conversion carries its own check, not just the header parser's.
+
+        Args:
+            bad: A wavelength that is zero, negative, or not finite.
+
+        Test scenario:
+            A granule's wavelength is already validated at parse time, so this
+            guard is reachable only directly — it belongs to the conversion,
+            which scales by the square of the wavelength and would otherwise
+            return a silently meaningless radiance.
+        """
+        from pyramids_eo.sensors.readers.ahi import _to_wavenumber_radiance
+
+        with pytest.raises(ReaderError, match="non-physical central wavelength"):
+            _to_wavenumber_radiance(np.array([[1.0]]), bad)
+
 
 class TestSegments:
     """Segment stitching."""
@@ -883,6 +1013,18 @@ class TestSegments:
         with pytest.raises(ReaderError, match="no HSD segment paths"):
             read_ahi([], "B13")
 
+    def test_the_stitch_refuses_an_empty_set_of_its_own(self):
+        """`read_ahi` screens an empty source, so this is the stitch's own guard.
+
+        Test scenario:
+            Called directly with no paths, the stitch reports the same error
+            rather than failing later on an empty sort or an unsized output.
+        """
+        from pyramids_eo.sensors.readers.ahi import _stitch
+
+        with pytest.raises(ReaderError, match="no HSD segment paths"):
+            _stitch([])
+
 
 class TestReadAhi:
     """The `read_ahi` entry point."""
@@ -942,7 +1084,7 @@ class TestReadAhi:
 
 
 class TestInternals:
-    """Two paths the public API cannot reach, covered directly."""
+    """Paths the public API cannot reach, covered directly."""
 
     def test_unpack_reports_a_field_running_past_the_buffer(self):
         """Defensive depth in a shared helper.
@@ -969,6 +1111,29 @@ class TestInternals:
             source, "B03", coeffs={"kind": "solar", "solar_irradiance": 400.0}
         )
         assert result.epsg == 4326
+        assert result.read_array()[0, 0] == pytest.approx(math.pi * 100.0 / 400.0)
+
+    def test_a_dataset_source_without_a_crs_is_wrapped_unchanged(self):
+        """The CRS carry-over is unconditional, so a source without one still works.
+
+        Test scenario:
+            A `Dataset` built with no EPSG has an empty CRS. The wrap copies the
+            source's CRS either way, so the result must come back with the values
+            registered on the same grid and no CRS invented for it.
+        """
+        from pyramids.dataset import Dataset, GeoReference
+
+        source = Dataset.from_array(
+            np.array([[100.0, 200.0]]),
+            geo_ref=GeoReference(geo=(0.0, 1.0, 0.0, 0.0, 0.0, -1.0), epsg=None),
+            no_data_value=np.nan,
+        )
+        assert not source.crs, "the source must carry no CRS for this to be the test"
+        result = read_ahi(
+            source, "B03", coeffs={"kind": "solar", "solar_irradiance": 400.0}
+        )
+        assert not result.crs, f"a CRS was invented for the result: {result.crs!r}"
+        assert result.geotransform == pytest.approx(source.geotransform)
         assert result.read_array()[0, 0] == pytest.approx(math.pi * 100.0 / 400.0)
 
 
@@ -1162,6 +1327,26 @@ class TestSourceForms:
     def test_a_string_path_is_accepted(self, tmp_path):
         path = fixture.write_granule(tmp_path, band=13, columns=2, lines=1)
         assert read_ahi(str(path), calibrate=False).read_array().shape == (1, 2)
+
+    @pytest.mark.parametrize("source", [42, 4.5])
+    def test_a_non_path_non_iterable_source_is_reported(self, source):
+        """Anything that is neither a path, an iterable of paths, nor a Dataset.
+
+        Args:
+            source: A value `list()` cannot consume.
+
+        Test scenario:
+            Without the guard `list(source)` raises a bare `TypeError`, which is
+            not the documented failure; the reader names the three forms it takes
+            and the type it was handed instead.
+        """
+        with pytest.raises(
+            ReaderError, match="source must be a granule path"
+        ) as exc_info:
+            read_ahi(source, "B13")
+        assert type(source).__name__ in str(exc_info.value), (
+            f"the error should name the type it was given, got: {exc_info.value}"
+        )
 
     def test_a_band_contradicting_a_stitched_set_is_rejected(self, tmp_path):
         """The band assertion must also apply on the multi-segment path."""
