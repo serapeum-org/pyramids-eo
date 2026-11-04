@@ -4,29 +4,32 @@
 returns a calibrated, geolocated pyramids `Dataset` (reflectance for a solar
 band, brightness temperature for a thermal one).
 
-HSD is a packed binary of **12 blocks**: 11 fixed-layout header blocks followed
-by the image data block. Every header block opens with its own block number
-(`I1`) and its own block length, so the header is *self-describing* and is walked
-rather than assumed — blocks #8, #9 and #10 are variable length (they carry
-per-line repeats), so a fixed offset table would not reach the data. The length
-field is an `I2` for every block **except #10**, where the specification makes it
-an `I4`; reading that one as an `I2` happens to work on a little-endian granule
-and fails on a big-endian one, so the width is per-block rather than assumed. All
-integer fields are **unsigned**, and block #1 field 4 declares the file's byte
-order.
+HSD is a packed binary of **12 blocks**: 11 header blocks followed by the image
+data block. Eight of those header blocks carry the fixed length the
+specification states for them; #8, #9 and #10 hold per-line repeats and so vary.
+Every header block opens with its own block number (`I1`) and its own block
+length, so the header is *self-describing* and is walked rather than assumed — a
+fixed offset table would not reach the data. The length field is an `I2` for
+every block **except #10**, where the specification makes it an `I4`; reading
+that one as an `I2` happens to work on a little-endian granule and reads 0 on a
+big-endian one, so the width is per-block rather than assumed. All integer
+fields are **unsigned**, and block #1 field 4 declares the file's byte order.
 
 `parse_ahi_hsd` walks the header, reads the grid from block #2, the normalised
 geostationary projection from block #3, the per-granule count-to-radiance
 calibration from block #5 and the segment placement from block #7, then decodes
 the `uint16` counts of block #12, masks the two sentinel count values, and
-registers the metre geotransform of the geostationary grid. `read_ahi` then
-calibrates that radiance, preferring the granule's own coefficients over the
-registry.
+registers the metre geotransform of the geostationary grid. `read_ahi` is not
+layered on it: it repeats that decode itself and calibrates the values *before*
+registering them, preferring the granule's own coefficients over the registry,
+so a full disk is wrapped as a `Dataset` once rather than built as radiance and
+immediately rebuilt.
 
-A full disk is distributed as 10 segment files (`Skkll`); pass the segment paths
-together and they are stitched into the full image by their block #7 first-line
-numbers. A single segment reads on its own, georeferenced at its true position
-in the disk.
+A full disk is distributed as segment files (`Skkll`) — ten of them in JMA's
+operational product, though Table 4 allows up to 99 and nothing here assumes the
+count; pass the segment paths together and they are stitched into the full image
+by their block #7 first-line numbers. A single segment reads on its own,
+georeferenced at its true position in the disk.
 
 Format reference: *Himawari Standard Data User's Guide*, Version 1.3 (3 July
 2017), Japan Meteorological Agency — Table 6 block structures. The projection is
@@ -363,8 +366,10 @@ def _read_header_bytes(path: Any) -> bytes:
 
     Returns:
         The header bytes — enough for :func:`walk_header_blocks` and
-        :func:`parse_hsd_header`, with no pixels. Falls back to the whole file
-        when the granule does not declare a usable header length.
+        :func:`parse_hsd_header`, with no pixels — so the block table
+        :func:`walk_header_blocks` builds from it reports block #12 with a length
+        of 0, and :func:`_counts` cannot be run against it. Falls back to the
+        whole file when the granule does not declare a usable header length.
 
     Raises:
         ReaderError: When the file cannot be opened, or is too short to hold
@@ -479,12 +484,18 @@ def _block_length(buffer: bytes, order: ByteOrder, expected: int, offset: int) -
 def walk_header_blocks(buffer: bytes, order: ByteOrder) -> dict[int, tuple[int, int]]:
     """Walk the 11 self-describing HSD header blocks.
 
-    Each block opens with its block number (``I1``) and length (``I2``), so the
-    header is traversed by following those lengths. This is what makes the
+    Each block opens with its block number (``I1``) and its length, so the header
+    is traversed by following those lengths. This is what makes the
     variable-length blocks (#8 navigation correction, #9 observation time, #10
     error information — each carrying per-line repeats) safe to step over: their
     sizes are not knowable in advance, so a fixed offset table would not find
     the data block.
+
+    The length field is an ``I2`` for every block **except #10**, whose length
+    the specification declares an ``I4`` — see :func:`_block_length`, which reads
+    the per-block width. On a little-endian granule the two spellings coincide
+    for any value under 65536; on a big-endian one an ``I2`` read of block #10's
+    length yields 0, which is why the width is not assumed.
 
     Args:
         buffer: The granule bytes.
@@ -492,7 +503,8 @@ def walk_header_blocks(buffer: bytes, order: ByteOrder) -> dict[int, tuple[int, 
 
     Returns:
         A mapping of block number to its ``(offset, length)`` in bytes. The data
-        block (#12) is included, with the remaining byte count as its length.
+        block (#12) is included, with the remaining byte count as its length —
+        which is 0 for a header-only buffer from :func:`_read_header_bytes`.
 
     Raises:
         ReaderError: When a block is truncated, reports a zero length, declares a
@@ -662,6 +674,33 @@ class HsdHeader:
             ``"solar"`` for bands 1-6 and ``"thermal"`` for bands 7-16 - the
             same split the specification uses to decide which variant of
             calibration block #5 a granule carries.
+
+        Examples:
+            - The split falls between bands 6 and 7, which is where the
+              specification switches block #5 from its visible / near-infrared
+              variant to its infrared one:
+                ```python
+                >>> import dataclasses
+                >>> from pyramids_eo.sensors.readers.ahi import HsdHeader
+                >>> header = HsdHeader(
+                ...     satellite="Himawari-8", band_number=13, columns=5500, lines=5500,
+                ...     bits_per_pixel=16, valid_bits=14, compression=0, sub_lon=140.7,
+                ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
+                ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
+                ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
+                ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+                ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
+                ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
+                ...     boltzmann_constant=1.3806488e-23,
+                ...     total_segments=10, segment_number=1, first_line=1,
+                ...     observation_area="FLDK", observation_timeline=230,
+                ...     observation_start_mjd=57127.1041666667,
+                ...     total_header_length=1598, total_data_length=60500000,
+                ... )
+                >>> [dataclasses.replace(header, band_number=n).kind for n in (1, 6, 7, 16)]
+                ['solar', 'solar', 'thermal', 'thermal']
+
+                ```
         """
         return "solar" if self.band_number <= _SOLAR_BAND_MAX else "thermal"
 
@@ -971,11 +1010,13 @@ def geotransform(header: HsdHeader, first_line: int) -> tuple[float, ...]:
     ``COFF`` / ``LOFF`` give the sub-satellite point's column and line, 1-based,
     and the projection's ``y`` runs **southward** (LRIT/HRIT 4.4), so an
     increasing line number moves south: HSD is stored north-up and needs no row
-    flip. ``LFAC`` is an *unsigned* ``I4`` in HSD, so that holds for every
-    granule rather than being a case to branch on — which is why this reader has
-    no flip, while the sibling SEVIRI reader does: MSG's scaling factors are
-    signed and negative, putting its line 1 in the south. The transform places
-    the north-west corner of `first_line`.
+    flip. ``LFAC`` is an *unsigned* ``I4`` in HSD (Guide Table 6, block #3 field
+    5), so that holds for every granule rather than being a case to branch on.
+    The sibling SEVIRI reader does flip, for a different reason entirely: MSG's
+    native 15-data line records are stored south-to-north with their columns
+    running east-to-west, so `read_seviri` reverses both axes of the array it
+    read. Nothing about HSD's own line order is in question here. The transform
+    places the north-west corner of `first_line`.
 
     Args:
         header: The decoded granule header.
@@ -1417,15 +1458,15 @@ def _assert_same_image(first: HsdHeader, header: HsdHeader) -> None:
 def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
     """Assemble the segments of one band into a single radiance array.
 
-    Args:
-        paths: An iterable of HSD segment paths of the **same** band and
-            timestamp.
-
     A **contiguous subset** is accepted and returns only the lines it covers,
     georeferenced where those lines belong in the disk — reading one segment is
     already supported, so a run of several is not a different kind of request.
     What is rejected is a set with a gap or a duplicate, and a set whose members
     are not from one acquisition.
+
+    Args:
+        paths: An iterable of HSD segment paths of the **same** band and
+            timestamp.
 
     Returns:
         A ``(radiance, header)`` pair: the stitched array covering every line the
@@ -1573,8 +1614,11 @@ def read_ahi(
             `None`.
 
     Returns:
-        A pyramids `Dataset` of the calibrated (or raw) band on the geostationary
-        grid, with the geostationary CRS, a metre geotransform and NaN nodata.
+        A pyramids `Dataset` of the calibrated (or raw) band. Read from a granule
+        it carries the granule's own geostationary grid — the geostationary CRS,
+        a metre geotransform and NaN nodata. Read from a `Dataset` source it
+        keeps **that** dataset's geotransform, CRS and EPSG instead, since no HSD
+        header is available to rebuild a grid from; only the values change.
 
     Raises:
         ReaderError: When `source` is `None`, `band` is unknown or disagrees with
@@ -1656,7 +1700,10 @@ def _effective_kind(
         overrides: The caller's coefficient overrides.
 
     Returns:
-        ``"solar"`` or ``"thermal"``.
+        ``"solar"`` or ``"thermal"`` from the granule or the registry. A caller's
+        ``kind`` override is **not** validated against that pair — it is returned
+        stringified as given, and :func:`_calibrate_array` dispatches on
+        ``"thermal"`` alone, so any other spelling takes the solar path.
 
     Raises:
         UnknownSensorError: When the registry has to be consulted and does not

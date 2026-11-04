@@ -5,12 +5,15 @@ Registers Himawari Standard Data (HSD) granules so
 ``read_file("HS_H08_….DAT")``, which GDAL cannot open and so falls through to this driver —
 routes into :func:`pyramids_eo.sensors.readers.read_ahi`.
 
-Unlike the other drivers here, this one does **not** claim its extension. ``.dat`` is the most
-generic suffix in use and says nothing about the content, so claiming every ``.dat`` would hijack
-unrelated files that GDAL (or another plugin) should get. Instead ``can_open`` matches the HSD
-file-name convention of Guide Table 4 — ``HS_aaa_yyyymmdd_hhnn_Bbb_cccc_Rjj_Skkll.DAT`` — which
-is distinctive enough to identify a granule without opening it. A granule that has been renamed
-is still readable by passing ``driver="ahi"`` explicitly, or by calling ``read_ahi`` directly.
+The driver declares ``.dat`` in ``suffixes``, so ``drivers_for_suffix(".dat")`` and
+``describe_drivers`` list it — but it declares no ``preempts``, and that is the attribute that
+would put it **ahead of** GDAL for a bare ``.dat`` path. ``.dat`` is the most generic suffix in
+use and says nothing about the content, so pre-empting every ``.dat`` would hijack unrelated
+files that GDAL (or another plugin) should get. The read therefore reaches this driver only after
+GDAL has failed to open the file, and ``can_open`` then narrows the claim to the HSD file-name
+convention of Guide Table 4 — ``HS_aaa_yyyymmdd_hhnn_Bbb_cccc_Rjj_Skkll.DAT`` — which is
+distinctive enough to identify a granule without opening it. A granule that has been renamed is
+still readable by passing ``driver="ahi"`` explicitly, or by calling ``read_ahi`` directly.
 
 An HSD granule names its own band in calibration block #5, so unlike the SEVIRI driver this one
 does not require the band to be given. Passing it (via ``bands=["B13"]`` or
@@ -51,7 +54,8 @@ class AhiDriver:
         long_name: Human-readable source name for ``describe_drivers``.
         api_version: The driver-contract version (see
             :data:`~pyramids_eo.drivers._base.RASTER_DRIVER_API_VERSION`).
-        suffixes: ``(".dat",)`` — declared so the driver is discoverable for HSD granules, while
+        suffixes: ``(".dat",)`` — declared so the driver is discoverable for HSD granules. No
+            ``preempts`` is declared alongside it, so the suffix never wins a read ahead of GDAL;
             ``can_open`` narrows the claim to the HSD name convention (see the module docstring).
         schemes: Empty — an HSD granule is a local file.
         capabilities: ``read`` only (one granule is one band at one timestep).
@@ -99,9 +103,11 @@ class AhiDriver:
         Returns:
             True when the base name follows the HSD convention
             ``HS_aaa_yyyymmdd_hhnn_Bbb_cccc_Rjj_Skkll.DAT`` (optionally ``.bz2``), else False.
-            Cheap: no import, no network, no file access, and safe for a path that does not
-            exist — matching the name rather than the generic ``.dat`` suffix keeps the driver
-            from claiming unrelated files.
+            Anything that is not a ``str`` is False, including a `pathlib.Path` — ``read_file``
+            stringifies the source before it scans, so a path only ever arrives here already
+            stringified. Cheap: no import, no network, no file access, and safe for a path that
+            does not exist — matching the name rather than the generic ``.dat`` suffix keeps the
+            driver from claiming unrelated files.
 
         Examples:
             - An HSD granule is claimed; a bare ``.dat`` or another suffix is not:
@@ -161,9 +167,12 @@ class AhiDriver:
             The calibrated, geolocated band.
 
         Raises:
-            ValueError: More than one band was given, or a boolean / numeric option could not
-                be read from its ``KEY=VALUE`` string spelling (``calibrate``,
-                ``sun_earth_distance``).
+            ValueError: ``bands`` is a bare ``str`` / ``bytes`` rather than a one-element list;
+                more than one band was given; ``options`` is a bare string or carries an item
+                that is not ``"KEY=VALUE"``; or a boolean / numeric option could not be read
+                from its ``KEY=VALUE`` string spelling (``calibrate``, ``sun_earth_distance``).
+            ReaderError: The granule carries a band other than the one requested, or cannot be
+                decoded (raised by ``read_ahi``, not here).
 
         Examples:
             - An AHI read is one band, so several are refused rather than silently
