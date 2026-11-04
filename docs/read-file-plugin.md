@@ -36,7 +36,7 @@ Every reader stays pure pyramids-eo over pyramids' bundled GDAL — no `eartheng
 1. **`driver="<name>"` given** → that registered driver is used and **GDAL is bypassed entirely**.
 2. **a driver that *pre-empts* GDAL for this source** → one that lists the source's suffix or scheme in its
    `preempts` *and* confirms it via `can_open` is tried **before** GDAL. This is opt-in; of the six drivers only
-   `s2` declares it, for `.safe`. An explicit `vsi=` outranks it.
+   `s2` declares it, for `.zip`. An explicit `vsi=` outranks it.
 3. **otherwise GDAL is tried** → if GDAL can open the source, you get GDAL's result and no plugin runs.
 4. **only if GDAL fails** → each registered driver's `can_open(source)` is asked, and the first to claim it reads it.
 
@@ -44,22 +44,24 @@ The consequence is the single rule worth remembering:
 
 - `ee://…`, a `.nat` granule, and the granule **directories** (FCI's chunk set, a Sentinel-3 `.SEN3`) auto-route
   to pyramids-eo, because GDAL cannot open any of them (step 3 fails, step 4 claims them).
-- a Sentinel-2 `.SAFE` **product directory** auto-routes too, but by a different step: GDAL ships its own
-  `SENTINEL2` driver and would open it at step 3 and hand back a bare *container* (0 bands + a
-  `ContainerRasterWarning`), so the `s2` driver declares `preempts = (".safe",)` and wins at **step 2**, before
-  GDAL is tried.
-- a **zipped** product (`.SAFE.zip`) is the one case still needing `driver="s2"`. pyramids matches a source's
-  *final* suffix, so a zipped product presents as `.zip`: `".safe.zip"` in `preempts` could never match it, and
-  `".zip"` would claim every archive. It keeps the GDAL-first order.
+- a Sentinel-2 `.SAFE` **product directory** auto-routes the same way: GDAL cannot open a product directory
+  either, so it fails at step 3 and the driver claims it at step 4. `.safe` is deliberately *not* pre-empted —
+  ESA shares the suffix with Sentinel-1, whose products GDAL reads itself, so pre-empting it would route those
+  into the Sentinel-2 reader.
+- a **zipped** product (`.SAFE.zip`) is the one form GDAL *does* open, handing back a bare *container* (0 bands
+  plus a `ContainerRasterWarning`) and silently ignoring your `open_options`. The `s2` driver therefore declares
+  `preempts = (".zip",)` and wins at **step 2**. An ordinary `.zip` is unaffected: `can_open` gates every
+  pre-empted claim, so only a `.SAFE.zip` is taken.
 
 !!! note "What pre-emption does and does not cover"
 
     Pre-emption shipped in pyramids-core 0.71
     ([serapeum-org/pyramids-core#1344](https://github.com/serapeum-org/pyramids-core/issues/1344)), below this
     package's floor, so every supported version has it. It is opt-in per driver and deliberately narrow here:
-    only `s2` declares it, and only for the `.safe` directory form. The other five drivers read formats GDAL
-    cannot open at all, so they already auto-route at step 4 and would gain nothing. An explicit `vsi=` skips
-    the pre-empt scan entirely, since that is a deliberate "open member N of this archive" intent.
+    only `s2` declares it, and only for `.zip`, the single form GDAL would otherwise claim. Everything else
+    pyramids-eo reads — `ee://`, `.nat`, FCI chunk sets, `.SEN3`, and a `.SAFE` directory — is something GDAL
+    cannot open at all, so it already arrives at step 4 and pre-emption would add nothing. An explicit `vsi=`
+    skips the pre-empt scan entirely, since that is a deliberate "open member N of this archive" intent.
 
 ## Passing reader options
 
@@ -126,21 +128,21 @@ The read covers the whole granule, so `bbox` / `crs` do not apply.
 from pyramids.dataset import Dataset
 
 
-# A product directory auto-routes: the s2 driver pre-empts GDAL, so no driver= is needed
+# A product directory auto-routes - GDAL cannot open one, so the driver claims it
 scene = Dataset.read_file(
     "S2A_MSIL2A.SAFE",
     open_options={"bands": ["B04", "B08"], "resolution": 10},
 )
 
-# driver="s2" still works and short-circuits ahead of pre-emption — useful to be explicit
+# A zipped product auto-routes too - the driver pre-empts GDAL for `.zip`
+scene = Dataset.read_file("S2A_MSIL2A.SAFE.zip", open_options={"bands": ["B04"]})
+
+# driver="s2" still works and short-circuits ahead of both - useful to be explicit
 scene = Dataset.read_file(
     "S2A_MSIL2A.SAFE",
     driver="s2",
     open_options={"bands": ["B04", "B08"], "resolution": 10},
 )
-
-# A zipped product is NOT pre-empted (it presents as `.zip`), so name the driver for it
-scene = Dataset.read_file("S2A_MSIL2A.SAFE.zip", driver="s2", open_options={"bands": ["B04"]})
 ```
 
 Scene-classification masking and the other `from_sentinel2` keywords (`reflectance`, `mask_scl`, `epsg`,
@@ -248,10 +250,9 @@ The facades are the source of truth for the reader options; the driver simply ma
 
 ## Troubleshooting
 
-- **A bare `read_file("X.SAFE.zip")` gave a 0-band dataset and a `ContainerRasterWarning`.** GDAL opened the
-  archive before the plugin. A *zipped* product is not pre-empted, because pyramids matches the final suffix and
-  sees `.zip` — pass `driver="s2"`. A `.SAFE` **directory** needs no `driver=`; if one gave you a container, check
-  that pyramids-eo is installed (`Dataset.read_file` can only pre-empt a driver it discovered).
+- **A `.SAFE.zip` gave a 0-band dataset and a `ContainerRasterWarning`, and ignored `open_options`.** GDAL
+  opened the archive before the plugin, which means pyramids-eo was not discovered — pre-emption can only use a
+  driver pyramids found. Check the install, or pass `driver="s2"` to force it.
 - **A Sentinel-2 `resolution`/`epsg` was ignored or mistyped.** You passed a `KEY=VALUE` list, which keeps values as
   strings. Pass `open_options` as a **dict** so the `int` survives.
 - **`FciDriver` raised "no chunk files found for FCI source …".** Point the source at the granule **directory**, a

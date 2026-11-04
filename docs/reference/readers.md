@@ -188,21 +188,20 @@ slstr = Dataset.read_file(
     "S3A_SL_1_RBT.SEN3", open_options={"channel": "S8", "view": "oblique"}
 )
 
-# Sentinel-2: the s2 driver pre-empts GDAL for a .SAFE directory, so no driver= is needed
+# Sentinel-2: a product directory auto-routes (GDAL cannot open one), and a zipped
+# product auto-routes too because the driver pre-empts GDAL for `.zip`
 s2 = Dataset.read_file("S2A_MSIL2A.SAFE", open_options={"bands": ["B04", "B03", "B02"]})
-
-# a zipped product presents as `.zip` and is not pre-empted, so name the driver for it
-s2z = Dataset.read_file("S2A_MSIL2A.SAFE.zip", driver="s2", open_options={"bands": ["B04"]})
+s2z = Dataset.read_file("S2A_MSIL2A.SAFE.zip", open_options={"bands": ["B04"]})
 ```
 
 `read_file` forwards only `open_options` to a driver, so reader keywords (channel,
 bbox, bands, credentials, …) are passed there; options needing a non-string type
 (e.g. S2 `resolution=10`) must be given in dict form, not a `KEY=VALUE` list. A
-bare `read_file("…SAFE")` on a product **directory** now reads the product: the driver
-declares `preempts = (".safe",)`, so pyramids tries it before GDAL (the opt-in added in
-pyramids-core 0.71, serapeum-org/pyramids-core#1344) instead of handing back GDAL's
-container. A **zipped** product still needs `driver="s2"`, since pyramids matches the
-final suffix and a `.SAFE.zip` presents as `.zip`.
+bare `read_file("…SAFE")` on a product **directory** reads the product: GDAL cannot open
+one, so the driver claims it on the fallback. A **zipped** product reads bare too — the
+driver declares `preempts = (".zip",)`, the opt-in added in pyramids-core 0.71
+(serapeum-org/pyramids-core#1344), so it is tried before GDAL hands back a container.
+`.safe` is not pre-empted: Sentinel-1 shares the suffix and GDAL reads those itself.
 
 ::: pyramids_eo.drivers
     options:
