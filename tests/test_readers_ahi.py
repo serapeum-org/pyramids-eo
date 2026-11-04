@@ -30,7 +30,7 @@ from pyramids_eo.sensors.readers.ahi import (
 from tests import _hsd_granule as fixture
 
 
-def _planck_radiance(temperature: float, wavelength_m: float) -> float:
+def _planck_radiance(temperature: float, wavelength_um: float) -> float:
     """Forward Planck function, written independently of the reader's inverse.
 
     The reader inverts Planck's law with ``log1p``; this builds the radiance from
@@ -39,16 +39,19 @@ def _planck_radiance(temperature: float, wavelength_m: float) -> float:
 
     Args:
         temperature: Brightness temperature in kelvin.
-        wavelength_m: Wavelength in metres.
+        wavelength_um: Wavelength in micrometres.
 
     Returns:
-        Spectral radiance in ``W m-2 sr-1 m-1``.
+        Spectral radiance in ``W m-2 sr-1 um-1`` — HSD's own basis.
     """
+    wavelength = wavelength_um * 1e-6
     numerator = 2.0 * fixture.PLANCK_CONSTANT * fixture.LIGHT_SPEED**2
     exponent = (fixture.PLANCK_CONSTANT * fixture.LIGHT_SPEED) / (
-        wavelength_m * fixture.BOLTZMANN_CONSTANT * temperature
+        wavelength * fixture.BOLTZMANN_CONSTANT * temperature
     )
-    return numerator / (wavelength_m**5 * (math.exp(exponent) - 1.0))
+    # Returned per MICROMETRE of wavelength, which is the basis HSD itself
+    # uses, so a fixture can carry it as a granule's slope / intercept do.
+    return numerator / (wavelength**5 * (math.exp(exponent) - 1.0)) / 1e6
 
 
 class TestBandNames:
@@ -355,7 +358,7 @@ class TestHeaderFields:
                 sub_lon=140.7,
                 slope=0.25,
                 intercept=-5.0,
-                wavelength_m=10.4e-6,
+                wavelength_um=10.4,
                 total_segments=10,
                 segment_number=4,
                 first_line=1651,
@@ -369,7 +372,7 @@ class TestHeaderFields:
         assert header.compression == 0
         assert (header.slope, header.intercept) == (0.25, -5.0)
         assert (header.error_count, header.outside_count) == (65535, 65534)
-        assert header.central_wavelength_m == pytest.approx(10.4e-6)
+        assert header.central_wavelength_um == pytest.approx(10.4)
         assert (header.total_segments, header.segment_number) == (10, 4)
         assert header.first_line == 1651
         assert header.rs_km == pytest.approx(42164.0)
@@ -606,7 +609,7 @@ class TestCalibration:
         in this test, while the reader inverts with ``log1p`` — so this compares
         two independent expressions, not one against itself.
         """
-        wavelength = 10.4e-6
+        wavelength = 10.4
         radiance = _planck_radiance(temperature, wavelength)
         # Choose a gain that lands this radiance on an exact integer count.
         count = 1000
@@ -619,14 +622,14 @@ class TestCalibration:
             counts=np.array([[count]], dtype=np.uint16),
             slope=slope,
             intercept=0.0,
-            wavelength_m=wavelength,
+            wavelength_um=wavelength,
             planck=(0.0, 1.0, 0.0),  # no correction: Tb == Te
         )
         result = read_ahi(path, "B13").read_array()
         assert float(result[0, 0]) == pytest.approx(temperature, rel=1e-9)
 
     def test_thermal_applies_the_granule_quadratic_correction(self, tmp_path):
-        wavelength = 10.4e-6
+        wavelength = 10.4
         temperature = 280.0
         radiance = _planck_radiance(temperature, wavelength)
         c0, c1, c2 = 1.5, 0.995, 3.0e-6
@@ -638,7 +641,7 @@ class TestCalibration:
             counts=np.array([[1000]], dtype=np.uint16),
             slope=radiance / 1000,
             intercept=0.0,
-            wavelength_m=wavelength,
+            wavelength_um=wavelength,
             planck=(c0, c1, c2),
         )
         expected = c0 + c1 * temperature + c2 * temperature**2
@@ -648,7 +651,7 @@ class TestCalibration:
 
     def test_thermal_leaves_masked_pixels_nan(self, tmp_path):
         counts = np.array([[1000, fixture.ERROR_COUNT]], dtype=np.uint16)
-        radiance = _planck_radiance(300.0, 10.4e-6)
+        radiance = _planck_radiance(300.0, 10.4)
         path = fixture.write_granule(
             tmp_path,
             band=13,
@@ -718,7 +721,7 @@ class TestCalibration:
         from the granule answer by six orders of magnitude and would satisfy it.
         Both results must be physical temperatures and agree closely.
         """
-        wavelength = 10.4e-6
+        wavelength = 10.4
         temperature = 280.0
         radiance = _planck_radiance(temperature, wavelength)
         path = fixture.write_granule(
@@ -729,7 +732,7 @@ class TestCalibration:
             counts=np.array([[1000]], dtype=np.uint16),
             slope=radiance / 1000,
             intercept=0.0,
-            wavelength_m=wavelength,
+            wavelength_um=wavelength,
         )
         granule = float(read_ahi(path, "B13").read_array()[0, 0])
         overridden = float(
@@ -762,8 +765,7 @@ class TestThermalUnits:
         self, tmp_path, wavelength_um, temperature
     ):
         """A `Dataset` source has no granule, so it takes the registry path."""
-        wavelength = wavelength_um * 1e-6
-        radiance = _planck_radiance(temperature, wavelength)
+        radiance = _planck_radiance(temperature, wavelength_um)
         band = {10.4: "B13", 3.9: "B07", 13.3: "B16", 6.2: "B08"}[wavelength_um]
         path = fixture.write_granule(
             tmp_path,
@@ -773,7 +775,7 @@ class TestThermalUnits:
             counts=np.array([[1000]], dtype=np.uint16),
             slope=radiance / 1000,
             intercept=0.0,
-            wavelength_m=wavelength,
+            wavelength_um=wavelength_um,
         )
         source = parse_ahi_hsd(path)
         result = float(read_ahi(source, band).read_array()[0, 0])
@@ -781,29 +783,39 @@ class TestThermalUnits:
             f"{band} at {temperature} K came back as {result} K"
         )
 
-    def test_the_unconverted_radiance_would_be_wildly_unphysical(self):
-        """Pins the magnitude of the defect this conversion exists to prevent."""
+    def test_skipping_the_rebasing_looks_plausible_and_is_wrong(self):
+        """Pins the defect this conversion exists to prevent.
+
+        In HSD's native per-micrometre units the unconverted value is not
+        absurd, it is merely wrong: a 280 K scene reads as about 189 K, which
+        passes for a cold cloud top. That is harder to notice than an obviously
+        broken number, so it is pinned by value rather than by magnitude.
+        """
         from pyramids_eo.sensors.registry.calibration import (
             radiance_to_brightness_temperature,
         )
 
-        radiance = _planck_radiance(280.0, 10.4e-6)
+        radiance = _planck_radiance(280.0, 10.4)
         unconverted = float(
             radiance_to_brightness_temperature(radiance, 961.538, 1.0, 0.0)
         )
-        assert unconverted > 500_000, unconverted
+        assert unconverted == pytest.approx(189.1, abs=0.5), unconverted
+        assert 150.0 < unconverted < 250.0, (
+            "the wrong answer is a plausible-looking temperature, which is "
+            "precisely why the rebasing cannot be left to inspection"
+        )
 
     def test_the_conversion_is_the_wavelength_squared_scale(self):
-        """L_nu = L_lambda * lambda^2, then per-m-1 to per-cm-1 and W to mW."""
+        """L_nu = L_lambda * lambda^2, carried through in micrometre units."""
         from pyramids_eo.sensors.readers.ahi import (
             _WAVENUMBER_RADIANCE_SCALE,
             _to_wavenumber_radiance,
         )
 
-        assert _WAVENUMBER_RADIANCE_SCALE == 1e5
-        radiance = _planck_radiance(280.0, 10.4e-6)
-        converted = _to_wavenumber_radiance(radiance, 10.4e-6)
-        assert float(converted) == pytest.approx(radiance * (10.4e-6) ** 2 * 1e5)
+        assert _WAVENUMBER_RADIANCE_SCALE == 1e-1
+        radiance = _planck_radiance(280.0, 10.4)
+        converted = _to_wavenumber_radiance(radiance, 10.4)
+        assert float(converted) == pytest.approx(radiance * 10.4**2 * 1e-1)
         assert 10.0 < float(converted) < 1000.0, (
             "a terrestrial scene is order 10-100 in the registry's units"
         )
@@ -858,7 +870,7 @@ class TestThermalUnits:
             read_ahi(path, "B13")
 
     def test_thermal_with_a_non_physical_wavelength_is_reported(self, tmp_path):
-        path = fixture.write_granule(tmp_path, band=13, wavelength_m=0.0)
+        path = fixture.write_granule(tmp_path, band=13, wavelength_um=0.0)
         with pytest.raises(ReaderError, match="non-physical central wavelength"):
             read_ahi(path, "B13")
 

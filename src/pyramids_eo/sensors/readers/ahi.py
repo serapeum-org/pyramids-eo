@@ -134,7 +134,7 @@ _B3_RPOL_KM = 43  # R8, polar radius (WGS84)
 
 # --- #5 Calibration information block (147 bytes) ----------------------------
 _B5_BAND_NUMBER = 3  # I2
-_B5_CENTRAL_WAVELENGTH_M = 5  # R8, metres
+_B5_CENTRAL_WAVELENGTH_UM = 5  # R8, micrometres (see HsdHeader)
 _B5_VALID_BITS = 13  # I2
 _B5_ERROR_COUNT = 15  # I2, sentinel 65535
 _B5_OUTSIDE_COUNT = 17  # I2, sentinel 65534
@@ -170,20 +170,23 @@ _BAND_MAX = 16
 _MIN_PIXEL_M = 100.0
 _MAX_PIXEL_M = 20000.0
 
-#: Converts HSD's spectral radiance from a per-wavelength basis to the
-#: per-wavenumber one the registry's inverse Planck documents.
+#: Converts HSD's spectral radiance from its own per-micrometre-of-wavelength
+#: basis to the per-wavenumber one the registry's inverse Planck documents.
 #:
-#: HSD block #5 gives radiance as ``W / (m2 sr m)`` - per metre of WAVELENGTH -
-#: while `radiance_to_brightness_temperature` takes
+#: HSD block #5 gives radiance per micrometre of WAVELENGTH,
+#: ``W / (m2 sr um)``, while `radiance_to_brightness_temperature` takes
 #: ``mW m-2 sr-1 (cm-1)-1`` - per inverse centimetre of WAVENUMBER. Since
-#: ``|dlambda / dnu| = lambda**2``, the per-wavenumber radiance is
-#: ``L_lambda * lambda**2`` in ``W / (m2 sr m-1)``; one ``cm-1`` spans 100
-#: ``m-1`` (x100) and ``W`` becomes ``mW`` (x1000), so the whole conversion is
-#: ``L_lambda * lambda**2 * 1e5``. Verified against the forward Planck function
-#: at 3.9-13.3 um and 200-300 K: the round trip lands within 2 mK, the residual
+#: ``|dlambda / dnu| = lambda**2``, rebasing onto wavenumber multiplies by
+#: ``lambda**2``; carrying the units through with ``lambda`` in micrometres,
+#: ``W`` to ``mW`` and ``um-1`` to ``cm-1`` leaves
+#: ``L * lambda_um**2 * 1e-1``. Verified against the forward Planck function at
+#: 3.9-13.3 um and 200-300 K: the round trip lands within 2 mK, the residual
 #: being the registry's rounded ``C1`` / ``C2`` rather than the conversion.
-#: Skipping it is not a small error - a 280 K scene reads as ~921,613 K.
-_WAVENUMBER_RADIANCE_SCALE = 1e5
+#: Skipping it is not a small error - a 280 K scene reads as ~9.96e6 K.
+_WAVENUMBER_RADIANCE_SCALE = 1e-1
+
+#: Micrometres per metre, for the one place the Planck inversion needs SI.
+_UM_PER_M = 1e6
 
 #: Smallest count-to-radiance slope treated as a real gain. HSD leaves an unused
 #: calibration field as literal zero bytes, so this separates "the field is
@@ -565,7 +568,15 @@ class HsdHeader:
         error_count: Count value marking an error pixel (block #5, 65535).
         outside_count: Count value marking a pixel outside the scan area
             (block #5, 65534).
-        central_wavelength_m: Band central wavelength in metres (block #5).
+        central_wavelength_um: Band central wavelength in **micrometres**
+            (block #5 field 4). HSD is micrometre-based throughout: the field
+            carries 10.4 for band 13, not 1.04e-05, and the slope / intercept
+            of the same block give radiance per micrometre. Every text
+            extraction of the specification PDF loses its micro sign -- the
+            whole document decodes to ASCII but for one multiplication sign --
+            so the unit renders as ``[m]`` there; Table 1 listing the bands as
+            0.47 to 13.3 is what settles it. The name carries the unit so the
+            reading cannot drift again.
         albedo_coefficient: Solar bands only — ``c'`` of ``albedo = c' * radiance``,
             so ``1 / c'`` is the band solar irradiance; `None` for a thermal band.
         planck_c0: Thermal bands only — constant term of the effective-to-
@@ -600,7 +611,7 @@ class HsdHeader:
             ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
             ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
             ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
-            ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+            ...     central_wavelength_um=10.4, albedo_coefficient=None,
             ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
             ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
             ...     boltzmann_constant=1.3806488e-23,
@@ -638,7 +649,7 @@ class HsdHeader:
     intercept: float
     error_count: int
     outside_count: int
-    central_wavelength_m: float
+    central_wavelength_um: float
     albedo_coefficient: float | None
     planck_c0: float | None
     planck_c1: float | None
@@ -688,7 +699,7 @@ class HsdHeader:
                 ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
                 ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
                 ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
-                ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+                ...     central_wavelength_um=10.4, albedo_coefficient=None,
                 ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
                 ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
                 ...     boltzmann_constant=1.3806488e-23,
@@ -876,8 +887,8 @@ def _parse_header(
         intercept=float(intercept),
         error_count=int(_unpack(buffer, order, "H", calibration + _B5_ERROR_COUNT)),
         outside_count=int(_unpack(buffer, order, "H", calibration + _B5_OUTSIDE_COUNT)),
-        central_wavelength_m=float(
-            _unpack(buffer, order, "d", calibration + _B5_CENTRAL_WAVELENGTH_M)
+        central_wavelength_um=float(
+            _unpack(buffer, order, "d", calibration + _B5_CENTRAL_WAVELENGTH_UM)
         ),
         albedo_coefficient=albedo_coefficient,
         planck_c0=planck[0],
@@ -942,7 +953,7 @@ def pixel_size_m(header: HsdHeader) -> tuple[float, float]:
             ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
             ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
             ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
-            ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+            ...     central_wavelength_um=10.4, albedo_coefficient=None,
             ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
             ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
             ...     boltzmann_constant=1.3806488e-23,
@@ -966,7 +977,7 @@ def pixel_size_m(header: HsdHeader) -> tuple[float, float]:
             ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
             ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
             ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
-            ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+            ...     central_wavelength_um=10.4, albedo_coefficient=None,
             ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
             ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
             ...     boltzmann_constant=1.3806488e-23,
@@ -1039,7 +1050,7 @@ def geotransform(header: HsdHeader, first_line: int) -> tuple[float, ...]:
             ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
             ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
             ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
-            ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+            ...     central_wavelength_um=10.4, albedo_coefficient=None,
             ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
             ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
             ...     boltzmann_constant=1.3806488e-23,
@@ -1067,7 +1078,7 @@ def geotransform(header: HsdHeader, first_line: int) -> tuple[float, ...]:
             ...     cfac=20466275, lfac=20466275, coff=2750.5, loff=2750.5,
             ...     rs_km=42164.0, req_km=6378.1370, rpol_km=6356.7523,
             ...     slope=0.5, intercept=-10.0, error_count=65535, outside_count=65534,
-            ...     central_wavelength_m=10.4e-06, albedo_coefficient=None,
+            ...     central_wavelength_um=10.4, albedo_coefficient=None,
             ...     planck_c0=0.0, planck_c1=1.0, planck_c2=0.0,
             ...     light_speed=299792458.0, planck_constant=6.62606957e-34,
             ...     boltzmann_constant=1.3806488e-23,
@@ -1180,13 +1191,13 @@ def _radiance(counts: Any, header: HsdHeader) -> Any:
     return radiance
 
 
-def _to_wavenumber_radiance(radiance: Any, wavelength_m: float) -> Any:
+def _to_wavenumber_radiance(radiance: Any, wavelength_um: float) -> Any:
     """Rebase HSD radiance from per wavelength to per wavenumber.
 
     Args:
-        radiance: Spectral radiance per wavelength, ``W m-2 sr-1 m-1``, as HSD
-            block #5's slope / intercept produce it.
-        wavelength_m: The band's central wavelength in metres.
+        radiance: Spectral radiance per micrometre of wavelength,
+            ``W m-2 sr-1 um-1``, as HSD block #5's slope / intercept produce it.
+        wavelength_um: The band's central wavelength in micrometres.
 
     Returns:
         The same radiance expressed as ``mW m-2 sr-1 (cm-1)-1``, which is what
@@ -1194,21 +1205,23 @@ def _to_wavenumber_radiance(radiance: Any, wavelength_m: float) -> Any:
         documents (see :data:`_WAVENUMBER_RADIANCE_SCALE` for the derivation).
 
     Raises:
-        ReaderError: When `wavelength_m` is not a positive, finite length, since
+        ReaderError: When `wavelength_um` is not a positive, finite length, since
             the conversion scales by its square.
     """
-    if not math.isfinite(wavelength_m) or wavelength_m <= 0.0:
+    if not math.isfinite(wavelength_um) or wavelength_um <= 0.0:
         raise ReaderError(
             f"read_ahi: cannot convert radiance units with a non-physical central "
-            f"wavelength ({wavelength_m!r} m)"
+            f"wavelength ({wavelength_um!r} um)"
         )
     return (
-        np.asarray(radiance, dtype=float) * wavelength_m**2 * _WAVENUMBER_RADIANCE_SCALE
+        np.asarray(radiance, dtype=float)
+        * wavelength_um**2
+        * _WAVENUMBER_RADIANCE_SCALE
     )
 
 
-def _registry_wavelength_m(band: str, sensor: str) -> float:
-    """Return a band's central wavelength from the bundled registry, in metres.
+def _registry_wavelength_um(band: str, sensor: str) -> float:
+    """Return a band's central wavelength from the bundled registry, in micrometres.
 
     Used when the source is already a `Dataset` and so carries no HSD header to
     take the granule's own exact wavelength from.
@@ -1218,14 +1231,15 @@ def _registry_wavelength_m(band: str, sensor: str) -> float:
         sensor: Registry sensor name.
 
     Returns:
-        The nominal central wavelength in metres.
+        The nominal central wavelength in micrometres -- the registry's own unit,
+        so no conversion is involved.
 
     Raises:
         UnknownSensorError: When the sensor / band is not in the registry.
     """
     from pyramids_eo.sensors.registry.sensors import get_sensor
 
-    return float(get_sensor(sensor).get_channel(band).wavelength_um) * 1e-6
+    return float(get_sensor(sensor).get_channel(band).wavelength_um)
 
 
 def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
@@ -1239,7 +1253,8 @@ def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
     :func:`~pyramids_eo.sensors.readers._common.calibrate_channel`.
 
     Args:
-        radiance: Spectral radiance in ``W m-2 sr-1 m-1``.
+        radiance: Spectral radiance in ``W m-2 sr-1 um-1``, as the granule's
+            slope and intercept produce it.
         header: The decoded granule header.
 
     Returns:
@@ -1267,11 +1282,11 @@ def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
             f"read_ahi: thermal band {header.band} is missing the calibration "
             f"constant(s) {', '.join(missing)} — unexpected HSD layout"
         )
-    wavelength = header.central_wavelength_m
-    if not math.isfinite(wavelength) or wavelength <= 0.0:
+    wavelength_um = header.central_wavelength_um
+    if not math.isfinite(wavelength_um) or wavelength_um <= 0.0:
         raise ReaderError(
             f"read_ahi: thermal band {header.band} declares a non-physical "
-            f"central wavelength ({wavelength!r} m) — unexpected HSD layout"
+            f"central wavelength ({wavelength_um!r} um) — unexpected HSD layout"
         )
     # The `missing` check above proves each of these is a finite float, which the
     # declared `float | None` cannot express; converting once keeps the arithmetic
@@ -1286,6 +1301,12 @@ def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
     values = np.asarray(radiance, dtype=float)
     # Planck inverse: Te = hc / (lambda k ln(1 + 2hc^2 / (lambda^5 I))). Only a
     # positive radiance has a temperature; the rest (off-earth, error) stay NaN.
+    # Planck's law is expressed in SI, while HSD gives both the wavelength and
+    # the radiance per micrometre, so both are converted here rather than at the
+    # call sites: a wavelength of 10.4 read as metres rather than micrometres
+    # calibrates a 280 K scene to about 1e19 K.
+    wavelength = wavelength_um / _UM_PER_M
+    #
     # Evaluated in place. The readable spelling of this allocates about seven
     # image-sized temporaries, which on a 22000x22000 band-3 disk is tens of
     # gigabytes; this holds two plus a boolean mask. Only a positive radiance
@@ -1293,7 +1314,7 @@ def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
     scale = 2.0 * planck * light**2 / wavelength**5
     inverse_c2 = wavelength * boltzmann / (planck * light)
     with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
-        effective = np.where(values > 0.0, values, np.nan)
+        effective = np.where(values > 0.0, values * _UM_PER_M, np.nan)
         np.reciprocal(effective, out=effective)
         effective *= scale
         np.log1p(effective, out=effective)
@@ -1758,9 +1779,9 @@ def _calibrate_thermal(
     if header is not None and not overrides:
         return _brightness_temperature(radiance, header)
     wavelength = (
-        header.central_wavelength_m
+        header.central_wavelength_um
         if header is not None
-        else _registry_wavelength_m(band, sensor)
+        else _registry_wavelength_um(band, sensor)
     )
     return calibrate_channel(
         _to_wavenumber_radiance(radiance, wavelength),

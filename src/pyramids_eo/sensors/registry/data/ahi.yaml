@@ -33,11 +33,18 @@
 # specific, bounded way: the ONLY approximation is that this is the nominal band
 # centre rather than the band-effective wavenumber, and that alpha/beta omit the
 # quadratic correction. It is not a unit approximation — `read_ahi` rebases HSD's
-# per-wavelength radiance (W/(m2 sr m)) onto the per-wavenumber basis this column
+# per-micrometre radiance (W/(m2 sr um)) onto the per-wavenumber basis this column
 # belongs to (mW/(m2 sr (cm-1)-1)) before the inverse Planck, which round-trips a
-# synthetic 200-300 K scene to within 2 mK. Skipping that rebasing is not a small
-# error: a 280 K scene reads as ~921,613 K. The granule path remains the accurate
-# one because it carries the exact wavelength and the quadratic terms.
+# synthetic 200-300 K scene to within 2 mK. Skipping that rebasing does NOT give an
+# obviously broken number — a 280 K scene reads as about 189 K, a plausible cloud
+# top — which is why it is pinned by a test rather than left to inspection. The
+# granule path remains the accurate one: it carries the exact wavelength and the
+# quadratic terms.
+#
+# Note the whole of HSD is micrometre-based: block #5 field 4 holds 10.4 for band
+# 13, not 1.04e-05, and its slope / intercept give radiance per micrometre. Every
+# text extraction of the specification PDF drops its micro sign, so those units
+# render as "[m]"; Table 1's values (0.47 to 13.3) are what settle it.
 name: ahi
 channels:
   B01: {wavelength_um: 0.47, resolution_m: 1000, kind: solar}

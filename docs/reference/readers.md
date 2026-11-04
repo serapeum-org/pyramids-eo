@@ -70,14 +70,24 @@ than quietly using a value from elsewhere. See the table's own header for the
 provenance of every constant in it.
 
 One unit detail matters if you supply your own thermal coefficients or hand
-`read_ahi` a `Dataset` you built yourself. HSD defines radiance **per wavelength**
-(`W / (m2 sr m)`), while the registry's inverse Planck takes it **per wavenumber**
-(`mW / (m2 sr (cm-1)-1)`). `read_ahi` rebases between the two itself — by
-`L * wavelength**2 * 1e5` — on every path that reaches the registry, so a
-`Dataset` source and an explicit `coeffs=` both calibrate correctly. The two bases
-differ by about four orders of magnitude at AHI's thermal wavelengths, so a
-`Dataset` holding radiance in some *other* unit will not be rescued by this: pass
-the granule, or convert before you call.
+`read_ahi` a `Dataset` you built yourself. **HSD is micrometre-based throughout**:
+block #5 field 4 holds `10.4` for band 13 (not `1.04e-05`), and the slope and
+intercept of the same block give radiance **per micrometre**, `W / (m2 sr um)`.
+The registry's inverse Planck instead takes it **per wavenumber**,
+`mW / (m2 sr (cm-1)-1)`. `read_ahi` rebases between the two itself — by
+`L * wavelength_um**2 * 1e-1` — on every path that reaches the registry, so a
+`Dataset` source and an explicit `coeffs=` both calibrate correctly.
+
+The two bases differ by a factor of 1.5 (3.9 µm) to 17.7 (13.3 µm), which is the
+dangerous part: skipping the rebasing yields a *plausible* temperature rather than
+an obviously broken one — a 280 K scene reads as about 189 K. So a `Dataset`
+holding radiance in some other unit will not be rescued here, and the error will
+not announce itself: pass the granule, or convert before you call.
+
+(If you are reading the specification alongside this: every text extraction of the
+PDF loses its micro sign, so the wavelength and radiance units appear there as
+`[m]` and `W / (m2 sr m)`. Table 1 listing the bands as 0.47 to 13.3 is what
+settles that they are micrometres.)
 
 ## Sentinel-3: swath readers
 

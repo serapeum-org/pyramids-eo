@@ -232,7 +232,7 @@ def _calibration_block(
     *,
     slope: float,
     intercept: float,
-    wavelength_m: float,
+    wavelength_um: float,
     albedo_coefficient: float,
     planck: tuple[float, float, float],
     updated: tuple[float, float] | None,
@@ -242,7 +242,7 @@ def _calibration_block(
     """Build block #5, calibration information (147 bytes), in the band's variant."""
     block = _BlockWriter(5, FIXED_BLOCK_LENGTHS[5], order)
     block.i2(band)  # 3 band number
-    block.r8(wavelength_m)  # 4 central wave length
+    block.r8(wavelength_um)  # 4 central wave length [um]
     # Guide Table 1 gives a per-band valid bit depth (11, 12 or 14), but the
     # column is misaligned in the text extraction available here, so the true
     # per-band mapping is NOT reproduced rather than guessed. These two stand-in
@@ -314,7 +314,7 @@ def granule_bytes(
     loff: float | None = None,
     slope: float = 0.5,
     intercept: float = -10.0,
-    wavelength_m: float = 10.4e-6,
+    wavelength_um: float = 10.4,
     albedo_coefficient: float = 0.0025,
     planck: tuple[float, float, float] = (0.0, 1.0, 0.0),
     updated: tuple[float, float] | None = None,
@@ -349,7 +349,11 @@ def granule_bytes(
         loff: Line offset; defaults likewise.
         slope: Count-to-radiance slope.
         intercept: Count-to-radiance intercept.
-        wavelength_m: Band central wavelength in metres.
+        wavelength_um: Band central wavelength in **micrometres**, which is what
+            HSD block #5 field 4 carries -- 10.4 for band 13, not 1.04e-05. The
+            specification PDF's micro sign is lost by every text extraction of
+            it, so the unit reads as ``[m]`` there; Table 1's values (0.47 to
+            13.3) settle which was meant.
         albedo_coefficient: ``c'`` of ``albedo = c' * radiance`` (solar bands).
         planck: The ``(c0, c1, c2)`` brightness-temperature correction (thermal).
         updated: An optional ``(slope, intercept)`` pair for the solar variant's
@@ -404,7 +408,7 @@ def granule_bytes(
             band,
             slope=slope,
             intercept=intercept,
-            wavelength_m=wavelength_m,
+            wavelength_um=wavelength_um,
             albedo_coefficient=albedo_coefficient,
             planck=planck,
             updated=updated,
