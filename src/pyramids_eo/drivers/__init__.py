@@ -36,9 +36,8 @@ letting the truthy string ``"false"`` switch an option on.
 
 The entry points in ``pyproject.toml`` are the whole integration; installing the package is
 enough for ``read_file`` to find these. Each driver is a thin wrapper over an existing reader
-(``from_earthengine`` / ``read_seviri`` / ``read_ahi`` / ``from_sentinel2`` / ``read_fci_l1c`` /
-``read_olci`` /
-``read_slstr``), which stays the ergonomic public API.
+(``from_earthengine`` / ``read_seviri`` / ``read_ahi`` / ``from_sentinel2`` /
+``read_fci_l1c`` / ``read_olci`` / ``read_slstr``), which stays the ergonomic public API.
 
 Only a driver's ``read`` is reachable this way: ``Dataset.read_file`` never dispatches
 ``read_collection``, so :meth:`~pyramids_eo.drivers.earthengine.EarthEngineDriver.read_collection`
