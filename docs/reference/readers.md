@@ -59,6 +59,16 @@ solar calibration attempted without a granule raises `CalibrationError` rather
 than quietly using a value from elsewhere. See the table's own header for the
 provenance of every constant in it.
 
+One unit detail matters if you supply your own thermal coefficients or hand
+`read_ahi` a `Dataset` you built yourself. HSD defines radiance **per wavelength**
+(`W / (m2 sr m)`), while the registry's inverse Planck takes it **per wavenumber**
+(`mW / (m2 sr (cm-1)-1)`). `read_ahi` rebases between the two itself — by
+`L * wavelength**2 * 1e5` — on every path that reaches the registry, so a
+`Dataset` source and an explicit `coeffs=` both calibrate correctly. The two bases
+differ by about four orders of magnitude at AHI's thermal wavelengths, so a
+`Dataset` holding radiance in some *other* unit will not be rescued by this: pass
+the granule, or convert before you call.
+
 ## Sentinel-3: swath readers
 
 For Sentinel-3 `.SEN3` granules use `read_olci` (OLCI L1B EFR / ERR) and

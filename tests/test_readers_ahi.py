@@ -593,16 +593,28 @@ class TestCalibration:
         values = read_ahi(path, "B13", calibrate=False).read_array()
         assert values.ravel() == pytest.approx([4.0, 9.0])
 
-    def test_explicit_coeffs_override_the_granule(self, tmp_path):
-        """A caller's coeffs route a thermal band through the registry's linear form."""
+    def test_explicit_coeffs_route_through_the_registry_and_stay_physical(
+        self, tmp_path
+    ):
+        """A caller's coeffs use the registry's linear form - in the right units.
+
+        Asserting only that the two paths *differ* is too weak: an unconverted
+        per-wavelength radiance fed to the per-wavenumber inverse Planck differs
+        from the granule answer by six orders of magnitude and would satisfy it.
+        Both results must be physical temperatures and agree closely.
+        """
+        wavelength = 10.4e-6
+        temperature = 280.0
+        radiance = _planck_radiance(temperature, wavelength)
         path = fixture.write_granule(
             tmp_path,
             band=13,
             columns=1,
             lines=1,
             counts=np.array([[1000]], dtype=np.uint16),
-            slope=1.0,
+            slope=radiance / 1000,
             intercept=0.0,
+            wavelength_m=wavelength,
         )
         granule = float(read_ahi(path, "B13").read_array()[0, 0])
         overridden = float(
@@ -612,7 +624,114 @@ class TestCalibration:
                 coeffs={"central_wavenumber_cm1": 961.538, "alpha": 1.0, "beta": 0.0},
             ).read_array()[0, 0]
         )
-        assert not math.isclose(granule, overridden, rel_tol=1e-6)
+        assert granule == pytest.approx(temperature, rel=1e-9)
+        assert overridden == pytest.approx(temperature, abs=0.05), (
+            f"registry path must be physical, got {overridden}"
+        )
+
+
+class TestThermalUnits:
+    """HSD radiance is per WAVELENGTH; the registry's Planck wants per WAVENUMBER.
+
+    HSD block #5 defines radiance as ``W / (m2 sr m)`` - per metre of wavelength.
+    `radiance_to_brightness_temperature` documents ``mW m-2 sr-1 (cm-1)-1``.
+    Feeding one to the other unconverted yields ~921,613 K for a 280 K scene, so
+    every path that reaches the registry must convert first.
+    """
+
+    @pytest.mark.parametrize(
+        ("wavelength_um", "temperature"),
+        [(10.4, 280.0), (10.4, 200.0), (3.9, 300.0), (13.3, 250.0), (6.2, 230.0)],
+    )
+    def test_a_dataset_source_calibrates_to_a_physical_temperature(
+        self, tmp_path, wavelength_um, temperature
+    ):
+        """A `Dataset` source has no granule, so it takes the registry path."""
+        wavelength = wavelength_um * 1e-6
+        radiance = _planck_radiance(temperature, wavelength)
+        band = {10.4: "B13", 3.9: "B07", 13.3: "B16", 6.2: "B08"}[wavelength_um]
+        path = fixture.write_granule(
+            tmp_path,
+            band=int(band[1:]),
+            columns=1,
+            lines=1,
+            counts=np.array([[1000]], dtype=np.uint16),
+            slope=radiance / 1000,
+            intercept=0.0,
+            wavelength_m=wavelength,
+        )
+        source = parse_ahi_hsd(path)
+        result = float(read_ahi(source, band).read_array()[0, 0])
+        assert result == pytest.approx(temperature, abs=0.6), (
+            f"{band} at {temperature} K came back as {result} K"
+        )
+
+    def test_the_unconverted_radiance_would_be_wildly_unphysical(self):
+        """Pins the magnitude of the defect this conversion exists to prevent."""
+        from pyramids_eo.sensors.registry.calibration import (
+            radiance_to_brightness_temperature,
+        )
+
+        radiance = _planck_radiance(280.0, 10.4e-6)
+        unconverted = float(
+            radiance_to_brightness_temperature(radiance, 961.538, 1.0, 0.0)
+        )
+        assert unconverted > 500_000, unconverted
+
+    def test_the_conversion_is_the_wavelength_squared_scale(self):
+        """L_nu = L_lambda * lambda^2, then per-m-1 to per-cm-1 and W to mW."""
+        from pyramids_eo.sensors.readers.ahi import (
+            _WAVENUMBER_RADIANCE_SCALE,
+            _to_wavenumber_radiance,
+        )
+
+        assert _WAVENUMBER_RADIANCE_SCALE == 1e5
+        radiance = _planck_radiance(280.0, 10.4e-6)
+        converted = _to_wavenumber_radiance(radiance, 10.4e-6)
+        assert float(converted) == pytest.approx(radiance * (10.4e-6) ** 2 * 1e5)
+        assert 10.0 < float(converted) < 1000.0, (
+            "a terrestrial scene is order 10-100 in the registry's units"
+        )
+
+    def test_a_solar_band_is_not_unit_converted(self, tmp_path):
+        """Reflectance divides radiance by an irradiance in the SAME basis."""
+        path = fixture.write_granule(
+            tmp_path,
+            band=3,
+            columns=1,
+            lines=1,
+            counts=np.array([[100]], dtype=np.uint16),
+            slope=1.0,
+            intercept=0.0,
+            albedo_coefficient=0.0025,
+        )
+        source = parse_ahi_hsd(path)
+        result = float(
+            read_ahi(
+                source, "B03", coeffs={"kind": "solar", "solar_irradiance": 400.0}
+            ).read_array()[0, 0]
+        )
+        assert result == pytest.approx(math.pi * 100.0 / 400.0)
+
+    def test_coeffs_declaring_solar_on_a_thermal_band_skip_the_conversion(
+        self, tmp_path
+    ):
+        """The effective kind decides, so an override is honoured either way."""
+        path = fixture.write_granule(
+            tmp_path,
+            band=13,
+            columns=1,
+            lines=1,
+            counts=np.array([[100]], dtype=np.uint16),
+            slope=1.0,
+            intercept=0.0,
+        )
+        result = float(
+            read_ahi(
+                path, "B13", coeffs={"kind": "solar", "solar_irradiance": 400.0}
+            ).read_array()[0, 0]
+        )
+        assert result == pytest.approx(math.pi * 100.0 / 400.0)
 
     def test_thermal_missing_a_constant_is_reported(self, tmp_path):
         path = fixture.write_granule(tmp_path, band=13)

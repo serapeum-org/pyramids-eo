@@ -153,6 +153,21 @@ _BAND_MAX = 16
 _MIN_PIXEL_M = 100.0
 _MAX_PIXEL_M = 20000.0
 
+#: Converts HSD's spectral radiance from a per-wavelength basis to the
+#: per-wavenumber one the registry's inverse Planck documents.
+#:
+#: HSD block #5 gives radiance as ``W / (m2 sr m)`` - per metre of WAVELENGTH -
+#: while `radiance_to_brightness_temperature` takes
+#: ``mW m-2 sr-1 (cm-1)-1`` - per inverse centimetre of WAVENUMBER. Since
+#: ``|dlambda / dnu| = lambda**2``, the per-wavenumber radiance is
+#: ``L_lambda * lambda**2`` in ``W / (m2 sr m-1)``; one ``cm-1`` spans 100
+#: ``m-1`` (x100) and ``W`` becomes ``mW`` (x1000), so the whole conversion is
+#: ``L_lambda * lambda**2 * 1e5``. Verified against the forward Planck function
+#: at 3.9-13.3 um and 200-300 K: the round trip lands within 2 mK, the residual
+#: being the registry's rounded ``C1`` / ``C2`` rather than the conversion.
+#: Skipping it is not a small error - a 280 K scene reads as ~921,613 K.
+_WAVENUMBER_RADIANCE_SCALE = 1e5
+
 #: Absolute tolerance for treating a decoded float as zero. HSD leaves an unused
 #: calibration field as literal zero bytes, so this only has to separate "the
 #: field is unset" from any real gain, which is many orders of magnitude larger.
@@ -938,6 +953,54 @@ def _radiance(counts: Any, header: HsdHeader) -> Any:
     return radiance
 
 
+def _to_wavenumber_radiance(radiance: Any, wavelength_m: float) -> Any:
+    """Rebase HSD radiance from per wavelength to per wavenumber.
+
+    Args:
+        radiance: Spectral radiance per wavelength, ``W m-2 sr-1 m-1``, as HSD
+            block #5's slope / intercept produce it.
+        wavelength_m: The band's central wavelength in metres.
+
+    Returns:
+        The same radiance expressed as ``mW m-2 sr-1 (cm-1)-1``, which is what
+        :func:`~pyramids_eo.sensors.registry.calibration.radiance_to_brightness_temperature`
+        documents (see :data:`_WAVENUMBER_RADIANCE_SCALE` for the derivation).
+
+    Raises:
+        ReaderError: When `wavelength_m` is not a positive, finite length, since
+            the conversion scales by its square.
+    """
+    if not math.isfinite(wavelength_m) or wavelength_m <= 0.0:
+        raise ReaderError(
+            f"read_ahi: cannot convert radiance units with a non-physical central "
+            f"wavelength ({wavelength_m!r} m)"
+        )
+    return (
+        np.asarray(radiance, dtype=float) * wavelength_m**2 * _WAVENUMBER_RADIANCE_SCALE
+    )
+
+
+def _registry_wavelength_m(band: str, sensor: str) -> float:
+    """Return a band's central wavelength from the bundled registry, in metres.
+
+    Used when the source is already a `Dataset` and so carries no HSD header to
+    take the granule's own exact wavelength from.
+
+    Args:
+        band: The registry band key (e.g. ``"B13"``).
+        sensor: Registry sensor name.
+
+    Returns:
+        The nominal central wavelength in metres.
+
+    Raises:
+        UnknownSensorError: When the sensor / band is not in the registry.
+    """
+    from pyramids_eo.sensors.registry.sensors import get_sensor
+
+    return float(get_sensor(sensor).get_channel(band).wavelength_um) * 1e-6
+
+
 def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
     """Convert thermal radiance to brightness temperature the HSD way.
 
@@ -1259,30 +1322,56 @@ def _calibrate_dataset(
         A pyramids `Dataset` of the calibrated (or raw) band on `dataset`'s grid.
     """
     radiance = np.asarray(dataset.read_array(), dtype=float)
+    overrides: dict[str, Any] = dict(coeffs or {})
+    # The kind actually in force decides the path: the caller's override first,
+    # then the granule, then the registry (the only source when `source` was
+    # already a `Dataset`). A caller declaring `kind` takes that path even when
+    # it disagrees with the band's usual one.
+    if "kind" in overrides:
+        kind = overrides["kind"]
+    elif header is not None:
+        kind = header.kind
+    else:
+        from pyramids_eo.sensors.registry.sensors import get_sensor
+
+        kind = get_sensor(sensor).get_channel(band).kind
+
     if not calibrate:
         data = radiance
-    elif header is not None and header.kind == "thermal":
-        # The granule's quadratic Planck correction, which the registry's linear
-        # alpha / beta cannot express. An explicit `coeffs` still wins, so a
-        # caller can route a thermal band through the registry form instead.
-        data = (
-            calibrate_channel(
-                radiance, band, sensor, sun_earth_distance, cos_sza, coeffs=coeffs
+    elif kind == "thermal":
+        if header is not None and not overrides:
+            # The granule's own quadratic Planck correction, which the registry's
+            # linear alpha / beta cannot express.
+            data = _brightness_temperature(radiance, header)
+        else:
+            # The registry's inverse Planck works per wavenumber, while HSD
+            # radiance is per wavelength; without this rebasing a 280 K scene
+            # calibrates to ~921,613 K.
+            wavelength = (
+                header.central_wavelength_m
+                if header is not None
+                else _registry_wavelength_m(band, sensor)
             )
-            if coeffs
-            else _brightness_temperature(radiance, header)
-        )
+            data = calibrate_channel(
+                _to_wavenumber_radiance(radiance, wavelength),
+                band,
+                sensor,
+                sun_earth_distance,
+                cos_sza,
+                coeffs=overrides or None,
+            )
     else:
         granule: dict[str, Any] = {}
         if header is not None and header.albedo_coefficient:
             # HSD gives c' of albedo = c' * radiance, i.e. c' = 1 / S0. The
             # registry works in the standard reflectance convention
             # (pi * L * d^2 / E0), so hand it the granule's own E0 = 1 / c'.
+            # Both are per wavelength, so reflectance needs no rebasing.
             granule = {
                 "kind": "solar",
                 "solar_irradiance": 1.0 / header.albedo_coefficient,
             }
-        granule.update(coeffs or {})
+        granule.update(overrides)
         data = calibrate_channel(
             radiance,
             band,

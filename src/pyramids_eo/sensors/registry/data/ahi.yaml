@@ -24,13 +24,20 @@
 #     carries a quadratic effective-to-brightness correction (block #5 fields 10-12,
 #     `Tb = c0 + c1*Te + c2*Te^2`) plus the c / h / k it was calibrated with, and
 #     `read_ahi` inverts Planck's law with those directly. The defaults (alpha 1.0,
-#     beta 0.0 — i.e. no correction) therefore apply only to the registry-only
-#     fallback path, which is approximate; prefer a granule.
+#     beta 0.0 — i.e. no correction) therefore apply only to the registry fallback
+#     path, which omits the quadratic correction; prefer a granule.
 #
 # central_wavenumber_cm1 is the nominal band centre converted from wavelength
 # (1e4 / wavelength_um) — arithmetic on the published value, not a band-effective
-# wavenumber. It makes the registry-only thermal path usable but approximate; the
-# granule path above is the accurate one.
+# wavenumber. The registry thermal path is therefore usable but approximate in a
+# specific, bounded way: the ONLY approximation is that this is the nominal band
+# centre rather than the band-effective wavenumber, and that alpha/beta omit the
+# quadratic correction. It is not a unit approximation — `read_ahi` rebases HSD's
+# per-wavelength radiance (W/(m2 sr m)) onto the per-wavenumber basis this column
+# belongs to (mW/(m2 sr (cm-1)-1)) before the inverse Planck, which round-trips a
+# synthetic 200-300 K scene to within 2 mK. Skipping that rebasing is not a small
+# error: a 280 K scene reads as ~921,613 K. The granule path remains the accurate
+# one because it carries the exact wavelength and the quadratic terms.
 name: ahi
 channels:
   B01: {wavelength_um: 0.47, resolution_m: 1000, kind: solar}
