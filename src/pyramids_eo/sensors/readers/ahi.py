@@ -182,10 +182,14 @@ _MAX_PIXEL_M = 20000.0
 #: Skipping it is not a small error - a 280 K scene reads as ~921,613 K.
 _WAVENUMBER_RADIANCE_SCALE = 1e5
 
-#: Absolute tolerance for treating a decoded float as zero. HSD leaves an unused
-#: calibration field as literal zero bytes, so this only has to separate "the
-#: field is unset" from any real gain, which is many orders of magnitude larger.
-_ZERO_TOLERANCE = 1e-30
+#: Smallest count-to-radiance slope treated as a real gain. HSD leaves an unused
+#: calibration field as literal zero bytes, so this separates "the field is
+#: unset" from any real gain. Real AHI slopes are of order 1e-2 to 1e2 in the
+#: granule's own units, so a positive value below this is a misparse rather than
+#: a very small gain. A *negative* slope is rejected outright: counts rise with
+#: radiance by construction, so a negative gain inverts the image rather than
+#: scaling it, and the old check -- "not within 1e-30 of zero" -- admitted one.
+_MIN_SLOPE = 1e-12
 
 #: Scaling denominator of the normalised geostationary projection: the
 #: ``2**-16`` factor of ``c = COFF + nint(x * 2**-16 * CFAC)`` (LRIT/HRIT 4.4).
@@ -338,6 +342,51 @@ def _read_bytes(path: Any) -> bytes:
         raise ReaderError(f"read_ahi: cannot read {name} ({exc})") from exc
 
 
+#: Ceiling on the header length a granule may declare before the header-only
+#: read gives up and falls back to reading the whole file. The 11 blocks are a
+#: few kilobytes unless block #10 lists an extreme number of error lines, so a
+#: larger figure means the field is not a length.
+_MAX_HEADER_BYTES = 1 << 20
+
+
+def _read_header_bytes(path: Any) -> bytes:
+    """Read a granule's header blocks without its pixel payload.
+
+    Block #1 states the total header length, so the header can be read in two
+    small reads instead of pulling a whole granule into memory. A full disk's
+    segment is tens of megabytes and a stitch needs every segment's header
+    before it can size the output, so reading headers this way keeps that first
+    pass nearly free.
+
+    Args:
+        path: Path to a ``.DAT`` or ``.DAT.bz2`` granule.
+
+    Returns:
+        The header bytes — enough for :func:`walk_header_blocks` and
+        :func:`parse_hsd_header`, with no pixels. Falls back to the whole file
+        when the granule does not declare a usable header length.
+
+    Raises:
+        ReaderError: When the file cannot be opened, or is too short to hold
+            block #1.
+    """
+    name = str(path)
+    try:
+        opener = bz2.open if name.lower().endswith(".bz2") else open
+        with opener(name, "rb") as handle:  # type: ignore[operator]
+            head = handle.read(_FIXED_BLOCK_LENGTHS[_BASIC])
+            order = _byte_order(head)
+            declared = struct.unpack_from(f"{order}I", head, _B1_TOTAL_HEADER_LENGTH)[0]
+            if not 0 < declared <= _MAX_HEADER_BYTES:
+                # No usable declaration: fall back rather than guess a size.
+                return head + handle.read()
+            if declared <= len(head):
+                return head
+            return head + handle.read(declared - len(head))
+    except (OSError, EOFError, ValueError) as exc:
+        raise ReaderError(f"read_ahi: cannot read {name} ({exc})") from exc
+
+
 def _byte_order(buffer: bytes) -> ByteOrder:
     """Determine the granule's byte order from block #1.
 
@@ -458,7 +507,14 @@ class HsdHeader:
         columns: Pixels per line in this granule / segment (block #2).
         lines: Lines in this granule / segment (block #2).
         bits_per_pixel: Stored bit depth, always 16 for HSD (block #2).
-        valid_bits: Valid bits per pixel for the band, 11 / 12 / 14 (block #5).
+        valid_bits: Valid bits per pixel for the band — 11, 12 or 14 depending on
+            the band (block #5). Decoded and exposed, but deliberately **not**
+            applied: the reader does not clip or mask counts that exceed
+            ``2**valid_bits``. The two sentinel counts already identify every
+            pixel the granule declares invalid, so a count above the valid range
+            is a product defect rather than a flag, and silently discarding it
+            would hide that defect instead of surfacing it. A caller that wants
+            to treat the range as hard can read this field and mask.
         compression: Data-block compression flag — 0 none, 1 gzip, 2 bzip2.
         sub_lon: Sub-satellite longitude, degrees east (block #3).
         cfac: Column scaling factor of the normalised projection (block #3).
@@ -641,13 +697,37 @@ def parse_hsd_header(buffer: bytes) -> HsdHeader:
             is empty, or the count-to-radiance slope is non-physical.
     """
     order = _byte_order(buffer)
-    blocks = walk_header_blocks(buffer, order)
+    return _parse_header(buffer, order, walk_header_blocks(buffer, order))
+
+
+def _parse_header(
+    buffer: bytes, order: ByteOrder, blocks: dict[int, tuple[int, int]]
+) -> HsdHeader:
+    """Decode the header from an already-walked granule.
+
+    Split out so a caller that has already determined the byte order and walked
+    the blocks does not pay for both again: the single-granule read used to
+    derive the order three times and walk the header twice.
+
+    Args:
+        buffer: The granule bytes.
+        order: The byte-order prefix from :func:`_byte_order`.
+        blocks: The block table from :func:`walk_header_blocks`.
+
+    Returns:
+        The decoded :class:`HsdHeader`.
+
+    Raises:
+        ReaderError: As :func:`parse_hsd_header`.
+    """
 
     basic = blocks[_BASIC][0]
     raw_name = buffer[
         basic + _B1_SATELLITE : basic + _B1_SATELLITE + _B1_SATELLITE_BYTES
     ]
-    satellite = raw_name.decode("ascii", "replace").strip().strip("\x00").strip()
+    # A fixed-width C field is NUL-padded, so the name ends at the first NUL;
+    # stripping only the ends would keep an interior one in the decoded string.
+    satellite = raw_name.split(b"\x00", 1)[0].decode("ascii", "replace").strip()
 
     info = blocks[_DATA_INFO][0]
     bits_per_pixel = _unpack(buffer, order, "H", info + _B2_BITS_PER_PIXEL)
@@ -676,15 +756,24 @@ def parse_hsd_header(buffer: bytes) -> HsdHeader:
         albedo_coefficient = _unpack(
             buffer, order, "d", calibration + _B5_VIS_ALBEDO_COEFF
         )
+        # The thermal branch validates every constant it decodes; this one was
+        # taken on trust, so a NaN here produced an all-NaN reflectance image
+        # with no error at all. A granule that has no albedo coefficient leaves
+        # the field zero, which is legitimate and handled at calibration time;
+        # a non-finite value means the block is not what we think it is.
+        if not math.isfinite(albedo_coefficient):
+            raise ReaderError(
+                f"read_ahi: solar band {band_name(band_number)} declares a "
+                f"non-finite albedo coefficient ({albedo_coefficient!r}) "
+                "— unexpected HSD layout"
+            )
         # Fields 12 / 13 restate the slope / intercept after an in-flight
         # recalibration. They are the values in force when present, but a
         # granule that has never been recalibrated leaves them zero, so fall
         # back to fields 8 / 9 rather than reading a zero gain.
         updated_slope = _unpack(buffer, order, "d", calibration + _B5_VIS_SLOPE)
         updated_intercept = _unpack(buffer, order, "d", calibration + _B5_VIS_INTERCEPT)
-        if math.isfinite(updated_slope) and not math.isclose(
-            updated_slope, 0.0, abs_tol=_ZERO_TOLERANCE
-        ):
+        if math.isfinite(updated_slope) and updated_slope >= _MIN_SLOPE:
             slope, intercept = updated_slope, updated_intercept
     else:
         planck = tuple(
@@ -698,10 +787,11 @@ def parse_hsd_header(buffer: bytes) -> HsdHeader:
                 _B5_IR_BOLTZMANN,
             )
         )
-    if not math.isfinite(slope) or math.isclose(slope, 0.0, abs_tol=_ZERO_TOLERANCE):
+    if not math.isfinite(slope) or slope < _MIN_SLOPE:
         raise ReaderError(
             f"read_ahi: granule declares a non-physical count-to-radiance slope "
-            f"({slope!r}) — unexpected HSD layout"
+            f"({slope!r}); it must be a finite value of at least {_MIN_SLOPE}, "
+            "since radiance rises with count — unexpected HSD layout"
         )
 
     segment = blocks[_SEGMENT][0]
@@ -761,8 +851,11 @@ def pixel_size_m(header: HsdHeader) -> tuple[float, float]:
     the satellite scanning angle by ``c = COFF + nint(x * 2**-16 * CFAC)``. HSD
     expresses that angle in **degrees** (unlike MSG, which uses radians), so one
     column step spans ``2**16 / CFAC`` degrees, and the ground distance is that
-    angle times the satellite height. The identity is exact: the published AHI
-    ``CFAC`` values reproduce 2000 / 1000 / 500 m to the metre.
+    angle times the satellite height. The published AHI ``CFAC`` values reproduce
+    2000 / 1000 / 500 m to five significant figures — not exactly, since ``CFAC``
+    is an integer and cannot encode the step precisely; the residual is about
+    36 micrometres at 2 km (see the doctest below). A degrees/radians mix-up, by
+    contrast, would be out by a factor of 57.
 
     Args:
         header: The decoded granule header.
@@ -854,9 +947,13 @@ def geotransform(header: HsdHeader, first_line: int) -> tuple[float, ...]:
     """Build the metre geotransform of the geostationary grid.
 
     ``COFF`` / ``LOFF`` give the sub-satellite point's column and line, 1-based,
-    and the projection's ``y`` runs **southward** (LRIT/HRIT 4.4), so a positive
-    ``LFAC`` means line 1 is the northernmost — HSD is stored north-up and needs
-    no row flip. The transform places the north-west corner of `first_line`.
+    and the projection's ``y`` runs **southward** (LRIT/HRIT 4.4), so an
+    increasing line number moves south: HSD is stored north-up and needs no row
+    flip. ``LFAC`` is an *unsigned* ``I4`` in HSD, so that holds for every
+    granule rather than being a case to branch on — which is why this reader has
+    no flip, while the sibling SEVIRI reader does: MSG's scaling factors are
+    signed and negative, putting its line 1 in the south. The transform places
+    the north-west corner of `first_line`.
 
     Args:
         header: The decoded granule header.
@@ -954,7 +1051,10 @@ def _geostationary_wkt(header: HsdHeader) -> str:
 
 
 def _counts(
-    buffer: bytes, header: HsdHeader, blocks: dict[int, tuple[int, int]]
+    buffer: bytes,
+    header: HsdHeader,
+    blocks: dict[int, tuple[int, int]],
+    order: ByteOrder,
 ) -> Any:
     """Read the data block's ``uint16`` counts as a ``(lines, columns)`` array.
 
@@ -962,6 +1062,7 @@ def _counts(
         buffer: The granule bytes.
         header: The decoded granule header.
         blocks: The block table from :func:`walk_header_blocks`.
+        order: The byte-order prefix from :func:`_byte_order`.
 
     Returns:
         The raw counts, shaped ``(header.lines, header.columns)``.
@@ -992,7 +1093,7 @@ def _counts(
             f"{header.lines} x {header.columns} grid needs {expected} "
             "(truncated granule or an incomplete segment)"
         )
-    dtype = np.dtype(np.uint16).newbyteorder(_byte_order(buffer))
+    dtype = np.dtype(np.uint16).newbyteorder(order)
     flat = np.frombuffer(
         buffer, dtype=dtype, count=header.lines * header.columns, offset=offset
     )
@@ -1122,12 +1223,25 @@ def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
     values = np.asarray(radiance, dtype=float)
     # Planck inverse: Te = hc / (lambda k ln(1 + 2hc^2 / (lambda^5 I))). Only a
     # positive radiance has a temperature; the rest (off-earth, error) stay NaN.
-    with np.errstate(invalid="ignore", divide="ignore"):
-        ratio = (2.0 * planck * light**2) / (wavelength**5 * values)
-        effective = (planck * light) / (
-            wavelength * boltzmann * np.log1p(np.where(values > 0.0, ratio, np.nan))
-        )
-    return c0 + c1 * effective + c2 * effective**2
+    # Evaluated in place. The readable spelling of this allocates about seven
+    # image-sized temporaries, which on a 22000x22000 band-3 disk is tens of
+    # gigabytes; this holds two plus a boolean mask. Only a positive radiance
+    # has a temperature, so the rest are seeded NaN and propagate through.
+    scale = 2.0 * planck * light**2 / wavelength**5
+    inverse_c2 = wavelength * boltzmann / (planck * light)
+    with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
+        effective = np.where(values > 0.0, values, np.nan)
+        np.reciprocal(effective, out=effective)
+        effective *= scale
+        np.log1p(effective, out=effective)
+        effective *= inverse_c2
+        np.reciprocal(effective, out=effective)  # now the effective temperature
+        # Horner: Tb = c0 + Te * (c1 + c2 * Te), one scratch array.
+        brightness = effective * c2
+        brightness += c1
+        brightness *= effective
+        brightness += c0
+    return brightness
 
 
 def _dataset(array: Any, header: HsdHeader, first_line: int) -> Any:
@@ -1174,10 +1288,35 @@ def parse_ahi_hsd(path: Any) -> Any:
             :func:`parse_hsd_header` and :func:`_counts`).
     """
     buffer = _read_bytes(path)
-    header = parse_hsd_header(buffer)
-    blocks = walk_header_blocks(buffer, _byte_order(buffer))
-    radiance = _radiance(_counts(buffer, header, blocks), header)
+    order = _byte_order(buffer)
+    blocks = walk_header_blocks(buffer, order)
+    header = _parse_header(buffer, order, blocks)
+    radiance = _radiance(_counts(buffer, header, blocks, order), header)
     return _dataset(radiance, header, header.first_line)
+
+
+def _decode_into(path: Any, header: HsdHeader, out: Any) -> None:
+    """Decode one granule's radiance straight into `out`.
+
+    Writing into a caller-owned slice is what keeps a stitched full disk to one
+    copy of the image: the alternative holds every segment's array *and* the
+    assembled one at the same time.
+
+    Args:
+        path: Path to the granule.
+        header: That granule's already-decoded header.
+        out: A ``(header.lines, header.columns)`` float view to fill.
+
+    Raises:
+        ReaderError: When the granule cannot be decoded.
+    """
+    buffer = _read_bytes(path)
+    order = _byte_order(buffer)
+    blocks = walk_header_blocks(buffer, order)
+    counts = _counts(buffer, header, blocks, order)
+    np.multiply(counts, header.slope, out=out, casting="unsafe")
+    out += header.intercept
+    out[(counts == header.error_count) | (counts == header.outside_count)] = np.nan
 
 
 def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
@@ -1203,12 +1342,11 @@ def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
             segments the image has; a segment repeats; or the segments leave a
             gap, which would otherwise yield a silently part-blank disk.
     """
-    decoded: list[tuple[HsdHeader, Any]] = []
-    for path in paths:
-        buffer = _read_bytes(path)
-        header = parse_hsd_header(buffer)
-        blocks = walk_header_blocks(buffer, _byte_order(buffer))
-        decoded.append((header, _radiance(_counts(buffer, header, blocks), header)))
+    # Pass one reads only the headers, so the output can be sized and the set
+    # validated before any pixels are held.
+    decoded: list[tuple[HsdHeader, Any]] = [
+        (parse_hsd_header(_read_header_bytes(path)), path) for path in paths
+    ]
     if not decoded:
         raise ReaderError("read_ahi: no HSD segment paths were given")
     decoded.sort(key=lambda item: item[0].first_line)
@@ -1283,9 +1421,11 @@ def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
 
     total_lines = expected_line - decoded[0][0].first_line
     stitched = np.empty((total_lines, first.columns), dtype=float)
+    # Pass two decodes each segment directly into its rows, so only one copy of
+    # the image exists plus the segment currently being read.
     row = 0
-    for header, radiance in decoded:
-        stitched[row : row + header.lines] = radiance
+    for header, path in decoded:
+        _decode_into(path, header, stitched[row : row + header.lines])
         row += header.lines
     return stitched, first
 
@@ -1359,52 +1499,78 @@ def read_ahi(
                 "read_ahi: band is required when source is already a Dataset "
                 "(it carries no HSD header to name the band)"
             )
-        return _calibrate_dataset(
+        return _wrap_like(
             source,
-            requested,
+            _calibrate_array(
+                source.read_array(),
+                requested,
+                sensor=sensor,
+                calibrate=calibrate,
+                sun_earth_distance=sun_earth_distance,
+                cos_sza=cos_sza,
+                coeffs=coeffs,
+                header=None,
+            ),
+        )
+
+    if isinstance(source, (str, bytes)) or hasattr(source, "__fspath__"):
+        paths = [source]
+    else:
+        try:
+            paths = list(source)
+        except TypeError as exc:
+            # A bare non-path, non-iterable would otherwise surface as a
+            # TypeError from list(), which is not the documented failure.
+            raise ReaderError(
+                f"read_ahi: source must be a granule path, an iterable of segment "
+                f"paths, or a Dataset, not {type(source).__name__}"
+            ) from exc
+
+    if not paths:
+        raise ReaderError("read_ahi: no HSD segment paths were given")
+
+    # The band is named in the header, so a mismatch is settled before any
+    # pixels are decoded rather than after a whole disk has been read.
+    if requested is not None:
+        declared = parse_hsd_header(_read_header_bytes(paths[0])).band
+        if requested != declared:
+            raise ReaderError(
+                f"read_ahi: band {requested} was requested but the granule "
+                f"carries {declared}"
+            )
+
+    if len(paths) == 1:
+        buffer = _read_bytes(paths[0])
+        order = _byte_order(buffer)
+        blocks = walk_header_blocks(buffer, order)
+        header = _parse_header(buffer, order, blocks)
+        array = _radiance(_counts(buffer, header, blocks, order), header)
+        first_line = header.first_line
+    else:
+        array, header = _stitch(paths)
+        first_line = header.first_line
+
+    # Calibrate the values before registering them, so a full disk is wrapped
+    # once rather than built as radiance and immediately rebuilt as brightness
+    # temperature.
+    return _dataset(
+        _calibrate_array(
+            array,
+            header.band,
             sensor=sensor,
             calibrate=calibrate,
             sun_earth_distance=sun_earth_distance,
             cos_sza=cos_sza,
             coeffs=coeffs,
-            header=None,
-        )
-
-    paths = (
-        [source]
-        if isinstance(source, (str, bytes)) or hasattr(source, "__fspath__")
-        else list(source)
-    )
-    if len(paths) == 1:
-        buffer = _read_bytes(paths[0])
-        header = parse_hsd_header(buffer)
-        blocks = walk_header_blocks(buffer, _byte_order(buffer))
-        array = _radiance(_counts(buffer, header, blocks), header)
-        first_line = header.first_line
-    else:
-        array, header = _stitch(paths)
-        first_line = header.first_line
-    if requested is not None and requested != header.band:
-        raise ReaderError(
-            f"read_ahi: band {requested} was requested but the granule carries "
-            f"{header.band}"
-        )
-
-    dataset = _dataset(array, header, first_line)
-    return _calibrate_dataset(
-        dataset,
-        header.band,
-        sensor=sensor,
-        calibrate=calibrate,
-        sun_earth_distance=sun_earth_distance,
-        cos_sza=cos_sza,
-        coeffs=coeffs,
-        header=header,
+            header=header,
+        ),
+        header,
+        first_line,
     )
 
 
-def _calibrate_dataset(
-    dataset: Any,
+def _calibrate_array(
+    radiance: Any,
     band: str,
     *,
     sensor: str,
@@ -1414,10 +1580,14 @@ def _calibrate_dataset(
     coeffs: dict[str, Any] | None,
     header: HsdHeader | None,
 ) -> Any:
-    """Calibrate a radiance `Dataset` and re-register it on the same grid.
+    """Calibrate a radiance array to its physical quantity.
+
+    Deliberately array-in, array-out. Wrapping the radiance in a `Dataset` only
+    to read it straight back out doubled the peak footprint of a full disk for
+    no benefit, so the caller wraps the finished values once.
 
     Args:
-        dataset: The radiance `Dataset` to calibrate.
+        radiance: The radiance array to calibrate.
         band: The registry band key (e.g. ``"B13"``).
         sensor: Registry sensor name.
         calibrate: Whether to convert to a physical quantity at all.
@@ -1428,9 +1598,9 @@ def _calibrate_dataset(
             `None` when the source was already a `Dataset`.
 
     Returns:
-        A pyramids `Dataset` of the calibrated (or raw) band on `dataset`'s grid.
+        The calibrated (or, with `calibrate` false, the unchanged) values.
     """
-    radiance = np.asarray(dataset.read_array(), dtype=float)
+    radiance = np.asarray(radiance, dtype=float)
     overrides: dict[str, Any] = dict(coeffs or {})
     # The kind actually in force decides the path: the caller's override first,
     # then the granule, then the registry (the only source when `source` was
@@ -1471,11 +1641,31 @@ def _calibrate_dataset(
             )
     else:
         granule: dict[str, Any] = {}
-        if header is not None and header.albedo_coefficient:
+        if (
+            header is not None
+            and header.albedo_coefficient is not None
+            and header.albedo_coefficient > 0.0
+        ):
             # HSD gives c' of albedo = c' * radiance, i.e. c' = 1 / S0. The
             # registry works in the standard reflectance convention
             # (pi * L * d^2 / E0), so hand it the granule's own E0 = 1 / c'.
             # Both are per wavelength, so reflectance needs no rebasing.
+            #
+            # Two consequences worth being explicit about:
+            #
+            # 1. What comes back is pi times HSD's own "albedo" (the guide
+            #    defines A = I / S0, with no pi). That is deliberate: it is the
+            #    standard bidirectional reflectance factor this package returns
+            #    for every other solar band, so AHI stays comparable with FCI,
+            #    SEVIRI and the Sentinel readers rather than matching JMA's
+            #    quantity. Divide by pi to recover HSD's albedo.
+            # 2. The d^2 term is applied on top of S0 and does NOT double-count.
+            #    The guide gives no sun-earth distance anywhere, and c' is a
+            #    static per-band constant -- block #5 field 11's update time
+            #    covers fields 12/13 (the recalibrated slope and intercept)
+            #    only, never c'. A static constant cannot carry a distance that
+            #    changes daily, so S0 is at the conventional 1 AU reference and
+            #    the d^2 correction belongs on top of it.
             granule = {
                 "kind": "solar",
                 "solar_irradiance": 1.0 / header.albedo_coefficient,
@@ -1490,6 +1680,19 @@ def _calibrate_dataset(
             coeffs=granule or None,
         )
 
+    return data
+
+
+def _wrap_like(dataset: Any, data: Any) -> Any:
+    """Register `data` on the same grid and CRS as `dataset`.
+
+    Args:
+        dataset: The `Dataset` whose geotransform and CRS to reuse.
+        data: The values to register.
+
+    Returns:
+        A pyramids `Dataset` carrying `data` on `dataset`'s grid, with NaN nodata.
+    """
     from pyramids.dataset import Dataset, GeoReference
 
     epsg = dataset.epsg if dataset.epsg else None
@@ -1498,7 +1701,11 @@ def _calibrate_dataset(
         geo_ref=GeoReference(geo=dataset.geotransform, epsg=epsg),
         no_data_value=np.nan,
     )
-    if epsg is None:
-        # The geostationary grid is not an EPSG code, so carry the CRS across.
+    # Carried across unconditionally. The geostationary CRS has no EPSG code
+    # today, so the `epsg is None` branch happened to cover it -- but relying on
+    # that means the day pyramids resolves this WKT to a code, `+h=` and
+    # `+sweep=y` would be dropped silently and every pixel would land in the
+    # wrong place. Setting it either way costs nothing and cannot regress.
+    if dataset.crs:
         result.crs = dataset.crs
     return result

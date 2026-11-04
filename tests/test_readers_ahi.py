@@ -224,9 +224,10 @@ def parse_ahi_hsd_array(buffer: bytes) -> np.ndarray:
     """Decode a granule held in memory to its radiance array (test helper)."""
     from pyramids_eo.sensors.readers.ahi import _counts, _radiance
 
+    order = _byte_order(buffer)
+    blocks = walk_header_blocks(buffer, order)
     header = parse_hsd_header(buffer)
-    blocks = walk_header_blocks(buffer, _byte_order(buffer))
-    return _radiance(_counts(buffer, header, blocks), header)
+    return _radiance(_counts(buffer, header, blocks, order), header)
 
 
 class TestHeaderFields:
@@ -325,7 +326,9 @@ class TestHeaderFields:
         with pytest.raises(ReaderError, match="empty grid"):
             parse_hsd_header(buffer)
 
-    @pytest.mark.parametrize("slope", [0.0, float("nan"), float("inf")])
+    @pytest.mark.parametrize(
+        "slope", [0.0, -0.5, -1e-9, float("nan"), float("inf"), float("-inf")]
+    )
     def test_rejects_a_non_physical_slope(self, slope):
         buffer = fixture.granule_bytes(band=13, slope=slope)
         with pytest.raises(ReaderError, match="non-physical count-to-radiance slope"):
@@ -1315,3 +1318,48 @@ class TestSegmentIdentity:
         assert values[:, 0] == pytest.approx(
             [1.0] * 3 + [2.0] * 3 + [3.0] * 3 + [4.0] * 3
         )
+
+
+class TestDecodedFloatValidation:
+    """Every calibration float the reader relies on is checked, not assumed."""
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_a_non_finite_albedo_coefficient_is_reported(self, tmp_path, bad):
+        """Left unchecked this produced an all-NaN reflectance image, no error."""
+        buffer = fixture.granule_bytes(band=3, albedo_coefficient=bad)
+        with pytest.raises(ReaderError, match="non-finite albedo coefficient"):
+            parse_hsd_header(buffer)
+
+    def test_a_zero_albedo_coefficient_falls_back_to_the_registry(self, tmp_path):
+        """Zero means the granule has none; the registry then refuses honestly."""
+        from pyramids_eo.errors import CalibrationError
+
+        path = fixture.write_granule(
+            tmp_path,
+            band=3,
+            columns=1,
+            lines=1,
+            counts=np.array([[100]], dtype=np.uint16),
+            slope=1.0,
+            intercept=0.0,
+            albedo_coefficient=0.0,
+        )
+        with pytest.raises(CalibrationError, match="solar_irradiance"):
+            read_ahi(path, "B03")
+
+    def test_a_recalibrated_slope_below_the_floor_is_ignored(self, tmp_path):
+        """A denormal-ish updated slope is a misparse, not a very small gain."""
+        header = parse_hsd_header(
+            fixture.granule_bytes(
+                band=3, slope=0.5, intercept=-10.0, updated=(1e-20, -2.0)
+            )
+        )
+        assert header.slope == 0.5
+        assert header.intercept == -10.0
+
+    def test_the_slope_floor_is_many_orders_below_a_real_gain(self):
+        """The floor separates "unset" from a real gain without clipping one."""
+        from pyramids_eo.sensors.readers.ahi import _MIN_SLOPE
+
+        assert _MIN_SLOPE == 1e-12
+        assert _MIN_SLOPE < 1e-2, "real AHI slopes are order 1e-2 and above"

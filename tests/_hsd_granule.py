@@ -107,22 +107,40 @@ class _BlockWriter:
         """Append a fixed-width ASCII field, NUL-padded."""
         self.parts.append(value.encode("ascii").ljust(size, b"\x00")[:size])
 
+    def spare(self, size: int) -> None:
+        """Append the block's trailing spare bytes.
+
+        Writing the spare explicitly is what makes :meth:`done`'s checksum mean
+        something: with implicit padding, a field written at the wrong width
+        just shifted the padding and the block still came out the declared
+        length.
+
+        Args:
+            size: Number of spare bytes the specification gives the block.
+        """
+        self.parts.append(b"\x00" * size)
+
     def done(self) -> bytes:
-        """Pad the block to its declared length and return it.
+        """Return the finished block, checking its length exactly.
 
         Returns:
             The block bytes, exactly `length` long.
 
         Raises:
-            AssertionError: When the fields written already exceed the declared
-                length — the same contradiction the specification's fixed
-                "= N [bytes]" rows rule out.
+            AssertionError: When the fields written do not total the declared
+                length. This is the specification's own "= N [bytes]" row used as
+                a checksum, and it has to be an equality: the earlier version
+                asserted only that the fields did not *overflow* and then
+                zero-padded the remainder, so a field written at the wrong width
+                — exactly the mistake these fixtures exist to catch — produced a
+                block of the right length with everything after it displaced.
         """
         body = b"".join(self.parts)
-        assert len(body) <= self.length, (
-            f"block fields total {len(body)} bytes, over the declared {self.length}"
+        assert len(body) == self.length, (
+            f"block fields total {len(body)} bytes, but the specification "
+            f"declares {self.length}; a field is missing or the wrong width"
         )
-        return body.ljust(self.length, b"\x00")
+        return body
 
 
 def _basic_block(
@@ -166,6 +184,10 @@ def _basic_block(
     block.r8(start_mjd + 0.01)  # 12 file creation time [MJD]
     block.i4(header_length)  # 13 total header length
     block.i4(data_length)  # 14 total data length
+    # Fields 15 onward (quality flags, file version, spare) are not decoded by
+    # the reader, so they are left zeroed -- but the width is still declared, so
+    # the block has to add up.
+    block.spare(FIXED_BLOCK_LENGTHS[1] - 78)
     return block.done()
 
 
@@ -176,6 +198,7 @@ def _data_info_block(order: str, columns: int, lines: int, compression: int) -> 
     block.i2(columns)  # 4 number of columns
     block.i2(lines)  # 5 number of lines
     block.i1(compression)  # 6 compression flag for data block
+    block.spare(40)  # 7 spare
     return block.done()
 
 
@@ -199,6 +222,7 @@ def _projection_block(
     block.r8(1737122264.0)  # 14 coefficient for Sd
     block.i2(0)  # 15 resampling types
     block.i2(4)  # 16 resampling size
+    block.spare(40)  # 17 spare
     return block.done()
 
 
@@ -219,6 +243,12 @@ def _calibration_block(
     block = _BlockWriter(5, FIXED_BLOCK_LENGTHS[5], order)
     block.i2(band)  # 3 band number
     block.r8(wavelength_m)  # 4 central wave length
+    # Guide Table 1 gives a per-band valid bit depth (11, 12 or 14), but the
+    # column is misaligned in the text extraction available here, so the true
+    # per-band mapping is NOT reproduced rather than guessed. These two stand-in
+    # values only have to be a legal depth: the reader exposes the field and
+    # deliberately does not clip counts to it, so nothing under test depends on
+    # which band gets which.
     block.i2(11 if band <= 6 else 14)  # 5 valid number of bits per pixel
     block.i2(error_count)  # 6 count value of error pixels
     block.i2(outside_count)  # 7 count value of pixels outside scan area
@@ -229,6 +259,7 @@ def _calibration_block(
         block.r8(0.0)  # 11 update time of fields 12 and 13 [MJD]
         block.r8(0.0 if updated is None else updated[0])  # 12 calibrated slope
         block.r8(0.0 if updated is None else updated[1])  # 13 calibrated intercept
+        block.spare(80)  # 14 spare
     else:  # infrared variant
         block.r8(planck[0])  # 10 c0
         block.r8(planck[1])  # 11 c1
@@ -239,6 +270,7 @@ def _calibration_block(
         block.r8(LIGHT_SPEED)  # 16 speed of light
         block.r8(PLANCK_CONSTANT)  # 17 Planck constant
         block.r8(BOLTZMANN_CONSTANT)  # 18 Boltzmann constant
+        block.spare(40)  # 19 spare
     return block.done()
 
 
@@ -248,6 +280,7 @@ def _segment_block(order: str, total: int, number: int, first_line: int) -> byte
     block.i1(total)  # 3 total number of segments
     block.i1(number)  # 4 segment sequence number
     block.i2(first_line)  # 5 first line number of image segment
+    block.spare(40)  # 6 spare
     return block.done()
 
 
@@ -257,10 +290,16 @@ LONG_LENGTH_BLOCKS = frozenset({10})
 
 
 def _filler_block(order: str, number: int, length: int) -> bytes:
-    """Build a block carrying nothing but its number, length and spare bytes."""
-    return _BlockWriter(
-        number, length, order, long_length=number in LONG_LENGTH_BLOCKS
-    ).done()
+    """Build a block carrying nothing but its number, length and spare bytes.
+
+    The reader skips these blocks entirely, so only their number and length
+    matter -- but the spare is still declared explicitly so the block satisfies
+    the same exact-length checksum as every other.
+    """
+    long_length = number in LONG_LENGTH_BLOCKS
+    block = _BlockWriter(number, length, order, long_length=long_length)
+    block.spare(length - (5 if long_length else 3))
+    return block.done()
 
 
 def granule_bytes(
