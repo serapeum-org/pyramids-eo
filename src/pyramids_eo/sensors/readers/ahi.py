@@ -424,6 +424,58 @@ def _byte_order(buffer: bytes) -> ByteOrder:
     return order
 
 
+def _block_length(buffer: bytes, order: ByteOrder, expected: int, offset: int) -> int:
+    """Read and validate one header block's declared length.
+
+    Every check here concerns a single block's self-description, so they live
+    together rather than inside the walk: the walk's own job is just to follow
+    the lengths.
+
+    Args:
+        buffer: The granule bytes.
+        order: The `struct` byte-order prefix.
+        expected: The block number this position must declare.
+        offset: Byte offset of the block.
+
+    Returns:
+        The block's length in bytes.
+
+    Raises:
+        ReaderError: When the block is truncated, declares a number other than
+            its position, reports a zero length, contradicts a fixed length the
+            specification gives it, or runs past the end of the granule.
+    """
+    # 1 byte of block number plus the length field itself, which is wider
+    # for the one block the specification gives an I4.
+    preamble = 5 if expected in _LONG_LENGTH_BLOCKS else 3
+    if offset + preamble > len(buffer):
+        raise ReaderError(
+            f"read_ahi: granule is truncated inside header block #{expected}"
+        )
+    number = buffer[offset]
+    width = "I" if expected in _LONG_LENGTH_BLOCKS else "H"
+    length = _unpack(buffer, order, width, offset + 1)
+    if number != expected:
+        raise ReaderError(
+            f"read_ahi: header block at offset {offset} declares number "
+            f"{number}, expected #{expected} — unexpected HSD layout"
+        )
+    if length == 0:
+        raise ReaderError(f"read_ahi: header block #{expected} declares a zero length")
+    fixed = _FIXED_BLOCK_LENGTHS.get(expected)
+    if fixed is not None and length != fixed:
+        raise ReaderError(
+            f"read_ahi: header block #{expected} declares {length} bytes, "
+            f"expected the fixed {fixed} — unexpected HSD layout"
+        )
+    if offset + length > len(buffer):
+        raise ReaderError(
+            f"read_ahi: header block #{expected} ({length} bytes at offset "
+            f"{offset}) runs past the end of the granule"
+        )
+    return int(length)
+
+
 def walk_header_blocks(buffer: bytes, order: ByteOrder) -> dict[int, tuple[int, int]]:
     """Walk the 11 self-describing HSD header blocks.
 
@@ -450,38 +502,8 @@ def walk_header_blocks(buffer: bytes, order: ByteOrder) -> dict[int, tuple[int, 
     blocks: dict[int, tuple[int, int]] = {}
     offset = 0
     for expected in range(1, _HEADER_BLOCK_COUNT + 1):
-        # 1 byte of block number plus the length field itself, which is wider
-        # for the one block the specification gives an I4.
-        preamble = 5 if expected in _LONG_LENGTH_BLOCKS else 3
-        if offset + preamble > len(buffer):
-            raise ReaderError(
-                f"read_ahi: granule is truncated inside header block #{expected}"
-            )
-        number = buffer[offset]
-        width = "I" if expected in _LONG_LENGTH_BLOCKS else "H"
-        length = _unpack(buffer, order, width, offset + 1)
-        if number != expected:
-            raise ReaderError(
-                f"read_ahi: header block at offset {offset} declares number "
-                f"{number}, expected #{expected} — unexpected HSD layout"
-            )
-        if length == 0:
-            raise ReaderError(
-                f"read_ahi: header block #{expected} declares a zero length"
-            )
-        fixed = _FIXED_BLOCK_LENGTHS.get(expected)
-        if fixed is not None and length != fixed:
-            raise ReaderError(
-                f"read_ahi: header block #{expected} declares {length} bytes, "
-                f"expected the fixed {fixed} — unexpected HSD layout"
-            )
-        if offset + length > len(buffer):
-            raise ReaderError(
-                f"read_ahi: header block #{expected} ({length} bytes at offset "
-                f"{offset}) runs past the end of the granule"
-            )
-        blocks[expected] = (offset, length)
-        offset += length
+        blocks[expected] = (offset, _block_length(buffer, order, expected, offset))
+        offset += blocks[expected][1]
     declared = _unpack(buffer, order, "I", _B1_TOTAL_HEADER_LENGTH)
     if declared and declared != offset:
         # Block #1 states the whole header's length, so this catches a walk that
@@ -1319,6 +1341,79 @@ def _decode_into(path: Any, header: HsdHeader, out: Any) -> None:
     out[(counts == header.error_count) | (counts == header.outside_count)] = np.nan
 
 
+def _assert_same_image(first: HsdHeader, header: HsdHeader) -> None:
+    """Check that two segment headers describe one image, or raise.
+
+    Lifted out of the stitch as a single predicate: the question is not six
+    separate ones but whether these two granules are segments of the same
+    acquisition of the same band on the same grid.
+
+    Args:
+        first: The header of the northernmost segment, used as the reference.
+        header: The header being compared against it.
+
+    Raises:
+        ReaderError: When the two disagree on band, grid width, projection,
+            satellite, observation (time or area), or how many segments the
+            image has.
+    """
+    if header.band_number != first.band_number:
+        raise ReaderError(
+            f"read_ahi: segments mix bands ({first.band} and {header.band}); "
+            "stitch one band at a time"
+        )
+    if header.columns != first.columns:
+        raise ReaderError(
+            f"read_ahi: segments disagree on width ({first.columns} and "
+            f"{header.columns} columns)"
+        )
+    if (header.cfac, header.lfac, header.coff, header.loff) != (
+        first.cfac,
+        first.lfac,
+        first.coff,
+        first.loff,
+    ):
+        raise ReaderError(
+            "read_ahi: segments disagree on the projection block; they are "
+            "not segments of one image"
+        )
+    # Contiguous line numbers do NOT establish that segments belong
+    # together: every timeline numbers its segments the same way, so two
+    # acquisitions ten minutes apart stitch into a seamless-looking image
+    # made of two different scenes. These are the fields that actually
+    # identify one acquisition.
+    if header.satellite != first.satellite:
+        raise ReaderError(
+            f"read_ahi: segments come from different satellites "
+            f"({first.satellite!r} and {header.satellite!r})"
+        )
+    if (header.observation_start_mjd, header.observation_area) != (
+        first.observation_start_mjd,
+        first.observation_area,
+    ):
+        raise ReaderError(
+            f"read_ahi: segments come from different observations "
+            f"({first.observation_area!r} at MJD "
+            f"{first.observation_start_mjd!r} and "
+            f"{header.observation_area!r} at MJD "
+            f"{header.observation_start_mjd!r}); stitch one acquisition at a time"
+        )
+    if header.total_segments != first.total_segments:
+        raise ReaderError(
+            f"read_ahi: segments disagree on how many segments the image has "
+            f"({first.total_segments} and {header.total_segments})"
+        )
+    if (header.sub_lon, header.req_km, header.rpol_km) != (
+        first.sub_lon,
+        first.req_km,
+        first.rpol_km,
+    ):
+        raise ReaderError(
+            "read_ahi: segments disagree on the projection (sub-satellite "
+            "longitude or ellipsoid); they are not segments of one image"
+        )
+
+
 def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
     """Assemble the segments of one band into a single radiance array.
 
@@ -1353,61 +1448,7 @@ def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
 
     first = decoded[0][0]
     for header, _ in decoded[1:]:
-        if header.band_number != first.band_number:
-            raise ReaderError(
-                f"read_ahi: segments mix bands ({first.band} and {header.band}); "
-                "stitch one band at a time"
-            )
-        if header.columns != first.columns:
-            raise ReaderError(
-                f"read_ahi: segments disagree on width ({first.columns} and "
-                f"{header.columns} columns)"
-            )
-        if (header.cfac, header.lfac, header.coff, header.loff) != (
-            first.cfac,
-            first.lfac,
-            first.coff,
-            first.loff,
-        ):
-            raise ReaderError(
-                "read_ahi: segments disagree on the projection block; they are "
-                "not segments of one image"
-            )
-        # Contiguous line numbers do NOT establish that segments belong
-        # together: every timeline numbers its segments the same way, so two
-        # acquisitions ten minutes apart stitch into a seamless-looking image
-        # made of two different scenes. These are the fields that actually
-        # identify one acquisition.
-        if header.satellite != first.satellite:
-            raise ReaderError(
-                f"read_ahi: segments come from different satellites "
-                f"({first.satellite!r} and {header.satellite!r})"
-            )
-        if (header.observation_start_mjd, header.observation_area) != (
-            first.observation_start_mjd,
-            first.observation_area,
-        ):
-            raise ReaderError(
-                f"read_ahi: segments come from different observations "
-                f"({first.observation_area!r} at MJD "
-                f"{first.observation_start_mjd!r} and "
-                f"{header.observation_area!r} at MJD "
-                f"{header.observation_start_mjd!r}); stitch one acquisition at a time"
-            )
-        if header.total_segments != first.total_segments:
-            raise ReaderError(
-                f"read_ahi: segments disagree on how many segments the image has "
-                f"({first.total_segments} and {header.total_segments})"
-            )
-        if (header.sub_lon, header.req_km, header.rpol_km) != (
-            first.sub_lon,
-            first.req_km,
-            first.rpol_km,
-        ):
-            raise ReaderError(
-                "read_ahi: segments disagree on the projection (sub-satellite "
-                "longitude or ellipsoid); they are not segments of one image"
-            )
+        _assert_same_image(first, header)
 
     expected_line = decoded[0][0].first_line
     for header, _ in decoded:
@@ -1428,6 +1469,59 @@ def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
         _decode_into(path, header, stitched[row : row + header.lines])
         row += header.lines
     return stitched, first
+
+
+def _resolve_paths(source: Any) -> list[Any]:
+    """Normalise a non-`Dataset` `source` to a non-empty list of granule paths.
+
+    Args:
+        source: A single granule path, or an iterable of segment paths.
+
+    Returns:
+        The paths as a list.
+
+    Raises:
+        ReaderError: When `source` is neither a path nor an iterable of them, or
+            is an empty iterable.
+    """
+    if isinstance(source, (str, bytes)) or hasattr(source, "__fspath__"):
+        return [source]
+    try:
+        paths = list(source)
+    except TypeError as exc:
+        # A bare non-path, non-iterable would otherwise surface as a TypeError
+        # from list(), which is not the documented failure.
+        raise ReaderError(
+            f"read_ahi: source must be a granule path, an iterable of segment "
+            f"paths, or a Dataset, not {type(source).__name__}"
+        ) from exc
+    if not paths:
+        raise ReaderError("read_ahi: no HSD segment paths were given")
+    return paths
+
+
+def _assert_requested_band(path: Any, requested: str | None) -> None:
+    """Check a caller's expected band against the granule's own, or raise.
+
+    Settled from a header-only read, so a mismatch costs one small read rather
+    than a whole decoded disk.
+
+    Args:
+        path: Path to the first granule of the set.
+        requested: The canonical band the caller asked for, or `None` to accept
+            whatever the granule carries.
+
+    Raises:
+        ReaderError: When the granule carries a different band.
+    """
+    if requested is None:
+        return
+    declared = parse_hsd_header(_read_header_bytes(path)).band
+    if requested != declared:
+        raise ReaderError(
+            f"read_ahi: band {requested} was requested but the granule "
+            f"carries {declared}"
+        )
 
 
 def read_ahi(
@@ -1513,31 +1607,8 @@ def read_ahi(
             ),
         )
 
-    if isinstance(source, (str, bytes)) or hasattr(source, "__fspath__"):
-        paths = [source]
-    else:
-        try:
-            paths = list(source)
-        except TypeError as exc:
-            # A bare non-path, non-iterable would otherwise surface as a
-            # TypeError from list(), which is not the documented failure.
-            raise ReaderError(
-                f"read_ahi: source must be a granule path, an iterable of segment "
-                f"paths, or a Dataset, not {type(source).__name__}"
-            ) from exc
-
-    if not paths:
-        raise ReaderError("read_ahi: no HSD segment paths were given")
-
-    # The band is named in the header, so a mismatch is settled before any
-    # pixels are decoded rather than after a whole disk has been read.
-    if requested is not None:
-        declared = parse_hsd_header(_read_header_bytes(paths[0])).band
-        if requested != declared:
-            raise ReaderError(
-                f"read_ahi: band {requested} was requested but the granule "
-                f"carries {declared}"
-            )
+    paths = _resolve_paths(source)
+    _assert_requested_band(paths[0], requested)
 
     if len(paths) == 1:
         buffer = _read_bytes(paths[0])
@@ -1566,6 +1637,91 @@ def read_ahi(
         ),
         header,
         first_line,
+    )
+
+
+def _effective_kind(
+    band: str, sensor: str, header: HsdHeader | None, overrides: dict[str, Any]
+) -> str:
+    """Return the radiometric kind actually in force for this calibration.
+
+    The caller's override wins, then the granule, then the registry — which is
+    the only source when `source` was already a `Dataset`. A caller declaring
+    ``kind`` takes that path even when it disagrees with the band's usual one.
+
+    Args:
+        band: The registry band key.
+        sensor: Registry sensor name.
+        header: The granule header, or `None`.
+        overrides: The caller's coefficient overrides.
+
+    Returns:
+        ``"solar"`` or ``"thermal"``.
+
+    Raises:
+        UnknownSensorError: When the registry has to be consulted and does not
+            know the sensor / band.
+    """
+    if "kind" in overrides:
+        return str(overrides["kind"])
+    if header is not None:
+        return header.kind
+    from pyramids_eo.sensors.registry.sensors import get_sensor
+
+    return str(get_sensor(sensor).get_channel(band).kind)
+
+
+def _calibrate_thermal(
+    radiance: Any,
+    band: str,
+    *,
+    sensor: str,
+    sun_earth_distance: float,
+    cos_sza: Any,
+    overrides: dict[str, Any],
+    header: HsdHeader | None,
+) -> Any:
+    """Convert thermal radiance to brightness temperature.
+
+    Prefers the granule's own quadratic Planck model, which the registry's
+    linear ``alpha`` / ``beta`` cannot express. When the caller overrides the
+    coefficients, or there is no granule, the registry form is used instead —
+    and the radiance is rebased from HSD's per-wavelength basis onto the
+    per-wavenumber one that form documents, without which a 280 K scene
+    calibrates to roughly 921,613 K.
+
+    Args:
+        radiance: Spectral radiance per wavelength, ``W m-2 sr-1 m-1``.
+        band: The registry band key.
+        sensor: Registry sensor name.
+        sun_earth_distance: Passed through to the registry.
+        cos_sza: Passed through to the registry.
+        overrides: The caller's coefficient overrides; any entry routes this
+            through the registry rather than the granule's model.
+        header: The granule header, or `None`.
+
+    Returns:
+        Brightness temperature in kelvin.
+
+    Raises:
+        ReaderError: When the granule's model is used but a constant it needs is
+            missing, or the wavelength is non-physical.
+        CalibrationError: When the registry form lacks a constant it needs.
+    """
+    if header is not None and not overrides:
+        return _brightness_temperature(radiance, header)
+    wavelength = (
+        header.central_wavelength_m
+        if header is not None
+        else _registry_wavelength_m(band, sensor)
+    )
+    return calibrate_channel(
+        _to_wavenumber_radiance(radiance, wavelength),
+        band,
+        sensor,
+        sun_earth_distance,
+        cos_sza,
+        coeffs=overrides or None,
     )
 
 
@@ -1602,43 +1758,20 @@ def _calibrate_array(
     """
     radiance = np.asarray(radiance, dtype=float)
     overrides: dict[str, Any] = dict(coeffs or {})
-    # The kind actually in force decides the path: the caller's override first,
-    # then the granule, then the registry (the only source when `source` was
-    # already a `Dataset`). A caller declaring `kind` takes that path even when
-    # it disagrees with the band's usual one.
-    if "kind" in overrides:
-        kind = overrides["kind"]
-    elif header is not None:
-        kind = header.kind
-    else:
-        from pyramids_eo.sensors.registry.sensors import get_sensor
-
-        kind = get_sensor(sensor).get_channel(band).kind
+    kind = _effective_kind(band, sensor, header, overrides)
 
     if not calibrate:
         data = radiance
     elif kind == "thermal":
-        if header is not None and not overrides:
-            # The granule's own quadratic Planck correction, which the registry's
-            # linear alpha / beta cannot express.
-            data = _brightness_temperature(radiance, header)
-        else:
-            # The registry's inverse Planck works per wavenumber, while HSD
-            # radiance is per wavelength; without this rebasing a 280 K scene
-            # calibrates to ~921,613 K.
-            wavelength = (
-                header.central_wavelength_m
-                if header is not None
-                else _registry_wavelength_m(band, sensor)
-            )
-            data = calibrate_channel(
-                _to_wavenumber_radiance(radiance, wavelength),
-                band,
-                sensor,
-                sun_earth_distance,
-                cos_sza,
-                coeffs=overrides or None,
-            )
+        data = _calibrate_thermal(
+            radiance,
+            band,
+            sensor=sensor,
+            sun_earth_distance=sun_earth_distance,
+            cos_sza=cos_sza,
+            overrides=overrides,
+            header=header,
+        )
     else:
         granule: dict[str, Any] = {}
         if (
