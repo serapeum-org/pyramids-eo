@@ -16,7 +16,7 @@ options through it, and the per-source recipes.
 
 pyramids-core 0.70 added an entry-point group, `pyramids.raster_drivers`. A package registers a *driver* class
 there; pyramids discovers it lazily the first time `read_file` needs a non-GDAL reader. **Installing pyramids-eo is
-the whole integration** — there is nothing to import or configure. The six drivers it registers:
+the whole integration** — there is nothing to import or configure. The seven drivers it registers:
 
 | driver name   | source it opens                               | reader it delegates to                         |
 |---------------|-----------------------------------------------|------------------------------------------------|
