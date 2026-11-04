@@ -72,13 +72,13 @@ from pyramids_eo.sensors.readers.slstr import (
 )
 
 __all__ = [
-    "HsdHeader",
     "available_channels",
     "available_olci_channels",
     "available_slstr_channels",
     "band_from_filename",
     "band_name",
     "harmonise",
+    "HsdHeader",
     "open_fci_l1c_chunk",
     "parse_ahi_hsd",
     "parse_hsd_header",
