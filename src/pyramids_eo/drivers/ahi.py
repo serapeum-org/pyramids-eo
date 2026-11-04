@@ -140,11 +140,19 @@ class AhiDriver:
                 only asserts the expectation. An AHI read is a single band, so more than one is
                 rejected rather than silently truncated.
             options: Extra :func:`~pyramids_eo.sensors.readers.read_ahi` keywords — ``band``,
-                ``calibrate``, ``coeffs``, ``sun_earth_distance``, … — as a dict or
+                ``calibrate``, ``sun_earth_distance``, ``coeffs``, ``cos_sza`` — as a dict or
                 ``KEY=VALUE`` list. ``read_file`` normalises options to the ``KEY=VALUE`` form,
-                so ``calibrate`` and the numeric keyword are coerced from their string
+                so ``calibrate`` and ``sun_earth_distance`` are coerced from their string
                 spellings (see :func:`~pyramids_eo.drivers._base.coerce_booleans`); without
                 that, the truthy string ``"false"`` would switch calibration *on*.
+
+                ``coeffs`` and ``cos_sza`` are **not** coerced, because neither has a
+                ``KEY=VALUE`` spelling: one is a mapping and the other an array. Pass them in
+                dict form — ``open_options={"coeffs": {...}}`` — exactly as Sentinel-2's
+                ``resolution=10`` must be; through a ``KEY=VALUE`` list they would arrive as
+                strings and ``read_ahi`` would reject them. An option this reader does not
+                take is forwarded and surfaces as a ``TypeError`` from ``read_ahi``, not a
+                ``ValueError`` from here.
             **_ignored: The generic driver-read parameters an AHI read does not use — ``bbox``,
                 ``crs``, ``auth`` and any future one — are accepted and ignored: a granule is
                 read whole, carries its own geostationary CRS, and needs no credentials.
