@@ -162,3 +162,138 @@ def test_unknown_driver_name_raises():
 
     with pytest.raises(DriverNotExistError):
         Dataset.read_file("scene.nat", driver="not_a_driver")
+
+
+def test_sentinel2_preempts_the_safe_suffix():
+    """`select_preempting_driver` picks the S2 driver for a bare `.SAFE` path.
+
+    This is the opt-in itself: pre-emption is consulted only for a driver with a
+    non-empty `preempts`, so before the declaration this returns None and a bare
+    `.SAFE` reaches GDAL's container first.
+    """
+    from pyramids.dataset._drivers import clear_driver_cache, select_preempting_driver
+
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    clear_driver_cache()
+    try:
+        picked = select_preempting_driver("/data/S2A_MSIL2A_20240101.SAFE")
+    finally:
+        clear_driver_cache()
+    assert picked is Sentinel2Driver, (
+        f"a bare .SAFE should be pre-empted by the s2 driver, got {picked!r}"
+    )
+
+
+def test_sentinel2_preempts_a_directory_with_a_trailing_slash():
+    """A `.SAFE/` path is pre-empted too — core tokenises the suffix slash-tolerantly."""
+    from pyramids.dataset._drivers import clear_driver_cache, select_preempting_driver
+
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    clear_driver_cache()
+    try:
+        picked = select_preempting_driver("/data/S2A_MSIL2A_20240101.SAFE/")
+    finally:
+        clear_driver_cache()
+    assert picked is Sentinel2Driver, (
+        f"a trailing slash should not defeat pre-emption, got {picked!r}"
+    )
+
+
+def test_sentinel2_does_not_preempt_a_zipped_product():
+    """A `.SAFE.zip` is NOT pre-empted, which is why `.safe.zip` is not declared.
+
+    Core tokenises only the final suffix, so a zipped product presents as `.zip`:
+    declaring `.safe.zip` in `preempts` could never match it, and declaring `.zip`
+    would claim every zip archive. The zipped form therefore keeps the GDAL-first
+    path and the explicit `driver="s2"` escape.
+    """
+    from pyramids.dataset._drivers import clear_driver_cache, select_preempting_driver
+
+    clear_driver_cache()
+    try:
+        picked = select_preempting_driver("/data/S2A_MSIL2A_20240101.SAFE.zip")
+    finally:
+        clear_driver_cache()
+    assert picked is None, (
+        f"a zipped product should keep the GDAL-first path, got {picked!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param("ee://USGS/SRTMGL1_003", id="earthengine"),
+        pytest.param("/data/scene.nat", id="seviri"),
+        pytest.param("/data/granule", id="fci-directory"),
+        pytest.param("/data/S3A_OL_1_EFR.SEN3", id="sentinel3"),
+    ],
+)
+def test_no_other_source_is_preempted(source):
+    """Only Sentinel-2 opts in; every other source keeps the GDAL-first order.
+
+    The other five drivers read formats GDAL cannot open at all, so they already
+    auto-route through the post-GDAL `can_open` scan and gain nothing from
+    pre-emption. Pinned so the opt-in stays scoped to the one format that needs it.
+    """
+    from pyramids.dataset._drivers import clear_driver_cache, select_preempting_driver
+
+    clear_driver_cache()
+    try:
+        picked = select_preempting_driver(source)
+    finally:
+        clear_driver_cache()
+    assert picked is None, f"{source!r} should not be pre-empted, got {picked!r}"
+
+
+def test_s2_preempts_declaration_is_well_formed():
+    """`preempts` is lowercase and dot-prefixed, so core's token match can hit it.
+
+    The public conformance kit does not validate `preempts`, so this is pinned
+    here: a stray capital or missing dot would silently never match and the
+    pre-emption would quietly not happen.
+    """
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    assert Sentinel2Driver.preempts, "preempts must be non-empty to opt in"
+    for entry in Sentinel2Driver.preempts:
+        assert entry == entry.lower(), f"{entry!r} must be lowercase"
+        assert entry.startswith("."), f"{entry!r} must be dot-prefixed"
+        assert entry in Sentinel2Driver.suffixes, (
+            f"{entry!r} should also be a declared suffix"
+        )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param("S2A_MSIL2A.SAFE/manifest.safe", id="posix-separator"),
+        pytest.param(r"C:\data\S2A_MSIL2A.SAFE\manifest.safe", id="windows-separator"),
+        pytest.param("manifest.safe", id="bare"),
+        pytest.param("MANIFEST.SAFE", id="uppercase"),
+    ],
+)
+def test_a_manifest_is_not_preempted(source):
+    """A `manifest.safe` is not claimed, so pre-emption cannot recurse through it.
+
+    Regression: `manifest.safe` is the metadata file *inside* a SAFE product — and
+    Sentinel-1's entry point — yet it shares the `.safe` suffix. While the driver
+    was only consulted after GDAL failed, a loose `can_open` was harmless. Once
+    `preempts` makes the claim load-bearing, claiming the manifest sends
+    `from_sentinel2` -> `open_product` -> `read_file` straight back into the same
+    driver, which recursed until `RecursionError`.
+    """
+    from pyramids.dataset._drivers import clear_driver_cache, select_preempting_driver
+
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    assert Sentinel2Driver.can_open(source) is False, (
+        f"{source!r} is a manifest, not a product, and must not be claimed"
+    )
+    clear_driver_cache()
+    try:
+        picked = select_preempting_driver(source)
+    finally:
+        clear_driver_cache()
+    assert picked is None, f"{source!r} must not pre-empt GDAL, got {picked!r}"

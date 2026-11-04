@@ -4,7 +4,8 @@ The reader family for ESA's Sentinel missions, built on GDAL's `SENTINEL2` / `SA
 product structure, pyramids does the raster ops, and this package adds the instrument semantics — which
 subdataset is which band, how to turn DN into reflectance, how to read the scene-classification mask.
 
-A `.SAFE` product also opens through pyramids' `Dataset.read_file(path, driver="s2")` — see the
+A `.SAFE` product directory also opens through a bare `Dataset.read_file(path)`, since the `s2`
+driver pre-empts GDAL for it; a zipped `.SAFE.zip` needs `driver="s2"` — see the
 [Reading EO sources via `read_file`](../read-file-plugin.md) guide.
 
 A Sentinel product is a *catalog of rasters*, not a raster, so it gets its own small model:

@@ -109,9 +109,10 @@ ee = Dataset.read_file("ee://USGS/SRTMGL1_003", open_options={"bbox": (86.9, 27.
 seviri = Dataset.read_file("MSG4-...nat", open_options={"channel": "IR_108"})
 fci = Dataset.read_file("/data/fci_granule", open_options={"channel": "ir_105"})  # a chunk directory
 
-# Sentinel-2: GDAL opens a .SAFE itself, so ask for the pyramids-eo reader explicitly.
+# Sentinel-2: the s2 driver pre-empts GDAL for a .SAFE directory, so no driver= is needed.
+# (A zipped .SAFE.zip presents as `.zip` and is not pre-empted — pass driver="s2" for it.)
 scene = Dataset.read_file(
-    "S2A_..._MSIL2A.SAFE", driver="s2", open_options={"bands": ["B04", "B03", "B02"]}
+    "S2A_..._MSIL2A.SAFE", open_options={"bands": ["B04", "B03", "B02"]}
 )
 ```
 
