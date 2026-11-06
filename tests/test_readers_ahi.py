@@ -1361,7 +1361,10 @@ def test_read_ahi_real_segments_stitch():
         members.sort()
         current: list = []
         for first_line, path, header in members:
-            if current and first_line != current[-1][2].first_line + current[-1][2].lines:
+            if (
+                current
+                and first_line != current[-1][2].first_line + current[-1][2].lines
+            ):
                 if len(current) > len(run):
                     run = current
                 current = []
@@ -1391,8 +1394,7 @@ def test_read_ahi_real_segments_stitch():
     array = np.asarray(stitched.read_array(), dtype=float)
     expected_rows = sum(headers[p].lines for p in paths)
     assert array.shape == (expected_rows, headers[paths[0]].columns), (
-        f"expected {expected_rows} rows from {len(paths)} segments, "
-        f"got {array.shape}"
+        f"expected {expected_rows} rows from {len(paths)} segments, got {array.shape}"
     )
     # The stitch must start where its northernmost segment starts.
     single = read_ahi(paths[0], calibrate=False)
@@ -2227,3 +2229,75 @@ class TestSegmentsOfOneAcquisitionDifferInStartTime:
         )
         with pytest.raises(ReaderError, match="different observation"):
             read_ahi([first, second])
+
+
+class TestAcquisitionWindow:
+    """The start-time window has to be bracketed, not merely chosen.
+
+    Nothing pinned its size: any value from the real scan span (526 s) up to a
+    full day passed the suite, so the constant could drift either into rejecting
+    real scans or into accepting two days' worth. These two cases bracket it.
+    """
+
+    def _pair(self, directory, *, apart_seconds, timeline=0):
+        base = 61041.00183583374
+        first = fixture.write_granule(
+            directory / "a",
+            band=13,
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), 1, dtype=np.uint16),
+            total_segments=2,
+            segment_number=1,
+            first_line=1,
+            slope=1.0,
+            intercept=0.0,
+            start_mjd=base,
+            timeline=timeline,
+        )
+        second = fixture.write_granule(
+            directory / "b",
+            band=13,
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), 2, dtype=np.uint16),
+            total_segments=2,
+            segment_number=2,
+            first_line=4,
+            slope=1.0,
+            intercept=0.0,
+            start_mjd=base + apart_seconds / 86400.0,
+            timeline=timeline,
+        )
+        return [first, second]
+
+    def test_a_real_scan_span_is_inside_the_window(self, tmp_path):
+        """Measured segment 1 to segment 10 is 526.0 s, so that must be accepted."""
+        paths = self._pair(tmp_path, apart_seconds=526.0)
+        assert read_ahi(paths, calibrate=False).read_array().shape == (6, 4)
+
+    def test_twice_the_real_scan_span_is_still_inside(self, tmp_path):
+        """Headroom for a slower scan than the one disk measured here."""
+        paths = self._pair(tmp_path, apart_seconds=1052.0)
+        assert read_ahi(paths, calibrate=False).read_array().shape == (6, 4)
+
+    def test_two_hours_apart_is_outside_the_window(self, tmp_path):
+        """A window wide enough to admit this would admit unrelated scenes."""
+        paths = self._pair(tmp_path, apart_seconds=7200.0)
+        with pytest.raises(ReaderError, match="hours apart"):
+            read_ahi(paths)
+
+    def test_the_same_slot_a_day_later_is_outside_the_window(self, tmp_path):
+        paths = self._pair(tmp_path, apart_seconds=86400.0)
+        with pytest.raises(ReaderError, match="hours apart"):
+            read_ahi(paths)
+
+    def test_the_window_brackets_the_measured_scan_span(self):
+        """The constant must sit between a real scan and the daily recurrence."""
+        from pyramids_eo.sensors.readers.ahi import _MAX_ACQUISITION_SPAN_DAYS
+
+        window_s = _MAX_ACQUISITION_SPAN_DAYS * 86400.0
+        assert window_s > 526.0 * 2, (
+            f"window {window_s} s leaves no headroom over the measured 526 s scan"
+        )
+        assert window_s < 86400.0, "a window of a day or more cannot separate slots"

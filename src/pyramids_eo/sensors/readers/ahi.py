@@ -204,8 +204,11 @@ _UM_PER_M = 1e6
 #:
 #: The start time cannot identify the acquisition on its own, because a full-disk
 #: scan is nearly as long as the gap between acquisitions. Measured on a real
-#: band-13 full disk, segment 1 starts 526.0 s (8.77 min) before segment 10,
-#: while consecutive timelines are 10 min apart -- a margin of barely a minute.
+#: band-13 full disk, segment 1 starts 526.0 s (8.77 min) before segment 10.
+#: Consecutive full-disk timelines are usually 10 min apart -- of the 141 slots
+#: in one day, 137 gaps are 10 min and three are 20 min (housekeeping, at
+#: 0230-0250, 1430-1450 and 1950-2010 UTC) -- so the binding case is the 10 min
+#: one, leaving a margin of barely a minute.
 #: `observation_timeline` is what separates adjacent slots. This window only has
 #: to separate the SAME timeline on different days, which are 24 h apart, so an
 #: hour sits comfortably inside that gap while leaving any real scan room.
@@ -402,8 +405,9 @@ def _read_header_bytes(path: Any) -> bytes:
     """Read a granule's header blocks without its pixel payload.
 
     Block #1 states the total header length, so the header can be read in two
-    small reads instead of pulling a whole granule into memory. A full disk's
-    segment is tens of megabytes and a stitch needs every segment's header
+    small reads instead of pulling a whole granule into memory. A band-13 segment
+    carries a 6.05 MB payload -- more for the finer grids, since band 3's full
+    disk is 22000x22000 -- and a stitch needs every segment's header
     before it can size the output, so reading headers this way keeps that first
     pass nearly free.
 
@@ -1554,9 +1558,9 @@ def _assert_same_image(first: HsdHeader, header: HsdHeader) -> None:
 
     Lifted out of the stitch as a single predicate: the several comparisons are
     not separate questions but one -- whether these two granules are segments of
-    the same acquisition of the same band on the same grid. (An earlier version
-    of this sentence counted them as "six"; there are seven, which is why the
-    count is no longer stated here to drift again.)
+    the same acquisition of the same band on the same grid. No count is given
+    here on purpose, because an earlier version of this sentence stated one and
+    it was wrong.
 
     Args:
         first: The header of the northernmost segment, used as the reference.
@@ -1611,19 +1615,29 @@ def _assert_same_image(first: HsdHeader, header: HsdHeader) -> None:
     # legitimate full-disk set, which is this reader's primary use. The timeline
     # alone is not enough either, since it recurs every day, so the starts must
     # additionally fall within one window.
+    # Reported separately, because "different observations" with both timelines
+    # printed as 0 reads like a bug in the reader rather than two granules a day
+    # apart, which is the case the window exists to catch.
     if (header.observation_timeline, header.observation_area) != (
         first.observation_timeline,
         first.observation_area,
-    ) or abs(
-        header.observation_start_mjd - first.observation_start_mjd
-    ) > _MAX_ACQUISITION_SPAN_DAYS:
+    ):
         raise ReaderError(
             f"read_ahi: segments come from different observations "
             f"({first.observation_area!r} timeline {first.observation_timeline} "
-            f"at MJD {first.observation_start_mjd!r} and "
-            f"{header.observation_area!r} timeline "
-            f"{header.observation_timeline} at MJD "
-            f"{header.observation_start_mjd!r}); stitch one acquisition at a time"
+            f"and {header.observation_area!r} timeline "
+            f"{header.observation_timeline}); stitch one acquisition at a time"
+        )
+    apart = abs(header.observation_start_mjd - first.observation_start_mjd)
+    if apart > _MAX_ACQUISITION_SPAN_DAYS:
+        raise ReaderError(
+            f"read_ahi: segments share observation area "
+            f"{first.observation_area!r} and timeline "
+            f"{first.observation_timeline} but start {apart * 24.0:.2f} hours "
+            f"apart (MJD {first.observation_start_mjd!r} and "
+            f"{header.observation_start_mjd!r}), beyond the "
+            f"{_MAX_ACQUISITION_SPAN_DAYS * 24.0:.0f}-hour window; a timeline "
+            "recurs daily, so these are the same slot on different days"
         )
     if header.total_segments != first.total_segments:
         raise ReaderError(

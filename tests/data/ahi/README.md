@@ -10,7 +10,7 @@ agreed:
 |---|---|---|
 | block #5 central wavelength as metres | `10.4074` **micrometres** | a 280 K scene as `-1.8e44` K |
 | block #10's length field as `I2` | an `I4` | big-endian granules failed the walk |
-| block #1 satellite name as `H08` | `Himawari-9` | the reality-check assertion itself was wrong |
+| block #1 satellite name as `H08` | `Himawari-9` | nothing — but the reality-check assertion itself encoded `H08`, so it would have failed on the first real granule |
 
 A fourth would have rejected real data outright: the reader once refused a negative
 count-to-radiance slope as "non-physical". **Real Himawari-9 band-13 granules declare
@@ -73,8 +73,7 @@ Tb p2 / p50 / p100   201.33 / 286.64 / 298.71 K      over 99.6% finite pixels
 ```
 
 **One characteristic of the product worth knowing before you read a failure.** A tail of pixels
-reads far below any physical scene temperature — p0 is 70.00 K on every segment measured. Two
-things combine to produce it: off-limb space beyond the Earth's edge is not always flagged with
+reads far below any physical scene temperature. Two things combine to produce it: off-limb space beyond the Earth's edge is not always flagged with
 the outside-scan sentinel, and the granule's affine calibration crosses zero radiance at count
 4050 while its valid bit depth admits counts to 4095, so those high counts map to near-zero or
 negative radiance (the negative ones the reader masks to NaN).
