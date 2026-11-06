@@ -67,6 +67,26 @@ def _holds_s2_metadata(names: Any) -> bool:
     return False
 
 
+def _is_plain_local_path(source: str) -> bool:
+    """Return whether `source` is a plain local path this driver can inspect.
+
+    A URL, a GDAL `/vsi*` virtual path or a UNC share cannot be sniffed with
+    `os`/`zipfile`, and GDAL may well read it when pyramids-eo cannot. Those are
+    left to GDAL rather than claimed on the strength of a suffix.
+
+    Args:
+        source: The already-trimmed source string.
+
+    Returns:
+        bool: True for a plain local path, False for a URL, `/vsi*` path or UNC
+        share.
+    """
+    lowered = source.lower()
+    if "://" in lowered or lowered.startswith("/vsi"):
+        return False
+    return not (source.startswith("//") or source.startswith("\\\\"))
+
+
 class Sentinel2Driver:
     """Read a Sentinel-2 ``.SAFE`` product into a :class:`~pyramids.dataset.Dataset`.
 
@@ -116,8 +136,10 @@ class Sentinel2Driver:
             zip's index. A ``manifest.safe`` is never claimed: it is the metadata file *inside* a
             product and Sentinel-1's entry point. A zipped product is claimed only when its
             extension is a lowercase ``.zip``, which is what the archive reader downstream
-            accepts. A ``.SAFE`` path that does not exist is claimed, so the reader can raise its
-            own clear error rather than GDAL's.
+            accepts. A **plain local** ``.SAFE`` path that does not exist is claimed, so the
+            reader can raise its own clear error rather than GDAL's — but a URL, a GDAL
+            ``/vsi*`` path or a UNC share is never claimed on that shortcut, since this driver
+            cannot read one and GDAL often can.
 
         Note:
             This is no longer free of I/O: identifying the mission requires reading a directory
@@ -158,9 +180,11 @@ class Sentinel2Driver:
             if not trimmed.endswith(".zip"):
                 return False
             if not os.path.exists(trimmed):
-                # Nothing to inspect: claim it so the reader reports the problem, which
-                # matches how a missing `.SAFE` directory is handled below.
-                return True
+                # Nothing to inspect. Only shortcut a plain local path, where the reader
+                # gives a better "no such product" message than GDAL. A URL, `/vsi*` or
+                # UNC source is left to GDAL: this driver cannot read it, and claiming it
+                # would pre-empt GDAL out of a read it can serve.
+                return _is_plain_local_path(trimmed)
             try:
                 with zipfile.ZipFile(trimmed) as archive:
                     return _holds_s2_metadata(archive.namelist())
@@ -170,8 +194,10 @@ class Sentinel2Driver:
             return False
         try:
             if not os.path.isdir(trimmed):
-                # Not on disk (or not a directory): let the reader raise the clear error.
-                return not os.path.exists(trimmed)
+                # Not a directory on disk. A plain local path that is simply absent is
+                # claimed so the reader reports it; anything remote or virtual is left to
+                # GDAL, and an existing non-directory is not a product.
+                return not os.path.exists(trimmed) and _is_plain_local_path(trimmed)
             return _holds_s2_metadata(os.listdir(trimmed))
         except OSError:
             return False

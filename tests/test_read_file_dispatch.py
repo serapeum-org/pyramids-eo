@@ -480,3 +480,69 @@ def test_preempts_declaration_is_well_formed():
     assert Sentinel2Driver.preempts == (".zip",), (
         f"preempts should be exactly ('.zip',), got {Sentinel2Driver.preempts!r}"
     )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param("/vsimem/scene.SAFE.zip", id="vsimem"),
+        pytest.param("/vsicurl/https://host/x.SAFE.zip", id="vsicurl"),
+        pytest.param("/vsis3/bucket/x.SAFE.zip", id="vsis3"),
+        pytest.param("/vsizip/x.SAFE.zip", id="vsizip"),
+        pytest.param("s3://bucket/x.SAFE.zip", id="s3-scheme"),
+        pytest.param("https://host/x.SAFE.zip", id="https-scheme"),
+        pytest.param("//server/share/x.SAFE.zip", id="unc"),
+    ],
+)
+def test_a_non_local_archive_is_never_claimed(source):
+    """A URL, `/vsi*` path or UNC share is left to GDAL.
+
+    Test scenario:
+        `can_open` cannot sniff these with `os`/`zipfile`, and GDAL often reads
+        them. Claiming one on the strength of its suffix would pre-empt GDAL out
+        of a read it can serve — which is exactly what happened before this
+        guard: a GDAL-readable `/vsimem/scene.SAFE.zip` went from a working read
+        to `FileNotFoundError`, because `os.path.exists` is False for every
+        virtual path and the cannot-sniff shortcut then claimed it.
+    """
+    from pyramids.dataset._drivers import clear_driver_cache, select_preempting_driver
+
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    assert Sentinel2Driver.can_open(source) is False, (
+        f"{source!r} cannot be inspected and must not be claimed"
+    )
+    clear_driver_cache()
+    try:
+        picked = select_preempting_driver(source)
+    finally:
+        clear_driver_cache()
+    assert picked is None, f"{source!r} must not pre-empt GDAL, got {picked!r}"
+
+
+def test_a_gdal_readable_vsimem_archive_still_reads(tmp_path):
+    """End to end: a GDAL-readable `/vsimem` source named `.SAFE.zip` still reads.
+
+    Test scenario:
+        The regression this guard exists for, through the real `Dataset.read_file`.
+        The name matches the pre-empt suffix but the content is an ordinary
+        raster GDAL serves, so GDAL must keep the read.
+    """
+    import numpy as np
+    from osgeo import gdal
+    from pyramids.dataset._drivers import clear_driver_cache
+
+    path = "/vsimem/test_s2_guard.SAFE.zip"
+    driver = gdal.GetDriverByName("GTiff")
+    handle = driver.Create(path, 4, 4, 1)
+    handle.GetRasterBand(1).WriteArray(np.ones((4, 4)))
+    handle = None
+    clear_driver_cache()
+    try:
+        out = Dataset.read_file(path)
+    finally:
+        clear_driver_cache()
+        gdal.Unlink(path)
+    assert out.band_count == 1, (
+        f"GDAL should still serve this source, got {out.band_count} bands"
+    )
