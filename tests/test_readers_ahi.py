@@ -1326,6 +1326,93 @@ def test_read_ahi_real_granule():
 
 
 @pytest.mark.live
+def test_read_ahi_real_segments_stitch():
+    """Stitch real segments -- the defect this change fixes, on real data.
+
+    Every other live test reads `granules[0]`, so none of them exercises the
+    multi-granule path at all. That is the path the start-time equality check
+    broke: it rejected a legitimate full-disk set outright, and no live test
+    would have noticed.
+
+    Needs two or more contiguous segments of one acquisition in the fixture
+    directory; skips otherwise rather than asserting on whatever is present.
+    """
+    fixtures = Path(os.environ.get("AHI_FIXTURES_DIR", "tests/data/ahi"))
+    granules = sorted(fixtures.glob("HS_H0?_*_B??_*.DAT")) + sorted(
+        fixtures.glob("HS_H0?_*_B??_*.DAT.bz2")
+    )
+    if not granules:
+        pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
+    from pyramids_eo.sensors.readers.ahi import _read_bytes
+
+    # Group by acquisition and band, then keep the longest contiguous run.
+    headers = {str(g): parse_hsd_header(_read_bytes(str(g))) for g in granules}
+    groups: dict[tuple, list] = {}
+    for path, header in headers.items():
+        key = (
+            header.satellite,
+            header.band_number,
+            header.observation_timeline,
+            header.observation_area,
+        )
+        groups.setdefault(key, []).append((header.first_line, path, header))
+    run: list = []
+    for members in groups.values():
+        members.sort()
+        current: list = []
+        for first_line, path, header in members:
+            if current and first_line != current[-1][2].first_line + current[-1][2].lines:
+                if len(current) > len(run):
+                    run = current
+                current = []
+            current.append((first_line, path, header))
+        if len(current) > len(run):
+            run = current
+    if len(run) < 2:
+        pytest.skip(
+            "need two or more contiguous segments of one acquisition; "
+            f"longest run found was {len(run)}"
+        )
+
+    paths = [path for _, path, _ in run]
+    starts = {headers[p].observation_start_mjd for p in paths}
+    assert len(starts) == len(paths), (
+        "these segments should each carry their own start time, which is what "
+        f"makes this a regression test; got {len(starts)} distinct among "
+        f"{len(paths)} segments"
+    )
+    spread = (max(starts) - min(starts)) * 86400.0
+    assert spread > 1.0, (
+        f"the start times span only {spread:.3f} s, so this fixture cannot "
+        "demonstrate that differing starts are accepted"
+    )
+
+    stitched = read_ahi(paths, calibrate=False)
+    array = np.asarray(stitched.read_array(), dtype=float)
+    expected_rows = sum(headers[p].lines for p in paths)
+    assert array.shape == (expected_rows, headers[paths[0]].columns), (
+        f"expected {expected_rows} rows from {len(paths)} segments, "
+        f"got {array.shape}"
+    )
+    # The stitch must start where its northernmost segment starts.
+    single = read_ahi(paths[0], calibrate=False)
+    assert stitched.geotransform[3] == pytest.approx(single.geotransform[3]), (
+        "the stitched origin must equal the first segment's north edge"
+    )
+    # No blank seam between segments: every row holds some finite data.
+    finite_per_row = np.isfinite(array).mean(axis=1)
+    assert float(finite_per_row.max()) > 0.0
+    seams = [
+        sum(headers[p].lines for p in paths[: i + 1]) for i in range(len(paths) - 1)
+    ]
+    for seam in seams:
+        assert float(finite_per_row[seam - 1 : seam + 1].max()) > 0.0, (
+            f"rows around the seam at {seam} are entirely non-finite, which is "
+            "what a mis-placed segment looks like"
+        )
+
+
+@pytest.mark.live
 def test_read_ahi_real_granule_band_identity():
     """The decoded band must be the band the file name declares.
 
