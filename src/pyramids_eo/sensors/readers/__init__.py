@@ -13,6 +13,19 @@ Each reader takes a file path / chunk set / `Dataset` and returns a pyramids
 * `available_channels` — list the VIS/IR channels present in FCI L1C FDHSI chunk(s).
 * `open_fci_l1c_chunk` — lower-level `open_chunk` reading the FCI L1C FDHSI nested
   `data/<channel>/measured/effective_radiance` radiance for use with `read_fci`.
+* `read_ahi` — Himawari-8/9 AHI Himawari Standard Data (`.DAT`): decode one band
+  from a granule (or stitch its segment set) and calibrate to reflectance /
+  brightness temperature on the geostationary grid, using the granule's own
+  coefficients.
+* `parse_ahi_hsd` — decode one HSD granule to a geolocated radiance `Dataset`
+  (the uncalibrated layer under `read_ahi`).
+* `parse_hsd_header` / `HsdHeader` — decode the HSD header blocks from granule
+  **bytes** the caller supplies, for the grid, projection and calibration
+  without interpreting the pixels. It takes bytes rather than a path, so reading
+  a granule's header alone means reading the file yourself; `read_ahi` does that
+  internally when it sizes a stitch.
+* `band_name` / `band_from_filename` — AHI band keys (`3 -> "B03"`), and the
+  band an HSD file name declares.
 * `read_seviri` — MSG-SEVIRI Level-1.5 native (`.nat`): decode + calibrate +
   geolocate a VIS/IR channel (via `parse_seviri_native`, or an injected parser).
 * `parse_seviri_native` — decode one VIS/IR channel of an MSG Level-1.5 native
@@ -39,6 +52,14 @@ nothing.
 
 from __future__ import annotations
 
+from pyramids_eo.sensors.readers.ahi import (
+    HsdHeader,
+    band_from_filename,
+    band_name,
+    parse_ahi_hsd,
+    parse_hsd_header,
+    read_ahi,
+)
 from pyramids_eo.sensors.readers.fci import open_fci_l1c_chunk, read_fci
 from pyramids_eo.sensors.readers.fci_l1c import available_channels, read_fci_l1c
 from pyramids_eo.sensors.readers.harmonise import harmonise
@@ -57,10 +78,16 @@ __all__ = [
     "available_channels",
     "available_olci_channels",
     "available_slstr_channels",
+    "band_from_filename",
+    "band_name",
     "harmonise",
+    "HsdHeader",
     "open_fci_l1c_chunk",
+    "parse_ahi_hsd",
+    "parse_hsd_header",
     "parse_seviri_native",
     "product_type",
+    "read_ahi",
     "read_fci",
     "read_fci_l1c",
     "read_olci",

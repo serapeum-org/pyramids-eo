@@ -1,0 +1,240 @@
+"""The Himawari AHI driver for the ``pyramids.raster_drivers`` plugin hook.
+
+Registers Himawari Standard Data (HSD) granules so
+``Dataset.read_file("HS_H08_….DAT", driver="ahi")`` — or a bare
+``read_file("HS_H08_….DAT")``, which GDAL cannot open and so falls through to this driver —
+routes into :func:`pyramids_eo.sensors.readers.read_ahi`.
+
+The driver declares ``.dat`` in ``suffixes``, so ``drivers_for_suffix(".dat")`` and
+``describe_drivers`` list it — but it declares no ``preempts``, and that is the attribute that
+would put it **ahead of** GDAL for a bare ``.dat`` path. ``.dat`` is the most generic suffix in
+use and says nothing about the content, so pre-empting every ``.dat`` would hijack unrelated
+files that GDAL (or another plugin) should get. The read therefore reaches this driver only after
+GDAL has failed to open the file, and ``can_open`` then narrows the claim to the HSD file-name
+convention of Guide Table 4 — ``HS_aaa_yyyymmdd_hhnn_Bbb_cccc_Rjj_Skkll.DAT`` — which is
+distinctive enough to identify a granule without opening it. A granule that has been renamed is
+still readable by passing ``driver="ahi"`` explicitly, or by calling ``read_ahi`` directly.
+
+An HSD granule names its own band in calibration block #5, so unlike the SEVIRI driver this one
+does not require the band to be given. Passing it (via ``bands=["B13"]`` or
+``open_options={"band": "B13"}``) asserts the expectation instead, and a granule carrying a
+different band is an error rather than a silent surprise. The read covers the whole granule, so
+``bbox`` / ``crs`` do not apply and are ignored.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from pyramids.dataset import Dataset
+
+from pyramids_eo.drivers._base import (
+    RASTER_DRIVER_API_VERSION,
+    coerce_booleans,
+    coerce_floats,
+    options_as_dict,
+)
+
+#: The HSD file-name convention (Guide Table 4), optionally ``.bz2``-compressed. Matched on the
+#: base name only, so a granule in any directory is recognised.
+_HSD_NAME_RE = re.compile(
+    # `A-Z` alone: the IGNORECASE flag below already covers the lowercase spellings,
+    # so adding `a-z` would just duplicate the class.
+    r"^HS_H\d{2}_\d{8}_\d{4}_B\d{2}_[A-Z0-9]{4}_R\d{2}_S\d{4}\.DAT(\.bz2)?$",
+    re.IGNORECASE,
+)
+
+
+class AhiDriver:
+    """Read one Himawari-8/9 AHI band from a Himawari Standard Data granule.
+
+    Attributes:
+        name: The driver's registry name and the value accepted by ``read_file(driver=…)``.
+        long_name: Human-readable source name for ``describe_drivers``.
+        api_version: The driver-contract version (see
+            :data:`~pyramids_eo.drivers._base.RASTER_DRIVER_API_VERSION`).
+        suffixes: ``(".dat",)`` — declared so the driver is discoverable for HSD granules. No
+            ``preempts`` is declared alongside it, so the suffix never wins a read ahead of GDAL;
+            ``can_open`` narrows the claim to the HSD name convention (see the module docstring).
+        schemes: Empty — an HSD granule is a local file.
+        capabilities: ``read`` only (one granule is one band at one timestep).
+        extra: ``None`` — the counts are decoded in-process with ``struct`` / ``numpy`` and the
+            grid is registered through pyramids' bundled GDAL, so there is no optional backend
+            to gate on.
+
+    Examples:
+        - The driver identifies itself to ``describe_drivers`` and reads a single granule:
+            ```python
+            >>> from pyramids_eo.drivers.ahi import AhiDriver
+            >>> AhiDriver.name
+            'ahi'
+            >>> AhiDriver.suffixes
+            ('.dat',)
+            >>> sorted(AhiDriver.capabilities)
+            ['read']
+
+            ```
+        - It claims a granule by its HSD name, so an unrelated ``.dat`` is left to GDAL:
+            ```python
+            >>> from pyramids_eo.drivers.ahi import AhiDriver
+            >>> AhiDriver.can_open("HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT")
+            True
+            >>> AhiDriver.can_open("measurements.dat")
+            False
+
+            ```
+    """
+
+    name = "ahi"
+    long_name = "Himawari-8/9 AHI Himawari Standard Data (.DAT)"
+    api_version = RASTER_DRIVER_API_VERSION
+    suffixes: tuple[str, ...] = (".dat",)
+    schemes: tuple[str, ...] = ()
+    capabilities = frozenset({"read"})
+    extra: str | None = None
+
+    @classmethod
+    def can_open(cls, source: Any) -> bool:
+        """Return whether ``source`` names a Himawari Standard Data granule.
+
+        Args:
+            source: The source handed by ``Dataset.read_file`` (stringified).
+
+        Returns:
+            True when the base name follows the HSD convention
+            ``HS_aaa_yyyymmdd_hhnn_Bbb_cccc_Rjj_Skkll.DAT`` (optionally ``.bz2``), else False.
+            Anything that is not a ``str`` is False, including a `pathlib.Path` — ``read_file``
+            stringifies the source before it scans, so a path only ever arrives here already
+            stringified. Cheap: no import, no network, no file access, and safe for a path that
+            does not exist — matching the name rather than the generic ``.dat`` suffix keeps the
+            driver from claiming unrelated files.
+
+        Examples:
+            - An HSD granule is claimed; a bare ``.dat`` or another suffix is not:
+                ```python
+                >>> from pyramids_eo.drivers.ahi import AhiDriver
+                >>> AhiDriver.can_open("HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT")
+                True
+                >>> AhiDriver.can_open("/data/HS_H09_20240101_0000_B03_FLDK_R05_S0110.DAT.bz2")
+                True
+                >>> AhiDriver.can_open("scene.dat")
+                False
+                >>> AhiDriver.can_open("scene.tif")
+                False
+
+                ```
+        """
+        if not isinstance(source, str):
+            return False
+        base = source.replace("\\", "/").rsplit("/", 1)[-1]
+        return _HSD_NAME_RE.match(base) is not None
+
+    def read(
+        self,
+        source: Any,
+        *,
+        bands: Any = None,
+        options: Any = None,
+        **_ignored: Any,
+    ) -> Dataset:
+        """Read one AHI band into a :class:`~pyramids.dataset.Dataset`.
+
+        Args:
+            source: Path to an HSD ``.DAT`` / ``.DAT.bz2`` granule.
+            bands: Optionally the band to read, as a one-element list (e.g. ``["B13"]``); an
+                alternative to ``options={"band": …}``. A granule names its own band, so this
+                only asserts the expectation. An AHI read is a single band, so more than one is
+                rejected rather than silently truncated.
+            options: Extra :func:`~pyramids_eo.sensors.readers.read_ahi` keywords — ``band``,
+                ``calibrate``, ``sun_earth_distance``, ``coeffs``, ``cos_sza`` — as a dict or
+                ``KEY=VALUE`` list. ``read_file`` normalises options to the ``KEY=VALUE`` form,
+                so ``calibrate`` and ``sun_earth_distance`` are coerced from their string
+                spellings (see :func:`~pyramids_eo.drivers._base.coerce_booleans`); without
+                that, the truthy string ``"false"`` would switch calibration *on*.
+
+                ``coeffs`` and ``cos_sza`` are **not** coerced, because neither has a
+                ``KEY=VALUE`` spelling: one is a mapping and the other an array. Pass them in
+                dict form — ``open_options={"coeffs": {...}}`` — exactly as Sentinel-2's
+                ``resolution=10`` must be; through a ``KEY=VALUE`` list they would arrive as
+                strings and ``read_ahi`` would reject them. An option this reader does not
+                take is forwarded and surfaces as a ``TypeError`` from ``read_ahi``, not a
+                ``ValueError`` from here.
+            **_ignored: The generic driver-read parameters an AHI read does not use — ``bbox``,
+                ``crs``, ``auth`` and any future one — are accepted and ignored: a granule is
+                read whole, carries its own geostationary CRS, and needs no credentials.
+
+        Returns:
+            The calibrated, geolocated band.
+
+        Raises:
+            ValueError: ``bands`` is a bare ``str`` / ``bytes`` rather than a one-element list;
+                more than one band was given; ``options`` is a bare string or carries an item
+                that is not ``"KEY=VALUE"``; or a boolean / numeric option could not be read
+                from its ``KEY=VALUE`` string spelling (``calibrate``, ``sun_earth_distance``).
+            ReaderError: The granule carries a band other than the one requested, or cannot be
+                decoded (raised by ``read_ahi``, not here).
+
+        Examples:
+            - An AHI read is one band, so several are refused rather than silently
+              truncated. The check happens before the granule is opened, so no file is
+              needed to see it:
+                ```python
+                >>> from pyramids_eo.drivers.ahi import AhiDriver
+                >>> AhiDriver().read(  # doctest: +ELLIPSIS
+                ...     "scene.DAT", bands=["B13", "B14"]
+                ... )
+                Traceback (most recent call last):
+                    ...
+                ValueError: an AHI read is one band, but 2 bands were given ...
+
+                ```
+            - A bare string would be read one character at a time, so it is refused with
+              the spelling that works:
+                ```python
+                >>> from pyramids_eo.drivers.ahi import AhiDriver
+                >>> AhiDriver().read("scene.DAT", bands="B13")
+                Traceback (most recent call last):
+                    ...
+                ValueError: bands must be a list of band names, not a bare str ('B13'); pass bands=['B13'].
+
+                ```
+            - ``read_file`` normalises options to ``KEY=VALUE`` strings, so a boolean that
+              cannot be read from its spelling is reported instead of being taken as truthy:
+                ```python
+                >>> from pyramids_eo.drivers.ahi import AhiDriver
+                >>> AhiDriver().read(  # doctest: +ELLIPSIS
+                ...     "scene.DAT", options=["calibrate=maybe"]
+                ... )
+                Traceback (most recent call last):
+                    ...
+                ValueError: ahi: open option 'calibrate' must be a boolean; got 'maybe'. ...
+
+                ```
+        """
+        from pyramids_eo.sensors.readers import read_ahi
+
+        settings = options_as_dict(options)
+        coerce_booleans(settings, ("calibrate",), driver="ahi")
+        coerce_floats(settings, ("sun_earth_distance",), driver="ahi")
+        band = settings.pop("band", None)
+        # A list given as `options={"band": [...]}` used to bypass every check
+        # below, so three bands or a bare-string-in-a-list went straight through
+        # to the reader. Route both spellings through the same validation.
+        if band is not None and not isinstance(band, (str, bytes, int)):
+            bands, band = band, None
+        if band is None and bands is not None and not isinstance(bands, (str, bytes)):
+            bands = list(bands)  # materialise a generator/iterator so len() is safe
+        if band is None and bands:
+            if isinstance(bands, (str, bytes)):
+                raise ValueError(
+                    f"bands must be a list of band names, not a bare "
+                    f"{type(bands).__name__} ({bands!r}); pass bands=['B13']."
+                )
+            if len(bands) != 1:
+                raise ValueError(
+                    f"an AHI read is one band, but {len(bands)} bands were given "
+                    f"({bands}); pass a single band or options={{'band': 'B13'}}."
+                )
+            band = bands[0]
+        return read_ahi(source, band, **settings)
