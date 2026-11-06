@@ -200,11 +200,15 @@ _WAVENUMBER_RADIANCE_SCALE = 1e-1
 _UM_PER_M = 1e6
 
 #: How far apart two segments' observation start times may be and still belong
-#: to one acquisition, in days. A full-disk scan takes about ten minutes and
-#: consecutive timelines are ten minutes apart, so the start time cannot separate
-#: adjacent slots on its own -- `observation_timeline` does that. This window only
-#: has to separate the same timeline on different DAYS, which are 24 hours apart,
-#: so an hour is comfortably inside the gap while leaving any real scan room.
+#: to one acquisition, in days.
+#:
+#: The start time cannot identify the acquisition on its own, because a full-disk
+#: scan is nearly as long as the gap between acquisitions. Measured on a real
+#: band-13 full disk, segment 1 starts 526.0 s (8.77 min) before segment 10,
+#: while consecutive timelines are 10 min apart -- a margin of barely a minute.
+#: `observation_timeline` is what separates adjacent slots. This window only has
+#: to separate the SAME timeline on different days, which are 24 h apart, so an
+#: hour sits comfortably inside that gap while leaving any real scan room.
 _MAX_ACQUISITION_SPAN_DAYS = 1.0 / 24.0
 
 #: The only two radiometric kinds this reader dispatches on. The spelling has to
@@ -1535,9 +1539,11 @@ def _decode_into(path: Any, header: HsdHeader, out: Any) -> None:
 def _assert_same_image(first: HsdHeader, header: HsdHeader) -> None:
     """Check that two segment headers describe one image, or raise.
 
-    Lifted out of the stitch as a single predicate: the question is not six
-    separate ones but whether these two granules are segments of the same
-    acquisition of the same band on the same grid.
+    Lifted out of the stitch as a single predicate: the several comparisons are
+    not separate questions but one -- whether these two granules are segments of
+    the same acquisition of the same band on the same grid. (An earlier version
+    of this sentence counted them as "six"; there are seven, which is why the
+    count is no longer stated here to drift again.)
 
     Args:
         first: The header of the northernmost segment, used as the reference.
@@ -1545,8 +1551,14 @@ def _assert_same_image(first: HsdHeader, header: HsdHeader) -> None:
 
     Raises:
         ReaderError: When the two disagree on band, grid width, projection,
-            satellite, observation (time or area), or how many segments the
-            image has.
+            satellite, the observation that produced them, or how many segments
+            the image has. The observation is compared by **timeline and area**,
+            with the start times additionally required to fall within
+            :data:`_MAX_ACQUISITION_SPAN_DAYS` of each other -- NOT by comparing
+            the start times for equality. AHI scans the disk progressively, so
+            every segment of one image carries its own start: measured on a real
+            band-13 full disk, segments 1 and 10 are 526.0 s apart. Requiring
+            them to match rejected legitimate full-disk sets.
     """
     if header.band_number != first.band_number:
         raise ReaderError(
