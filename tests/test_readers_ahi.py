@@ -1283,34 +1283,40 @@ def test_read_ahi_real_granule():
     array = np.asarray(scene.read_array(), dtype=float)
     finite = array[np.isfinite(array)]
     assert finite.size, "a real granule must decode some finite pixels"
-    # Asserted on the median and the bulk, not the extremes. Off-limb space
-    # beyond the Earth's edge is not always flagged with the outside-scan
-    # sentinel, and the granule's affine calibration maps those high counts to
-    # near-zero radiance, so a tail reads far below any physical temperature.
-    # Measured across three real band-13 segments of one full disk:
+    # Asserted on the MEDIAN alone, because every other summary statistic
+    # measured here turned out to depend on where the segment sits in the disk
+    # rather than on whether the decode is right. Off-limb space beyond the
+    # Earth's edge is not always flagged with the outside-scan sentinel, and the
+    # granule's affine calibration maps those high counts to near-zero radiance,
+    # so limb segments carry a large cold tail. Measured on five real band-13
+    # segments of one full disk:
     #
-    #   segment 4   p0 70.0   p2 117.4   p50 291.2   4.46% below 180 K
-    #   segment 5   p0 70.0   p2 201.3   p50 286.6   1.29% below 180 K
-    #   segment 6   p0 70.0   p2 199.8   p50 279.8   1.28% below 180 K
+    #   seg  first_line  median   within 180-330 K   below 180 K
+    #     1        1     237.31        68.24%           31.76%
+    #     4     1651     291.16        95.54%            4.46%
+    #     5     2201     286.64        98.71%            1.29%
+    #     6     2751     279.77        98.72%            1.28%
+    #    10     4951     250.49        67.97%           32.03%
     #
-    # The gradient is the explanation: segment 4 lies further from the disk
-    # centre, so more of its row band is space. That makes the tail a property
-    # of where the segment sits, not of the decode, and masking it would be a
-    # radiometric choice this reader does not make (issue #136). The failures
-    # that have actually occurred here were unit and scale errors, and those
-    # move the MEDIAN by sixteen orders of magnitude.
+    # An earlier version of this test required the minimum above 180 K, and the
+    # version that replaced it required 90% of pixels inside 180-330 K. Both
+    # fail on segments 1 and 10 -- the limb segments -- because both measure how
+    # much space a segment contains. The median does not: it stays between 237
+    # and 292 K across all five.
+    #
+    # Nor does a bulk-fraction test buy anything. Across ten deliberate
+    # perturbations (wavelength as metres, x10, /10; slope sign-flipped, x1e6;
+    # intercept zeroed; two neighbouring-band wavelengths; flipped rows) the
+    # fraction never failed where the median did not, so it added no detection
+    # power while introducing a false failure on real data.
     median = float(np.median(finite))
     assert 180.0 < median < 330.0, (
-        f"BT median {median} is not a terrestrial temperature; a unit or scale "
-        "error on the central wavelength or the slope lands here"
+        f"BT median {median} is not a terrestrial temperature. A unit or scale "
+        "error on the central wavelength or the slope lands here: taking the "
+        "wavelength as metres rather than micrometres gives about -1.8e44 K "
+        "with this granule's quadratic terms."
     )
     assert float(finite.max()) < 340.0, f"BT max too high: {finite.max()}"
-    within = float(((finite >= 180.0) & (finite <= 330.0)).mean())
-    assert within > 0.90, (
-        f"only {within:.1%} of finite pixels lie in 180-330 K; the three real "
-        "segments measured give 95.5% to 98.7%, so below 90% is a real shift "
-        "rather than the known off-limb tail"
-    )
     assert "Geostationary" in str(scene.crs), "should carry the geostationary CRS"
     assert abs(scene.geotransform[1]) == pytest.approx(2000.0, abs=1.0), (
         "band 13 is the 2 km grid"
