@@ -655,7 +655,13 @@ class HsdHeader:
             full disk), the same vocabulary as the file name's ``cccc`` field.
         observation_timeline: Observation timeline as ``hhmm`` (block #1).
         observation_start_mjd: Observation start time in Modified Julian Date
-            (block #1), which is what identifies segments as one acquisition.
+            (block #1). **Per segment, not per image**: AHI scans the disk
+            progressively, so every segment of one acquisition carries its own.
+            Measured on a real band-13 full disk, segments 1 and 10 start 526.0 s
+            apart. It therefore does NOT identify an acquisition --
+            `observation_timeline` with `observation_area` does -- and this field
+            is only used to bound how far apart one acquisition's segments may
+            start (see :data:`_MAX_ACQUISITION_SPAN_DAYS`).
         total_header_length: Header length the granule declares (block #1), used
             to check the header walk rather than trusted blindly.
         total_data_length: Pixel-payload length the granule declares (block #1).
@@ -1638,8 +1644,9 @@ def _stitch(paths: Any, *, requested: str | None = None) -> tuple[Any, HsdHeader
     are not from one acquisition.
 
     Args:
-        paths: An iterable of HSD segment paths of the **same** band and
-            timestamp.
+        paths: An iterable of HSD segment paths from the **same acquisition**
+            of the same band -- same timeline and observation area. Not the same
+            timestamp: each segment of one image has its own start time.
         requested: The band the caller asked for, checked once every header is
             parsed and before any pixels are decoded, or `None` to accept
             whatever the segments carry.
@@ -1650,7 +1657,9 @@ def _stitch(paths: Any, *, requested: str | None = None) -> tuple[Any, HsdHeader
 
     Raises:
         ReaderError: When no path is given; the segments disagree on band, grid
-            width, projection, satellite, observation (time or area), or how many
+            width, projection, satellite, the observation that produced them
+            (timeline and area, with the start times bounded rather than equal),
+            or how many
             segments the image has; a segment repeats; or the segments leave a
             gap, which would otherwise yield a silently part-blank disk.
     """
@@ -1765,12 +1774,14 @@ def read_ahi(
     the disk. A contiguous subset of the segments is also accepted and returns
     just those lines, so a partial download reads as the band of the disk it
     actually covers rather than being padded out or refused. The segments must
-    come from one acquisition — same band, satellite, observation time and area
-    — since line numbers alone repeat across timelines.
+    come from one acquisition — same band, satellite, observation timeline and
+    area — since line numbers alone repeat across timelines. Their observation
+    *start times* differ, one per segment, because the disk is scanned
+    progressively; only the timeline and area identify the acquisition.
 
     Args:
         source: Path to an HSD ``.DAT`` / ``.DAT.bz2`` granule, an iterable of
-            segment paths of one band and timestamp, or a pyramids `Dataset`
+            segment paths from one acquisition of one band, or a pyramids `Dataset`
             already holding the band radiance.
         band: The band to read (``13``, ``"B13"``, ``"band13"``). Optional: a
             granule names its own band, so this only has to be given to assert

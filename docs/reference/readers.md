@@ -44,9 +44,15 @@ transparently.
 The segments must come from one acquisition. Line numbers alone do not establish
 that, because every timeline numbers its segments identically — two scenes ten
 minutes apart would otherwise stitch into a seamless-looking image of two
-different moments. `read_ahi` therefore checks the satellite, observation time
-and area, the declared segment count, and the projection block, and refuses a
-mixed set.
+different moments. `read_ahi` therefore checks the satellite, the observation
+**timeline** and area, the declared segment count, and the projection block, and
+refuses a mixed set.
+
+Note it does *not* require the segments to share an observation **start time**.
+AHI scans the disk progressively, so each segment carries its own: on a real
+band-13 full disk, segments 1 and 10 start 526.0 s apart. The start times are
+only required to fall within an hour of each other, which separates the same
+timeline on different days without rejecting a legitimate scan.
 
 ```python
 from pyramids_eo.sensors.readers import read_ahi
