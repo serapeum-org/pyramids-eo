@@ -507,7 +507,11 @@ def test_preempts_declaration_is_well_formed():
         pytest.param("/vsizip/x.SAFE.zip", id="vsizip"),
         pytest.param("s3://bucket/x.SAFE.zip", id="s3-scheme"),
         pytest.param("https://host/x.SAFE.zip", id="https-scheme"),
-        pytest.param("//server/share/x.SAFE.zip", id="unc"),
+        pytest.param("//server/share/x.SAFE.zip", id="unc-forward-slash"),
+        pytest.param(
+            chr(92) * 2 + "server" + chr(92) + "share" + chr(92) + "x.SAFE.zip",
+            id="unc-backslash",
+        ),
     ],
 )
 def test_a_non_local_archive_is_never_claimed(source):
