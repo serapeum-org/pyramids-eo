@@ -73,10 +73,12 @@ Tb p2 / p50 / p100   201.33 / 286.64 / 298.71 K      over 99.6% finite pixels
 ```
 
 **One characteristic of the product worth knowing before you read a failure.** A tail of pixels
-reads far below any physical scene temperature. Two things combine to produce it: off-limb space beyond the Earth's edge is not always flagged with
-the outside-scan sentinel, and the granule's affine calibration crosses zero radiance at count
-4050 while its valid bit depth admits counts to 4095, so those high counts map to near-zero or
-negative radiance (the negative ones the reader masks to NaN).
+reads far below any physical scene temperature. Two things combine to produce it: off-limb space
+beyond the Earth's edge is not always flagged with the outside-scan sentinel, and the granule's
+affine calibration crosses zero radiance at count 4050 while its valid bit depth admits counts to
+4095, so those high counts map to near-zero or negative radiance (the negative ones the reader
+masks to NaN). Count 4050 is the `p0` every segment reports: it decodes to 69.9983 K, and 4051
+and above go negative and so to NaN.
 
 Measured across three adjacent segments of one full disk:
 

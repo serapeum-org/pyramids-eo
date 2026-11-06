@@ -205,10 +205,12 @@ _UM_PER_M = 1e6
 #: The start time cannot identify the acquisition on its own, because a full-disk
 #: scan is nearly as long as the gap between acquisitions. Measured on a real
 #: band-13 full disk, segment 1 starts 526.0 s (8.77 min) before segment 10.
-#: Consecutive full-disk timelines are usually 10 min apart -- of the 141 slots
-#: in one day, 137 gaps are 10 min and three are 20 min (housekeeping, at
-#: 0230-0250, 1430-1450 and 1950-2010 UTC) -- so the binding case is the 10 min
-#: one, leaving a margin of barely a minute.
+#: Consecutive full-disk timelines are usually 10 min apart. Measured over eight
+#: days of the bucket, a day holds 141 or 142 slots: two 20 min housekeeping gaps
+#: recur every day (0230-0250 and 1430-1450 UTC) and some days carry a third
+#: whose time moves (1950-2010 on 2026-01-01, 0750-0810 on the 2nd, 1230-1250 on
+#: the 15th), while the other five days sampled had none. Every other gap is
+#: 10 min, so the binding case is the 10 min one, leaving a margin of 74 s.
 #: `observation_timeline` is what separates adjacent slots. This window only has
 #: to separate the SAME timeline on different days, which are 24 h apart, so an
 #: hour sits comfortably inside that gap while leaving any real scan room.
@@ -221,9 +223,11 @@ _UM_PER_M = 1e6
 #: ``end[n] == start[n+1]`` would identify an acquisition without any window at
 #: all. It is not adopted because it has been verified on exactly one full disk
 #: of one band: it would reject any product whose segments do not abut to the
-#: microsecond, and the Japan and Target scans have not been checked. The window
-#: is the conservative choice, and it is bracketed by tests; whoever has more
-#: granules to hand can tighten this with evidence.
+#: microsecond, and only a full disk can put that to the test at all -- the other
+#: two L1b scans published, Japan and Target, ship as ``S0101``, one segment of
+#: one, so they never stitch. The window is the conservative choice, and it is
+#: bracketed by tests; whoever has more full disks to hand can tighten this with
+#: evidence.
 _MAX_ACQUISITION_SPAN_DAYS = 1.0 / 24.0
 
 #: The only two radiometric kinds this reader dispatches on. The spelling has to
@@ -417,11 +421,11 @@ def _read_header_bytes(path: Any) -> bytes:
     """Read a granule's header blocks without its pixel payload.
 
     Block #1 states the total header length, so the header can be read in two
-    small reads instead of pulling a whole granule into memory. A band-13 segment
-    carries a 6.05 MB payload -- more for the finer grids, since band 3's full
-    disk is 22000x22000 -- and a stitch needs every segment's header
-    before it can size the output, so reading headers this way keeps that first
-    pass nearly free.
+    small reads instead of pulling a whole granule into memory. A band-13
+    full-disk segment carries a 6.05 MB payload, and a band-3 one 96.8 MB, since
+    band 3's full disk is 22000x22000 on the 0.5 km grid -- and a stitch needs
+    every segment's header before it can size the output, so reading headers this
+    way keeps that first pass nearly free.
 
     Args:
         path: Path to a ``.DAT`` or ``.DAT.bz2`` granule.
@@ -674,10 +678,12 @@ class HsdHeader:
             (block #1). **Per segment, not per image**: AHI scans the disk
             progressively, so every segment of one acquisition carries its own.
             Measured on a real band-13 full disk, segments 1 and 10 start 526.0 s
-            apart. It therefore does NOT identify an acquisition --
-            `observation_timeline` with `observation_area` does -- and this field
-            is only used to bound how far apart one acquisition's segments may
-            start (see :data:`_MAX_ACQUISITION_SPAN_DAYS`).
+            apart. It therefore does NOT identify an acquisition:
+            `observation_timeline` with `observation_area` does so **within one
+            day** -- that pair recurs daily -- and this field is only used to
+            bound how far apart one acquisition's segments may start, which is
+            what tells consecutive days apart (see
+            :data:`_MAX_ACQUISITION_SPAN_DAYS`).
         total_header_length: Header length the granule declares (block #1), used
             to check the header walk rather than trusted blindly.
         total_data_length: Pixel-payload length the granule declares (block #1).
@@ -1445,7 +1451,7 @@ def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
     #   both present (correct)                    280.000000 K
     #   both dropped                                9.9607e+18 K  <- original defect
     #   only the wavelength conversion dropped      9.9607e+24 K
-    #   only the radiance conversion dropped               73.8 K  <- plausible!
+    #   only the radiance conversion dropped               73.8 K  <- the one to fear
     #
     # Those four are for a nominal 10.4 um with no quadratic correction. Through
     # a real granule's own coefficients (10.4074 um, c2 = -1.808e-06) the
@@ -1454,8 +1460,12 @@ def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
     # exponent both depend on which coefficients are in play, which is why the
     # conditions are stated alongside every figure here.
     #
-    # The last row is the one to fear: a wrong answer that looks like a cold
-    # cloud top rather than one that announces itself.
+    # The last row is the one to fear, and not because 73.8 K is a credible
+    # scene temperature -- it is far below any cloud top. It is that a real
+    # granule already carries off-limb pixels that cold: count 4050 decodes to
+    # 69.9983 K, and every segment measured reports it as its minimum. So
+    # 73.8 K passes for more of that cold tail, while the other two rows cannot
+    # be mistaken for anything.
     #
     # On footprint: this holds two image-sized arrays plus a boolean mask, down
     # from about seven. That is a real reduction but it does NOT make the
@@ -1622,11 +1632,15 @@ def _assert_same_image(first: HsdHeader, header: HsdHeader) -> None:
     # The acquisition is identified by its timeline and area, NOT by the
     # observation start time: AHI scans the disk progressively, so each segment
     # carries its own start. Measured on a real band-13 full-disk set, segments
-    # 4/5/6 start 0.0 s, 86.3 s and 147.0 s apart while every other block #1
-    # field is identical -- so comparing the start time for equality rejected a
-    # legitimate full-disk set, which is this reader's primary use. The timeline
-    # alone is not enough either, since it recurs every day, so the starts must
-    # additionally fall within one window.
+    # 4/5/6 start 0.0 s, 86.3 s and 147.0 s apart while their timeline and area
+    # agree -- so comparing the start time for equality rejected a legitimate
+    # full-disk set, which is this reader's primary use. Block #1 is not
+    # otherwise constant across those three either: the observation end time,
+    # the file creation time, the file name and the total header length (1533
+    # for segment 4 against 1523 for the other two) all differ, which is why the
+    # identity key is named field by field rather than taken as "block #1".
+    # The timeline alone is not enough either, since it recurs every day, so the
+    # starts must additionally fall within one window.
     # Reported separately, because "different observations" with both timelines
     # printed as 0 reads like a bug in the reader rather than two granules a day
     # apart, which is the case the window exists to catch.
@@ -1692,9 +1706,9 @@ def _stitch(paths: Any, *, requested: str | None = None) -> tuple[Any, HsdHeader
         ReaderError: When no path is given; the segments disagree on band, grid
             width, projection, satellite, the observation that produced them
             (timeline and area, with the start times bounded rather than equal),
-            or how many
-            segments the image has; a segment repeats; or the segments leave a
-            gap, which would otherwise yield a silently part-blank disk.
+            or how many segments the image has; a segment repeats; or the
+            segments leave a gap, which would otherwise yield a silently
+            part-blank disk.
     """
     # Pass one reads only the headers, so the output can be sized and the set
     # validated before any pixels are held.
@@ -1810,12 +1824,14 @@ def read_ahi(
     come from one acquisition — same band, satellite, observation timeline and
     area — since line numbers alone repeat across timelines. Their observation
     *start times* differ, one per segment, because the disk is scanned
-    progressively; only the timeline and area identify the acquisition.
+    progressively; the timeline and area are what identify the acquisition, and
+    because that pair recurs daily the start times are bounded to within an hour
+    of each other rather than compared for equality.
 
     Args:
         source: Path to an HSD ``.DAT`` / ``.DAT.bz2`` granule, an iterable of
-            segment paths from one acquisition of one band, or a pyramids `Dataset`
-            already holding the band radiance.
+            segment paths from one acquisition of one band, or a pyramids
+            `Dataset` already holding the band radiance.
         band: The band to read (``13``, ``"B13"``, ``"band13"``). Optional: a
             granule names its own band, so this only has to be given to assert
             the expectation, and a mismatch is an error. Required when `source`
