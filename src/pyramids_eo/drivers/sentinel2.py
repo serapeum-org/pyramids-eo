@@ -19,9 +19,10 @@ whether GDAL can open it:
   safe to declare because ``can_open`` gates every pre-empted claim, and ``.safe`` is not declared
   because a directory needs no help.
 
-  Reading a whole product is expensive — 13 bands of up to 20980x20984 — so pass the ``bands`` and
-  ``resolution`` you want. Without them the reader is asked for everything at the finest
-  resolution, which can exhaust memory where GDAL's container merely returned nothing useful.
+  Reading a whole product is expensive — 13 bands harmonised onto a 20984x20980 10 m grid — so
+  pass the ``bands`` and ``resolution`` you want. Without them the reader is asked for everything
+  at the finest resolution: measured on a fake L1C fixture, that call had not returned after 45
+  seconds, where GDAL's container returned in about 0.1 s with nothing useful in it.
 
 ESA shares ``.SAFE`` (and ``.SAFE.zip``) across missions, so the suffix alone cannot say whether a
 product is Sentinel-2 — a Sentinel-1 product carries the same one, and GDAL reads it correctly.
@@ -143,9 +144,12 @@ class Sentinel2Driver:
 
         Note:
             This is no longer free of I/O: identifying the mission requires reading a directory
-            listing or a zip's central directory. The cost is bounded — pyramids only calls
-            ``can_open`` once the suffix or scheme already matched — and it buys the mission
-            discrimination that a filename cannot give.
+            listing or a zip's central directory. Pre-emption consults only drivers whose
+            ``preempts`` matches the source's suffix, but the post-GDAL fallback
+            (``select_driver``) asks **every** registered driver, with no suffix filter — so this
+            runs for any source GDAL failed to open. The cheap string tests come first and return
+            before any I/O, so the filesystem is touched only for a source actually spelled
+            ``*.SAFE`` or ``*.SAFE.zip``.
 
         Examples:
             - A plain raster, a bare archive and a manifest are all rejected without I/O:

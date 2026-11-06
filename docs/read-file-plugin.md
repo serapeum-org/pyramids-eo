@@ -60,16 +60,18 @@ The consequence is the single rule worth remembering:
     ([serapeum-org/pyramids-core#1344](https://github.com/serapeum-org/pyramids-core/issues/1344)), below this
     package's floor, so every supported version has it. It is opt-in per driver and narrow here: only `s2`
     declares it, and only for `.zip`, the one form GDAL would otherwise claim. Everything else this package
-    reads fails in GDAL first, so step 4 already serves it. `vsi=` skips the pre-empt scan, but is not a way to
-    force GDAL: step 4 can still claim the source, so pass `driver=` to choose a reader deliberately.
+    reads fails in GDAL first, so step 4 already serves it. `vsi=` skips the pre-empt scan, and for an
+    archive it does reach GDAL: `read_file(zip, vsi="zip")` opens a *member* of the archive through GDAL — a
+    GeoTIFF band file, say — not the product through pyramids-eo. That is a different read, not a slower route
+    to the same one, so pass `driver=` when what you want is a particular reader.
 
 !!! warning "Give a zipped read its `bands` and `resolution`"
 
-    A Sentinel-2 product is 13 bands at up to 20980x20984. Now that a bare `read_file("….SAFE.zip")` reaches
-    the reader, asking for a product without narrowing it means asking for every band at the finest
-    resolution — roughly 10 GiB, which can exhaust memory. Pass
-    `open_options={"bands": [...], "resolution": 60}` (or whatever you need). Before pre-emption this call
-    returned GDAL's empty container instead, which never failed but was never useful either.
+    A Sentinel-2 product is 13 bands harmonised onto a 20984x20980 10 m grid — about 10 GiB. Now that a bare
+    `read_file("….SAFE.zip")` reaches the reader, asking for a product without narrowing it asks for all of
+    that, and it does **not** fail fast: measured on a fake L1C fixture, the call had not returned after 45
+    seconds. Pass `open_options={"bands": [...], "resolution": 60}` (or whatever you need). Before pre-emption
+    the same call returned GDAL's empty container in about 0.1 s — quick, but with nothing in it.
 
 ## Passing reader options
 
@@ -286,9 +288,13 @@ The facades are the source of truth for the reader options; the driver simply ma
 ## Troubleshooting
 
 - **A `.SAFE.zip` gave a 0-band dataset and a `ContainerRasterWarning`, and ignored `open_options`.** GDAL
-  opened the archive before the plugin, which means pyramids-eo was not discovered — pre-emption can only use a
-  driver pyramids found. Check the install, or pass `driver="s2"` to force it.
-- **A zipped read exhausted memory.** You asked for the whole product. Narrow it with
+  opened the archive before the plugin. Three things cause that, in rough order of likelihood: the archive is
+  not *named* `*.SAFE.zip` (the claim is gated on that spelling before anything is inspected, so a
+  `product.zip` is never considered, even when its contents are a real product); its extension is an uppercase
+  `.ZIP`, which the archive reader cannot take; or pyramids-eo is not installed, since pre-emption can only use
+  a driver pyramids discovered. Renaming to a lowercase `*.SAFE.zip` fixes the first two; `driver="s2"` forces
+  the reader in any case.
+- **A zipped read never came back.** You asked for the whole product — 13 bands on a 10 m grid. Narrow it with
   `open_options={"bands": [...], "resolution": 60}`.
 - **A Sentinel-2 `resolution`/`epsg` was ignored or mistyped.** You passed a `KEY=VALUE` list, which keeps values as
   strings. Pass `open_options` as a **dict** so the `int` survives.

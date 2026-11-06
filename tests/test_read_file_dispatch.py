@@ -173,6 +173,14 @@ def test_unknown_driver_name_raises():
 _DATA = pathlib.Path(__file__).parent / "data"
 _S2_PRODUCT = _DATA / "sentinel2" / "fake_l1c" / "S2A_OPER_PRD_MSIL1C.SAFE"
 _S1_PRODUCT = _DATA / "sentinel1" / "test.SAFE"
+#: A compact-naming product (`MTD_MSIL1C.xml`); `_S2_PRODUCT` uses the legacy
+#: `*_MTD_SAF*.xml` spelling, so both marker globs need their own fixture.
+_S2_COMPACT = (
+    _DATA
+    / "sentinel2"
+    / "fake_l1c_baseline_5_09"
+    / "S2B_MSIL1C_20230823T095559_N0509_R122_T34UCF_20230823T120234.SAFE"
+)
 
 
 def _zip_product(product, tmp_path, stem):
@@ -545,4 +553,43 @@ def test_a_gdal_readable_vsimem_archive_still_reads(tmp_path):
         gdal.Unlink(path)
     assert out.band_count == 1, (
         f"GDAL should still serve this source, got {out.band_count} bands"
+    )
+
+
+@pytest.mark.parametrize(
+    "product, marker",
+    [
+        pytest.param(_S2_PRODUCT, "*_MTD_SAF*.xml", id="legacy-naming"),
+        pytest.param(_S2_COMPACT, "MTD_MSIL*.xml", id="compact-naming"),
+    ],
+)
+def test_both_metadata_namings_are_recognised(product, marker, tmp_path):
+    """Each `_S2_MARKERS` glob is covered by a product that only matches it.
+
+    Args:
+        product: A committed `.SAFE` fixture.
+        marker: The glob that fixture's metadata file matches.
+        tmp_path: Where the zipped copy is built.
+
+    Test scenario:
+        ESA renamed the metadata file in 2016, so the driver carries two globs.
+        Testing only one fixture leaves the other glob dead — a mutation that
+        deleted `MTD_MSIL*.xml` passed the whole suite, because every other test
+        here uses the legacy-named product. Both the directory and the zipped
+        form are checked for each naming.
+    """
+    import fnmatch
+
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    names = [entry.name for entry in product.iterdir()]
+    assert any(fnmatch.fnmatch(n, marker) for n in names), (
+        f"fixture {product.name} should carry a {marker} file, found {names}"
+    )
+    assert Sentinel2Driver.can_open(str(product)) is True, (
+        f"the {marker} naming must be recognised in a directory"
+    )
+    archive = _zip_product(product, tmp_path, product.name)
+    assert Sentinel2Driver.can_open(archive) is True, (
+        f"the {marker} naming must be recognised inside an archive"
     )
