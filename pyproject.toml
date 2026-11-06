@@ -129,8 +129,8 @@ Changelog = "https://github.com/serapeum-org/pyramids-eo/blob/main/docs/change-l
 # Every reader that fits the single-source read_file model is registered (see
 # src/pyramids_eo/drivers/__init__.py). What stays facade-only is the temporal
 # path: read_file only ever dispatches a driver's `read`, never `read_collection`,
-# so a time series goes through `collection_from_*`. The Sentinel-2 driver also
-# declares `preempts`, so a zipped product beats GDAL to the bare read.
+# so a time series goes through `collection_from_*`. A zipped Sentinel-2 product also
+# needs an explicit `driver="s2"`, since GDAL opens the archive itself.
 [project.entry-points."pyramids.raster_drivers"]
 earthengine = "pyramids_eo.drivers.earthengine:EarthEngineDriver"
 seviri = "pyramids_eo.drivers.seviri:SeviriDriver"

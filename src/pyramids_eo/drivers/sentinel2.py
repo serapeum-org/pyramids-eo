@@ -4,20 +4,20 @@ Registers Sentinel-2 ``.SAFE`` products so ``Dataset.read_file`` routes into
 :func:`pyramids_eo.from_sentinel2` (reflectance, SCL masking, band selection) instead of GDAL's
 own container view.
 
-How each form reaches this driver differs, because GDAL ships its own ``SENTINEL2`` / ``SAFE``
-drivers that compete for the same paths:
+GDAL ships its own ``SENTINEL2`` / ``SAFE`` drivers, so which reader serves a path depends on
+whether GDAL can open it:
 
-* a product **directory** arrives through the post-GDAL ``can_open`` fallback — GDAL cannot open
-  one at all, so a bare ``read_file("<product>.SAFE")`` already reads the product.
-* a **zipped** product is the one form GDAL *does* open, handing back an empty container. This
-  driver therefore declares ``preempts = (".zip",)`` — the opt-in pyramids-core 0.71 added
-  (serapeum-org/pyramids-core#1344) — so a ``.SAFE.zip`` is routed here *before* GDAL.
-* an explicit ``driver="s2"`` short-circuits ahead of both.
+* a product **directory** reaches this driver through the post-GDAL ``can_open`` fallback — GDAL
+  cannot open one, so a bare ``read_file("<product>.SAFE")`` already reads the product.
+* a **zipped** product is opened by GDAL, which returns a bare container. Reading it through this
+  driver needs an explicit ``driver="s2"``, together with the ``bands`` / ``resolution`` the reader
+  needs — a full product is 13 bands of up to 20980x20984, so a bare read of everything is not a
+  sensible default.
 
 ESA shares ``.SAFE`` (and ``.SAFE.zip``) across missions, so the suffix alone cannot say whether a
 product is Sentinel-2 — a Sentinel-1 product carries the same one, and GDAL reads it correctly.
-``can_open`` therefore identifies the mission from the product's **contents**, which is what keeps
-a Sentinel-1 product with GDAL instead of failing in this reader.
+``can_open`` therefore identifies the mission from the product's **contents**, so a source this
+driver cannot actually read is never claimed.
 
 :func:`~pyramids_eo.from_sentinel2` reads a single ``.SAFE``, so no source expansion is needed.
 """
@@ -69,13 +69,6 @@ class Sentinel2Driver:
         suffixes: ``(".safe", ".safe.zip")`` — the driver claims a Sentinel-2 product directory or
             a zipped product.
         schemes: Empty — a ``.SAFE`` is a local product.
-        preempts: ``(".zip",)`` — a zipped product is tried *before* GDAL, which would
-            otherwise open the archive and return an empty container. pyramids tokenises a
-            source's **final** suffix, so a ``.SAFE.zip`` presents as ``.zip``; ``".safe.zip"``
-            could never match. Declaring the bare ``".zip"`` is safe because ``can_open`` gates
-            every pre-empted claim, so an ordinary archive is left to GDAL. ``".safe"`` is
-            **not** declared: ESA shares that suffix with Sentinel-1, which GDAL reads itself, and
-            pre-empting it would route those products into this reader.
         capabilities: ``read`` only (one product is one timestep; a time series goes through
             :func:`pyramids_eo.collection_from_sentinel2`).
         extra: ``None`` — the reader is pure pyramids-eo over pyramids' bundled GDAL, with no
@@ -87,9 +80,6 @@ class Sentinel2Driver:
     api_version = RASTER_DRIVER_API_VERSION
     suffixes: tuple[str, ...] = (".safe", ".safe.zip")
     schemes: tuple[str, ...] = ()
-    #: Tried before GDAL for a zipped product; ``can_open`` keeps ordinary archives out, and
-    #: ``.safe`` is excluded because Sentinel-1 shares it. See the class docstring.
-    preempts: tuple[str, ...] = (".zip",)
     capabilities = frozenset({"read"})
     extra: str | None = None
 

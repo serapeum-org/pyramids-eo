@@ -43,13 +43,12 @@ is declared and implemented but unreachable through the facade — a temporal st
 
 A single ``read_file`` source string can name a *set* of files — a directory, a glob, or an
 ``fci://`` path — which is how a multi-chunk FCI granule is addressed (see
-:func:`~pyramids_eo.drivers._base.expand_sources`). A **zipped** Sentinel-2 product is the one format GDAL
-would otherwise claim: it opens the archive and hands back a bare container. So
-:class:`~pyramids_eo.drivers.sentinel2.Sentinel2Driver` declares ``preempts = (".zip",)`` — the
-opt-in pyramids-core 0.71 added (serapeum-org/pyramids-core#1344) — and is tried *before* GDAL,
-with ``can_open`` keeping ordinary archives out. ``.safe`` is deliberately not pre-empted: ESA
-shares that suffix with Sentinel-1, whose products GDAL reads itself, and a ``.SAFE`` directory
-needs no pre-emption because GDAL cannot open one at all.
+:func:`~pyramids_eo.drivers._base.expand_sources`). The one reader reachable only through an explicit
+``driver="s2"`` is Sentinel-2's *zipped* form: GDAL opens a ``.SAFE.zip`` itself and hands back a
+bare container. A product **directory** needs no ``driver=`` — GDAL cannot open one, so it arrives
+through the ``can_open`` fallback. Because ESA shares ``.SAFE`` across missions, ``can_open``
+identifies the mission from the product's contents rather than its name, so a Sentinel-1 product
+is left to GDAL instead of failing in the Sentinel-2 reader.
 """
 
 from __future__ import annotations

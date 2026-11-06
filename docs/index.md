@@ -109,7 +109,7 @@ ee = Dataset.read_file("ee://USGS/SRTMGL1_003", open_options={"bbox": (86.9, 27.
 seviri = Dataset.read_file("MSG4-...nat", open_options={"channel": "IR_108"})
 fci = Dataset.read_file("/data/fci_granule", open_options={"channel": "ir_105"})  # a chunk directory
 
-# Sentinel-2: a .SAFE product reads bare, zipped or not - no driver= needed.
+# Sentinel-2: a .SAFE directory reads bare; a zipped .SAFE.zip needs driver="s2".
 scene = Dataset.read_file(
     "S2A_..._MSIL2A.SAFE", open_options={"bands": ["B04", "B03", "B02"]}
 )
