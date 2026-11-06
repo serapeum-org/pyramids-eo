@@ -1283,9 +1283,34 @@ def test_read_ahi_real_granule():
     array = np.asarray(scene.read_array(), dtype=float)
     finite = array[np.isfinite(array)]
     assert finite.size, "a real granule must decode some finite pixels"
-    assert finite.min() > 180.0, f"BT min too low: {finite.min()}"
-    assert finite.max() < 340.0, f"BT max too high: {finite.max()}"
-    assert np.median(finite) > 220.0, f"BT median implausibly cold: {np.median(finite)}"
+    # Asserted on the median and the bulk, not the extremes. Off-limb space
+    # beyond the Earth's edge is not always flagged with the outside-scan
+    # sentinel, and the granule's affine calibration maps those high counts to
+    # near-zero radiance, so a tail reads far below any physical temperature.
+    # Measured across three real band-13 segments of one full disk:
+    #
+    #   segment 4   p0 70.0   p2 117.4   p50 291.2   4.46% below 180 K
+    #   segment 5   p0 70.0   p2 201.3   p50 286.6   1.29% below 180 K
+    #   segment 6   p0 70.0   p2 199.8   p50 279.8   1.28% below 180 K
+    #
+    # The gradient is the explanation: segment 4 lies further from the disk
+    # centre, so more of its row band is space. That makes the tail a property
+    # of where the segment sits, not of the decode, and masking it would be a
+    # radiometric choice this reader does not make (issue #136). The failures
+    # that have actually occurred here were unit and scale errors, and those
+    # move the MEDIAN by sixteen orders of magnitude.
+    median = float(np.median(finite))
+    assert 180.0 < median < 330.0, (
+        f"BT median {median} is not a terrestrial temperature; a unit or scale "
+        "error on the central wavelength or the slope lands here"
+    )
+    assert float(finite.max()) < 340.0, f"BT max too high: {finite.max()}"
+    within = float(((finite >= 180.0) & (finite <= 330.0)).mean())
+    assert within > 0.90, (
+        f"only {within:.1%} of finite pixels lie in 180-330 K; the three real "
+        "segments measured give 95.5% to 98.7%, so below 90% is a real shift "
+        "rather than the known off-limb tail"
+    )
     assert "Geostationary" in str(scene.crs), "should carry the geostationary CRS"
     assert abs(scene.geotransform[1]) == pytest.approx(2000.0, abs=1.0), (
         "band 13 is the 2 km grid"
@@ -1609,8 +1634,18 @@ class TestSegmentIdentity:
         )
 
     def test_rejects_segments_from_two_timelines(self, tmp_path):
-        first = self._segment(tmp_path / "a", 0, start_mjd=57127.1041666667)
-        second = self._segment(tmp_path / "b", 1, start_mjd=57127.1111111111)
+        """Set the timeline, which is what actually identifies the slot.
+
+        This case previously varied only `start_mjd` while leaving the timeline
+        at its default, so it never tested what its name claimed. A real
+        full-disk set varies the start time *within* one acquisition -- each
+        segment is scanned at its own moment -- so varying it is not a
+        difference of acquisition at all.
+        """
+        first = self._segment(tmp_path / "a", 0, start_mjd=57127.1041666667, timeline=0)
+        second = self._segment(
+            tmp_path / "b", 1, start_mjd=57127.1111111111, timeline=10
+        )
         with pytest.raises(ReaderError, match="different observation"):
             read_ahi([first, second])
 
@@ -1875,3 +1910,114 @@ class TestHeaderReadIsBounded:
         )
         path = fixture.write_granule(tmp_path, band=13, columns=2000, lines=500)
         assert len(_read_header_bytes(path)) == expected
+
+
+class TestSegmentsOfOneAcquisitionDifferInStartTime:
+    """AHI scans the disk progressively, so each segment has its own start time.
+
+    Measured on a real Himawari-9 band-13 full-disk set (segments 4, 5, 6 of 10),
+    `observation_start_mjd` is the ONLY block #1 field that varies across them:
+
+        seg 4  start MJD 61041.00183583374    +0.0 s
+        seg 5  start MJD 61041.00283434366   +86.3 s
+        seg 6  start MJD 61041.00353695286  +147.0 s
+
+    `observation_timeline` (0), `observation_area` ('FLDK'), the satellite, the
+    segment total, the band, the grid and the whole projection block are all
+    constant. An equality check on the start time therefore rejects a legitimate
+    full-disk set -- the reader's primary advertised use -- which is what a real
+    granule exposed and no synthetic fixture had, because the fixture wrote one
+    start time to every segment.
+    """
+
+    def _set(self, directory, *, starts, timeline=0, area="FLDK"):
+        """Write a 3-segment band-13 set with the given per-segment start times."""
+        return [
+            fixture.write_granule(
+                directory / f"s{index}",
+                band=13,
+                columns=4,
+                lines=3,
+                counts=np.full((3, 4), index + 1, dtype=np.uint16),
+                total_segments=3,
+                segment_number=index + 1,
+                first_line=index * 3 + 1,
+                slope=1.0,
+                intercept=0.0,
+                start_mjd=start,
+                timeline=timeline,
+                area=area,
+            )
+            for index, start in enumerate(starts)
+        ]
+
+    def test_segments_with_their_own_start_times_still_stitch(self, tmp_path):
+        """The real spacing: ~86 s and ~147 s after the first segment."""
+        base = 61041.00183583374
+        paths = self._set(
+            tmp_path, starts=[base, base + 86.3 / 86400.0, base + 147.0 / 86400.0]
+        )
+        values = read_ahi(paths, calibrate=False).read_array()
+        assert values.shape == (9, 4)
+        assert values[:, 0] == pytest.approx([1.0] * 3 + [2.0] * 3 + [3.0] * 3)
+
+    def test_a_different_timeline_is_still_refused(self, tmp_path):
+        """The timeline field, not the start time, separates acquisition slots."""
+        base = 61041.00183583374
+        first = self._set(tmp_path / "a", starts=[base], timeline=0)[0]
+        second = fixture.write_granule(
+            tmp_path / "b",
+            band=13,
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), 2, dtype=np.uint16),
+            total_segments=3,
+            segment_number=2,
+            first_line=4,
+            slope=1.0,
+            intercept=0.0,
+            start_mjd=base + 600.0 / 86400.0,
+            timeline=10,
+        )
+        with pytest.raises(ReaderError, match="different observation"):
+            read_ahi([first, second])
+
+    def test_a_different_area_is_still_refused(self, tmp_path):
+        base = 61041.00183583374
+        first = self._set(tmp_path / "a", starts=[base], area="FLDK")[0]
+        second = fixture.write_granule(
+            tmp_path / "b",
+            band=13,
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), 2, dtype=np.uint16),
+            total_segments=3,
+            segment_number=2,
+            first_line=4,
+            slope=1.0,
+            intercept=0.0,
+            start_mjd=base,
+            area="JP01",
+        )
+        with pytest.raises(ReaderError, match="different observation"):
+            read_ahi([first, second])
+
+    def test_the_same_timeline_on_a_different_day_is_refused(self, tmp_path):
+        """Timeline 0000 recurs daily, so the date has to separate them too."""
+        base = 61041.00183583374
+        first = self._set(tmp_path / "a", starts=[base])[0]
+        second = fixture.write_granule(
+            tmp_path / "b",
+            band=13,
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), 2, dtype=np.uint16),
+            total_segments=3,
+            segment_number=2,
+            first_line=4,
+            slope=1.0,
+            intercept=0.0,
+            start_mjd=base + 1.0,  # same timeline, 24 hours later
+        )
+        with pytest.raises(ReaderError, match="different observation"):
+            read_ahi([first, second])

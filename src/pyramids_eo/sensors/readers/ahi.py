@@ -199,6 +199,14 @@ _WAVENUMBER_RADIANCE_SCALE = 1e-1
 #: Micrometres per metre, for the one place the Planck inversion needs SI.
 _UM_PER_M = 1e6
 
+#: How far apart two segments' observation start times may be and still belong
+#: to one acquisition, in days. A full-disk scan takes about ten minutes and
+#: consecutive timelines are ten minutes apart, so the start time cannot separate
+#: adjacent slots on its own -- `observation_timeline` does that. This window only
+#: has to separate the same timeline on different DAYS, which are 24 hours apart,
+#: so an hour is comfortably inside the gap while leaving any real scan room.
+_MAX_ACQUISITION_SPAN_DAYS = 1.0 / 24.0
+
 #: The only two radiometric kinds this reader dispatches on. The spelling has to
 #: match exactly, because this reader branches on ``"thermal"`` while the shared
 #: `calibrate_channel` branches on ``"solar"`` — so a third spelling would take
@@ -1570,15 +1578,26 @@ def _assert_same_image(first: HsdHeader, header: HsdHeader) -> None:
             f"read_ahi: segments come from different satellites "
             f"({first.satellite!r} and {header.satellite!r})"
         )
-    if (header.observation_start_mjd, header.observation_area) != (
-        first.observation_start_mjd,
+    # The acquisition is identified by its timeline and area, NOT by the
+    # observation start time: AHI scans the disk progressively, so each segment
+    # carries its own start. Measured on a real band-13 full-disk set, segments
+    # 4/5/6 start 0.0 s, 86.3 s and 147.0 s apart while every other block #1
+    # field is identical -- so comparing the start time for equality rejected a
+    # legitimate full-disk set, which is this reader's primary use. The timeline
+    # alone is not enough either, since it recurs every day, so the starts must
+    # additionally fall within one window.
+    if (header.observation_timeline, header.observation_area) != (
+        first.observation_timeline,
         first.observation_area,
-    ):
+    ) or abs(
+        header.observation_start_mjd - first.observation_start_mjd
+    ) > _MAX_ACQUISITION_SPAN_DAYS:
         raise ReaderError(
             f"read_ahi: segments come from different observations "
-            f"({first.observation_area!r} at MJD "
-            f"{first.observation_start_mjd!r} and "
-            f"{header.observation_area!r} at MJD "
+            f"({first.observation_area!r} timeline {first.observation_timeline} "
+            f"at MJD {first.observation_start_mjd!r} and "
+            f"{header.observation_area!r} timeline "
+            f"{header.observation_timeline} at MJD "
             f"{header.observation_start_mjd!r}); stitch one acquisition at a time"
         )
     if header.total_segments != first.total_segments:
