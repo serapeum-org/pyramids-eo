@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -2203,7 +2203,7 @@
 <p>The reader family for ESA's Sentinel missions, built on GDAL's <code>SENTINEL2</code> / <code>SAFE</code> drivers: GDAL parses the
 product structure, pyramids does the raster ops, and this package adds the instrument semantics — which
 subdataset is which band, how to turn DN into reflectance, how to read the scene-classification mask.</p>
-<p>A <code>.SAFE</code> product also opens through pyramids' <code>Dataset.read_file(path, driver="s2")</code> — see the
+<p>A <code>.SAFE</code> product opens through a bare <code>Dataset.read_file(path)</code>, zipped or not — see the
 <a href="../../read-file-plugin/">Reading EO sources via <code>read_file</code></a> guide.</p>
 <p>A Sentinel product is a <em>catalog of rasters</em>, not a raster, so it gets its own small model:</p>
 <ul>

@@ -64,7 +64,7 @@
     
     
   <meta name="panzoom-theme" content="material">
-<meta name="panzoom-data" content='{"selectors": [".d2", ".mermaid"], "initial_zoom_level": 1.0}'> </head>
+<meta name="panzoom-data" content='{"selectors": [".mermaid", ".d2"], "initial_zoom_level": 1.0}'> </head>
   
   
     
@@ -718,10 +718,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#sentinel-2-a-safe-product-needs-drivers2" class="md-nav__link">
+  <a href="#sentinel-2-a-safe-product" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sentinel-2 — a .SAFE product (needs driver="s2")
+        Sentinel-2 — a .SAFE product
       
     </span>
   </a>
@@ -1726,10 +1726,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#sentinel-2-a-safe-product-needs-drivers2" class="md-nav__link">
+  <a href="#sentinel-2-a-safe-product" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sentinel-2 — a .SAFE product (needs driver="s2")
+        Sentinel-2 — a .SAFE product
       
     </span>
   </a>
@@ -1897,8 +1897,8 @@ the whole integration</strong> — there is nothing to import or configure. The 
 <ol>
 <li><strong><code>driver="&lt;name&gt;"</code> given</strong> → that registered driver is used and <strong>GDAL is bypassed entirely</strong>.</li>
 <li><strong>a driver that <em>pre-empts</em> GDAL for this source</strong> → one that lists the source's suffix or scheme in its
-   <code>preempts</code> <em>and</em> confirms it via <code>can_open</code> is tried <strong>before</strong> GDAL. This is opt-in, and <strong>no pyramids-eo
-   driver declares <code>preempts</code> today</strong>, so this step currently never fires here. An explicit <code>vsi=</code> outranks it.</li>
+   <code>preempts</code> <em>and</em> confirms it via <code>can_open</code> is tried <strong>before</strong> GDAL. This is opt-in; of the seven drivers only
+   <code>s2</code> declares it, for <code>.zip</code>. An explicit <code>vsi=</code> outranks it.</li>
 <li><strong>otherwise GDAL is tried</strong> → if GDAL can open the source, you get GDAL's result and no plugin runs.</li>
 <li><strong>only if GDAL fails</strong> → each registered driver's <code>can_open(source)</code> is asked, and the first to claim it reads it.</li>
 </ol>
@@ -1906,19 +1906,36 @@ the whole integration</strong> — there is nothing to import or configure. The 
 <ul>
 <li><code>ee://…</code>, a <code>.nat</code> granule, and the granule <strong>directories</strong> (FCI's chunk set, a Sentinel-3 <code>.SEN3</code>) auto-route
   to pyramids-eo, because GDAL cannot open any of them (step 3 fails, step 4 claims them).</li>
-<li>a Sentinel-2 <code>.SAFE</code> does <strong>not</strong> auto-route: GDAL ships its own <code>SENTINEL2</code> driver and opens it at step 2, so a
-  bare <code>read_file("…SAFE")</code> returns GDAL's raw <em>container</em> (0 bands + a <code>ContainerRasterWarning</code>). Ask for the
-  pyramids-eo reader explicitly with <code>driver="s2"</code> (step 1) — step 2 would be the other way out, but the S2
-  driver does not declare <code>preempts</code>.</li>
+<li>a Sentinel-2 <code>.SAFE</code> <strong>product directory</strong> auto-routes the same way: GDAL cannot open a product directory
+  either, so it fails at step 3 and the driver claims it at step 4.</li>
+<li>a <strong>zipped</strong> product (<code>.SAFE.zip</code>) is the one form GDAL <em>does</em> open, handing back a bare <em>container</em> (0 bands
+  plus a <code>ContainerRasterWarning</code>) and silently ignoring your <code>open_options</code>. The <code>s2</code> driver therefore declares
+  <code>preempts = (".zip",)</code> and wins at <strong>step 2</strong>, so a bare read works here too.</li>
+<li>which driver claims a <code>.SAFE</code> is decided by the product's <strong>contents</strong>, not its name: ESA shares the suffix
+  with Sentinel-1, so a Sentinel-1 product (zipped or not) is left to GDAL, which reads it correctly. An
+  ordinary <code>.zip</code> is likewise untouched, even though the declaration names the bare suffix.</li>
 </ul>
 <div class="admonition note">
-<p class="admonition-title">Why S2 still needs <code>driver=</code></p>
-<p>pyramids-core <em>does</em> offer a way out: a driver that declares <code>preempts</code> for a suffix or scheme is tried
-<strong>before</strong> GDAL rather than after it — shipped in pyramids-core 0.71
-(<a href="https://github.com/serapeum-org/pyramids-core/issues/1344">serapeum-org/pyramids-core#1344</a>), so every
-version pyramids-eo supports already has it. Pre-emption is opt-in, though, and no pyramids-eo driver
-declares <code>preempts</code> yet — so GDAL-first remains the behaviour above, and <code>driver="s2"</code> is still required
-for a bare <code>.SAFE</code> path.</p>
+<p class="admonition-title">What pre-emption does and does not cover</p>
+<p>Pre-emption shipped in pyramids-core 0.71
+(<a href="https://github.com/serapeum-org/pyramids-core/issues/1344">serapeum-org/pyramids-core#1344</a>), below this
+package's floor, so every supported version has it. It is opt-in per driver and narrow here: only <code>s2</code>
+declares it, and only for <code>.zip</code>, the one form GDAL would otherwise claim. Everything else this package
+reads fails in GDAL first, so step 4 already serves it. <code>vsi=</code> skips the pre-empt scan, and for an
+archive it does reach GDAL: <code>read_file(zip, vsi="zip")</code> opens a <em>member</em> of the archive through GDAL — a
+GeoTIFF band file, say — not the product through pyramids-eo. That is a different read, not a slower route
+to the same one, so pass <code>driver=</code> when what you want is a particular reader.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Give a zipped read its <code>bands</code> and <code>resolution</code></p>
+<p>A Sentinel-2 product is 13 bands harmonised onto a 20984x20980 10 m grid — about 10 GiB. Asking for a
+product without narrowing it asks for all of that, and it takes <strong>minutes</strong>: measured on a fake L1C
+fixture, the zipped form returned 13 bands after 228 s, and the directory form raised <code>MemoryError</code>
+(10.7 GiB) after 202 s. Which of the two you get depends on available memory, so treat both as
+"do not do this". Pass <code>open_options={"bands": [...], "resolution": 60}</code> (or whatever you need).</p>
+<p>This is not new for the <strong>directory</strong> form, which has always reached the reader. What pre-emption changes
+is the <strong>zipped</strong> form: it used to return GDAL's empty container in about 0.1 s — quick, but with nothing
+in it — and now behaves like the directory form.</p>
 </div>
 <h2 id="passing-reader-options"><a class="toclink" href="#passing-reader-options">Passing reader options</a><a class="headerlink" href="#passing-reader-options" title="Permanent link">#</a></h2>
 <p><code>read_file</code> forwards <strong>only</strong> its <code>open_options</code> to a driver — it has no <code>bbox</code> / <code>bands</code> / <code>crs</code> parameters of its
@@ -1982,19 +1999,29 @@ granule names its own band, so <code>open_options</code> can be omitted entirely
 <p>A renamed granule is still readable with an explicit <code>driver="ahi"</code>. <code>read_file</code> dispatches
 one source, so a segmented full disk is stitched by calling
 <a href="../reference/readers/"><code>read_ahi</code></a> with the segment paths directly.</p>
-<h3 id="sentinel-2-a-safe-product-needs-drivers2"><a class="toclink" href="#sentinel-2-a-safe-product-needs-drivers2">Sentinel-2 — a <code>.SAFE</code> product (needs <code>driver="s2"</code>)</a><a class="headerlink" href="#sentinel-2-a-safe-product-needs-drivers2" title="Permanent link">#</a></h3>
+<h3 id="sentinel-2-a-safe-product"><a class="toclink" href="#sentinel-2-a-safe-product">Sentinel-2 — a <code>.SAFE</code> product</a><a class="headerlink" href="#sentinel-2-a-safe-product" title="Permanent link">#</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pyramids.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Band selection + DN -&gt; reflectance (the pyramids-eo reader, not GDAL's container):</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># A product directory auto-routes - GDAL cannot open one, so the driver claims it</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">scene</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
 <a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="s2">"S2A_MSIL2A.SAFE"</span><span class="p">,</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">driver</span><span class="o">=</span><span class="s2">"s2"</span><span class="p">,</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bands"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"B04"</span><span class="p">,</span> <span class="s2">"B08"</span><span class="p">],</span> <span class="s2">"resolution"</span><span class="p">:</span> <span class="mi">10</span><span class="p">},</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">)</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="c1"># A zipped product is also claimed:</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="n">scene</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"S2A_MSIL2A.SAFE.zip"</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s2">"s2"</span><span class="p">,</span> <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bands"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"B04"</span><span class="p">]})</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bands"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"B04"</span><span class="p">,</span> <span class="s2">"B08"</span><span class="p">],</span> <span class="s2">"resolution"</span><span class="p">:</span> <span class="mi">10</span><span class="p">},</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">)</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># A zipped product auto-routes too - the driver pre-empts GDAL for `.zip`.</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="c1"># Narrow the read: a whole product is ~10 GiB.</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="n">scene</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="s2">"S2A_MSIL2A.SAFE.zip"</span><span class="p">,</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bands"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"B04"</span><span class="p">],</span> <span class="s2">"resolution"</span><span class="p">:</span> <span class="mi">10</span><span class="p">},</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="p">)</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="c1"># driver="s2" still works and short-circuits ahead of pre-emption</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="n">scene</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>    <span class="s2">"S2A_MSIL2A.SAFE.zip"</span><span class="p">,</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>    <span class="n">driver</span><span class="o">=</span><span class="s2">"s2"</span><span class="p">,</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>    <span class="n">open_options</span><span class="o">=</span><span class="p">{</span><span class="s2">"bands"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"B04"</span><span class="p">],</span> <span class="s2">"resolution"</span><span class="p">:</span> <span class="mi">10</span><span class="p">},</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="p">)</span>
 </code></pre></div>
 <p>Scene-classification masking and the other <code>from_sentinel2</code> keywords (<code>reflectance</code>, <code>mask_scl</code>, <code>epsg</code>,
 <code>resample</code>) go in <code>open_options</code> too.</p>
@@ -2098,8 +2125,16 @@ default, so check the oblique side with <code>view="oblique"</code>.</p>
 <p>The facades are the source of truth for the reader options; the driver simply maps <code>open_options</code> onto them.</p>
 <h2 id="troubleshooting"><a class="toclink" href="#troubleshooting">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Permanent link">#</a></h2>
 <ul>
-<li><strong>A bare <code>read_file("X.SAFE")</code> gave a 0-band dataset and a <code>ContainerRasterWarning</code>.</strong> GDAL opened the <code>.SAFE</code>
-  before the plugin. Pass <code>driver="s2"</code> to reach the pyramids-eo reader.</li>
+<li><strong>A <code>.SAFE.zip</code> gave a 0-band dataset and a <code>ContainerRasterWarning</code>, and ignored <code>open_options</code>.</strong> GDAL
+  opened the archive before the plugin. Three things cause that, in rough order of likelihood: the archive is
+  not <em>named</em> <code>*.SAFE.zip</code> (the claim is gated on that spelling before anything is inspected, so a
+  <code>product.zip</code> is never considered, even when its contents are a real product); its extension is an uppercase
+  <code>.ZIP</code>, which the archive reader cannot take; or pyramids-eo is not installed, since pre-emption can only use
+  a driver pyramids discovered. Renaming to a lowercase <code>*.SAFE.zip</code> fixes the first two; <code>driver="s2"</code> forces
+  the reader in any case.</li>
+<li><strong>A read took minutes, or died with <code>MemoryError</code>.</strong> You asked for the whole product — 13 bands on a 10 m
+  grid, about 10 GiB. Narrow it with <code>open_options={"bands": [...], "resolution": 60}</code>. This applies to a
+  product directory as much as to a zipped one.</li>
 <li><strong>A Sentinel-2 <code>resolution</code>/<code>epsg</code> was ignored or mistyped.</strong> You passed a <code>KEY=VALUE</code> list, which keeps values as
   strings. Pass <code>open_options</code> as a <strong>dict</strong> so the <code>int</code> survives.</li>
 <li><strong><code>FciDriver</code> raised "no chunk files found for FCI source …".</strong> Point the source at the granule <strong>directory</strong>, a
