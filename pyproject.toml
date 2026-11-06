@@ -132,6 +132,7 @@ Changelog = "https://github.com/serapeum-org/pyramids-eo/blob/main/docs/change-l
 # so a time series goes through `collection_from_*`. The Sentinel-2 driver also declares
 # `preempts`, so a zipped product beats GDAL to the bare read.
 [project.entry-points."pyramids.raster_drivers"]
+ahi = "pyramids_eo.drivers.ahi:AhiDriver"
 earthengine = "pyramids_eo.drivers.earthengine:EarthEngineDriver"
 seviri = "pyramids_eo.drivers.seviri:SeviriDriver"
 s2 = "pyramids_eo.drivers.sentinel2:Sentinel2Driver"
@@ -230,7 +231,7 @@ markers = [
     "core: extras-free test (auto-applied when no extras marker is present)",
     "plot: tests requiring the [viz] extra (cleopatra) — plotting tests (deselect with '-m \"not plot\"')",
     "lazy: tests requiring pyramids-core[lazy] (dask) — DatasetCollection reductions (deselect with '-m \"not lazy\"')",
-    "live: live network test against a real external service (deselect with '-m \"not live\"', run with '-m live')",
+    "live: test against a real external resource — a network service, or a real granule on disk that the offline fixtures cannot stand in for (deselect with '-m \"not live\"', run with '-m live')",
 ]
 
 

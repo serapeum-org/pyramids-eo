@@ -1,0 +1,65 @@
+# Himawari-8/9 AHI channel table.
+#
+# Provenance — every value here is published, none is fitted or invented:
+#   * wavelength_um comes from Table 1 "Himawari-8 and -9 observation bands" of the
+#     Himawari Standard Data User's Guide v1.3 (JMA, 3 July 2017). These are the
+#     NOMINAL band centres; an HSD granule carries its own exact central wavelength
+#     in calibration block #5 field 4, which `read_ahi` prefers.
+#   * resolution_m comes from Table 3 of the same guide, for the Full Disk area:
+#     band 3 at 0.5 km, bands 1/2/4 at 1 km, bands 5-16 at 2 km. The Japan and
+#     Target areas are sampled on the same grids, so these are the native GSDs.
+#   * kind follows the guide's own split of calibration block #5 into its two
+#     variants: bands 1-6 are the visible / near-infrared (albedo) form, bands
+#     7-16 the infrared (brightness-temperature) form.
+#
+# DELIBERATELY ABSENT, and why:
+#   * solar_irradiance — AHI's band-effective solar irradiances are not in the HSD
+#     guide, and an HSD granule supplies the equivalent directly: block #5 field 10
+#     gives c' of `albedo = c' * radiance`, i.e. c' = 1 / S0. `read_ahi` passes
+#     1 / c' through as the granule's own E0, so a real read never needs a value
+#     here. Rather than bake in numbers from elsewhere, this table omits them: a
+#     solar calibration attempted WITHOUT a granule raises CalibrationError, which
+#     is the honest outcome.
+#   * alpha / beta — HSD does not use the linear band correction these express. It
+#     carries a quadratic effective-to-brightness correction (block #5 fields 10-12,
+#     `Tb = c0 + c1*Te + c2*Te^2`) plus the c / h / k it was calibrated with, and
+#     `read_ahi` inverts Planck's law with those directly. The defaults (alpha 1.0,
+#     beta 0.0 — i.e. no correction) therefore apply only to the registry fallback
+#     path, which omits the quadratic correction; prefer a granule.
+#
+# central_wavenumber_cm1 is the nominal band centre converted from wavelength
+# (1e4 / wavelength_um) — arithmetic on the published value, not a band-effective
+# wavenumber. The registry thermal path is therefore usable but approximate in a
+# specific, bounded way: the ONLY approximation is that this is the nominal band
+# centre rather than the band-effective wavenumber, and that alpha/beta omit the
+# quadratic correction. It is not a unit approximation — `read_ahi` rebases HSD's
+# per-micrometre radiance (W/(m2 sr um)) onto the per-wavenumber basis this column
+# belongs to (mW/(m2 sr (cm-1)-1)) before the inverse Planck, which round-trips a
+# synthetic 200-300 K scene to within 2 mK. Skipping that rebasing does NOT give an
+# obviously broken number — a 280 K scene reads as about 189 K, a plausible cloud
+# top — which is why it is pinned by a test rather than left to inspection. The
+# granule path remains the accurate one: it carries the exact wavelength and the
+# quadratic terms.
+#
+# Note the whole of HSD is micrometre-based: block #5 field 4 holds 10.4 for band
+# 13, not 1.04e-05, and its slope / intercept give radiance per micrometre. Every
+# text extraction of the specification PDF drops its micro sign, so those units
+# render as "[m]"; Table 1's values (0.47 to 13.3) are what settle it.
+name: ahi
+channels:
+  B01: {wavelength_um: 0.47, resolution_m: 1000, kind: solar}
+  B02: {wavelength_um: 0.51, resolution_m: 1000, kind: solar}
+  B03: {wavelength_um: 0.64, resolution_m: 500,  kind: solar}
+  B04: {wavelength_um: 0.86, resolution_m: 1000, kind: solar}
+  B05: {wavelength_um: 1.6,  resolution_m: 2000, kind: solar}
+  B06: {wavelength_um: 2.3,  resolution_m: 2000, kind: solar}
+  B07: {wavelength_um: 3.9,  resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 2564.103}
+  B08: {wavelength_um: 6.2,  resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 1612.903}
+  B09: {wavelength_um: 6.9,  resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 1449.275}
+  B10: {wavelength_um: 7.3,  resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 1369.863}
+  B11: {wavelength_um: 8.6,  resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 1162.791}
+  B12: {wavelength_um: 9.6,  resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 1041.667}
+  B13: {wavelength_um: 10.4, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 961.538}
+  B14: {wavelength_um: 11.2, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 892.857}
+  B15: {wavelength_um: 12.4, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 806.452}
+  B16: {wavelength_um: 13.3, resolution_m: 2000, kind: thermal, central_wavenumber_cm1: 751.880}

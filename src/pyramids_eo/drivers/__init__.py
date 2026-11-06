@@ -6,6 +6,10 @@ open into that driver with no import coupling. This subpackage registers pyramid
 
 - :class:`~pyramids_eo.drivers.earthengine.EarthEngineDriver` — ``ee://<asset-id>`` sources.
 - :class:`~pyramids_eo.drivers.seviri.SeviriDriver` — SEVIRI native ``.nat`` granules.
+- :class:`~pyramids_eo.drivers.ahi.AhiDriver` — Himawari AHI Himawari Standard Data
+  (``.DAT``) granules. It is the only driver here that declares a suffix and then
+  deliberately narrows it in ``can_open``: ``.dat``
+  is too generic, so it matches the HSD file-name convention instead (see its docstring).
 - :class:`~pyramids_eo.drivers.sentinel2.Sentinel2Driver` — Sentinel-2 ``.SAFE`` products.
 - :class:`~pyramids_eo.drivers.fci.FciDriver` — MTG-FCI L1C FDHSI granules (a chunk set named by a
   directory or glob).
@@ -33,8 +37,8 @@ letting the truthy string ``"false"`` switch an option on.
 
 The entry points in ``pyproject.toml`` are the whole integration; installing the package is
 enough for ``read_file`` to find these. Each driver is a thin wrapper over an existing reader
-(``from_earthengine`` / ``read_seviri`` / ``from_sentinel2`` / ``read_fci_l1c`` / ``read_olci`` /
-``read_slstr``), which stays the ergonomic public API.
+(``from_earthengine`` / ``read_seviri`` / ``read_ahi`` / ``from_sentinel2`` /
+``read_fci_l1c`` / ``read_olci`` / ``read_slstr``), which stays the ergonomic public API.
 
 Only a driver's ``read`` is reachable this way: ``Dataset.read_file`` never dispatches
 ``read_collection``, so :meth:`~pyramids_eo.drivers.earthengine.EarthEngineDriver.read_collection`
@@ -55,6 +59,7 @@ GDAL instead of failing in the Sentinel-2 reader.
 
 from __future__ import annotations
 
+from pyramids_eo.drivers.ahi import AhiDriver
 from pyramids_eo.drivers.earthengine import EarthEngineDriver
 from pyramids_eo.drivers.fci import FciDriver
 from pyramids_eo.drivers.olci import OlciDriver
@@ -63,6 +68,7 @@ from pyramids_eo.drivers.seviri import SeviriDriver
 from pyramids_eo.drivers.slstr import SlstrDriver
 
 __all__ = [
+    "AhiDriver",
     "EarthEngineDriver",
     "FciDriver",
     "OlciDriver",

@@ -1,6 +1,6 @@
 """Integration: `Dataset.read_file` routes a claimed source into a pyramids-eo driver.
 
-All six pyramids-eo drivers are discovered unconditionally (none gates on an optional backend),
+All pyramids-eo drivers are discovered unconditionally (none gates on an optional backend),
 so they are exercised through the real dispatch here: SEVIRI with an injected `.nat` decoder, and
 Earth Engine with `from_earthengine` monkeypatched (read_file forwards only `open_options`, which
 is the path this proves). The Sentinel-2 cases additionally cover which sources `can_open` claims,

@@ -16,12 +16,13 @@ options through it, and the per-source recipes.
 
 pyramids-core 0.70 added an entry-point group, `pyramids.raster_drivers`. A package registers a *driver* class
 there; pyramids discovers it lazily the first time `read_file` needs a non-GDAL reader. **Installing pyramids-eo is
-the whole integration** — there is nothing to import or configure. The six drivers it registers:
+the whole integration** — there is nothing to import or configure. The seven drivers it registers:
 
 | driver name   | source it opens                               | reader it delegates to                         |
 |---------------|-----------------------------------------------|------------------------------------------------|
 | `earthengine` | an `ee://<asset-id>` URL                      | [`from_earthengine`](reference/earthengine.md) |
 | `seviri`      | a SEVIRI native `.nat` granule                | [`read_seviri`](reference/readers.md)          |
+| `ahi`         | a Himawari AHI HSD `HS_….DAT` granule         | [`read_ahi`](reference/readers.md)             |
 | `s2`          | a Sentinel-2 `.SAFE` product (or `.SAFE.zip`) | [`from_sentinel2`](reference/sentinel.md)      |
 | `fci`         | an MTG-FCI L1C FDHSI granule (a chunk set)    | [`read_fci_l1c`](reference/readers.md)         |
 | `olci`        | a Sentinel-3 OLCI L1B `.SEN3` granule         | [`read_olci`](reference/readers.md)            |
@@ -35,7 +36,7 @@ Every reader stays pure pyramids-eo over pyramids' bundled GDAL — no `eartheng
 
 1. **`driver="<name>"` given** → that registered driver is used and **GDAL is bypassed entirely**.
 2. **a driver that *pre-empts* GDAL for this source** → one that lists the source's suffix or scheme in its
-   `preempts` *and* confirms it via `can_open` is tried **before** GDAL. This is opt-in; of the six drivers only
+   `preempts` *and* confirms it via `can_open` is tried **before** GDAL. This is opt-in; of the seven drivers only
    `s2` declares it, for `.zip`. An explicit `vsi=` outranks it.
 3. **otherwise GDAL is tried** → if GDAL can open the source, you get GDAL's result and no plugin runs.
 4. **only if GDAL fails** → each registered driver's `can_open(source)` is asked, and the first to claim it reads it.
@@ -128,6 +129,29 @@ ir = Dataset.read_file("MSG4-SEVIRI-MSG15.nat", open_options={"channel": "IR_108
 ```
 
 The read covers the whole granule, so `bbox` / `crs` do not apply.
+
+### Himawari AHI — an HSD `.DAT` granule
+
+`.dat` is too generic to claim by extension, so this driver claims the HSD **file-name**
+convention instead (`HS_aaa_yyyymmdd_hhnn_Bbb_cccc_Rjj_Skkll.DAT`, optionally `.bz2`). A
+granule names its own band, so `open_options` can be omitted entirely:
+
+```python
+from pyramids.dataset import Dataset
+
+
+bt = Dataset.read_file("HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT")
+
+# pass calibrate=false for raw radiance; through read_file it arrives as a string,
+# which the driver coerces rather than reading the truthy "false" as on
+raw = Dataset.read_file(
+    "HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT", open_options={"calibrate": "false"}
+)
+```
+
+A renamed granule is still readable with an explicit `driver="ahi"`. `read_file` dispatches
+one source, so a segmented full disk is stitched by calling
+[`read_ahi`](reference/readers.md) with the segment paths directly.
 
 ### Sentinel-2 — a `.SAFE` product
 

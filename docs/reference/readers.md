@@ -20,6 +20,75 @@ north-up on the 3 km geostationary grid (validated on a real Meteosat-10
 granule — see issue #40). `parse_seviri_native` is the underlying `.nat` decoder,
 and a custom `parse` callable can still be injected.
 
+For Himawari-8/9 AHI Himawari Standard Data (`.DAT`) granules use `read_ahi`: it
+walks the 11 self-describing HSD header blocks, decodes the band's 16-bit counts,
+applies the granule's own count-to-radiance slope / intercept, masks the error
+(65535) and outside-scan (65534) sentinel counts, and returns the band north-up
+on its geostationary grid. Calibration prefers the coefficients the granule
+carries over the registry's nominal table: a solar band (1-6) uses the granule's
+`c'` as its band solar irradiance, and a thermal band (7-16) inverts Planck's law
+with the granule's own `c` / `h` / `k` and applies its quadratic
+`Tb = c0 + c1*Te + c2*Te^2` correction — which the registry's linear
+`alpha` / `beta` form cannot express.
+
+A granule names its own band, so `band` is optional and merely asserts the
+expectation. A full disk ships as 10 segment files; pass the segment paths of one
+band together and they are stitched by their block #7 first-line numbers, with a
+gap or a duplicate reported rather than silently left blank. A **contiguous
+subset** is accepted too and returns only the lines it covers, georeferenced
+where they belong in the disk — so a partial download reads as the band of the
+disk it actually covers; completeness is not required, only contiguity. A single
+segment reads on its own the same way. `.DAT.bz2` granules are decompressed
+transparently.
+
+The segments must come from one acquisition. Line numbers alone do not establish
+that, because every timeline numbers its segments identically — two scenes ten
+minutes apart would otherwise stitch into a seamless-looking image of two
+different moments. `read_ahi` therefore checks the satellite, observation time
+and area, the declared segment count, and the projection block, and refuses a
+mixed set.
+
+```python
+from pyramids_eo.sensors.readers import read_ahi
+
+# one segment, calibrated to brightness temperature
+bt = read_ahi("HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT")
+
+# a stitched full disk from its 10 segments
+import glob
+disk = read_ahi(sorted(glob.glob("HS_H08_20150415_0230_B13_FLDK_R20_S*.DAT")))
+```
+
+`parse_ahi_hsd` is the underlying decoder, returning uncalibrated radiance, and
+`parse_hsd_header` exposes the granule's grid, projection and calibration without
+reading its pixels.
+
+Because HSD carries no per-granule solar irradiance for the reflective bands in a
+form the registry can hold, `ahi.yaml` deliberately omits `solar_irradiance`: a
+solar calibration attempted without a granule raises `CalibrationError` rather
+than quietly using a value from elsewhere. See the table's own header for the
+provenance of every constant in it.
+
+One unit detail matters if you supply your own thermal coefficients or hand
+`read_ahi` a `Dataset` you built yourself. **HSD is micrometre-based throughout**:
+block #5 field 4 holds `10.4` for band 13 (not `1.04e-05`), and the slope and
+intercept of the same block give radiance **per micrometre**, `W / (m2 sr um)`.
+The registry's inverse Planck instead takes it **per wavenumber**,
+`mW / (m2 sr (cm-1)-1)`. `read_ahi` rebases between the two itself — by
+`L * wavelength_um**2 * 1e-1` — on every path that reaches the registry, so a
+`Dataset` source and an explicit `coeffs=` both calibrate correctly.
+
+The two bases differ by a factor of 1.5 (3.9 µm) to 17.7 (13.3 µm), which is the
+dangerous part: skipping the rebasing yields a *plausible* temperature rather than
+an obviously broken one — a 280 K scene reads as about 189 K. So a `Dataset`
+holding radiance in some other unit will not be rescued here, and the error will
+not announce itself: pass the granule, or convert before you call.
+
+(If you are reading the specification alongside this: every text extraction of the
+PDF loses its micro sign, so the wavelength and radiance units appear there as
+`[m]` and `W / (m2 sr m)`. Table 1 listing the bands as 0.47 to 13.3 is what
+settles that they are micrometres.)
+
 ## Sentinel-3: swath readers
 
 For Sentinel-3 `.SEN3` granules use `read_olci` (OLCI L1B EFR / ERR) and
@@ -167,6 +236,7 @@ rules, the `open_options` contract, and per-source recipes in full; the essentia
 | --- | --- | --- |
 | `earthengine` | `ee://<asset-id>` | `from_earthengine` |
 | `seviri` | a `.nat` granule | `read_seviri` |
+| `ahi` | an HSD granule named `HS_….DAT` (optionally `.bz2`) | `read_ahi` |
 | `s2` | a `.SAFE` product (or `.SAFE.zip`) | `from_sentinel2` |
 | `fci` | an FCI L1C granule: a chunk **directory**, a **glob**, or an `fci://` path | `read_fci_l1c` |
 | `olci` | a Sentinel-3 OLCI `.SEN3` granule directory, or an `olci://` path | `read_olci` |
@@ -180,6 +250,10 @@ nat = Dataset.read_file("MSG_SEVIRI.nat", open_options={"channel": "IR_108"})
 ee = Dataset.read_file("ee://USGS/SRTMGL1_003", open_options={"bbox": (0, 0, 1, 1)})
 fci = Dataset.read_file("/data/fci_granule", open_options={"channel": "ir_105"})
 fci2 = Dataset.read_file("fci:///data/fci_granule", open_options={"channel": "ir_105"})
+
+# Himawari AHI: claimed by the HSD file-name convention, not by the generic .dat suffix,
+# and the granule names its own band so open_options may be omitted entirely
+ahi = Dataset.read_file("HS_H08_20150415_0230_B13_FLDK_R20_S0101.DAT")
 
 # Sentinel-3: OLCI and SLSTR share the .SEN3 suffix, so the granule's contents decide
 # which driver claims it (an olci:// / slstr:// prefix, or driver=, names one explicitly)
