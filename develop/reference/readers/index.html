@@ -4497,14 +4497,7 @@ its own without being mistaken for the whole disk.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/sensors/readers/ahi.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1489">1489</a></span>
-<span class="normal"><a href="#__codelineno-0-1490">1490</a></span>
-<span class="normal"><a href="#__codelineno-0-1491">1491</a></span>
-<span class="normal"><a href="#__codelineno-0-1492">1492</a></span>
-<span class="normal"><a href="#__codelineno-0-1493">1493</a></span>
-<span class="normal"><a href="#__codelineno-0-1494">1494</a></span>
-<span class="normal"><a href="#__codelineno-0-1495">1495</a></span>
-<span class="normal"><a href="#__codelineno-0-1496">1496</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1496">1496</a></span>
 <span class="normal"><a href="#__codelineno-0-1497">1497</a></span>
 <span class="normal"><a href="#__codelineno-0-1498">1498</a></span>
 <span class="normal"><a href="#__codelineno-0-1499">1499</a></span>
@@ -4523,33 +4516,40 @@ its own without being mistaken for the whole disk.</p>
 <span class="normal"><a href="#__codelineno-0-1512">1512</a></span>
 <span class="normal"><a href="#__codelineno-0-1513">1513</a></span>
 <span class="normal"><a href="#__codelineno-0-1514">1514</a></span>
-<span class="normal"><a href="#__codelineno-0-1515">1515</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1489" name="__codelineno-0-1489"></a><span class="k">def</span><span class="w"> </span><span class="nf">parse_ahi_hsd</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-1490" name="__codelineno-0-1490"></a><span class="w">    </span><span class="sd">"""Decode one HSD granule to a geolocated radiance `Dataset`.</span>
-<a id="__codelineno-0-1491" name="__codelineno-0-1491"></a>
-<a id="__codelineno-0-1492" name="__codelineno-0-1492"></a><span class="sd">    Reads the header, decodes the band's 16-bit counts, applies the granule's</span>
-<a id="__codelineno-0-1493" name="__codelineno-0-1493"></a><span class="sd">    own count-to-radiance slope / intercept, masks the error and outside-scan</span>
-<a id="__codelineno-0-1494" name="__codelineno-0-1494"></a><span class="sd">    sentinel counts to NaN, and registers the geostationary grid. A segment is</span>
-<a id="__codelineno-0-1495" name="__codelineno-0-1495"></a><span class="sd">    georeferenced at its true place in the full image, so one segment reads on</span>
-<a id="__codelineno-0-1496" name="__codelineno-0-1496"></a><span class="sd">    its own without being mistaken for the whole disk.</span>
-<a id="__codelineno-0-1497" name="__codelineno-0-1497"></a>
-<a id="__codelineno-0-1498" name="__codelineno-0-1498"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-1499" name="__codelineno-0-1499"></a><span class="sd">        path: Path to a Himawari Standard Data ``.DAT`` (or ``.DAT.bz2``) granule.</span>
-<a id="__codelineno-0-1500" name="__codelineno-0-1500"></a>
-<a id="__codelineno-0-1501" name="__codelineno-0-1501"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-1502" name="__codelineno-0-1502"></a><span class="sd">        A pyramids `Dataset` of spectral radiance on HSD's own</span>
-<a id="__codelineno-0-1503" name="__codelineno-0-1503"></a><span class="sd">        per-micrometre-of-wavelength basis (``W m-2 sr-1 um-1``), on the</span>
-<a id="__codelineno-0-1504" name="__codelineno-0-1504"></a><span class="sd">        geostationary grid, with the geostationary CRS and NaN nodata.</span>
-<a id="__codelineno-0-1505" name="__codelineno-0-1505"></a>
-<a id="__codelineno-0-1506" name="__codelineno-0-1506"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-1507" name="__codelineno-0-1507"></a><span class="sd">        ReaderError: When the file is not a readable HSD granule (see</span>
-<a id="__codelineno-0-1508" name="__codelineno-0-1508"></a><span class="sd">            :func:`parse_hsd_header` and :func:`_counts`).</span>
-<a id="__codelineno-0-1509" name="__codelineno-0-1509"></a><span class="sd">    """</span>
-<a id="__codelineno-0-1510" name="__codelineno-0-1510"></a>    <span class="n">buffer</span> <span class="o">=</span> <span class="n">_read_bytes</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-<a id="__codelineno-0-1511" name="__codelineno-0-1511"></a>    <span class="n">order</span> <span class="o">=</span> <span class="n">_byte_order</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
-<a id="__codelineno-0-1512" name="__codelineno-0-1512"></a>    <span class="n">blocks</span> <span class="o">=</span> <span class="n">walk_header_blocks</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
-<a id="__codelineno-0-1513" name="__codelineno-0-1513"></a>    <span class="n">header</span> <span class="o">=</span> <span class="n">_parse_header</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">blocks</span><span class="p">)</span>
-<a id="__codelineno-0-1514" name="__codelineno-0-1514"></a>    <span class="n">radiance</span> <span class="o">=</span> <span class="n">_radiance</span><span class="p">(</span><span class="n">_counts</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">blocks</span><span class="p">,</span> <span class="n">order</span><span class="p">),</span> <span class="n">header</span><span class="p">)</span>
-<a id="__codelineno-0-1515" name="__codelineno-0-1515"></a>    <span class="k">return</span> <span class="n">_dataset</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">header</span><span class="o">.</span><span class="n">first_line</span><span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-1515">1515</a></span>
+<span class="normal"><a href="#__codelineno-0-1516">1516</a></span>
+<span class="normal"><a href="#__codelineno-0-1517">1517</a></span>
+<span class="normal"><a href="#__codelineno-0-1518">1518</a></span>
+<span class="normal"><a href="#__codelineno-0-1519">1519</a></span>
+<span class="normal"><a href="#__codelineno-0-1520">1520</a></span>
+<span class="normal"><a href="#__codelineno-0-1521">1521</a></span>
+<span class="normal"><a href="#__codelineno-0-1522">1522</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1496" name="__codelineno-0-1496"></a><span class="k">def</span><span class="w"> </span><span class="nf">parse_ahi_hsd</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-1497" name="__codelineno-0-1497"></a><span class="w">    </span><span class="sd">"""Decode one HSD granule to a geolocated radiance `Dataset`.</span>
+<a id="__codelineno-0-1498" name="__codelineno-0-1498"></a>
+<a id="__codelineno-0-1499" name="__codelineno-0-1499"></a><span class="sd">    Reads the header, decodes the band's 16-bit counts, applies the granule's</span>
+<a id="__codelineno-0-1500" name="__codelineno-0-1500"></a><span class="sd">    own count-to-radiance slope / intercept, masks the error and outside-scan</span>
+<a id="__codelineno-0-1501" name="__codelineno-0-1501"></a><span class="sd">    sentinel counts to NaN, and registers the geostationary grid. A segment is</span>
+<a id="__codelineno-0-1502" name="__codelineno-0-1502"></a><span class="sd">    georeferenced at its true place in the full image, so one segment reads on</span>
+<a id="__codelineno-0-1503" name="__codelineno-0-1503"></a><span class="sd">    its own without being mistaken for the whole disk.</span>
+<a id="__codelineno-0-1504" name="__codelineno-0-1504"></a>
+<a id="__codelineno-0-1505" name="__codelineno-0-1505"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-1506" name="__codelineno-0-1506"></a><span class="sd">        path: Path to a Himawari Standard Data ``.DAT`` (or ``.DAT.bz2``) granule.</span>
+<a id="__codelineno-0-1507" name="__codelineno-0-1507"></a>
+<a id="__codelineno-0-1508" name="__codelineno-0-1508"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-1509" name="__codelineno-0-1509"></a><span class="sd">        A pyramids `Dataset` of spectral radiance on HSD's own</span>
+<a id="__codelineno-0-1510" name="__codelineno-0-1510"></a><span class="sd">        per-micrometre-of-wavelength basis (``W m-2 sr-1 um-1``), on the</span>
+<a id="__codelineno-0-1511" name="__codelineno-0-1511"></a><span class="sd">        geostationary grid, with the geostationary CRS and NaN nodata.</span>
+<a id="__codelineno-0-1512" name="__codelineno-0-1512"></a>
+<a id="__codelineno-0-1513" name="__codelineno-0-1513"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-1514" name="__codelineno-0-1514"></a><span class="sd">        ReaderError: When the file is not a readable HSD granule (see</span>
+<a id="__codelineno-0-1515" name="__codelineno-0-1515"></a><span class="sd">            :func:`parse_hsd_header` and :func:`_counts`).</span>
+<a id="__codelineno-0-1516" name="__codelineno-0-1516"></a><span class="sd">    """</span>
+<a id="__codelineno-0-1517" name="__codelineno-0-1517"></a>    <span class="n">buffer</span> <span class="o">=</span> <span class="n">_read_bytes</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+<a id="__codelineno-0-1518" name="__codelineno-0-1518"></a>    <span class="n">order</span> <span class="o">=</span> <span class="n">_byte_order</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
+<a id="__codelineno-0-1519" name="__codelineno-0-1519"></a>    <span class="n">blocks</span> <span class="o">=</span> <span class="n">walk_header_blocks</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-0-1520" name="__codelineno-0-1520"></a>    <span class="n">header</span> <span class="o">=</span> <span class="n">_parse_header</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">blocks</span><span class="p">)</span>
+<a id="__codelineno-0-1521" name="__codelineno-0-1521"></a>    <span class="n">radiance</span> <span class="o">=</span> <span class="n">_radiance</span><span class="p">(</span><span class="n">_counts</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">blocks</span><span class="p">,</span> <span class="n">order</span><span class="p">),</span> <span class="n">header</span><span class="p">)</span>
+<a id="__codelineno-0-1522" name="__codelineno-0-1522"></a>    <span class="k">return</span> <span class="n">_dataset</span><span class="p">(</span><span class="n">radiance</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">header</span><span class="o">.</span><span class="n">first_line</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -4980,14 +4980,7 @@ granule cannot be decoded.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pyramids_eo/sensors/readers/ahi.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1754">1754</a></span>
-<span class="normal"><a href="#__codelineno-0-1755">1755</a></span>
-<span class="normal"><a href="#__codelineno-0-1756">1756</a></span>
-<span class="normal"><a href="#__codelineno-0-1757">1757</a></span>
-<span class="normal"><a href="#__codelineno-0-1758">1758</a></span>
-<span class="normal"><a href="#__codelineno-0-1759">1759</a></span>
-<span class="normal"><a href="#__codelineno-0-1760">1760</a></span>
-<span class="normal"><a href="#__codelineno-0-1761">1761</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1761">1761</a></span>
 <span class="normal"><a href="#__codelineno-0-1762">1762</a></span>
 <span class="normal"><a href="#__codelineno-0-1763">1763</a></span>
 <span class="normal"><a href="#__codelineno-0-1764">1764</a></span>
@@ -5102,129 +5095,136 @@ granule cannot be decoded.</p>
 <span class="normal"><a href="#__codelineno-0-1873">1873</a></span>
 <span class="normal"><a href="#__codelineno-0-1874">1874</a></span>
 <span class="normal"><a href="#__codelineno-0-1875">1875</a></span>
-<span class="normal"><a href="#__codelineno-0-1876">1876</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1754" name="__codelineno-0-1754"></a><span class="k">def</span><span class="w"> </span><span class="nf">read_ahi</span><span class="p">(</span>
-<a id="__codelineno-0-1755" name="__codelineno-0-1755"></a>    <span class="n">source</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-1756" name="__codelineno-0-1756"></a>    <span class="n">band</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-1757" name="__codelineno-0-1757"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-1758" name="__codelineno-0-1758"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"ahi"</span><span class="p">,</span>
-<a id="__codelineno-0-1759" name="__codelineno-0-1759"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-0-1760" name="__codelineno-0-1760"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
-<a id="__codelineno-0-1761" name="__codelineno-0-1761"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-1762" name="__codelineno-0-1762"></a>    <span class="n">coeffs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-1763" name="__codelineno-0-1763"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<a id="__codelineno-0-1764" name="__codelineno-0-1764"></a><span class="w">    </span><span class="sd">"""Read one AHI band from Himawari Standard Data into a `Dataset`.</span>
-<a id="__codelineno-0-1765" name="__codelineno-0-1765"></a>
-<a id="__codelineno-0-1766" name="__codelineno-0-1766"></a><span class="sd">    Decodes the band's counts to radiance with the granule's own calibration,</span>
-<a id="__codelineno-0-1767" name="__codelineno-0-1767"></a><span class="sd">    then — when `calibrate` is set — converts to a physical quantity: reflectance</span>
-<a id="__codelineno-0-1768" name="__codelineno-0-1768"></a><span class="sd">    for a solar band (1-6) and brightness temperature for a thermal one (7-16).</span>
-<a id="__codelineno-0-1769" name="__codelineno-0-1769"></a><span class="sd">    Both conversions prefer the coefficients the granule carries over the</span>
-<a id="__codelineno-0-1770" name="__codelineno-0-1770"></a><span class="sd">    registry's nominal table, so the result is granule-accurate.</span>
-<a id="__codelineno-0-1771" name="__codelineno-0-1771"></a>
-<a id="__codelineno-0-1772" name="__codelineno-0-1772"></a><span class="sd">    Pass the segment paths of one band together to read a stitched full disk;</span>
-<a id="__codelineno-0-1773" name="__codelineno-0-1773"></a><span class="sd">    pass one path to read that segment alone, georeferenced where it belongs in</span>
-<a id="__codelineno-0-1774" name="__codelineno-0-1774"></a><span class="sd">    the disk. A contiguous subset of the segments is also accepted and returns</span>
-<a id="__codelineno-0-1775" name="__codelineno-0-1775"></a><span class="sd">    just those lines, so a partial download reads as the band of the disk it</span>
-<a id="__codelineno-0-1776" name="__codelineno-0-1776"></a><span class="sd">    actually covers rather than being padded out or refused. The segments must</span>
-<a id="__codelineno-0-1777" name="__codelineno-0-1777"></a><span class="sd">    come from one acquisition — same band, satellite, observation timeline and</span>
-<a id="__codelineno-0-1778" name="__codelineno-0-1778"></a><span class="sd">    area — since line numbers alone repeat across timelines. Their observation</span>
-<a id="__codelineno-0-1779" name="__codelineno-0-1779"></a><span class="sd">    *start times* differ, one per segment, because the disk is scanned</span>
-<a id="__codelineno-0-1780" name="__codelineno-0-1780"></a><span class="sd">    progressively; only the timeline and area identify the acquisition.</span>
-<a id="__codelineno-0-1781" name="__codelineno-0-1781"></a>
-<a id="__codelineno-0-1782" name="__codelineno-0-1782"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-1783" name="__codelineno-0-1783"></a><span class="sd">        source: Path to an HSD ``.DAT`` / ``.DAT.bz2`` granule, an iterable of</span>
-<a id="__codelineno-0-1784" name="__codelineno-0-1784"></a><span class="sd">            segment paths from one acquisition of one band, or a pyramids `Dataset`</span>
-<a id="__codelineno-0-1785" name="__codelineno-0-1785"></a><span class="sd">            already holding the band radiance.</span>
-<a id="__codelineno-0-1786" name="__codelineno-0-1786"></a><span class="sd">        band: The band to read (``13``, ``"B13"``, ``"band13"``). Optional: a</span>
-<a id="__codelineno-0-1787" name="__codelineno-0-1787"></a><span class="sd">            granule names its own band, so this only has to be given to assert</span>
-<a id="__codelineno-0-1788" name="__codelineno-0-1788"></a><span class="sd">            the expectation, and a mismatch is an error. Required when `source`</span>
-<a id="__codelineno-0-1789" name="__codelineno-0-1789"></a><span class="sd">            is a `Dataset`, which carries no band metadata.</span>
-<a id="__codelineno-0-1790" name="__codelineno-0-1790"></a><span class="sd">        sensor: Registry sensor name (default ``"ahi"``).</span>
-<a id="__codelineno-0-1791" name="__codelineno-0-1791"></a><span class="sd">        calibrate: When `True` (default), calibrate to reflectance / brightness</span>
-<a id="__codelineno-0-1792" name="__codelineno-0-1792"></a><span class="sd">            temperature; when `False`, return the raw radiance.</span>
-<a id="__codelineno-0-1793" name="__codelineno-0-1793"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-band reflectance.</span>
-<a id="__codelineno-0-1794" name="__codelineno-0-1794"></a><span class="sd">            The default ``1.0`` leaves reflectance up to ~3.4% off (``d`` ranges</span>
-<a id="__codelineno-0-1795" name="__codelineno-0-1795"></a><span class="sd">            ~0.983-1.017 AU over the year); pass the granule's ``d`` for absolute</span>
-<a id="__codelineno-0-1796" name="__codelineno-0-1796"></a><span class="sd">            accuracy.</span>
-<a id="__codelineno-0-1797" name="__codelineno-0-1797"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle</span>
-<a id="__codelineno-0-1798" name="__codelineno-0-1798"></a><span class="sd">            correction, or `None`.</span>
-<a id="__codelineno-0-1799" name="__codelineno-0-1799"></a><span class="sd">        coeffs: Per-granule calibration coefficients preferred over both the</span>
-<a id="__codelineno-0-1800" name="__codelineno-0-1800"></a><span class="sd">            granule's own values and the registry (see</span>
-<a id="__codelineno-0-1801" name="__codelineno-0-1801"></a><span class="sd">            :func:`~pyramids_eo.sensors.readers._common.calibrate_channel`), or</span>
-<a id="__codelineno-0-1802" name="__codelineno-0-1802"></a><span class="sd">            `None`.</span>
-<a id="__codelineno-0-1803" name="__codelineno-0-1803"></a>
-<a id="__codelineno-0-1804" name="__codelineno-0-1804"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-1805" name="__codelineno-0-1805"></a><span class="sd">        A pyramids `Dataset` of the calibrated (or raw) band. Read from a granule</span>
-<a id="__codelineno-0-1806" name="__codelineno-0-1806"></a><span class="sd">        it carries the granule's own geostationary grid — the geostationary CRS,</span>
-<a id="__codelineno-0-1807" name="__codelineno-0-1807"></a><span class="sd">        a metre geotransform and NaN nodata. Read from a `Dataset` source it</span>
-<a id="__codelineno-0-1808" name="__codelineno-0-1808"></a><span class="sd">        keeps **that** dataset's geotransform, CRS and EPSG instead, since no HSD</span>
-<a id="__codelineno-0-1809" name="__codelineno-0-1809"></a><span class="sd">        header is available to rebuild a grid from; only the values change.</span>
+<span class="normal"><a href="#__codelineno-0-1876">1876</a></span>
+<span class="normal"><a href="#__codelineno-0-1877">1877</a></span>
+<span class="normal"><a href="#__codelineno-0-1878">1878</a></span>
+<span class="normal"><a href="#__codelineno-0-1879">1879</a></span>
+<span class="normal"><a href="#__codelineno-0-1880">1880</a></span>
+<span class="normal"><a href="#__codelineno-0-1881">1881</a></span>
+<span class="normal"><a href="#__codelineno-0-1882">1882</a></span>
+<span class="normal"><a href="#__codelineno-0-1883">1883</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1761" name="__codelineno-0-1761"></a><span class="k">def</span><span class="w"> </span><span class="nf">read_ahi</span><span class="p">(</span>
+<a id="__codelineno-0-1762" name="__codelineno-0-1762"></a>    <span class="n">source</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-1763" name="__codelineno-0-1763"></a>    <span class="n">band</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-1764" name="__codelineno-0-1764"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-1765" name="__codelineno-0-1765"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"ahi"</span><span class="p">,</span>
+<a id="__codelineno-0-1766" name="__codelineno-0-1766"></a>    <span class="n">calibrate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-1767" name="__codelineno-0-1767"></a>    <span class="n">sun_earth_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+<a id="__codelineno-0-1768" name="__codelineno-0-1768"></a>    <span class="n">cos_sza</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-1769" name="__codelineno-0-1769"></a>    <span class="n">coeffs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-1770" name="__codelineno-0-1770"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-1771" name="__codelineno-0-1771"></a><span class="w">    </span><span class="sd">"""Read one AHI band from Himawari Standard Data into a `Dataset`.</span>
+<a id="__codelineno-0-1772" name="__codelineno-0-1772"></a>
+<a id="__codelineno-0-1773" name="__codelineno-0-1773"></a><span class="sd">    Decodes the band's counts to radiance with the granule's own calibration,</span>
+<a id="__codelineno-0-1774" name="__codelineno-0-1774"></a><span class="sd">    then — when `calibrate` is set — converts to a physical quantity: reflectance</span>
+<a id="__codelineno-0-1775" name="__codelineno-0-1775"></a><span class="sd">    for a solar band (1-6) and brightness temperature for a thermal one (7-16).</span>
+<a id="__codelineno-0-1776" name="__codelineno-0-1776"></a><span class="sd">    Both conversions prefer the coefficients the granule carries over the</span>
+<a id="__codelineno-0-1777" name="__codelineno-0-1777"></a><span class="sd">    registry's nominal table, so the result is granule-accurate.</span>
+<a id="__codelineno-0-1778" name="__codelineno-0-1778"></a>
+<a id="__codelineno-0-1779" name="__codelineno-0-1779"></a><span class="sd">    Pass the segment paths of one band together to read a stitched full disk;</span>
+<a id="__codelineno-0-1780" name="__codelineno-0-1780"></a><span class="sd">    pass one path to read that segment alone, georeferenced where it belongs in</span>
+<a id="__codelineno-0-1781" name="__codelineno-0-1781"></a><span class="sd">    the disk. A contiguous subset of the segments is also accepted and returns</span>
+<a id="__codelineno-0-1782" name="__codelineno-0-1782"></a><span class="sd">    just those lines, so a partial download reads as the band of the disk it</span>
+<a id="__codelineno-0-1783" name="__codelineno-0-1783"></a><span class="sd">    actually covers rather than being padded out or refused. The segments must</span>
+<a id="__codelineno-0-1784" name="__codelineno-0-1784"></a><span class="sd">    come from one acquisition — same band, satellite, observation timeline and</span>
+<a id="__codelineno-0-1785" name="__codelineno-0-1785"></a><span class="sd">    area — since line numbers alone repeat across timelines. Their observation</span>
+<a id="__codelineno-0-1786" name="__codelineno-0-1786"></a><span class="sd">    *start times* differ, one per segment, because the disk is scanned</span>
+<a id="__codelineno-0-1787" name="__codelineno-0-1787"></a><span class="sd">    progressively; only the timeline and area identify the acquisition.</span>
+<a id="__codelineno-0-1788" name="__codelineno-0-1788"></a>
+<a id="__codelineno-0-1789" name="__codelineno-0-1789"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-1790" name="__codelineno-0-1790"></a><span class="sd">        source: Path to an HSD ``.DAT`` / ``.DAT.bz2`` granule, an iterable of</span>
+<a id="__codelineno-0-1791" name="__codelineno-0-1791"></a><span class="sd">            segment paths from one acquisition of one band, or a pyramids `Dataset`</span>
+<a id="__codelineno-0-1792" name="__codelineno-0-1792"></a><span class="sd">            already holding the band radiance.</span>
+<a id="__codelineno-0-1793" name="__codelineno-0-1793"></a><span class="sd">        band: The band to read (``13``, ``"B13"``, ``"band13"``). Optional: a</span>
+<a id="__codelineno-0-1794" name="__codelineno-0-1794"></a><span class="sd">            granule names its own band, so this only has to be given to assert</span>
+<a id="__codelineno-0-1795" name="__codelineno-0-1795"></a><span class="sd">            the expectation, and a mismatch is an error. Required when `source`</span>
+<a id="__codelineno-0-1796" name="__codelineno-0-1796"></a><span class="sd">            is a `Dataset`, which carries no band metadata.</span>
+<a id="__codelineno-0-1797" name="__codelineno-0-1797"></a><span class="sd">        sensor: Registry sensor name (default ``"ahi"``).</span>
+<a id="__codelineno-0-1798" name="__codelineno-0-1798"></a><span class="sd">        calibrate: When `True` (default), calibrate to reflectance / brightness</span>
+<a id="__codelineno-0-1799" name="__codelineno-0-1799"></a><span class="sd">            temperature; when `False`, return the raw radiance.</span>
+<a id="__codelineno-0-1800" name="__codelineno-0-1800"></a><span class="sd">        sun_earth_distance: Sun-earth distance (AU) for solar-band reflectance.</span>
+<a id="__codelineno-0-1801" name="__codelineno-0-1801"></a><span class="sd">            The default ``1.0`` leaves reflectance up to ~3.4% off (``d`` ranges</span>
+<a id="__codelineno-0-1802" name="__codelineno-0-1802"></a><span class="sd">            ~0.983-1.017 AU over the year); pass the granule's ``d`` for absolute</span>
+<a id="__codelineno-0-1803" name="__codelineno-0-1803"></a><span class="sd">            accuracy.</span>
+<a id="__codelineno-0-1804" name="__codelineno-0-1804"></a><span class="sd">        cos_sza: Cosine of the solar zenith angle for the reflectance sun-angle</span>
+<a id="__codelineno-0-1805" name="__codelineno-0-1805"></a><span class="sd">            correction, or `None`.</span>
+<a id="__codelineno-0-1806" name="__codelineno-0-1806"></a><span class="sd">        coeffs: Per-granule calibration coefficients preferred over both the</span>
+<a id="__codelineno-0-1807" name="__codelineno-0-1807"></a><span class="sd">            granule's own values and the registry (see</span>
+<a id="__codelineno-0-1808" name="__codelineno-0-1808"></a><span class="sd">            :func:`~pyramids_eo.sensors.readers._common.calibrate_channel`), or</span>
+<a id="__codelineno-0-1809" name="__codelineno-0-1809"></a><span class="sd">            `None`.</span>
 <a id="__codelineno-0-1810" name="__codelineno-0-1810"></a>
-<a id="__codelineno-0-1811" name="__codelineno-0-1811"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-1812" name="__codelineno-0-1812"></a><span class="sd">        ReaderError: When `source` is `None`, `band` is unknown or disagrees with</span>
-<a id="__codelineno-0-1813" name="__codelineno-0-1813"></a><span class="sd">            the granule, a `Dataset` source is given without `band`, or the</span>
-<a id="__codelineno-0-1814" name="__codelineno-0-1814"></a><span class="sd">            granule cannot be decoded.</span>
-<a id="__codelineno-0-1815" name="__codelineno-0-1815"></a><span class="sd">        CalibrationError: When a band lacks the constants its kind needs.</span>
-<a id="__codelineno-0-1816" name="__codelineno-0-1816"></a><span class="sd">        UnknownSensorError: When the sensor / band is not in the registry.</span>
-<a id="__codelineno-0-1817" name="__codelineno-0-1817"></a><span class="sd">    """</span>
-<a id="__codelineno-0-1818" name="__codelineno-0-1818"></a>    <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-1819" name="__codelineno-0-1819"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"read_ahi: source is required"</span><span class="p">)</span>
-<a id="__codelineno-0-1820" name="__codelineno-0-1820"></a>    <span class="n">requested</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">band</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_canonical_band</span><span class="p">(</span><span class="n">band</span><span class="p">)</span>
-<a id="__codelineno-0-1821" name="__codelineno-0-1821"></a>
-<a id="__codelineno-0-1822" name="__codelineno-0-1822"></a>    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s2">"read_array"</span><span class="p">):</span>
-<a id="__codelineno-0-1823" name="__codelineno-0-1823"></a>        <span class="k">if</span> <span class="n">requested</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-1824" name="__codelineno-0-1824"></a>            <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
-<a id="__codelineno-0-1825" name="__codelineno-0-1825"></a>                <span class="s2">"read_ahi: band is required when source is already a Dataset "</span>
-<a id="__codelineno-0-1826" name="__codelineno-0-1826"></a>                <span class="s2">"(it carries no HSD header to name the band)"</span>
-<a id="__codelineno-0-1827" name="__codelineno-0-1827"></a>            <span class="p">)</span>
-<a id="__codelineno-0-1828" name="__codelineno-0-1828"></a>        <span class="k">return</span> <span class="n">_wrap_like</span><span class="p">(</span>
-<a id="__codelineno-0-1829" name="__codelineno-0-1829"></a>            <span class="n">source</span><span class="p">,</span>
-<a id="__codelineno-0-1830" name="__codelineno-0-1830"></a>            <span class="n">_calibrate_array</span><span class="p">(</span>
-<a id="__codelineno-0-1831" name="__codelineno-0-1831"></a>                <span class="n">source</span><span class="o">.</span><span class="n">read_array</span><span class="p">(),</span>
-<a id="__codelineno-0-1832" name="__codelineno-0-1832"></a>                <span class="n">requested</span><span class="p">,</span>
-<a id="__codelineno-0-1833" name="__codelineno-0-1833"></a>                <span class="n">sensor</span><span class="o">=</span><span class="n">sensor</span><span class="p">,</span>
-<a id="__codelineno-0-1834" name="__codelineno-0-1834"></a>                <span class="n">calibrate</span><span class="o">=</span><span class="n">calibrate</span><span class="p">,</span>
-<a id="__codelineno-0-1835" name="__codelineno-0-1835"></a>                <span class="n">sun_earth_distance</span><span class="o">=</span><span class="n">sun_earth_distance</span><span class="p">,</span>
-<a id="__codelineno-0-1836" name="__codelineno-0-1836"></a>                <span class="n">cos_sza</span><span class="o">=</span><span class="n">cos_sza</span><span class="p">,</span>
-<a id="__codelineno-0-1837" name="__codelineno-0-1837"></a>                <span class="n">coeffs</span><span class="o">=</span><span class="n">coeffs</span><span class="p">,</span>
-<a id="__codelineno-0-1838" name="__codelineno-0-1838"></a>                <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-1839" name="__codelineno-0-1839"></a>            <span class="p">),</span>
-<a id="__codelineno-0-1840" name="__codelineno-0-1840"></a>        <span class="p">)</span>
-<a id="__codelineno-0-1841" name="__codelineno-0-1841"></a>
-<a id="__codelineno-0-1842" name="__codelineno-0-1842"></a>    <span class="n">paths</span> <span class="o">=</span> <span class="n">_resolve_paths</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
-<a id="__codelineno-0-1843" name="__codelineno-0-1843"></a>
-<a id="__codelineno-0-1844" name="__codelineno-0-1844"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-<a id="__codelineno-0-1845" name="__codelineno-0-1845"></a>        <span class="n">buffer</span> <span class="o">=</span> <span class="n">_read_bytes</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-<a id="__codelineno-0-1846" name="__codelineno-0-1846"></a>        <span class="n">order</span> <span class="o">=</span> <span class="n">_byte_order</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
-<a id="__codelineno-0-1847" name="__codelineno-0-1847"></a>        <span class="n">blocks</span> <span class="o">=</span> <span class="n">walk_header_blocks</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
-<a id="__codelineno-0-1848" name="__codelineno-0-1848"></a>        <span class="n">header</span> <span class="o">=</span> <span class="n">_parse_header</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">blocks</span><span class="p">)</span>
-<a id="__codelineno-0-1849" name="__codelineno-0-1849"></a>        <span class="c1"># Checked against the header just parsed rather than with a second</span>
-<a id="__codelineno-0-1850" name="__codelineno-0-1850"></a>        <span class="c1"># header-only read, and before the pixels are touched either way.</span>
-<a id="__codelineno-0-1851" name="__codelineno-0-1851"></a>        <span class="n">_assert_requested_band</span><span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">requested</span><span class="p">)</span>
-<a id="__codelineno-0-1852" name="__codelineno-0-1852"></a>        <span class="n">array</span> <span class="o">=</span> <span class="n">_radiance</span><span class="p">(</span><span class="n">_counts</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">blocks</span><span class="p">,</span> <span class="n">order</span><span class="p">),</span> <span class="n">header</span><span class="p">)</span>
-<a id="__codelineno-0-1853" name="__codelineno-0-1853"></a>        <span class="n">first_line</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">first_line</span>
-<a id="__codelineno-0-1854" name="__codelineno-0-1854"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-1855" name="__codelineno-0-1855"></a>        <span class="c1"># `_stitch` parses every header before it decodes anything, so it makes</span>
-<a id="__codelineno-0-1856" name="__codelineno-0-1856"></a>        <span class="c1"># the same check there and no granule is read twice.</span>
-<a id="__codelineno-0-1857" name="__codelineno-0-1857"></a>        <span class="n">array</span><span class="p">,</span> <span class="n">header</span> <span class="o">=</span> <span class="n">_stitch</span><span class="p">(</span><span class="n">paths</span><span class="p">,</span> <span class="n">requested</span><span class="o">=</span><span class="n">requested</span><span class="p">)</span>
-<a id="__codelineno-0-1858" name="__codelineno-0-1858"></a>        <span class="n">first_line</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">first_line</span>
-<a id="__codelineno-0-1859" name="__codelineno-0-1859"></a>
-<a id="__codelineno-0-1860" name="__codelineno-0-1860"></a>    <span class="c1"># Calibrate the values before registering them, so a full disk is wrapped</span>
-<a id="__codelineno-0-1861" name="__codelineno-0-1861"></a>    <span class="c1"># once rather than built as radiance and immediately rebuilt as brightness</span>
-<a id="__codelineno-0-1862" name="__codelineno-0-1862"></a>    <span class="c1"># temperature.</span>
-<a id="__codelineno-0-1863" name="__codelineno-0-1863"></a>    <span class="k">return</span> <span class="n">_dataset</span><span class="p">(</span>
-<a id="__codelineno-0-1864" name="__codelineno-0-1864"></a>        <span class="n">_calibrate_array</span><span class="p">(</span>
-<a id="__codelineno-0-1865" name="__codelineno-0-1865"></a>            <span class="n">array</span><span class="p">,</span>
-<a id="__codelineno-0-1866" name="__codelineno-0-1866"></a>            <span class="n">header</span><span class="o">.</span><span class="n">band</span><span class="p">,</span>
-<a id="__codelineno-0-1867" name="__codelineno-0-1867"></a>            <span class="n">sensor</span><span class="o">=</span><span class="n">sensor</span><span class="p">,</span>
-<a id="__codelineno-0-1868" name="__codelineno-0-1868"></a>            <span class="n">calibrate</span><span class="o">=</span><span class="n">calibrate</span><span class="p">,</span>
-<a id="__codelineno-0-1869" name="__codelineno-0-1869"></a>            <span class="n">sun_earth_distance</span><span class="o">=</span><span class="n">sun_earth_distance</span><span class="p">,</span>
-<a id="__codelineno-0-1870" name="__codelineno-0-1870"></a>            <span class="n">cos_sza</span><span class="o">=</span><span class="n">cos_sza</span><span class="p">,</span>
-<a id="__codelineno-0-1871" name="__codelineno-0-1871"></a>            <span class="n">coeffs</span><span class="o">=</span><span class="n">coeffs</span><span class="p">,</span>
-<a id="__codelineno-0-1872" name="__codelineno-0-1872"></a>            <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">,</span>
-<a id="__codelineno-0-1873" name="__codelineno-0-1873"></a>        <span class="p">),</span>
-<a id="__codelineno-0-1874" name="__codelineno-0-1874"></a>        <span class="n">header</span><span class="p">,</span>
-<a id="__codelineno-0-1875" name="__codelineno-0-1875"></a>        <span class="n">first_line</span><span class="p">,</span>
-<a id="__codelineno-0-1876" name="__codelineno-0-1876"></a>    <span class="p">)</span>
+<a id="__codelineno-0-1811" name="__codelineno-0-1811"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-1812" name="__codelineno-0-1812"></a><span class="sd">        A pyramids `Dataset` of the calibrated (or raw) band. Read from a granule</span>
+<a id="__codelineno-0-1813" name="__codelineno-0-1813"></a><span class="sd">        it carries the granule's own geostationary grid — the geostationary CRS,</span>
+<a id="__codelineno-0-1814" name="__codelineno-0-1814"></a><span class="sd">        a metre geotransform and NaN nodata. Read from a `Dataset` source it</span>
+<a id="__codelineno-0-1815" name="__codelineno-0-1815"></a><span class="sd">        keeps **that** dataset's geotransform, CRS and EPSG instead, since no HSD</span>
+<a id="__codelineno-0-1816" name="__codelineno-0-1816"></a><span class="sd">        header is available to rebuild a grid from; only the values change.</span>
+<a id="__codelineno-0-1817" name="__codelineno-0-1817"></a>
+<a id="__codelineno-0-1818" name="__codelineno-0-1818"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-1819" name="__codelineno-0-1819"></a><span class="sd">        ReaderError: When `source` is `None`, `band` is unknown or disagrees with</span>
+<a id="__codelineno-0-1820" name="__codelineno-0-1820"></a><span class="sd">            the granule, a `Dataset` source is given without `band`, or the</span>
+<a id="__codelineno-0-1821" name="__codelineno-0-1821"></a><span class="sd">            granule cannot be decoded.</span>
+<a id="__codelineno-0-1822" name="__codelineno-0-1822"></a><span class="sd">        CalibrationError: When a band lacks the constants its kind needs.</span>
+<a id="__codelineno-0-1823" name="__codelineno-0-1823"></a><span class="sd">        UnknownSensorError: When the sensor / band is not in the registry.</span>
+<a id="__codelineno-0-1824" name="__codelineno-0-1824"></a><span class="sd">    """</span>
+<a id="__codelineno-0-1825" name="__codelineno-0-1825"></a>    <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-1826" name="__codelineno-0-1826"></a>        <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span><span class="s2">"read_ahi: source is required"</span><span class="p">)</span>
+<a id="__codelineno-0-1827" name="__codelineno-0-1827"></a>    <span class="n">requested</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">band</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_canonical_band</span><span class="p">(</span><span class="n">band</span><span class="p">)</span>
+<a id="__codelineno-0-1828" name="__codelineno-0-1828"></a>
+<a id="__codelineno-0-1829" name="__codelineno-0-1829"></a>    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s2">"read_array"</span><span class="p">):</span>
+<a id="__codelineno-0-1830" name="__codelineno-0-1830"></a>        <span class="k">if</span> <span class="n">requested</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-1831" name="__codelineno-0-1831"></a>            <span class="k">raise</span> <span class="n">ReaderError</span><span class="p">(</span>
+<a id="__codelineno-0-1832" name="__codelineno-0-1832"></a>                <span class="s2">"read_ahi: band is required when source is already a Dataset "</span>
+<a id="__codelineno-0-1833" name="__codelineno-0-1833"></a>                <span class="s2">"(it carries no HSD header to name the band)"</span>
+<a id="__codelineno-0-1834" name="__codelineno-0-1834"></a>            <span class="p">)</span>
+<a id="__codelineno-0-1835" name="__codelineno-0-1835"></a>        <span class="k">return</span> <span class="n">_wrap_like</span><span class="p">(</span>
+<a id="__codelineno-0-1836" name="__codelineno-0-1836"></a>            <span class="n">source</span><span class="p">,</span>
+<a id="__codelineno-0-1837" name="__codelineno-0-1837"></a>            <span class="n">_calibrate_array</span><span class="p">(</span>
+<a id="__codelineno-0-1838" name="__codelineno-0-1838"></a>                <span class="n">source</span><span class="o">.</span><span class="n">read_array</span><span class="p">(),</span>
+<a id="__codelineno-0-1839" name="__codelineno-0-1839"></a>                <span class="n">requested</span><span class="p">,</span>
+<a id="__codelineno-0-1840" name="__codelineno-0-1840"></a>                <span class="n">sensor</span><span class="o">=</span><span class="n">sensor</span><span class="p">,</span>
+<a id="__codelineno-0-1841" name="__codelineno-0-1841"></a>                <span class="n">calibrate</span><span class="o">=</span><span class="n">calibrate</span><span class="p">,</span>
+<a id="__codelineno-0-1842" name="__codelineno-0-1842"></a>                <span class="n">sun_earth_distance</span><span class="o">=</span><span class="n">sun_earth_distance</span><span class="p">,</span>
+<a id="__codelineno-0-1843" name="__codelineno-0-1843"></a>                <span class="n">cos_sza</span><span class="o">=</span><span class="n">cos_sza</span><span class="p">,</span>
+<a id="__codelineno-0-1844" name="__codelineno-0-1844"></a>                <span class="n">coeffs</span><span class="o">=</span><span class="n">coeffs</span><span class="p">,</span>
+<a id="__codelineno-0-1845" name="__codelineno-0-1845"></a>                <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-1846" name="__codelineno-0-1846"></a>            <span class="p">),</span>
+<a id="__codelineno-0-1847" name="__codelineno-0-1847"></a>        <span class="p">)</span>
+<a id="__codelineno-0-1848" name="__codelineno-0-1848"></a>
+<a id="__codelineno-0-1849" name="__codelineno-0-1849"></a>    <span class="n">paths</span> <span class="o">=</span> <span class="n">_resolve_paths</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+<a id="__codelineno-0-1850" name="__codelineno-0-1850"></a>
+<a id="__codelineno-0-1851" name="__codelineno-0-1851"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+<a id="__codelineno-0-1852" name="__codelineno-0-1852"></a>        <span class="n">buffer</span> <span class="o">=</span> <span class="n">_read_bytes</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<a id="__codelineno-0-1853" name="__codelineno-0-1853"></a>        <span class="n">order</span> <span class="o">=</span> <span class="n">_byte_order</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
+<a id="__codelineno-0-1854" name="__codelineno-0-1854"></a>        <span class="n">blocks</span> <span class="o">=</span> <span class="n">walk_header_blocks</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-0-1855" name="__codelineno-0-1855"></a>        <span class="n">header</span> <span class="o">=</span> <span class="n">_parse_header</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">blocks</span><span class="p">)</span>
+<a id="__codelineno-0-1856" name="__codelineno-0-1856"></a>        <span class="c1"># Checked against the header just parsed rather than with a second</span>
+<a id="__codelineno-0-1857" name="__codelineno-0-1857"></a>        <span class="c1"># header-only read, and before the pixels are touched either way.</span>
+<a id="__codelineno-0-1858" name="__codelineno-0-1858"></a>        <span class="n">_assert_requested_band</span><span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">requested</span><span class="p">)</span>
+<a id="__codelineno-0-1859" name="__codelineno-0-1859"></a>        <span class="n">array</span> <span class="o">=</span> <span class="n">_radiance</span><span class="p">(</span><span class="n">_counts</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">blocks</span><span class="p">,</span> <span class="n">order</span><span class="p">),</span> <span class="n">header</span><span class="p">)</span>
+<a id="__codelineno-0-1860" name="__codelineno-0-1860"></a>        <span class="n">first_line</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">first_line</span>
+<a id="__codelineno-0-1861" name="__codelineno-0-1861"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-1862" name="__codelineno-0-1862"></a>        <span class="c1"># `_stitch` parses every header before it decodes anything, so it makes</span>
+<a id="__codelineno-0-1863" name="__codelineno-0-1863"></a>        <span class="c1"># the same check there and no granule is read twice.</span>
+<a id="__codelineno-0-1864" name="__codelineno-0-1864"></a>        <span class="n">array</span><span class="p">,</span> <span class="n">header</span> <span class="o">=</span> <span class="n">_stitch</span><span class="p">(</span><span class="n">paths</span><span class="p">,</span> <span class="n">requested</span><span class="o">=</span><span class="n">requested</span><span class="p">)</span>
+<a id="__codelineno-0-1865" name="__codelineno-0-1865"></a>        <span class="n">first_line</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">first_line</span>
+<a id="__codelineno-0-1866" name="__codelineno-0-1866"></a>
+<a id="__codelineno-0-1867" name="__codelineno-0-1867"></a>    <span class="c1"># Calibrate the values before registering them, so a full disk is wrapped</span>
+<a id="__codelineno-0-1868" name="__codelineno-0-1868"></a>    <span class="c1"># once rather than built as radiance and immediately rebuilt as brightness</span>
+<a id="__codelineno-0-1869" name="__codelineno-0-1869"></a>    <span class="c1"># temperature.</span>
+<a id="__codelineno-0-1870" name="__codelineno-0-1870"></a>    <span class="k">return</span> <span class="n">_dataset</span><span class="p">(</span>
+<a id="__codelineno-0-1871" name="__codelineno-0-1871"></a>        <span class="n">_calibrate_array</span><span class="p">(</span>
+<a id="__codelineno-0-1872" name="__codelineno-0-1872"></a>            <span class="n">array</span><span class="p">,</span>
+<a id="__codelineno-0-1873" name="__codelineno-0-1873"></a>            <span class="n">header</span><span class="o">.</span><span class="n">band</span><span class="p">,</span>
+<a id="__codelineno-0-1874" name="__codelineno-0-1874"></a>            <span class="n">sensor</span><span class="o">=</span><span class="n">sensor</span><span class="p">,</span>
+<a id="__codelineno-0-1875" name="__codelineno-0-1875"></a>            <span class="n">calibrate</span><span class="o">=</span><span class="n">calibrate</span><span class="p">,</span>
+<a id="__codelineno-0-1876" name="__codelineno-0-1876"></a>            <span class="n">sun_earth_distance</span><span class="o">=</span><span class="n">sun_earth_distance</span><span class="p">,</span>
+<a id="__codelineno-0-1877" name="__codelineno-0-1877"></a>            <span class="n">cos_sza</span><span class="o">=</span><span class="n">cos_sza</span><span class="p">,</span>
+<a id="__codelineno-0-1878" name="__codelineno-0-1878"></a>            <span class="n">coeffs</span><span class="o">=</span><span class="n">coeffs</span><span class="p">,</span>
+<a id="__codelineno-0-1879" name="__codelineno-0-1879"></a>            <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">,</span>
+<a id="__codelineno-0-1880" name="__codelineno-0-1880"></a>        <span class="p">),</span>
+<a id="__codelineno-0-1881" name="__codelineno-0-1881"></a>        <span class="n">header</span><span class="p">,</span>
+<a id="__codelineno-0-1882" name="__codelineno-0-1882"></a>        <span class="n">first_line</span><span class="p">,</span>
+<a id="__codelineno-0-1883" name="__codelineno-0-1883"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
