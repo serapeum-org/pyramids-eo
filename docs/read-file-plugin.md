@@ -51,7 +51,8 @@ The consequence is the single rule worth remembering:
 - a **zipped** product (`.SAFE.zip`) is the one form GDAL *does* open, handing back a bare *container* (0 bands
   plus a `ContainerRasterWarning`) and silently ignoring your `open_options`. The `s2` driver therefore declares
   `preempts = (".zip",)` and wins at **step 2**. An ordinary `.zip` is unaffected: `can_open` gates every
-  pre-empted claim, so only a `.SAFE.zip` is taken.
+  pre-empted claim, and it decides by looking **inside** the archive for Sentinel-2 metadata — so a zipped
+  Sentinel-1 product, or an archive merely named like a product, is left to GDAL.
 
 !!! note "What pre-emption does and does not cover"
 
@@ -61,7 +62,9 @@ The consequence is the single rule worth remembering:
     only `s2` declares it, and only for `.zip`, the single form GDAL would otherwise claim. Everything else
     pyramids-eo reads — `ee://`, `.nat`, FCI chunk sets, `.SEN3`, and a `.SAFE` directory — is something GDAL
     cannot open at all, so it already arrives at step 4 and pre-emption would add nothing. An explicit `vsi=`
-    skips the pre-empt scan entirely, since that is a deliberate "open member N of this archive" intent.
+    skips the pre-empt *scan*, since that is a deliberate "open member N of this archive" intent — but it is
+    not a way to force GDAL: the driver can still claim the source at step 4, so `vsi="zip"` on a zipped
+    product still reads it through pyramids-eo. Pass `driver=` to choose a reader deliberately.
 
 ## Passing reader options
 

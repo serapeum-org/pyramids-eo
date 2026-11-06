@@ -166,19 +166,21 @@ def test_unknown_driver_name_raises():
         Dataset.read_file("scene.nat", driver="not_a_driver")
 
 
-def test_sentinel2_preempts_a_zipped_product():
-    """`select_preempting_driver` picks the s2 driver for a bare `.SAFE.zip`.
+def test_sentinel2_preempts_a_zipped_product(tmp_path):
+    """`select_preempting_driver` picks the s2 driver for a real `.SAFE.zip`.
 
     The zipped form is the one GDAL opens and hands back an empty container for,
-    so it is the form worth pre-empting.
+    so it is the form worth pre-empting. A real archive is required because the
+    claim is decided by what is inside it, not by the name.
     """
     from pyramids.dataset._drivers import clear_driver_cache, select_preempting_driver
 
     from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
 
+    archive = _zip_product(_S2_PRODUCT, tmp_path, "S2A_OPER_PRD_MSIL1C.SAFE")
     clear_driver_cache()
     try:
-        picked = select_preempting_driver("/data/S2A_MSIL2A_20240101.SAFE.zip")
+        picked = select_preempting_driver(archive)
     finally:
         clear_driver_cache()
     assert picked is Sentinel2Driver, (
@@ -213,43 +215,15 @@ def test_an_ordinary_archive_is_not_preempted(source):
     )
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
-        pytest.param("/data/S2A_MSIL2A_20240101.SAFE", id="s2-product-directory"),
-        pytest.param("/data/S1A_IW_GRDH.SAFE", id="s1-product-directory"),
-        pytest.param("/data/test.SAFE/manifest.safe", id="manifest-inside-a-product"),
-    ],
-)
-def test_a_safe_suffix_is_never_preempted(source):
-    """`.safe` is deliberately left to the GDAL-first order.
-
-    Test scenario:
-        ESA shares `.SAFE` between Sentinel-1 and Sentinel-2. GDAL reads an S1
-        product itself, so pre-empting the suffix would route those into this
-        Sentinel-2 reader and break them. A `.SAFE` directory needs no
-        pre-emption anyway: GDAL cannot open one, so it already arrives through
-        the post-GDAL `can_open` fallback.
-    """
-    from pyramids.dataset._drivers import clear_driver_cache, select_preempting_driver
-
-    clear_driver_cache()
-    try:
-        picked = select_preempting_driver(source)
-    finally:
-        clear_driver_cache()
-    assert picked is None, (
-        f"{source!r} must keep the GDAL-first order so Sentinel-1 still reads, got {picked!r}"
-    )
-
-
 def test_s2_preempts_declaration_is_well_formed():
     """`preempts` is lowercase and dot-prefixed, so core's token match can hit it.
 
-    The public conformance kit does not validate `preempts`, so this is pinned
-    here: a stray capital or missing dot would silently never match and the
-    pre-emption would quietly not happen. Note it is deliberately *not* required
-    to appear in `suffixes` — `.zip` is a container suffix, not a product one.
+    The conformance kit only partly covers this: it rejects an uppercase entry
+    (`(".ZIP",)` fails `assert_raster_driver_conforms`) but accepts a missing dot
+    (`("zip",)`) and a scheme-shaped one (`(".zip://",)`), either of which would
+    silently never match and quietly disable the pre-emption. Note the entry is
+    deliberately *not* required to appear in `suffixes` — `.zip` is a container
+    suffix, not a product one.
     """
     from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
 
@@ -321,4 +295,154 @@ def test_a_bare_zipped_product_reads_through_preemption(tmp_path):
     assert out.band_count == 1, (
         f"the pyramids-eo reader should return the requested band, got "
         f"{out.band_count} (0 means GDAL's container won the race)"
+    )
+
+
+def _zip_product(product, tmp_path, stem):
+    """Zip a `.SAFE` fixture directory and return the archive path as a string."""
+    import shutil
+
+    archive = tmp_path / stem
+    shutil.make_archive(
+        str(archive), "zip", root_dir=str(product.parent), base_dir=product.name
+    )
+    return str(archive) + ".zip"
+
+
+_DATA = pathlib.Path(__file__).parent / "data"
+_S2_PRODUCT = _DATA / "sentinel2" / "fake_l1c" / "S2A_OPER_PRD_MSIL1C.SAFE"
+_S1_PRODUCT = _DATA / "sentinel1" / "test.SAFE"
+
+
+def test_a_sentinel1_product_directory_is_not_claimed():
+    """`can_open` rejects a Sentinel-1 `.SAFE`, which GDAL reads itself.
+
+    Test scenario:
+        ESA shares the `.SAFE` suffix between missions, so claiming by suffix
+        would take Sentinel-1 products into the Sentinel-2 reader and fail on
+        them. The driver distinguishes them by looking for Sentinel-2 metadata.
+    """
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    assert Sentinel2Driver.can_open(str(_S2_PRODUCT)) is True, (
+        "a real Sentinel-2 product must still be claimed"
+    )
+    assert Sentinel2Driver.can_open(str(_S1_PRODUCT)) is False, (
+        "a Sentinel-1 product shares the suffix but must be left to GDAL"
+    )
+
+
+def test_a_zipped_sentinel1_product_is_not_preempted(tmp_path):
+    """A zipped Sentinel-1 product keeps GDAL's read.
+
+    Test scenario:
+        `.SAFE.zip` is shared across missions exactly as `.SAFE` is, so
+        pre-empting `.zip` would break zipped Sentinel-1 reads unless the claim
+        is mission-aware. Exercised through `Dataset.read_file`, since this is
+        the regression a declaration-only test cannot see.
+    """
+    from pyramids.dataset._drivers import clear_driver_cache, select_preempting_driver
+
+    archive = _zip_product(_S1_PRODUCT, tmp_path, "S1A_IW_GRDH.SAFE")
+    clear_driver_cache()
+    try:
+        picked = select_preempting_driver(archive)
+        out = Dataset.read_file(archive)
+    finally:
+        clear_driver_cache()
+    assert picked is None, (
+        f"a zipped Sentinel-1 product must not be pre-empted, got {picked!r}"
+    )
+    assert out.band_count == 2, (
+        f"GDAL should still serve the Sentinel-1 product, got {out.band_count} bands"
+    )
+
+
+def test_an_uppercase_zip_extension_is_not_claimed(tmp_path):
+    """A `.SAFE.ZIP` is left to GDAL, because the archive reader cannot take it.
+
+    Test scenario:
+        The downstream archive reader infers the kind from the extension and
+        rejects `.ZIP` even under an explicit `driver="s2"`. Claiming one would
+        route a read the stack cannot serve, replacing GDAL's result with an
+        error, so the uppercase form is deliberately not claimed.
+    """
+    import shutil
+
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    lower = _zip_product(_S2_PRODUCT, tmp_path, "S2A_OPER_PRD_MSIL1C.SAFE")
+    # A case-insensitive filesystem treats `.zip` and `.ZIP` as one name, so the
+    # uppercase copy needs its own directory.
+    upper_dir = tmp_path / "upper"
+    upper_dir.mkdir()
+    upper = upper_dir / "S2A_OPER_PRD_MSIL1C.SAFE.ZIP"
+    shutil.copyfile(lower, upper)
+
+    assert Sentinel2Driver.can_open(lower) is True, "the lowercase archive is claimed"
+    assert Sentinel2Driver.can_open(str(upper)) is False, (
+        "the uppercase archive must be left to GDAL, which can still open it"
+    )
+
+
+def test_an_archive_without_sentinel2_metadata_is_not_claimed(tmp_path):
+    """A `.SAFE.zip` holding something else is not claimed.
+
+    Test scenario:
+        The suffix is only a hint; the claim is decided by what is inside. An
+        archive named like a product but holding no Sentinel-2 metadata belongs
+        to GDAL.
+    """
+    import zipfile
+
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    impostor = tmp_path / "NOT_A_PRODUCT.SAFE.zip"
+    with zipfile.ZipFile(impostor, "w") as archive:
+        archive.writestr("NOT_A_PRODUCT.SAFE/measurement/band.tif", b"not really a tif")
+        archive.writestr("NOT_A_PRODUCT.SAFE/manifest.safe", b"<xml/>")
+    assert Sentinel2Driver.can_open(str(impostor)) is False, (
+        "an archive with no Sentinel-2 metadata must not be claimed"
+    )
+
+
+def test_a_corrupt_archive_is_not_claimed(tmp_path):
+    """A `.SAFE.zip` that is not a readable archive is left to GDAL.
+
+    Test scenario:
+        The sniff has to open the file, so it must survive a truncated or
+        non-archive payload rather than propagating. Covers the zip branch's
+        failure path.
+    """
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    corrupt = tmp_path / "S2A_BROKEN.SAFE.zip"
+    corrupt.write_bytes(b"this is definitely not a zip archive")
+    assert Sentinel2Driver.can_open(str(corrupt)) is False, (
+        "an unreadable archive must not be claimed"
+    )
+
+
+def test_an_unreadable_directory_is_not_claimed(tmp_path, monkeypatch):
+    """A `.SAFE` directory that cannot be listed is left to GDAL.
+
+    Test scenario:
+        The sniff reads a directory listing, which can fail on a permission or
+        I/O error. That must not propagate out of `can_open`, since pyramids
+        treats a raising `can_open` as a broken driver and warns. Covers the
+        directory branch's failure path.
+    """
+    import os
+
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    product = tmp_path / "S2A_UNREADABLE.SAFE"
+    product.mkdir()
+
+    def _deny(_path):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(os, "listdir", _deny)
+    assert Sentinel2Driver.can_open(str(product)) is False, (
+        "an unlistable directory must not be claimed, and must not raise"
     )

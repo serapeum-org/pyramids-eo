@@ -1,29 +1,61 @@
 """The Sentinel-2 driver for the ``pyramids.raster_drivers`` plugin hook.
 
-Registers Sentinel-2 ``.SAFE`` products so ``Dataset.read_file(path, driver="s2")`` routes into
+Registers Sentinel-2 ``.SAFE`` products so ``Dataset.read_file`` routes into
 :func:`pyramids_eo.from_sentinel2` (reflectance, SCL masking, band selection) instead of GDAL's
 own container view.
 
-GDAL ships a ``SENTINEL2`` driver and *opens* a ``.SAFE`` itself, so on the plain
-``read_file(path)`` path GDAL wins and returns a bare container — this driver is reached only via
-an explicit ``driver="s2"``. A product **directory** is unaffected by that: GDAL cannot open one at all, so it
-already reaches this driver through the post-GDAL ``can_open`` fallback and a bare
-``read_file("…​.SAFE")`` reads the product. The **zipped** form is the one GDAL does open, and
-hands back an empty container for. This driver therefore declares ``preempts = (".zip",)`` — the
-opt-in pyramids-core 0.71 added (serapeum-org/pyramids-core#1344) — so a ``.SAFE.zip`` is routed
-here *before* GDAL. ``can_open`` gates every pre-empted claim, so an ordinary ``.zip`` archive is
-never taken; and ``.safe`` is deliberately **not** pre-empted, because the suffix is shared with
-Sentinel-1, whose products GDAL reads itself.
+How each form reaches this driver differs, because GDAL ships its own ``SENTINEL2`` / ``SAFE``
+drivers that compete for the same paths:
+
+* a product **directory** arrives through the post-GDAL ``can_open`` fallback — GDAL cannot open
+  one at all, so a bare ``read_file("<product>.SAFE")`` already reads the product.
+* a **zipped** product is the one form GDAL *does* open, handing back an empty container. This
+  driver therefore declares ``preempts = (".zip",)`` — the opt-in pyramids-core 0.71 added
+  (serapeum-org/pyramids-core#1344) — so a ``.SAFE.zip`` is routed here *before* GDAL.
+* an explicit ``driver="s2"`` short-circuits ahead of both.
+
+ESA shares ``.SAFE`` (and ``.SAFE.zip``) across missions, so the suffix alone cannot say whether a
+product is Sentinel-2 — a Sentinel-1 product carries the same one, and GDAL reads it correctly.
+``can_open`` therefore identifies the mission from the product's **contents**, which is what keeps
+a Sentinel-1 product with GDAL instead of failing in this reader.
+
 :func:`~pyramids_eo.from_sentinel2` reads a single ``.SAFE``, so no source expansion is needed.
 """
 
 from __future__ import annotations
 
+import fnmatch
+import os
+import zipfile
 from typing import Any
 
 from pyramids.dataset import Dataset
 
 from pyramids_eo.drivers._base import RASTER_DRIVER_API_VERSION, options_as_dict
+
+#: Top-level names that identify a Sentinel-2 product. ESA shares the ``.SAFE`` suffix across
+#: missions, so the suffix alone cannot tell a Sentinel-2 product from a Sentinel-1 one — these
+#: metadata files can. A Sentinel-1 product carries none of them (it has ``annotation/`` and
+#: ``measurement/`` beside a ``manifest.safe``). Mirrors the globs
+#: :mod:`pyramids_eo.sentinel.product` already uses to find a product's metadata.
+_S2_MARKERS: tuple[str, ...] = ("MTD_MSIL*.xml", "*_MTD_SAF*.xml")
+
+
+def _holds_s2_metadata(names: Any) -> bool:
+    """Return whether any of ``names`` is a Sentinel-2 metadata file.
+
+    Args:
+        names: Iterable of file names, each compared against :data:`_S2_MARKERS`
+            case-insensitively and by base name only.
+
+    Returns:
+        bool: True when at least one name identifies a Sentinel-2 product.
+    """
+    for name in names:
+        base = name.rstrip("/").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+        if any(fnmatch.fnmatch(base.upper(), glob.upper()) for glob in _S2_MARKERS):
+            return True
+    return False
 
 
 class Sentinel2Driver:
@@ -69,37 +101,72 @@ class Sentinel2Driver:
             source: The source handed by ``Dataset.read_file`` (stringified).
 
         Returns:
-            True for a string ending ``.SAFE`` or ``.SAFE.zip`` (case-insensitive, trailing slash
-            tolerated), else False. A ``manifest.safe`` is **not** claimed: that is the metadata
-            file *inside* a product (and Sentinel-1's entry point), not a product, even though it
-            shares the suffix. Cheap: no import, no file access, no network.
+            True only for a Sentinel-2 product. The ``.SAFE`` suffix is **not** sufficient: ESA
+            shares it with Sentinel-1, which GDAL reads itself, so claiming by suffix alone would
+            take those products and fail on them. When the source exists this therefore looks
+            inside it for Sentinel-2 metadata (:data:`_S2_MARKERS`) — a directory listing, or a
+            zip's index. A ``manifest.safe`` is never claimed: it is the metadata file *inside* a
+            product and Sentinel-1's entry point. A zipped product is claimed only when its
+            extension is a lowercase ``.zip``, which is what the archive reader downstream
+            accepts. A ``.SAFE`` path that does not exist is claimed, so the reader can raise its
+            own clear error rather than GDAL's.
+
+        Note:
+            This is no longer free of I/O: identifying the mission requires reading a directory
+            listing or a zip's central directory. The cost is bounded — pyramids only calls
+            ``can_open`` once the suffix or scheme already matched — and it buys the mission
+            discrimination that a filename cannot give.
 
         Examples:
-            - A ``.SAFE`` product (zipped or not) is claimed; a plain raster or bare zip is not:
+            - A plain raster, a bare archive and a manifest are all rejected without I/O:
                 ```python
                 >>> from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
-                >>> Sentinel2Driver.can_open("S2A_MSIL2A.SAFE")
-                True
-                >>> Sentinel2Driver.can_open("S2A_MSIL2A.SAFE.zip")
-                True
                 >>> Sentinel2Driver.can_open("scene.tif")
+                False
+                >>> Sentinel2Driver.can_open("archive.zip")
+                False
+                >>> Sentinel2Driver.can_open("S2A_MSIL2A.SAFE/manifest.safe")
                 False
 
                 ```
-            - The manifest inside a product is not the product:
+            - A `.SAFE` path that is not on disk is claimed, so the reader reports the problem:
                 ```python
                 >>> from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
-                >>> Sentinel2Driver.can_open("S2A_MSIL2A.SAFE/manifest.safe")
-                False
+                >>> Sentinel2Driver.can_open("no_such_product.SAFE")
+                True
 
                 ```
         """
         if not isinstance(source, str):
             return False
-        lowered = source.rstrip("/\\").lower()
-        if lowered.rsplit("/", 1)[-1].rsplit("\\", 1)[-1] == "manifest.safe":
+        trimmed = source.rstrip("/\\")
+        lowered = trimmed.lower()
+        base = lowered.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+        if base == "manifest.safe":
             return False
-        return lowered.endswith((".safe", ".safe.zip"))
+        if lowered.endswith(".safe.zip"):
+            # Only a lowercase `.zip` is claimed: the archive reader infers the kind from the
+            # extension and rejects `.ZIP`, so claiming one would route a read it cannot serve.
+            if not trimmed.endswith(".zip"):
+                return False
+            if not os.path.exists(trimmed):
+                # Nothing to inspect: claim it so the reader reports the problem, which
+                # matches how a missing `.SAFE` directory is handled below.
+                return True
+            try:
+                with zipfile.ZipFile(trimmed) as archive:
+                    return _holds_s2_metadata(archive.namelist())
+            except (OSError, zipfile.BadZipFile, ValueError):
+                return False
+        if not lowered.endswith(".safe"):
+            return False
+        try:
+            if not os.path.isdir(trimmed):
+                # Not on disk (or not a directory): let the reader raise the clear error.
+                return not os.path.exists(trimmed)
+            return _holds_s2_metadata(os.listdir(trimmed))
+        except OSError:
+            return False
 
     def read(
         self,
