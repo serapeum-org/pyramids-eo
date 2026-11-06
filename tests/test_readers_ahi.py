@@ -1343,10 +1343,10 @@ def test_read_ahi_real_segments_stitch():
     )
     if not granules:
         pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
-    from pyramids_eo.sensors.readers.ahi import _read_bytes
+    from pyramids_eo.sensors.readers.ahi import _read_header_bytes
 
     # Group by acquisition and band, then keep the longest contiguous run.
-    headers = {str(g): parse_hsd_header(_read_bytes(str(g))) for g in granules}
+    headers = {str(g): parse_hsd_header(_read_header_bytes(str(g))) for g in granules}
     groups: dict[tuple, list] = {}
     for path, header in headers.items():
         key = (
@@ -1377,6 +1377,11 @@ def test_read_ahi_real_segments_stitch():
             f"longest run found was {len(run)}"
         )
 
+    # Two adjacent segments already prove placement across a seam, so cap the
+    # run there. Stitching a whole band-3 full disk (22000x22000 x 10) would
+    # build a 3.6 GiB float64 mosaic and peak near 11 GiB -- no cheaper for
+    # being real data, and the test learns nothing extra past the first seam.
+    run = run[:2]
     paths = [path for _, path, _ in run]
     starts = {headers[p].observation_start_mjd for p in paths}
     assert len(starts) == len(paths), (
@@ -1439,22 +1444,29 @@ def test_read_ahi_real_granule_band_identity():
     )
     if not granules:
         pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
-    from pyramids_eo.sensors.readers.ahi import _read_bytes
+    from pyramids_eo.sensors.readers.ahi import _read_header_bytes
     from pyramids_eo.sensors.registry.sensors import get_sensor
 
     for granule in granules:
         named = band_from_filename(granule.name)
         assert named is not None, f"{granule.name} does not follow the HSD convention"
-        header = parse_hsd_header(_read_bytes(str(granule)))
+        header = parse_hsd_header(_read_header_bytes(str(granule)))
         assert header.band == named, (
             f"{granule.name} declares band {named} in its name but {header.band} "
             "in calibration block #5"
         )
         nominal = get_sensor("ahi").get_channel(named).wavelength_um
-        assert abs(header.central_wavelength_um - nominal) < 0.25, (
+        # Tolerance tighter than the smallest spacing between AHI bands
+        # (0.04 um, bands 1 and 2), so a neighbouring band's wavelength cannot
+        # satisfy it. The nominal table values are rounded to 0.1 um and a real
+        # granule's exact centre is within a few thousandths of its own nominal
+        # (10.4074 vs 10.4), so 0.02 um is comfortable for a match and strict
+        # for a mismatch.
+        assert abs(header.central_wavelength_um - nominal) < 0.02, (
             f"{named}: granule wavelength {header.central_wavelength_um} um is "
-            f"not the registry's nominal {nominal} um; a neighbouring band's "
-            "value would pass every brightness-temperature check"
+            f"not within 0.02 um of the registry's nominal {nominal} um; the "
+            "nearest other band is 0.04 um away, so a mislabelled band would "
+            "pass every brightness-temperature check but not this"
         )
 
 
@@ -1484,11 +1496,11 @@ def test_read_ahi_real_limb_segment_is_north_up():
     )
     if not granules:
         pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
-    from pyramids_eo.sensors.readers.ahi import _read_bytes
+    from pyramids_eo.sensors.readers.ahi import _read_header_bytes
 
     tested = 0
     for granule in granules:
-        header = parse_hsd_header(_read_bytes(str(granule)))
+        header = parse_hsd_header(_read_header_bytes(str(granule)))
         # Only a full disk has a limb. The Japan and Target scans are on-disk
         # cut-outs (and ship as one segment anyway), so they carry no off-limb
         # gradient -- asserting on them compares 0.0 against 0.0 and blames a
@@ -1544,10 +1556,11 @@ def test_read_ahi_real_granule_block_five_units():
 
     * the central wavelength is in MICROMETRES -- band 13 carries about 10.4,
       not 1.04e-05. With both unit conversions dropped, as they were, a 280 K
-      scene calibrates to -1.80e44 K through this granule's own quadratic terms
-      (measured; 9.99e24 K without them -- the figure depends on which
-      coefficients are applied, so the conditions are stated rather than a bare
-      number).
+      scene calibrates to about 9.96e18 K (measured at a nominal 10.4 um with no
+      quadratic correction). The sign and exact magnitude depend on the
+      coefficients applied -- through this granule's own quadratic terms the
+      wavelength-as-metres case alone is -1.8e44 K -- but all of them are wildly
+      unphysical, which is the point.
     * the slope is per micrometre. Per-metre radiance is 1e6 times larger, so
       whatever the operational magnitude turns out to be, the per-metre figure
       would be 1e6 times it -- which is why the assertion below brackets the
@@ -1563,9 +1576,9 @@ def test_read_ahi_real_granule_block_five_units():
     )
     if not granules:
         pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
-    from pyramids_eo.sensors.readers.ahi import _read_bytes
+    from pyramids_eo.sensors.readers.ahi import _read_header_bytes
 
-    header = parse_hsd_header(_read_bytes(str(granules[0])))
+    header = parse_hsd_header(_read_header_bytes(str(granules[0])))
     assert 9.0 < header.central_wavelength_um < 12.0, (
         f"band 13 should be about 10.4 um; got {header.central_wavelength_um!r}. "
         "A value near 1.04e-05 means the field is metres after all and the "
@@ -1600,9 +1613,9 @@ def test_read_ahi_real_granule_matches_the_published_registration():
     )
     if not granules:
         pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
-    from pyramids_eo.sensors.readers.ahi import _read_bytes
+    from pyramids_eo.sensors.readers.ahi import _read_header_bytes
 
-    header = parse_hsd_header(_read_bytes(str(granules[0])))
+    header = parse_hsd_header(_read_header_bytes(str(granules[0])))
     assert 139.0 < header.sub_lon < 142.0, (
         f"Himawari sits near 140.7E, got {header.sub_lon}"
     )
@@ -2152,9 +2165,12 @@ class TestSegmentsOfOneAcquisitionDifferInStartTime:
     of this docstring claimed it was. Comparing all 35 decoded fields across the
     five real segments, four vary: `segment_number` and `first_line` (which is
     the point of a segment), `observation_start_mjd`, and
-    `total_header_length` -- 1523 bytes for most segments and 1533 for one,
-    because block #10 carries a per-segment number of error rows. The other 31
-    are identical.
+    `total_header_length` -- 1533 bytes for some segments and 1523 for the rest,
+    because block #9 (observation time) carries a per-segment number of
+    observation-time records, one 10-byte record more on those segments.
+    Measured across the five real segments, block #10 (error information) is 47
+    bytes with no error records in every one; the delta is entirely block #9.
+    The other 31 fields are identical.
     """
 
     def _set(self, directory, *, starts, timeline=0, area="FLDK"):
