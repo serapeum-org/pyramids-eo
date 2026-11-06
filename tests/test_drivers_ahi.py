@@ -319,3 +319,118 @@ class TestArgumentPrecedence:
             str(tmp_path / fixture.hsd_filename()), options={"coeffs": coeffs}
         )
         assert captured["coeffs"] == coeffs, captured
+
+    def test_a_band_list_via_options_is_routed_through_the_same_checks(
+        self, tmp_path, monkeypatch
+    ):
+        """`options={"band": [...]}` must not bypass the `bands` validation.
+
+        Test scenario:
+            A one-element sequence handed through `options` is re-routed to the
+            `bands` path, so it unwraps to the same single band `bands=["B13"]`
+            produces rather than reaching the reader as a list.
+        """
+        captured: dict = {}
+        monkeypatch.setattr(
+            readers, "read_ahi", lambda s, b=None, **k: captured.update(band=b, rest=k)
+        )
+        AhiDriver().read(
+            str(tmp_path / fixture.hsd_filename()), options={"band": ["B13"]}
+        )
+        assert captured["band"] == "B13", (
+            f"a one-element options band list should unwrap to 'B13', got {captured['band']!r}"
+        )
+        assert "band" not in captured["rest"], (
+            f"'band' must be consumed by the driver, not forwarded: {captured['rest']}"
+        )
+
+    @pytest.mark.parametrize(
+        "option_band",
+        [["B13", "B14"], ("B13", "B14", "B15"), np.array(["B13", "B14"])],
+    )
+    def test_several_bands_via_options_are_rejected(self, tmp_path, option_band):
+        """The too-many-bands check applies to the `options` spelling as well.
+
+        Args:
+            option_band: A multi-element sequence in list, tuple and array form.
+
+        Test scenario:
+            Each spelling used to go straight through to the reader; all three
+            must now raise the same `ValueError` the `bands` form does.
+        """
+        source = str(tmp_path / fixture.hsd_filename())
+        with pytest.raises(ValueError, match="an AHI read is one band"):
+            AhiDriver().read(source, options={"band": option_band})
+
+    def test_a_nested_options_band_list_is_unwrapped_only_once(
+        self, tmp_path, monkeypatch
+    ):
+        """The re-route unwraps one level, so a nested list is forwarded as-is.
+
+        Test scenario:
+            `[["B13", "B14"]]` is a one-element sequence, so the length check
+            passes and its element — itself a list — reaches the reader, which
+            is what reports it. This pins where the driver's responsibility ends
+            rather than letting it recurse.
+        """
+        captured: dict = {}
+        monkeypatch.setattr(
+            readers, "read_ahi", lambda s, b=None, **k: captured.update(band=b)
+        )
+        AhiDriver().read(
+            str(tmp_path / fixture.hsd_filename()),
+            options={"band": [["B13", "B14"]]},
+        )
+        assert captured["band"] == ["B13", "B14"], captured
+
+    def test_an_empty_options_band_sequence_leaves_the_band_unset(
+        self, tmp_path, monkeypatch
+    ):
+        """An empty sequence names no band, exactly as an empty `bands` list does.
+
+        Test scenario:
+            `options={"band": []}` is re-routed to `bands`, which is then falsy,
+            so the granule's own band governs and `None` reaches the reader.
+        """
+        captured: dict = {}
+        monkeypatch.setattr(
+            readers, "read_ahi", lambda s, b=None, **k: captured.update(band=b)
+        )
+        AhiDriver().read(str(tmp_path / fixture.hsd_filename()), options={"band": []})
+        assert captured["band"] is None, captured
+
+    def test_an_options_band_sequence_overrides_bands(self, tmp_path, monkeypatch):
+        """The re-routed sequence replaces `bands`, keeping `options` precedence.
+
+        Test scenario:
+            With both given, `options={"band": ["B13"]}` must win over
+            `bands=["B07"]` — the same precedence the scalar spelling has.
+        """
+        captured: dict = {}
+        monkeypatch.setattr(
+            readers, "read_ahi", lambda s, b=None, **k: captured.update(band=b)
+        )
+        AhiDriver().read(
+            str(tmp_path / fixture.hsd_filename()),
+            bands=["B07"],
+            options={"band": ["B13"]},
+        )
+        assert captured["band"] == "B13", (
+            f"an options band sequence should win over bands, got {captured['band']!r}"
+        )
+
+    def test_an_integer_band_via_options_is_not_treated_as_a_sequence(
+        self, tmp_path, monkeypatch
+    ):
+        """An `int` band is a scalar the reader canonicalises, not a sequence.
+
+        Test scenario:
+            `options={"band": 13}` must reach the reader as `13`; treating it as
+            a sequence would make it unindexable and raise instead.
+        """
+        captured: dict = {}
+        monkeypatch.setattr(
+            readers, "read_ahi", lambda s, b=None, **k: captured.update(band=b)
+        )
+        AhiDriver().read(str(tmp_path / fixture.hsd_filename()), options={"band": 13})
+        assert captured["band"] == 13, captured

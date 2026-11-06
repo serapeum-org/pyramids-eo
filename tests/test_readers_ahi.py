@@ -207,6 +207,56 @@ class TestHeaderWalk:
         ):
             walk_header_blocks(buffer, "<")
 
+    @pytest.mark.parametrize("declared", [1, 10, 12, 255])
+    def test_rejects_a_declared_block_count_other_than_eleven(self, declared):
+        """Block #1 field 3 states how many header blocks the granule carries.
+
+        Test scenario:
+            The walk steps over exactly eleven blocks because that is what HSD
+            defines, so a granule declaring any other count is a layout this
+            reader cannot be walking correctly — even when every individual
+            block happens to be self-consistent. Field 3 is patched in an
+            otherwise valid granule and the count is expected in the message.
+        """
+        buffer = bytearray(fixture.granule_bytes(columns=8, lines=4))
+        struct.pack_into("<H", buffer, 3, declared)
+        with pytest.raises(
+            ReaderError, match=rf"block #1 declares {declared} header blocks"
+        ):
+            walk_header_blocks(bytes(buffer), "<")
+
+    def test_a_zero_declared_block_count_is_tolerated(self):
+        """A granule leaving field 3 unset is walked rather than refused.
+
+        Test scenario:
+            The check is guarded on a truthy declaration, so field 3 patched to
+            0 — the "not stated" spelling — must leave the walk's own result
+            intact rather than raising about "0 header blocks".
+        """
+        buffer = bytearray(fixture.granule_bytes(columns=8, lines=4))
+        struct.pack_into("<H", buffer, 3, 0)
+        blocks = walk_header_blocks(bytes(buffer), "<")
+        assert len(blocks) == 12, (
+            f"expected 11 header blocks plus the data block, got {blocks}"
+        )
+        assert blocks[12][1] == 8 * 4 * 2, (
+            f"the data block should hold the 8 x 4 payload, got {blocks[12]}"
+        )
+
+    def test_the_block_count_is_read_in_the_granule_byte_order(self):
+        """Field 3 is an I2, so a big-endian granule's count must not read as 2816.
+
+        Test scenario:
+            A big-endian granule declaring 11 walks cleanly; the same granule
+            with field 3 patched big-endian to 12 is refused with 12 in the
+            message, which a little-endian read of the field could not produce.
+        """
+        assert len(walk_header_blocks(fixture.granule_bytes(order=">"), ">")) == 12
+        buffer = bytearray(fixture.granule_bytes(order=">"))
+        struct.pack_into(">H", buffer, 3, 12)
+        with pytest.raises(ReaderError, match="block #1 declares 12 header blocks"):
+            walk_header_blocks(bytes(buffer), ">")
+
 
 class TestHeaderOnlyRead:
     """The header fetch a stitch's first pass runs on.
@@ -578,6 +628,64 @@ class TestRadiance:
         path.write_bytes(bytes(buffer))
         with pytest.raises(ReaderError, match="8 bits per pixel"):
             parse_ahi_hsd(path)
+
+    def test_rejects_a_declared_data_length_disagreeing_with_the_grid(self, tmp_path):
+        """Block #1 field 14 sizes the payload independently of block #2's grid.
+
+        Test scenario:
+            A granule whose declared total data length is not
+            ``lines * columns * 2`` means one of the two blocks was misread, so
+            the read is refused rather than decoding a plausible-looking array
+            from whichever happened to be right. The payload itself is the full
+            size here, so the later "data block holds" truncation check cannot
+            be what fires.
+        """
+        path = fixture.write_granule(tmp_path, columns=8, lines=4, data_length=999)
+        with pytest.raises(
+            ReaderError,
+            match=r"block #1 declares a 999-byte data block but the 4 x 8 grid",
+        ):
+            parse_ahi_hsd(path)
+
+    def test_a_declared_data_length_matching_the_grid_is_accepted(self, tmp_path):
+        """The cross-check passes when field 14 agrees with the grid.
+
+        Test scenario:
+            Field 14 set explicitly to the grid's own ``4 * 8 * 2`` bytes must
+            read exactly as the default does, which pins the check to
+            disagreement rather than to the field being written at all.
+        """
+        counts = np.arange(32, dtype=np.uint16).reshape(4, 8)
+        path = fixture.write_granule(
+            tmp_path,
+            columns=8,
+            lines=4,
+            counts=counts,
+            slope=1.0,
+            intercept=0.0,
+            data_length=4 * 8 * 2,
+        )
+        assert parse_ahi_hsd(path).read_array() == pytest.approx(counts.astype(float))
+
+    def test_a_zero_declared_data_length_is_tolerated(self, tmp_path):
+        """A granule leaving field 14 unset is decoded from block #2's grid.
+
+        Test scenario:
+            The check is guarded on a truthy declaration, so ``data_length=0``
+            must still decode the full grid instead of being compared against
+            the payload size.
+        """
+        counts = np.arange(32, dtype=np.uint16).reshape(4, 8)
+        path = fixture.write_granule(
+            tmp_path,
+            columns=8,
+            lines=4,
+            counts=counts,
+            slope=1.0,
+            intercept=0.0,
+            data_length=0,
+        )
+        assert parse_ahi_hsd(path).read_array() == pytest.approx(counts.astype(float))
 
     def test_rejects_a_truncated_data_block(self, tmp_path):
         path = fixture.write_granule(tmp_path, columns=8, lines=4)
