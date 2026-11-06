@@ -25,7 +25,14 @@ from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
     ],
 )
 def test_can_open(source, expected):
-    """`can_open` claims `.SAFE` (and zipped `.SAFE.zip`) sources, case-insensitively."""
+    """`can_open` screens a source's spelling before it inspects anything.
+
+    The suffix test is case-insensitive, but a `.SAFE` spelling is no longer
+    sufficient on its own: a source that exists is inspected for Sentinel-2
+    metadata, and a non-local one is never claimed. Those paths are covered in
+    `test_read_file_dispatch.py`, which has the fixtures; the rows here are the
+    cheap string rejections and the not-on-disk shortcut.
+    """
     assert Sentinel2Driver.can_open(source) is expected
 
 

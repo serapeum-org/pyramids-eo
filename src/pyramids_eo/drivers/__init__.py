@@ -7,8 +7,9 @@ open into that driver with no import coupling. This subpackage registers pyramid
 - :class:`~pyramids_eo.drivers.earthengine.EarthEngineDriver` — ``ee://<asset-id>`` sources.
 - :class:`~pyramids_eo.drivers.seviri.SeviriDriver` — SEVIRI native ``.nat`` granules.
 - :class:`~pyramids_eo.drivers.ahi.AhiDriver` — Himawari AHI Himawari Standard Data
-  (``.DAT``) granules. It is the only driver here that declares a suffix and then
-  deliberately narrows it in ``can_open``: ``.dat``
+  (``.DAT``) granules. It is one of two drivers here that declare a suffix and then
+  deliberately narrow it in ``can_open`` — Sentinel-2 is the other, inspecting a product's
+  contents to tell the mission apart: ``.dat``
   is too generic, so it matches the HSD file-name convention instead (see its docstring).
 - :class:`~pyramids_eo.drivers.sentinel2.Sentinel2Driver` — Sentinel-2 ``.SAFE`` products.
 - :class:`~pyramids_eo.drivers.fci.FciDriver` — MTG-FCI L1C FDHSI granules (a chunk set named by a
@@ -47,12 +48,14 @@ is declared and implemented but unreachable through the facade — a temporal st
 
 A single ``read_file`` source string can name a *set* of files — a directory, a glob, or an
 ``fci://`` path — which is how a multi-chunk FCI granule is addressed (see
-:func:`~pyramids_eo.drivers._base.expand_sources`). The one reader reachable only via an explicit
-``driver="s2"`` is Sentinel-2: GDAL ships its own ``SENTINEL2`` driver and opens a ``.SAFE`` on the
-plain ``read_file`` path before any plugin. pyramids-core 0.71 added a way out — a driver that
-declares ``preempts`` for a suffix or scheme is tried *before* GDAL
-(serapeum-org/pyramids-core#1344) — but pre-emption is opt-in and no driver here declares it yet,
-so a bare ``.SAFE`` path still needs ``driver="s2"``.
+:func:`~pyramids_eo.drivers._base.expand_sources`). Sentinel-2 reaches this layer on the bare path in both its
+forms: a product **directory** through the post-GDAL ``can_open`` fallback (GDAL cannot open one),
+and a **zipped** product through pre-emption — :class:`~pyramids_eo.drivers.sentinel2.
+Sentinel2Driver` declares ``preempts = (".zip",)``, the opt-in pyramids-core 0.71 added
+(serapeum-org/pyramids-core#1344), because GDAL would otherwise open the archive and return a bare
+container. Because ESA shares ``.SAFE`` across missions, ``can_open`` identifies the mission from
+the product's contents rather than its name, so a Sentinel-1 product — zipped or not — is left to
+GDAL instead of failing in the Sentinel-2 reader.
 """
 
 from __future__ import annotations
