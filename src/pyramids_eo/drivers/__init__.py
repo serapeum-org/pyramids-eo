@@ -7,8 +7,9 @@ open into that driver with no import coupling. This subpackage registers pyramid
 - :class:`~pyramids_eo.drivers.earthengine.EarthEngineDriver` — ``ee://<asset-id>`` sources.
 - :class:`~pyramids_eo.drivers.seviri.SeviriDriver` — SEVIRI native ``.nat`` granules.
 - :class:`~pyramids_eo.drivers.ahi.AhiDriver` — Himawari AHI Himawari Standard Data
-  (``.DAT``) granules. It is the only driver here that declares a suffix and then
-  deliberately narrows it in ``can_open``: ``.dat``
+  (``.DAT``) granules. It is one of two drivers here that declare a suffix and then
+  deliberately narrow it in ``can_open`` — Sentinel-2 is the other, inspecting a product's
+  contents to tell the mission apart: ``.dat``
   is too generic, so it matches the HSD file-name convention instead (see its docstring).
 - :class:`~pyramids_eo.drivers.sentinel2.Sentinel2Driver` — Sentinel-2 ``.SAFE`` products.
 - :class:`~pyramids_eo.drivers.fci.FciDriver` — MTG-FCI L1C FDHSI granules (a chunk set named by a

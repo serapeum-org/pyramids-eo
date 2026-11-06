@@ -206,18 +206,22 @@ def test_a_sentinel2_product_directory_is_claimed():
     )
 
 
-def test_a_sentinel1_product_directory_is_not_claimed():
-    """`can_open` rejects a Sentinel-1 `.SAFE`, which GDAL reads itself.
+def test_a_sentinel1_product_directory_is_claimed_but_never_reached():
+    """A Sentinel-1 `.SAFE` directory is claimed, and that is harmless.
 
     Test scenario:
-        ESA shares the `.SAFE` suffix between missions, so claiming by suffix
-        alone would take Sentinel-1 products into the Sentinel-2 reader and fail
-        on them. The driver tells them apart by looking for Sentinel-2 metadata.
+        The directory branch is deliberately not gated on the metadata markers,
+        exactly as on `main` — so it claims a Sentinel-1 directory too. That
+        costs nothing, because `.safe` is not pre-empted: GDAL opens such a
+        product at step 3 and the fallback never runs. The guarantee that
+        matters is the end-to-end one next door, which pins that GDAL still
+        serves it. Where the claim *must* discriminate is the zipped form, which
+        is pre-empted ahead of GDAL.
     """
     from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
 
-    assert Sentinel2Driver.can_open(str(_S1_PRODUCT)) is False, (
-        "a Sentinel-1 product shares the suffix but must be left to GDAL"
+    assert Sentinel2Driver.can_open(str(_S1_PRODUCT)) is True, (
+        "the directory branch claims any .SAFE, matching main"
     )
 
 
@@ -332,24 +336,26 @@ def test_a_corrupt_archive_is_not_claimed(tmp_path):
     )
 
 
-def test_an_unreadable_directory_is_not_claimed(tmp_path, monkeypatch):
-    """A `.SAFE` directory that cannot be listed is left to GDAL.
+def test_a_directory_stat_failure_is_not_claimed(tmp_path, monkeypatch):
+    """A `.SAFE` path whose type cannot be determined is left to GDAL.
 
     Test scenario:
-        The check reads a directory listing, which can fail on a permission or
-        I/O error. That must not propagate out of `can_open`.
+        The directory branch still touches the filesystem to tell a directory
+        from a file and from an absent path. A permission or I/O error there must
+        not propagate, because pyramids treats a raising `can_open` as a broken
+        driver and warns.
     """
     from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
 
-    product = tmp_path / "S2A_UNREADABLE.SAFE"
+    product = tmp_path / "S2A_UNSTATABLE.SAFE"
     product.mkdir()
 
     def _deny(_path):
         raise OSError("permission denied")
 
-    monkeypatch.setattr(os, "listdir", _deny)
+    monkeypatch.setattr(os.path, "isdir", _deny)
     assert Sentinel2Driver.can_open(str(product)) is False, (
-        "an unlistable directory must not be claimed, and must not raise"
+        "a stat failure must not be claimed, and must not raise"
     )
 
 
@@ -615,4 +621,140 @@ def test_a_zip_directory_entry_is_not_metadata(tmp_path):
         handle.writestr("X.SAFE/measurement/band.tif", b"not a product")
     assert Sentinel2Driver.can_open(str(archive)) is False, (
         "a directory entry is not a metadata file and must not win the claim"
+    )
+
+
+def test_a_deep_marker_does_not_identify_a_product(tmp_path):
+    """Metadata buried inside an archive does not make it a Sentinel-2 product.
+
+    Test scenario:
+        A zipped Sentinel-1 product that happens to carry a stray
+        `notes/backup/MTD_MSIL1C.xml` is still a Sentinel-1 product. Matching the
+        markers at any depth claimed it away from GDAL, which reads it — the same
+        failure as taking it on its name. Only depth 0 or 1 can identify a
+        product, because an archive wraps it in at most one folder.
+    """
+    import zipfile
+
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    archive = _zip_product(_S1_PRODUCT, tmp_path, "S1A_IW_GRDH.SAFE")
+    with zipfile.ZipFile(archive, "a") as handle:
+        handle.writestr("notes/backup/MTD_MSIL1C.xml", b"<xml/>")
+    assert Sentinel2Driver.can_open(archive) is False, (
+        "a marker nested inside the archive must not win the claim"
+    )
+
+
+def test_a_marker_under_a_single_root_folder_is_recognised(tmp_path):
+    """The usual archive shape — one wrapper folder — is still recognised.
+
+    Test scenario:
+        `make_archive` wraps the product in its own folder, so the metadata sits
+        at depth 1 (`X.SAFE/MTD_MSIL1C.xml`). The depth limit must admit that,
+        or the feature would never fire on a real archive.
+    """
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    archive = _zip_product(_S2_COMPACT, tmp_path, _S2_COMPACT.name)
+    assert Sentinel2Driver.can_open(archive) is True, (
+        "a product wrapped in one folder must still be claimed"
+    )
+
+
+def test_a_product_directory_is_claimed_without_a_marker(tmp_path):
+    """Any `.SAFE` directory is claimed: this branch runs only after GDAL failed.
+
+    Test scenario:
+        `.safe` is not pre-empted, so a directory reaches `can_open` only through
+        the post-GDAL fallback — and GDAL reads a Sentinel-1 `.SAFE` directory
+        itself, so it has already declined anything that gets here. Gating the
+        branch on the metadata markers bought no discrimination and turned away a
+        product whose root metadata is a bare `manifest.safe`, which
+        `from_sentinel2` reads.
+    """
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    product = tmp_path / "S2A_MANIFEST_ONLY.SAFE"
+    product.mkdir()
+    (product / "manifest.safe").write_text("<xml/>", encoding="utf-8")
+    assert Sentinel2Driver.can_open(str(product)) is True, (
+        "a .SAFE directory must be claimed on the fallback, marker or not"
+    )
+
+
+def test_a_folder_entry_named_like_metadata_is_skipped(tmp_path):
+    """A zip folder entry is skipped explicitly, not incidentally.
+
+    Test scenario:
+        Pins the `endswith("/")` skip on its own. Without it the base name would
+        still come out empty for `X.SAFE/MTD_MSIL1C.xml/` and fail to match, so
+        the guard is belt-and-braces — but a later refactor that reintroduces
+        `rstrip("/")` on the base name would silently start claiming folders.
+    """
+    import zipfile
+
+    from pyramids_eo.drivers.sentinel2 import _holds_s2_metadata
+
+    assert _holds_s2_metadata(["X.SAFE/MTD_MSIL1C.xml/"]) is False, (
+        "a folder entry is not a metadata file"
+    )
+    assert _holds_s2_metadata(["X.SAFE/MTD_MSIL1C.xml"]) is True, (
+        "the same name as a file is a metadata file"
+    )
+    archive = tmp_path / "FOLDERONLY.SAFE.zip"
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.writestr("X.SAFE/MTD_MSIL1C.xml/", b"")
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    assert Sentinel2Driver.can_open(str(archive)) is False
+
+
+def test_backslash_separated_zip_entries_are_handled():
+    """A zip written with backslash separators still resolves to its base name.
+
+    Test scenario:
+        Some writers emit `X.SAFE\\MTD_MSIL1C.xml`. The separator is normalised
+        before the depth count and the base-name split, so such an archive is
+        recognised rather than silently unclaimed.
+    """
+    from pyramids_eo.drivers.sentinel2 import _holds_s2_metadata
+
+    assert _holds_s2_metadata(["X.SAFE\\MTD_MSIL1C.xml"]) is True, (
+        "a backslash-separated entry must resolve to its base name"
+    )
+    assert _holds_s2_metadata(["deep\\deeper\\MTD_MSIL1C.xml"]) is False, (
+        "the depth limit must apply to backslash separators too"
+    )
+
+
+def test_the_marker_match_is_case_insensitive_but_not_glob_folded():
+    """Marker matching folds case on the name, not on the pattern.
+
+    Test scenario:
+        `fnmatchcase` on pre-upper-cased input makes the result independent of the
+        host filesystem's case rules, which `fnmatch` would otherwise borrow. Both
+        spellings a product uses in practice are accepted.
+    """
+    from pyramids_eo.drivers.sentinel2 import _holds_s2_metadata
+
+    assert _holds_s2_metadata(["MTD_MSIL1C.xml"]) is True
+    assert _holds_s2_metadata(["mtd_msil1c.XML"]) is True
+    assert _holds_s2_metadata(["MTD_MSIL1C.txt"]) is False
+
+
+def test_an_existing_non_directory_safe_is_not_claimed(tmp_path):
+    """A plain *file* named `*.SAFE` is not a product.
+
+    Test scenario:
+        Pins the existing-non-directory guard: the not-on-disk shortcut must not
+        swallow a path that does exist but is a file, which is not a product and
+        which GDAL may be able to open.
+    """
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    impostor = tmp_path / "NOT_A_PRODUCT.SAFE"
+    impostor.write_text("not a directory", encoding="utf-8")
+    assert Sentinel2Driver.can_open(str(impostor)) is False, (
+        "an existing file is not a product directory"
     )

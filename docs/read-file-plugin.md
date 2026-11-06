@@ -68,13 +68,14 @@ The consequence is the single rule worth remembering:
 !!! warning "Give a zipped read its `bands` and `resolution`"
 
     A Sentinel-2 product is 13 bands harmonised onto a 20984x20980 10 m grid — about 10 GiB. Asking for a
-    product without narrowing it asks for all of that, and it does **not** fail fast: measured on a fake L1C
-    fixture, neither a bare directory read nor a bare zipped read had returned after 30–45 seconds. Pass
-    `open_options={"bands": [...], "resolution": 60}` (or whatever you need).
+    product without narrowing it asks for all of that, and it takes **minutes**: measured on a fake L1C
+    fixture, the zipped form returned 13 bands after 228 s, and the directory form raised `MemoryError`
+    (10.7 GiB) after 202 s. Which of the two you get depends on available memory, so treat both as
+    "do not do this". Pass `open_options={"bands": [...], "resolution": 60}` (or whatever you need).
 
-    This is not new for the **directory** form, which has always reached the reader. What pre-emption changes is
-    the **zipped** form: it used to return GDAL's empty container in about 0.1 s — quick, but with nothing in
-    it — and now behaves like the directory form.
+    This is not new for the **directory** form, which has always reached the reader. What pre-emption changes
+    is the **zipped** form: it used to return GDAL's empty container in about 0.1 s — quick, but with nothing
+    in it — and now behaves like the directory form.
 
 ## Passing reader options
 
@@ -297,8 +298,9 @@ The facades are the source of truth for the reader options; the driver simply ma
   `.ZIP`, which the archive reader cannot take; or pyramids-eo is not installed, since pre-emption can only use
   a driver pyramids discovered. Renaming to a lowercase `*.SAFE.zip` fixes the first two; `driver="s2"` forces
   the reader in any case.
-- **A zipped read never came back.** You asked for the whole product — 13 bands on a 10 m grid. Narrow it with
-  `open_options={"bands": [...], "resolution": 60}`.
+- **A read took minutes, or died with `MemoryError`.** You asked for the whole product — 13 bands on a 10 m
+  grid, about 10 GiB. Narrow it with `open_options={"bands": [...], "resolution": 60}`. This applies to a
+  product directory as much as to a zipped one.
 - **A Sentinel-2 `resolution`/`epsg` was ignored or mistyped.** You passed a `KEY=VALUE` list, which keeps values as
   strings. Pass `open_options` as a **dict** so the `int` survives.
 - **`FciDriver` raised "no chunk files found for FCI source …".** Point the source at the granule **directory**, a

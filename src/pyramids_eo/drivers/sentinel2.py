@@ -19,10 +19,11 @@ whether GDAL can open it:
   safe to declare because ``can_open`` gates every pre-empted claim, and ``.safe`` is not declared
   because a directory needs no help.
 
-  Reading a whole product is expensive — 13 bands harmonised onto a 20984x20980 10 m grid — so
-  pass the ``bands`` and ``resolution`` you want. Without them the reader is asked for everything
-  at the finest resolution: measured on a fake L1C fixture, that call had not returned after 45
-  seconds, where GDAL's container returned in about 0.1 s with nothing useful in it.
+  Reading a whole product is expensive — 13 bands harmonised onto a 20984x20980 10 m grid, about
+  10 GiB — so pass the ``bands`` and ``resolution`` you want. Without them the reader is asked for
+  everything at the finest resolution, which takes minutes: on a fake L1C fixture the zipped form
+  returned after 228 s and the directory form raised ``MemoryError`` after 202 s. GDAL's container
+  returned in about 0.1 s, with nothing useful in it.
 
 ESA shares ``.SAFE`` (and ``.SAFE.zip``) across missions, so the suffix alone cannot say whether a
 product is Sentinel-2 — a Sentinel-1 product carries the same one, and GDAL reads it correctly.
@@ -59,22 +60,29 @@ _S2_MARKERS_UPPER: tuple[str, ...] = tuple(glob.upper() for glob in _S2_MARKERS)
 
 
 def _holds_s2_metadata(names: Iterable[str]) -> bool:
-    """Return whether any of ``names`` is a Sentinel-2 metadata file.
+    """Return whether ``names`` holds a Sentinel-2 metadata file at the product root.
 
     Args:
-        names: File names to test — a directory listing, or a zip's index. Each is
-            compared against :data:`_S2_MARKERS` by base name, case-insensitively.
-            A name ending in ``/`` is a *folder* entry in a zip index, not a file,
-            and is skipped: an archive holding only a directory called
-            ``MTD_MSIL1C.xml/`` contains no metadata.
+        names: Entry names to test — a directory listing, or a zip's index. A
+            listing is already flat; an archive normally wraps the product in one
+            folder, so an entry is considered only at depth 0 or 1. Anything
+            deeper is *inside* the product and cannot identify it: a zipped
+            Sentinel-1 product carrying a stray ``notes/backup/MTD_MSIL1C.xml``
+            is not a Sentinel-2 product, and matching at any depth would claim
+            it away from GDAL. Comparison is by base name, case-insensitively,
+            and a folder entry (trailing separator) is skipped.
 
     Returns:
-        bool: True when at least one name identifies a Sentinel-2 product.
+        bool: True when at least one entry identifies a Sentinel-2 product.
     """
     for name in names:
-        if name.endswith(("/", "\\")):
+        normalised = name.replace("\\", "/")
+        if normalised.endswith("/"):
             continue
-        base = name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1].strip()
+        parts = [part for part in normalised.split("/") if part not in ("", ".")]
+        if len(parts) > 2:
+            continue
+        base = parts[-1] if parts else ""
         if any(fnmatchcase(base.upper(), glob) for glob in _S2_MARKERS_UPPER):
             return True
     return False
@@ -146,17 +154,24 @@ class Sentinel2Driver:
                 directory or a lowercase ``*.SAFE.zip`` archive, both local.
 
         Returns:
-            True only for a Sentinel-2 product. The ``.SAFE`` suffix is **not** sufficient: ESA
-            shares it with Sentinel-1, which GDAL reads itself, so claiming by suffix alone would
-            take those products and fail on them. When the source exists this therefore looks
-            inside it for Sentinel-2 metadata (:data:`_S2_MARKERS`) — a directory listing, or a
-            zip's index. A ``manifest.safe`` is never claimed: it is the metadata file *inside* a
-            product and Sentinel-1's entry point. A zipped product is claimed only when its
-            extension is a lowercase ``.zip``, which is what the archive reader downstream
-            accepts. A **plain local** ``.SAFE`` path that does not exist is claimed, so the
-            reader can raise its own clear error rather than GDAL's — but a URL, a GDAL
-            ``/vsi*`` path or a UNC share is never claimed on that shortcut, since this driver
-            cannot read one and GDAL often can.
+            True for a source this driver should read, which differs by form because the two
+            forms reach it by different routes.
+
+            A **zipped** product is pre-empted *before* GDAL, so the claim has to be exact: the
+            extension must be a lowercase ``.zip`` (what the archive reader accepts), and the
+            archive must hold Sentinel-2 metadata (:data:`_S2_MARKERS`) at the product root.
+            ESA shares ``.SAFE.zip`` with Sentinel-1, which GDAL reads itself, so a name alone
+            must never win the claim.
+
+            A **directory** is only reached through the post-GDAL fallback, where GDAL has
+            already declined the source, so any ``.SAFE`` directory is claimed — no marker check,
+            which would otherwise turn away a product whose root metadata is a bare
+            ``manifest.safe``.
+
+            In both forms a ``manifest.safe`` *as the source* is refused: it is the file inside a
+            product and Sentinel-1's entry point. A **plain local** path that does not exist is
+            claimed so the reader can report it, but a URL, a GDAL ``/vsi*`` path or a UNC share
+            never is — this driver cannot read one and GDAL often can.
 
         Note:
             This is no longer free of I/O: identifying the mission requires reading a directory
@@ -212,13 +227,20 @@ class Sentinel2Driver:
                 return False
         if not lowered.endswith(".safe"):
             return False
+        # A directory claim is NOT gated on the metadata markers. This branch is only
+        # ever reached through the post-GDAL fallback — ``.safe`` is not in ``preempts``
+        # — and GDAL reads a Sentinel-1 ``.SAFE`` directory itself, so by the time this
+        # runs GDAL has already declined the source. Requiring a marker here only turned
+        # away products whose root metadata is a bare ``manifest.safe``, which
+        # ``from_sentinel2`` reads perfectly well, while buying no mission
+        # discrimination that GDAL has not already provided.
         try:
             if not os.path.isdir(trimmed):
                 # Not a directory on disk. A plain local path that is simply absent is
                 # claimed so the reader reports it; anything remote or virtual is left to
                 # GDAL, and an existing non-directory is not a product.
                 return not os.path.exists(trimmed) and _is_plain_local_path(trimmed)
-            return _holds_s2_metadata(os.listdir(trimmed))
+            return True
         except OSError:
             return False
 
