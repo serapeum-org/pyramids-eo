@@ -188,13 +188,27 @@ _WAVENUMBER_RADIANCE_SCALE = 1e-1
 #: Micrometres per metre, for the one place the Planck inversion needs SI.
 _UM_PER_M = 1e6
 
-#: Smallest count-to-radiance slope treated as a real gain. HSD leaves an unused
-#: calibration field as literal zero bytes, so this separates "the field is
-#: unset" from any real gain. Real AHI slopes are of order 1e-2 to 1e2 in the
-#: granule's own units, so a positive value below this is a misparse rather than
-#: a very small gain. A *negative* slope is rejected outright: counts rise with
-#: radiance by construction, so a negative gain inverts the image rather than
-#: scaling it, and the old check -- "not within 1e-30 of zero" -- admitted one.
+#: The only two radiometric kinds this reader dispatches on. The spelling has to
+#: match exactly, because this reader branches on ``"thermal"`` while the shared
+#: `calibrate_channel` branches on ``"solar"`` — so a third spelling would take
+#: the solar path here and the thermal path there, silently returning a
+#: brightness temperature computed from radiance that was never rebased.
+_KINDS = frozenset({"solar", "thermal"})
+
+#: Smallest count-to-radiance slope MAGNITUDE treated as a real gain. HSD leaves
+#: an unused calibration field as literal zero bytes, so this separates "the
+#: field is unset" from any real gain; real AHI slopes are of order 1e-2 to 1e2
+#: in the granule's own units, so a magnitude below this is a misparse rather
+#: than a very small gain.
+#:
+#: The SIGN is deliberately not constrained. An earlier version refused a
+#: negative slope on the grounds that counts rise with radiance "by
+#: construction" -- but Table 6 states no such thing, it is simply an affine
+#: conversion, and no granule was available to check the claim against. Refusing
+#: a negative gain would reject every granule of any band JMA chose to ship that
+#: way, for the sake of an assumption the specification does not make. A
+#: negative slope therefore passes through and produces decreasing radiance,
+#: which is what the granule asked for.
 _MIN_SLOPE = 1e-12
 
 #: Scaling denominator of the normalised geostationary projection: the
@@ -845,7 +859,7 @@ def _parse_header(
         # back to fields 8 / 9 rather than reading a zero gain.
         updated_slope = _unpack(buffer, order, "d", calibration + _B5_VIS_SLOPE)
         updated_intercept = _unpack(buffer, order, "d", calibration + _B5_VIS_INTERCEPT)
-        if math.isfinite(updated_slope) and updated_slope >= _MIN_SLOPE:
+        if math.isfinite(updated_slope) and abs(updated_slope) >= _MIN_SLOPE:
             slope, intercept = updated_slope, updated_intercept
     else:
         planck = tuple(
@@ -859,11 +873,12 @@ def _parse_header(
                 _B5_IR_BOLTZMANN,
             )
         )
-    if not math.isfinite(slope) or slope < _MIN_SLOPE:
+    if not math.isfinite(slope) or abs(slope) < _MIN_SLOPE:
         raise ReaderError(
-            f"read_ahi: granule declares a non-physical count-to-radiance slope "
-            f"({slope!r}); it must be a finite value of at least {_MIN_SLOPE}, "
-            "since radiance rises with count — unexpected HSD layout"
+            f"read_ahi: granule declares an unusable count-to-radiance slope "
+            f"({slope!r}); it must be finite with a magnitude of at least "
+            f"{_MIN_SLOPE}, below which the field is unset rather than a very "
+            "small gain — unexpected HSD layout"
         )
 
     segment = blocks[_SEGMENT][0]
@@ -1721,17 +1736,29 @@ def _effective_kind(
         overrides: The caller's coefficient overrides.
 
     Returns:
-        ``"solar"`` or ``"thermal"`` from the granule or the registry. A caller's
-        ``kind`` override is **not** validated against that pair — it is returned
-        stringified as given, and :func:`_calibrate_array` dispatches on
-        ``"thermal"`` alone, so any other spelling takes the solar path.
+        ``"solar"`` or ``"thermal"``, validated — never any other string.
 
     Raises:
+        ReaderError: When a caller's ``coeffs["kind"]`` is not exactly
+            ``"solar"`` or ``"thermal"``. It is rejected rather than coerced or
+            passed through, because this reader branches on ``"thermal"`` while
+            the shared `calibrate_channel` branches on ``"solar"``: a third
+            spelling satisfies neither as intended and used to take the solar
+            path here and the thermal path there, returning a brightness
+            temperature from radiance that had not been rebased.
         UnknownSensorError: When the registry has to be consulted and does not
             know the sensor / band.
     """
     if "kind" in overrides:
-        return str(overrides["kind"])
+        kind = overrides["kind"]
+        if kind not in _KINDS:
+            raise ReaderError(
+                f"read_ahi: coeffs['kind'] must be one of "
+                f"{sorted(_KINDS)}, not {kind!r}; the spelling has to match "
+                "exactly, since a third value would be calibrated as solar here "
+                "and as thermal by the registry"
+            )
+        return str(kind)
     if header is not None:
         return header.kind
     from pyramids_eo.sensors.registry.sensors import get_sensor

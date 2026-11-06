@@ -442,11 +442,11 @@ class TestHeaderFields:
             parse_hsd_header(buffer)
 
     @pytest.mark.parametrize(
-        "slope", [0.0, -0.5, -1e-9, float("nan"), float("inf"), float("-inf")]
+        "slope", [0.0, 1e-20, -1e-20, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_a_non_physical_slope(self, slope):
+    def test_rejects_an_unusable_slope(self, slope):
         buffer = fixture.granule_bytes(band=13, slope=slope)
-        with pytest.raises(ReaderError, match="non-physical count-to-radiance slope"):
+        with pytest.raises(ReaderError, match="unusable count-to-radiance slope"):
             parse_hsd_header(buffer)
 
 
@@ -1560,3 +1560,101 @@ class TestDecodedFloatValidation:
 
         assert _MIN_SLOPE == 1e-12
         assert _MIN_SLOPE < 1e-2, "real AHI slopes are order 1e-2 and above"
+
+
+class TestSlopeSign:
+    """The specification constrains the slope's magnitude, not its sign.
+
+    Table 6 presents the count-to-radiance conversion as a plain affine
+    relation and says nothing about the direction. An earlier version refused a
+    negative gain as "non-physical by construction", which would have rejected
+    every granule of any band JMA chose to ship that way, on the strength of an
+    assumption the specification does not make and that no granule was
+    available to test.
+    """
+
+    @pytest.mark.parametrize("slope", [-0.5, -1.0, -42.0])
+    def test_a_negative_slope_is_accepted(self, slope):
+        header = parse_hsd_header(fixture.granule_bytes(band=13, slope=slope))
+        assert header.slope == slope
+
+    def test_a_negative_slope_produces_decreasing_radiance(self, tmp_path):
+        """What the granule asked for: higher counts, lower radiance."""
+        path = fixture.write_granule(
+            tmp_path,
+            band=13,
+            columns=3,
+            lines=1,
+            counts=np.array([[10, 20, 30]], dtype=np.uint16),
+            slope=-1.0,
+            intercept=100.0,
+        )
+        values = parse_ahi_hsd(path).read_array()
+        assert values.ravel() == pytest.approx([90.0, 80.0, 70.0])
+
+    @pytest.mark.parametrize("magnitude", [1e-20, -1e-20, 0.0])
+    def test_a_slope_magnitude_below_the_floor_is_still_refused(self, magnitude):
+        """Too small to be a gain, either sign: the field is unset."""
+        buffer = fixture.granule_bytes(band=13, slope=magnitude)
+        with pytest.raises(ReaderError, match="unusable count-to-radiance slope"):
+            parse_hsd_header(buffer)
+
+    def test_a_recalibrated_negative_slope_is_honoured(self):
+        header = parse_hsd_header(
+            fixture.granule_bytes(
+                band=3, slope=0.5, intercept=-10.0, updated=(-0.75, -2.0)
+            )
+        )
+        assert header.slope == -0.75
+
+
+class TestKindValidation:
+    """A caller's `coeffs["kind"]` must match one of two spellings exactly.
+
+    This reader branches on ``"thermal"``; the shared `calibrate_channel`
+    branches on ``"solar"``. A third spelling therefore used to satisfy neither
+    as intended -- taking the solar path here and the thermal path there -- and
+    returned a brightness temperature computed from radiance that had never been
+    rebased onto the per-wavenumber basis that calculation needs.
+    """
+
+    @pytest.mark.parametrize(
+        "spelling",
+        ["SOLAR", "Solar", "THERMAL", "Thermal", "reflectance", "", "banana"],
+    )
+    def test_an_unrecognised_kind_is_refused(self, tmp_path, spelling):
+        path = fixture.write_granule(
+            tmp_path,
+            band=13,
+            columns=1,
+            lines=1,
+            counts=np.array([[100]], dtype=np.uint16),
+            slope=1.0,
+            intercept=0.0,
+        )
+        with pytest.raises(ReaderError, match=r"coeffs\['kind'\] must be one of"):
+            read_ahi(path, "B13", coeffs={"kind": spelling, "solar_irradiance": 400.0})
+
+    @pytest.mark.parametrize("spelling", ["solar", "thermal"])
+    def test_the_two_legal_spellings_are_accepted(self, tmp_path, spelling):
+        path = fixture.write_granule(
+            tmp_path,
+            band=13,
+            columns=1,
+            lines=1,
+            counts=np.array([[100]], dtype=np.uint16),
+            slope=1.0,
+            intercept=0.0,
+        )
+        coeffs = {"kind": spelling}
+        if spelling == "solar":
+            coeffs["solar_irradiance"] = 400.0
+        else:
+            coeffs["central_wavenumber_cm1"] = 961.538
+        result = read_ahi(path, "B13", coeffs=coeffs).read_array()
+        assert np.isfinite(result).all(), result
+
+    def test_the_kind_set_is_exactly_the_two_the_registry_knows(self):
+        from pyramids_eo.sensors.readers.ahi import _KINDS
+
+        assert _KINDS == frozenset({"solar", "thermal"})
