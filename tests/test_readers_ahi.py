@@ -1748,7 +1748,15 @@ class TestHeaderReadIsBounded:
         assert len(_read_header_bytes(path)) <= _MAX_HEADER_BYTES
 
     def test_a_valid_declaration_reads_only_the_header(self, tmp_path):
+        """Exactly the header, derived from the block lengths rather than pinned.
+
+        A literal would have to be edited whenever a variable block's fixture
+        length changes, which says nothing about the behaviour under test.
+        """
         from pyramids_eo.sensors.readers.ahi import _read_header_bytes
 
+        expected = sum(fixture.FIXED_BLOCK_LENGTHS.values()) + sum(
+            fixture.VARIABLE_BLOCK_LENGTHS.values()
+        )
         path = fixture.write_granule(tmp_path, band=13, columns=2000, lines=500)
-        assert len(_read_header_bytes(path)) == 1598
+        assert len(_read_header_bytes(path)) == expected

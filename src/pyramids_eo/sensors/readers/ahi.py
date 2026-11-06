@@ -42,6 +42,7 @@ from __future__ import annotations
 import bz2
 import math
 import mmap
+import os
 import re
 import struct
 from dataclasses import dataclass
@@ -109,6 +110,11 @@ _B1_AREA_BYTES = 4
 _B1_TIMELINE = 44
 #: ``Observation start time`` (``R8``), Modified Julian Date.
 _B1_START_MJD = 46
+#: ``Total number of header blocks`` (``I2``), which the specification fixes at
+#: 11. Checked rather than merely decoded, so a granule disagreeing about its own
+#: structure is reported before the walk relies on the count.
+_B1_TOTAL_HEADER_BLOCKS = 3
+
 #: ``Total header length`` (``I4``) and ``Total data length`` (``I4``). The
 #: granule states both, which makes them an independent check on the header
 #: walk: if the walk ends somewhere other than the declared header length, it
@@ -348,7 +354,9 @@ def _read_bytes(path: Any) -> bytes:
     Raises:
         ReaderError: When the file cannot be opened or decompressed.
     """
-    name = str(path)
+    # os.fsdecode rather than str(): a bytes path is a legitimate path, and
+    # str(b"x.DAT") would put "b'x.DAT'" in every error message.
+    name = os.fsdecode(path) if isinstance(path, (str, bytes)) else str(path)
     try:
         if name.lower().endswith(".bz2"):
             with bz2.open(name, "rb") as compressed:
@@ -396,7 +404,7 @@ def _read_header_bytes(path: Any) -> bytes:
         ReaderError: When the file cannot be opened, or is too short to hold
             block #1.
     """
-    name = str(path)
+    name = os.fsdecode(path) if isinstance(path, (str, bytes)) else str(path)
     try:
         opener = bz2.open if name.lower().endswith(".bz2") else open
         with opener(name, "rb") as handle:  # type: ignore[operator]
@@ -540,6 +548,12 @@ def walk_header_blocks(buffer: bytes, order: ByteOrder) -> dict[int, tuple[int, 
     for expected in range(1, _HEADER_BLOCK_COUNT + 1):
         blocks[expected] = (offset, _block_length(buffer, order, expected, offset))
         offset += blocks[expected][1]
+    blocks_declared = _unpack(buffer, order, "H", _B1_TOTAL_HEADER_BLOCKS)
+    if blocks_declared and blocks_declared != _HEADER_BLOCK_COUNT:
+        raise ReaderError(
+            f"read_ahi: block #1 declares {blocks_declared} header blocks, but "
+            f"HSD has {_HEADER_BLOCK_COUNT} — unexpected HSD layout"
+        )
     declared = _unpack(buffer, order, "I", _B1_TOTAL_HEADER_LENGTH)
     if declared and declared != offset:
         # Block #1 states the whole header's length, so this catches a walk that
@@ -922,10 +936,12 @@ def _parse_header(
         total_segments=int(buffer[segment + _B7_TOTAL_SEGMENTS]),
         segment_number=int(buffer[segment + _B7_SEGMENT_NUMBER]),
         first_line=int(_unpack(buffer, order, "H", segment + _B7_FIRST_LINE)),
+        # Split, not strip: a fixed-width C field ends at its first NUL, and
+        # stripping only the ends would keep an interior one (the satellite name
+        # above had the same defect).
         observation_area=buffer[basic + _B1_AREA : basic + _B1_AREA + _B1_AREA_BYTES]
+        .split(b"\x00", 1)[0]
         .decode("ascii", "replace")
-        .strip()
-        .strip("\x00")
         .strip(),
         observation_timeline=int(_unpack(buffer, order, "H", basic + _B1_TIMELINE)),
         observation_start_mjd=float(_unpack(buffer, order, "d", basic + _B1_START_MJD)),
@@ -1183,6 +1199,14 @@ def _counts(
         )
     offset, available = blocks[_DATA_BLOCK]
     expected = header.lines * header.columns * 2
+    if header.total_data_length and header.total_data_length != expected:
+        # Block #1 field 14 states the payload size independently of block #2's
+        # grid, so disagreement means one of the two was misread.
+        raise ReaderError(
+            f"read_ahi: block #1 declares a {header.total_data_length}-byte data "
+            f"block but the {header.lines} x {header.columns} grid of block #2 "
+            f"needs {expected} — unexpected HSD layout"
+        )
     if available < expected:
         raise ReaderError(
             f"read_ahi: the data block holds {available} bytes but the declared "
@@ -1427,7 +1451,10 @@ def _decode_into(path: Any, header: HsdHeader, out: Any) -> None:
     order = _byte_order(buffer)
     blocks = walk_header_blocks(buffer, order)
     counts = _counts(buffer, header, blocks, order)
-    np.multiply(counts, header.slope, out=out, casting="unsafe")
+    # `same_kind` is the honest declaration: the destination is a float view of
+    # the output array in every caller, and `unsafe` would additionally permit a
+    # silent downcast into an integer destination rather than failing.
+    np.multiply(counts, header.slope, out=out, casting="same_kind")
     out += header.intercept
     out[(counts == header.error_count) | (counts == header.outside_count)] = np.nan
 
@@ -1505,7 +1532,7 @@ def _assert_same_image(first: HsdHeader, header: HsdHeader) -> None:
         )
 
 
-def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
+def _stitch(paths: Any, *, requested: str | None = None) -> tuple[Any, HsdHeader]:
     """Assemble the segments of one band into a single radiance array.
 
     A **contiguous subset** is accepted and returns only the lines it covers,
@@ -1517,6 +1544,9 @@ def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
     Args:
         paths: An iterable of HSD segment paths of the **same** band and
             timestamp.
+        requested: The band the caller asked for, checked once every header is
+            parsed and before any pixels are decoded, or `None` to accept
+            whatever the segments carry.
 
     Returns:
         A ``(radiance, header)`` pair: the stitched array covering every line the
@@ -1534,10 +1564,13 @@ def _stitch(paths: Any) -> tuple[Any, HsdHeader]:
         (parse_hsd_header(_read_header_bytes(path)), path) for path in paths
     ]
     if not decoded:
+        # `read_ahi` screens an empty source before reaching here, so this is
+        # defensive depth for a direct call rather than a reachable public path.
         raise ReaderError("read_ahi: no HSD segment paths were given")
     decoded.sort(key=lambda item: item[0].first_line)
 
     first = decoded[0][0]
+    _assert_requested_band(first, requested)
     for header, _ in decoded[1:]:
         _assert_same_image(first, header)
 
@@ -1591,27 +1624,25 @@ def _resolve_paths(source: Any) -> list[Any]:
     return paths
 
 
-def _assert_requested_band(path: Any, requested: str | None) -> None:
+def _assert_requested_band(header: HsdHeader, requested: str | None) -> None:
     """Check a caller's expected band against the granule's own, or raise.
 
-    Settled from a header-only read, so a mismatch costs one small read rather
-    than a whole decoded disk.
+    Takes an already-decoded header so the check costs nothing: every caller has
+    parsed one before it decodes any pixels, and an earlier version paid for a
+    second header-only read of the same file to ask this question.
 
     Args:
-        path: Path to the first granule of the set.
+        header: The decoded header of the first granule of the set.
         requested: The canonical band the caller asked for, or `None` to accept
             whatever the granule carries.
 
     Raises:
         ReaderError: When the granule carries a different band.
     """
-    if requested is None:
-        return
-    declared = parse_hsd_header(_read_header_bytes(path)).band
-    if requested != declared:
+    if requested is not None and requested != header.band:
         raise ReaderError(
             f"read_ahi: band {requested} was requested but the granule "
-            f"carries {declared}"
+            f"carries {header.band}"
         )
 
 
@@ -1702,17 +1733,21 @@ def read_ahi(
         )
 
     paths = _resolve_paths(source)
-    _assert_requested_band(paths[0], requested)
 
     if len(paths) == 1:
         buffer = _read_bytes(paths[0])
         order = _byte_order(buffer)
         blocks = walk_header_blocks(buffer, order)
         header = _parse_header(buffer, order, blocks)
+        # Checked against the header just parsed rather than with a second
+        # header-only read, and before the pixels are touched either way.
+        _assert_requested_band(header, requested)
         array = _radiance(_counts(buffer, header, blocks, order), header)
         first_line = header.first_line
     else:
-        array, header = _stitch(paths)
+        # `_stitch` parses every header before it decodes anything, so it makes
+        # the same check there and no granule is read twice.
+        array, header = _stitch(paths, requested=requested)
         first_line = header.first_line
 
     # Calibrate the values before registering them, so a full disk is wrapped

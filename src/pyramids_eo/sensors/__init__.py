@@ -4,8 +4,9 @@
 granules into calibrated, geolocated pyramids `Dataset`s:
 
 * `registry` — radiometric calibration (radiance -> reflectance / brightness
-  temperature), the bundled FCI/SEVIRI/OLCI/SLSTR sensor and channel tables, and
-  the per-sensor tasseled-cap coefficient tables (`get_tasseled_cap`).
+  temperature), the bundled sensor and channel tables (AHI, FCI, SEVIRI, OLCI,
+  SLSTR and MSI), and the per-sensor tasseled-cap coefficient tables
+  (`get_tasseled_cap`).
 * `readers` — `read_fci`, `read_seviri`, `read_ahi`, `read_olci`, `read_slstr`,
   `harmonise`,
   and `open_fci_l1c_chunk`.

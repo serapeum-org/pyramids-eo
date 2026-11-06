@@ -217,13 +217,19 @@ class AhiDriver:
         coerce_booleans(settings, ("calibrate",), driver="ahi")
         coerce_floats(settings, ("sun_earth_distance",), driver="ahi")
         band = settings.pop("band", None)
+        # A list given as `options={"band": [...]}` used to bypass every check
+        # below, so three bands or a bare-string-in-a-list went straight through
+        # to the reader. Route both spellings through the same validation.
+        if band is not None and not isinstance(band, (str, bytes, int)):
+            bands, band = band, None
+        if band is None and bands is not None and not isinstance(bands, (str, bytes)):
+            bands = list(bands)  # materialise a generator/iterator so len() is safe
         if band is None and bands:
             if isinstance(bands, (str, bytes)):
                 raise ValueError(
                     f"bands must be a list of band names, not a bare "
                     f"{type(bands).__name__} ({bands!r}); pass bands=['B13']."
                 )
-            bands = list(bands)  # materialise a generator/iterator so len() is safe
             if len(bands) != 1:
                 raise ValueError(
                     f"an AHI read is one band, but {len(bands)} bands were given "

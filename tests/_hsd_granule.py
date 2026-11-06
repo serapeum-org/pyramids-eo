@@ -30,9 +30,24 @@ import numpy as np
 #: Declared lengths of the fixed-size header blocks (Guide Table 6).
 FIXED_BLOCK_LENGTHS = {1: 282, 2: 50, 3: 127, 4: 139, 5: 147, 6: 259, 7: 47, 11: 259}
 
-#: Lengths used for the three variable-length blocks. Chosen to differ from one
-#: another and from every fixed length, so the header walk is genuinely tested.
-VARIABLE_BLOCK_LENGTHS = {8: 61, 9: 93, 10: 134}
+#: Lengths used for the three variable-length blocks. Each is a length the
+#: specification can actually produce, not an arbitrary number: Table 6 gives
+#: each of these blocks a fixed prefix, a repeated group and a 40-byte spare, so
+#: the legal lengths are ``prefix + n * group + 40``.
+#:
+#: * #8 navigation correction: 1 + 2 + 4 + 4 + 8 + 2 = 21 prefix, then 10 bytes
+#:   per correction row (line number I2, two R4 shifts), plus 40 spare.
+#:   ``21 + 0 * 8 + 40 = 61`` -- a granule carrying no correction rows.
+#: * #9 observation time: 1 + 2 + 2 = 5 prefix, then 10 bytes per observation
+#:   (line number I2, observation time R8), plus 40 spare.
+#:   ``5 + 4 * 10 + 40 = 85`` -- four timing rows.
+#: * #10 error information: 1 + 4 + 2 = 7 prefix, then 4 bytes per error row
+#:   (line number I2, error pixel count I2), plus 40 spare.
+#:   ``7 + 8 * 4 + 40 = 79`` -- eight error rows. Note the 4-byte length field.
+#:
+#: They still differ from one another and from every fixed length, so the walk
+#: is exercised; now they are also lengths a real granule could declare.
+VARIABLE_BLOCK_LENGTHS = {8: 61, 9: 85, 10: 79}
 
 #: Block #1 field 5 carries a 16-byte ASCII satellite name, which the
 #: specification gives as ``Himawari-8`` / ``Himawari-9``. That is NOT the

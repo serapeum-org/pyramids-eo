@@ -19,8 +19,11 @@ Each reader takes a file path / chunk set / `Dataset` and returns a pyramids
   coefficients.
 * `parse_ahi_hsd` — decode one HSD granule to a geolocated radiance `Dataset`
   (the uncalibrated layer under `read_ahi`).
-* `parse_hsd_header` / `HsdHeader` — the decoded HSD header blocks, for callers
-  that need the granule's grid, projection or calibration without its pixels.
+* `parse_hsd_header` / `HsdHeader` — decode the HSD header blocks from granule
+  **bytes** the caller supplies, for the grid, projection and calibration
+  without interpreting the pixels. It takes bytes rather than a path, so reading
+  a granule's header alone means reading the file yourself; `read_ahi` does that
+  internally when it sizes a stitch.
 * `band_name` / `band_from_filename` — AHI band keys (`3 -> "B03"`), and the
   band an HSD file name declares.
 * `read_seviri` — MSG-SEVIRI Level-1.5 native (`.nat`): decode + calibrate +
