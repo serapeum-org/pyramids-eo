@@ -2268,8 +2268,11 @@ class TestSegmentsOfOneAcquisitionDifferInStartTime:
         with pytest.raises(ReaderError, match="different observation") as exc_info:
             read_ahi([first, second])
         message = str(exc_info.value)
-        assert "'FLDK'" in message and "'JP01'" in message, (
-            f"the refusal should name both areas, got: {message}"
+        assert "'FLDK'" in message, (
+            f"the refusal should name the first area 'FLDK', got: {message}"
+        )
+        assert "'JP01'" in message, (
+            f"the refusal should name the second area 'JP01', got: {message}"
         )
 
     def test_the_same_timeline_on_a_different_day_is_refused(self, tmp_path):
