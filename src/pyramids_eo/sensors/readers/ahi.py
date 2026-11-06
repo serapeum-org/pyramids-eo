@@ -212,6 +212,18 @@ _UM_PER_M = 1e6
 #: `observation_timeline` is what separates adjacent slots. This window only has
 #: to separate the SAME timeline on different days, which are 24 h apart, so an
 #: hour sits comfortably inside that gap while leaving any real scan room.
+#:
+#: A tighter key exists and is deliberately not used. Block #1 field 11 is the
+#: observation END time, and for ADJACENT segments it equals the next segment's
+#: start exactly -- measured on a real full disk, segments 4->5 and 5->6 both
+#: show a gap of +0.0 s, while the jumps 1->4 and 6->10 show +104.0 s and
+#: +183.1 s because those segments are not adjacent. Chaining
+#: ``end[n] == start[n+1]`` would identify an acquisition without any window at
+#: all. It is not adopted because it has been verified on exactly one full disk
+#: of one band: it would reject any product whose segments do not abut to the
+#: microsecond, and the Japan and Target scans have not been checked. The window
+#: is the conservative choice, and it is bracketed by tests; whoever has more
+#: granules to hand can tighten this with evidence.
 _MAX_ACQUISITION_SPAN_DAYS = 1.0 / 24.0
 
 #: The only two radiometric kinds this reader dispatches on. The spelling has to
