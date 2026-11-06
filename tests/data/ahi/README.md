@@ -8,7 +8,7 @@ agreed:
 
 | What was misread | What a real granule carries | What the reader produced |
 |---|---|---|
-| block #5 central wavelength as metres | `10.4074` **micrometres** | a 280 K scene as `9.96e18` K |
+| block #5 central wavelength as metres | `10.4074` **micrometres** | a 280 K scene as `-1.8e44` K |
 | block #10's length field as `I2` | an `I4` | big-endian granules failed the walk |
 | block #1 satellite name as `H08` | `Himawari-9` | the reality-check assertion itself was wrong |
 

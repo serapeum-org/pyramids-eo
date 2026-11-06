@@ -1436,7 +1436,10 @@ def test_read_ahi_real_granule_block_five_units():
 
     * the central wavelength is in MICROMETRES -- band 13 carries about 10.4,
       not 1.04e-05. With both unit conversions dropped, as they were, a 280 K
-      scene calibrates to 9.96e18 K (measured).
+      scene calibrates to -1.80e44 K through this granule's own quadratic terms
+      (measured; 9.99e24 K without them -- the figure depends on which
+      coefficients are applied, so the conditions are stated rather than a bare
+      number).
     * the slope is per micrometre. Per-metre radiance is 1e6 times larger, so
       whatever the operational magnitude turns out to be, the per-metre figure
       would be 1e6 times it -- which is why the assertion below brackets the
@@ -2023,7 +2026,8 @@ class TestSegmentsOfOneAcquisitionDifferInStartTime:
     """AHI scans the disk progressively, so each segment has its own start time.
 
     Measured on a real Himawari-9 band-13 full-disk set (segments 4, 5, 6 of 10),
-    `observation_start_mjd` is the ONLY block #1 field that varies across them:
+    `observation_start_mjd` varies across them, while every field that identifies
+    the acquisition is constant:
 
         seg 4  start MJD 61041.00183583374    +0.0 s
         seg 5  start MJD 61041.00283434366   +86.3 s
@@ -2035,6 +2039,14 @@ class TestSegmentsOfOneAcquisitionDifferInStartTime:
     full-disk set -- the reader's primary advertised use -- which is what a real
     granule exposed and no synthetic fixture had, because the fixture wrote one
     start time to every segment.
+
+    `observation_start_mjd` is not the only varying field, and an earlier version
+    of this docstring claimed it was. Comparing all 35 decoded fields across the
+    five real segments, four vary: `segment_number` and `first_line` (which is
+    the point of a segment), `observation_start_mjd`, and
+    `total_header_length` -- 1523 bytes for most segments and 1533 for one,
+    because block #10 carries a per-segment number of error rows. The other 31
+    are identical.
     """
 
     def _set(self, directory, *, starts, timeline=0, area="FLDK"):

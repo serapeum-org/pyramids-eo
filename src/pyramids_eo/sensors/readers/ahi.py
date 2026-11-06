@@ -1426,10 +1426,17 @@ def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
     # the radiance per micrometre, so both are converted here rather than at the
     # call sites. Measured on a 280 K band-13 scene, dropping either conversion:
     #
-    #   both present (correct)              280.000000 K
-    #   both dropped                          9.9607e+18 K  <- the original defect
-    #   only the wavelength conversion        9.9607e+24 K
-    #   only the radiance conversion                 73.8 K  <- plausible, and wrong
+    #   both present (correct)                    280.000000 K
+    #   both dropped                                9.9607e+18 K  <- original defect
+    #   only the wavelength conversion dropped      9.9607e+24 K
+    #   only the radiance conversion dropped               73.8 K  <- plausible!
+    #
+    # Those four are for a nominal 10.4 um with no quadratic correction. Through
+    # a real granule's own coefficients (10.4074 um, c2 = -1.808e-06) the
+    # wavelength-as-metres case measures -1.80e+44 K instead, because the
+    # negative quadratic term dominates at that magnitude. The sign and the
+    # exponent both depend on which coefficients are in play, which is why the
+    # conditions are stated alongside every figure here.
     #
     # The last row is the one to fear: a wrong answer that looks like a cold
     # cloud top rather than one that announces itself.
