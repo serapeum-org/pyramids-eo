@@ -1326,6 +1326,107 @@ def test_read_ahi_real_granule():
 
 
 @pytest.mark.live
+def test_read_ahi_real_granule_band_identity():
+    """The decoded band must be the band the file name declares.
+
+    No live assertion checked this, and the brightness-temperature statistics
+    cannot: substituting a neighbouring band's wavelength leaves the median
+    comfortably terrestrial. Measured on a real band-13 segment, swapping in
+    8.6 um gives a median of 289.9 K and 12.4 um gives 293.1 K, against 286.6 K
+    for the correct 10.4074 um -- all three indistinguishable from a plausible
+    scene. The granule's own central wavelength against the registry's nominal
+    value for the band its name declares is what separates them.
+    """
+    fixtures = Path(os.environ.get("AHI_FIXTURES_DIR", "tests/data/ahi"))
+    granules = sorted(fixtures.glob("HS_H0?_*_B??_*.DAT")) + sorted(
+        fixtures.glob("HS_H0?_*_B??_*.DAT.bz2")
+    )
+    if not granules:
+        pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
+    from pyramids_eo.sensors.readers.ahi import _read_bytes
+    from pyramids_eo.sensors.registry.sensors import get_sensor
+
+    for granule in granules:
+        named = band_from_filename(granule.name)
+        assert named is not None, f"{granule.name} does not follow the HSD convention"
+        header = parse_hsd_header(_read_bytes(str(granule)))
+        assert header.band == named, (
+            f"{granule.name} declares band {named} in its name but {header.band} "
+            "in calibration block #5"
+        )
+        nominal = get_sensor("ahi").get_channel(named).wavelength_um
+        assert abs(header.central_wavelength_um - nominal) < 0.25, (
+            f"{named}: granule wavelength {header.central_wavelength_um} um is "
+            f"not the registry's nominal {nominal} um; a neighbouring band's "
+            "value would pass every brightness-temperature check"
+        )
+
+
+@pytest.mark.live
+def test_read_ahi_real_limb_segment_is_north_up():
+    """Orientation checked from the pixels, not from the sign of `dy`.
+
+    `geotransform[5] < 0` only restates what the reader wrote; it cannot catch a
+    flipped array, and the brightness statistics are invariant under a flip
+    (median 286.6 K either way, measured). The Earth's limb curves, so a segment
+    north of the sub-satellite line carries more off-limb space in its top rows
+    than its bottom rows, and a southern one the reverse. Measured:
+
+        seg  first_line  off-limb top 10%  bottom 10%
+          1        1          60.05%         31.22%
+          4     1651          2.92%           0.40%
+          5     2201          0.38%           0.36%
+          6     2751          0.36%           0.38%
+         10     4951         30.56%          59.71%
+
+    Near the centre the gradient vanishes, so this asserts only on segments far
+    enough from the sub-satellite line for it to be unambiguous.
+    """
+    fixtures = Path(os.environ.get("AHI_FIXTURES_DIR", "tests/data/ahi"))
+    granules = sorted(fixtures.glob("HS_H0?_*_B??_*.DAT")) + sorted(
+        fixtures.glob("HS_H0?_*_B??_*.DAT.bz2")
+    )
+    if not granules:
+        pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
+    from pyramids_eo.sensors.readers.ahi import _read_bytes
+
+    tested = 0
+    for granule in granules:
+        header = parse_hsd_header(_read_bytes(str(granule)))
+        centre = header.first_line + header.lines / 2.0
+        offset = centre - header.loff
+        # Only the outer part of the disk shows a usable gradient; `lines * 2`
+        # keeps this to segments whose middle is at least two segment-heights
+        # from the sub-satellite line.
+        if abs(offset) < header.lines * 2:
+            continue
+        tested += 1
+        array = np.asarray(read_ahi(str(granule)).read_array(), dtype=float)
+        edge = max(1, array.shape[0] // 10)
+        top = 1.0 - float(np.isfinite(array[:edge]).mean())
+        bottom = 1.0 - float(np.isfinite(array[-edge:]).mean())
+        if offset < 0:  # north of the sub-satellite line
+            assert top > bottom, (
+                f"{granule.name} is north of the sub-satellite line, so its top "
+                f"rows should hold more off-limb space; got top {top:.2%} and "
+                f"bottom {bottom:.2%}, which is what a vertically flipped array "
+                "looks like"
+            )
+        else:
+            assert bottom > top, (
+                f"{granule.name} is south of the sub-satellite line, so its "
+                f"bottom rows should hold more off-limb space; got top {top:.2%} "
+                f"and bottom {bottom:.2%}"
+            )
+    if not tested:
+        pytest.skip(
+            "no limb segment available; mid-disk segments show no usable "
+            "off-limb gradient (set AHI_FIXTURES_DIR to a set including "
+            "segment 1 or 10 of a full disk)"
+        )
+
+
+@pytest.mark.live
 def test_read_ahi_real_granule_block_five_units():
     """Assert the two block #5 fields whose units were misread, on a real granule.
 
