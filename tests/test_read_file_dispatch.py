@@ -369,25 +369,114 @@ def test_a_manifest_is_not_claimed(source):
     )
 
 
-def test_no_pyramids_eo_driver_preempts_gdal():
-    """No driver opts into pre-emption, so GDAL-first holds for every source.
+def test_a_zipped_product_is_preempted(tmp_path):
+    """`select_preempting_driver` picks the s2 driver for a real `.SAFE.zip`.
 
     Test scenario:
-        Pre-empting the zipped Sentinel-2 form was tried and reverted: it made a
-        bare `read_file(zip)` attempt the whole 13-band product and fail, where
-        GDAL's container at least returned. Pinned so the opt-in is not
-        reintroduced without revisiting that.
+        The opt-in itself. A real archive is required, because the claim is
+        decided by what is inside it rather than by the name.
     """
-    from pyramids.dataset._drivers import clear_driver_cache, raster_drivers
+    from pyramids.dataset._drivers import clear_driver_cache, select_preempting_driver
 
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    archive = _zip_product(_S2_PRODUCT, tmp_path, "S2A_OPER_PRD_MSIL1C.SAFE")
     clear_driver_cache()
     try:
-        declared = {
-            name: getattr(driver, "preempts", ())
-            for name, driver in raster_drivers().items()
-        }
+        picked = select_preempting_driver(archive)
     finally:
         clear_driver_cache()
-    assert not any(declared.values()), (
-        f"no pyramids-eo driver should declare preempts, got {declared}"
+    assert picked is Sentinel2Driver, (
+        f"a zipped Sentinel-2 product should be pre-empted, got {picked!r}"
+    )
+
+
+def test_a_bare_zipped_product_reads_through_preemption(tmp_path):
+    """End to end: a bare `read_file` of a `.SAFE.zip` reads the product.
+
+    Test scenario:
+        The behaviour #143 asked for, exercised through the real
+        `Dataset.read_file` rather than through `select_preempting_driver`.
+        Without the opt-in GDAL opens the archive first and returns an empty
+        container (0 bands) while silently ignoring `open_options`; with it the
+        pyramids-eo reader runs and returns the requested band. The read is
+        narrowed deliberately — a whole product is ~10 GiB.
+    """
+    from pyramids.dataset._drivers import clear_driver_cache
+
+    archive = _zip_product(_S2_PRODUCT, tmp_path, "S2A_OPER_PRD_MSIL1C.SAFE")
+    clear_driver_cache()
+    try:
+        out = Dataset.read_file(
+            archive, open_options={"bands": ["B1"], "resolution": 60}
+        )
+    finally:
+        clear_driver_cache()
+    assert isinstance(out, Dataset)
+    assert out.band_count == 1, (
+        f"the pyramids-eo reader should return the requested band, got "
+        f"{out.band_count} (0 means GDAL's container won the race)"
+    )
+
+
+def test_an_explicit_driver_still_wins_over_preemption(tmp_path):
+    """`driver="s2"` short-circuits ahead of the pre-empt scan.
+
+    Test scenario:
+        An explicit driver is resolved before pre-emption is considered, so
+        naming the driver keeps working and stays the way to be deliberate.
+    """
+    from pyramids.dataset._drivers import clear_driver_cache
+
+    archive = _zip_product(_S2_PRODUCT, tmp_path, "S2A_OPER_PRD_MSIL1C.SAFE")
+    clear_driver_cache()
+    try:
+        out = Dataset.read_file(
+            archive, driver="s2", open_options={"bands": ["B1"], "resolution": 60}
+        )
+    finally:
+        clear_driver_cache()
+    assert out.band_count == 1, (
+        f"an explicit driver=s2 must still read the product, got {out.band_count}"
+    )
+
+
+def test_vsi_skips_the_preempt_scan(tmp_path):
+    """An explicit `vsi=` outranks pre-emption, as pyramids documents.
+
+    Test scenario:
+        `vsi=` is a deliberate "open member N of this archive" intent, so core
+        skips the pre-empt scan for it. Note this is not a way to force GDAL:
+        the post-GDAL `can_open` fallback can still claim the source, so the
+        read may well arrive here anyway — what is pinned is that passing
+        `vsi=` does not break the read.
+    """
+    from pyramids.dataset._drivers import clear_driver_cache
+
+    archive = _zip_product(_S2_PRODUCT, tmp_path, "S2A_OPER_PRD_MSIL1C.SAFE")
+    clear_driver_cache()
+    try:
+        out = Dataset.read_file(
+            archive, vsi="zip", open_options={"bands": ["B1"], "resolution": 60}
+        )
+    finally:
+        clear_driver_cache()
+    assert isinstance(out, Dataset), "vsi= must not break a zipped product read"
+
+
+def test_preempts_declaration_is_well_formed():
+    """`preempts` is exactly the lowercase, dot-prefixed `.zip`.
+
+    Test scenario:
+        The conformance kit only partly covers this: it rejects an uppercase
+        entry (`(".ZIP",)` fails `assert_raster_driver_conforms`) but accepts a
+        missing dot (`("zip",)`) and a scheme-shaped one (`(".zip://",)`),
+        either of which would silently never match. The exact tuple is pinned
+        because adding a second suffix would widen what the driver takes from
+        GDAL — `.safe` in particular would capture Sentinel-1 directories.
+    """
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    assert Sentinel2Driver.preempts == (".zip",), (
+        f"preempts should be exactly ('.zip',), got {Sentinel2Driver.preempts!r}"
     )

@@ -35,8 +35,8 @@ Every reader stays pure pyramids-eo over pyramids' bundled GDAL — no `eartheng
 
 1. **`driver="<name>"` given** → that registered driver is used and **GDAL is bypassed entirely**.
 2. **a driver that *pre-empts* GDAL for this source** → one that lists the source's suffix or scheme in its
-   `preempts` *and* confirms it via `can_open` is tried **before** GDAL. This is opt-in and **no pyramids-eo
-   driver declares it**, so this step never fires here. An explicit `vsi=` outranks it.
+   `preempts` *and* confirms it via `can_open` is tried **before** GDAL. This is opt-in; of the six drivers only
+   `s2` declares it, for `.zip`. An explicit `vsi=` outranks it.
 3. **otherwise GDAL is tried** → if GDAL can open the source, you get GDAL's result and no plugin runs.
 4. **only if GDAL fails** → each registered driver's `can_open(source)` is asked, and the first to claim it reads it.
 
@@ -47,22 +47,28 @@ The consequence is the single rule worth remembering:
 - a Sentinel-2 `.SAFE` **product directory** auto-routes the same way: GDAL cannot open a product directory
   either, so it fails at step 3 and the driver claims it at step 4.
 - a **zipped** product (`.SAFE.zip`) is the one form GDAL *does* open, handing back a bare *container* (0 bands
-  plus a `ContainerRasterWarning`) and silently ignoring your `open_options`. It is the one case that needs an
-  explicit `driver="s2"` — and the `bands` / `resolution` you want with it, since a full product is 13 bands of
-  up to 20980x20984 and reading all of it is not a sensible default for a bare call.
+  plus a `ContainerRasterWarning`) and silently ignoring your `open_options`. The `s2` driver therefore declares
+  `preempts = (".zip",)` and wins at **step 2**, so a bare read works here too.
 - which driver claims a `.SAFE` is decided by the product's **contents**, not its name: ESA shares the suffix
-  with Sentinel-1, so a Sentinel-1 product (zipped or not) is left to GDAL, which reads it correctly.
+  with Sentinel-1, so a Sentinel-1 product (zipped or not) is left to GDAL, which reads it correctly. An
+  ordinary `.zip` is likewise untouched, even though the declaration names the bare suffix.
 
 !!! note "What pre-emption does and does not cover"
 
     Pre-emption shipped in pyramids-core 0.71
     ([serapeum-org/pyramids-core#1344](https://github.com/serapeum-org/pyramids-core/issues/1344)), below this
-    package's floor, so every supported version has it. **No pyramids-eo driver declares it**, so the step
-    never fires here: every source this package reads either fails in GDAL first (so step 4 claims it) or is
-    better served by an explicit `driver=`. Adopting it for the zipped Sentinel-2 form was tried and reverted —
-    it made a bare `read_file(zip)` attempt the whole product and fail, where GDAL's container at least
-    returned. `vsi=` skips the pre-empt scan, but is not a way to force GDAL: step 4 can still claim the
-    source, so pass `driver=` to choose a reader deliberately.
+    package's floor, so every supported version has it. It is opt-in per driver and narrow here: only `s2`
+    declares it, and only for `.zip`, the one form GDAL would otherwise claim. Everything else this package
+    reads fails in GDAL first, so step 4 already serves it. `vsi=` skips the pre-empt scan, but is not a way to
+    force GDAL: step 4 can still claim the source, so pass `driver=` to choose a reader deliberately.
+
+!!! warning "Give a zipped read its `bands` and `resolution`"
+
+    A Sentinel-2 product is 13 bands at up to 20980x20984. Now that a bare `read_file("….SAFE.zip")` reaches
+    the reader, asking for a product without narrowing it means asking for every band at the finest
+    resolution — roughly 10 GiB, which can exhaust memory. Pass
+    `open_options={"bands": [...], "resolution": 60}` (or whatever you need). Before pre-emption this call
+    returned GDAL's empty container instead, which never failed but was never useful either.
 
 ## Passing reader options
 
@@ -135,7 +141,14 @@ scene = Dataset.read_file(
     open_options={"bands": ["B04", "B08"], "resolution": 10},
 )
 
-# A zipped product needs driver="s2": GDAL opens the archive and would hand back a container
+# A zipped product auto-routes too - the driver pre-empts GDAL for `.zip`.
+# Narrow the read: a whole product is ~10 GiB.
+scene = Dataset.read_file(
+    "S2A_MSIL2A.SAFE.zip",
+    open_options={"bands": ["B04"], "resolution": 10},
+)
+
+# driver="s2" still works and short-circuits ahead of pre-emption
 scene = Dataset.read_file(
     "S2A_MSIL2A.SAFE.zip",
     driver="s2",
@@ -249,8 +262,10 @@ The facades are the source of truth for the reader options; the driver simply ma
 ## Troubleshooting
 
 - **A `.SAFE.zip` gave a 0-band dataset and a `ContainerRasterWarning`, and ignored `open_options`.** GDAL
-  opens the archive itself on the bare path. Pass `driver="s2"` to reach the pyramids-eo reader, with the
-  `bands` / `resolution` you want.
+  opened the archive before the plugin, which means pyramids-eo was not discovered — pre-emption can only use a
+  driver pyramids found. Check the install, or pass `driver="s2"` to force it.
+- **A zipped read exhausted memory.** You asked for the whole product. Narrow it with
+  `open_options={"bands": [...], "resolution": 60}`.
 - **A Sentinel-2 `resolution`/`epsg` was ignored or mistyped.** You passed a `KEY=VALUE` list, which keeps values as
   strings. Pass `open_options` as a **dict** so the `int` survives.
 - **`FciDriver` raised "no chunk files found for FCI source …".** Point the source at the granule **directory**, a
