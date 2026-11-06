@@ -1184,6 +1184,51 @@ def test_read_ahi_real_granule():
 
 
 @pytest.mark.live
+def test_read_ahi_real_granule_block_five_units():
+    """Assert the two block #5 fields whose units were misread, on a real granule.
+
+    These are the fields the offline suite cannot adjudicate, because the
+    fixture necessarily encodes whatever reading the reader uses. Both were in
+    fact wrong at one point and the suite stayed green through it:
+
+    * the central wavelength is in MICROMETRES -- band 13 carries about 10.4,
+      not 1.04e-05. Read as metres, a 280 K scene calibrates to about 1e19 K.
+    * the slope is per micrometre, so with an 11-14 bit count range its
+      magnitude is of order 1e-2. Per metre it would have to be of order 1e2.
+
+    A real granule settles both in one read, which is the whole point of this
+    test existing.
+    """
+    fixtures = Path(os.environ.get("AHI_FIXTURES_DIR", "tests/data/ahi"))
+    granules = sorted(fixtures.glob("HS_H0?_*_B13_*.DAT")) + sorted(
+        fixtures.glob("HS_H0?_*_B13_*.DAT.bz2")
+    )
+    if not granules:
+        pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
+    from pyramids_eo.sensors.readers.ahi import _read_bytes
+
+    header = parse_hsd_header(_read_bytes(str(granules[0])))
+    assert 9.0 < header.central_wavelength_um < 12.0, (
+        f"band 13 should be about 10.4 um; got {header.central_wavelength_um!r}. "
+        "A value near 1.04e-05 means the field is metres after all and the "
+        "reader's unit is wrong."
+    )
+    assert 1e-4 < abs(header.slope) < 1e2, (
+        f"a per-micrometre slope should be of order 1e-2; got {header.slope!r}. "
+        "A magnitude near 1e2-1e5 would mean the radiance is per metre."
+    )
+    assert math.isfinite(header.intercept), header.intercept
+    # The two together must put a real scene in a terrestrial range.
+    scene = read_ahi(str(granules[0]))
+    finite = np.asarray(scene.read_array(), dtype=float)
+    finite = finite[np.isfinite(finite)]
+    assert 180.0 < float(np.median(finite)) < 320.0, (
+        f"median brightness temperature {np.median(finite)} is not terrestrial, "
+        "which is what a unit error on either field would produce"
+    )
+
+
+@pytest.mark.live
 def test_read_ahi_real_granule_matches_the_published_registration():
     """A real granule's grid agrees with the published Himawari full-disk navigation.
 
@@ -1658,3 +1703,52 @@ class TestKindValidation:
         from pyramids_eo.sensors.readers.ahi import _KINDS
 
         assert _KINDS == frozenset({"solar", "thermal"})
+
+
+class TestHeaderReadIsBounded:
+    """The header-only read must stay bounded even when the granule lies.
+
+    Its whole purpose is to let a stitch size its output without pulling every
+    segment into memory. Falling back to reading the entire file when the
+    declared length is unusable defeated that: pass one read the granule whole
+    and pass two read it again, so a ten-segment disk was read twice over.
+    """
+
+    def test_an_unusable_declaration_is_capped_not_widened(self, tmp_path):
+        from pyramids_eo.sensors.readers.ahi import (
+            _MAX_HEADER_BYTES,
+            _read_bytes,
+            _read_header_bytes,
+        )
+
+        # A payload comfortably larger than the ceiling, and no declaration.
+        path = fixture.write_granule(
+            tmp_path, band=13, columns=2000, lines=500, header_length=0
+        )
+        whole = len(_read_bytes(path))
+        assert whole > _MAX_HEADER_BYTES, "fixture must exceed the ceiling to be a test"
+        read = len(_read_header_bytes(path))
+        assert read <= _MAX_HEADER_BYTES, read
+        assert read < whole, "the fallback must not read the whole granule"
+
+    @pytest.mark.parametrize("declared", [0, (1 << 20) + 1, 4_000_000_000])
+    def test_every_unusable_declaration_takes_the_capped_path(self, tmp_path, declared):
+        from pyramids_eo.sensors.readers.ahi import (
+            _MAX_HEADER_BYTES,
+            _read_header_bytes,
+        )
+
+        path = fixture.write_granule(
+            tmp_path / str(declared),
+            band=13,
+            columns=2000,
+            lines=500,
+            header_length=declared,
+        )
+        assert len(_read_header_bytes(path)) <= _MAX_HEADER_BYTES
+
+    def test_a_valid_declaration_reads_only_the_header(self, tmp_path):
+        from pyramids_eo.sensors.readers.ahi import _read_header_bytes
+
+        path = fixture.write_granule(tmp_path, band=13, columns=2000, lines=500)
+        assert len(_read_header_bytes(path)) == 1598

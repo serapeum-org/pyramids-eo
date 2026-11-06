@@ -362,10 +362,12 @@ def _read_bytes(path: Any) -> bytes:
         raise ReaderError(f"read_ahi: cannot read {name} ({exc})") from exc
 
 
-#: Ceiling on the header length a granule may declare before the header-only
-#: read gives up and falls back to reading the whole file. The 11 blocks are a
-#: few kilobytes unless block #10 lists an extreme number of error lines, so a
-#: larger figure means the field is not a length.
+#: Ceiling on how much the header-only read will take, and on the header length
+#: a granule may usefully declare. The 11 blocks come to a few kilobytes unless
+#: block #10 lists an extreme number of error lines, so a larger declaration
+#: means the field is not a length. It is a genuine ceiling: when the
+#: declaration is unusable the read is capped at this, NOT widened to the whole
+#: file, which would make a stitch read every segment twice over.
 _MAX_HEADER_BYTES = 1 << 20
 
 
@@ -385,8 +387,10 @@ def _read_header_bytes(path: Any) -> bytes:
         The header bytes — enough for :func:`walk_header_blocks` and
         :func:`parse_hsd_header`, with no pixels — so the block table
         :func:`walk_header_blocks` builds from it reports block #12 with a length
-        of 0, and :func:`_counts` cannot be run against it. Falls back to the
-        whole file when the granule does not declare a usable header length.
+        of 0, and :func:`_counts` cannot be run against it. When the granule
+        declares no usable header length the read is capped at
+        :data:`_MAX_HEADER_BYTES` instead, which still covers any real header
+        without pulling a whole segment into memory.
 
     Raises:
         ReaderError: When the file cannot be opened, or is too short to hold
@@ -400,8 +404,11 @@ def _read_header_bytes(path: Any) -> bytes:
             order = _byte_order(head)
             declared = struct.unpack_from(f"{order}I", head, _B1_TOTAL_HEADER_LENGTH)[0]
             if not 0 < declared <= _MAX_HEADER_BYTES:
-                # No usable declaration: fall back rather than guess a size.
-                return head + handle.read()
+                # No usable declaration (an older granule leaves field 13 zero,
+                # and a wild value is not a length). Read up to the ceiling
+                # rather than the whole granule: enough for any real header,
+                # while a 100 MB segment is not pulled into memory twice.
+                return head + handle.read(_MAX_HEADER_BYTES - len(head))
             if declared <= len(head):
                 return head
             return head + handle.read(declared - len(head))
@@ -1320,6 +1327,13 @@ def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
     # the radiance per micrometre, so both are converted here rather than at the
     # call sites: a wavelength of 10.4 read as metres rather than micrometres
     # calibrates a 280 K scene to about 1e19 K.
+    #
+    # On footprint: this holds two image-sized arrays plus a boolean mask, down
+    # from about seven. That is a real reduction but it does NOT make the
+    # largest grid cheap -- an end-to-end stitched read peaks at about three
+    # times the image (measured), so band 3's 22000x22000 full disk still needs
+    # roughly 11 GiB. Getting below that means streaming into GDAL rather than
+    # materialising the disk, which this reader does not do.
     wavelength = wavelength_um / _UM_PER_M
     #
     # Evaluated in place. The readable spelling of this allocates about seven
