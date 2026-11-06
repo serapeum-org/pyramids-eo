@@ -59,8 +59,9 @@ class AhiDriver:
             ``can_open`` narrows the claim to the HSD name convention (see the module docstring).
         schemes: Empty — an HSD granule is a local file.
         capabilities: ``read`` only (one granule is one band at one timestep).
-        extra: ``None`` — HSD is decoded in-process from the standard library, so there is no
-            optional backend to gate on.
+        extra: ``None`` — the counts are decoded in-process with ``struct`` / ``numpy`` and the
+            grid is registered through pyramids' bundled GDAL, so there is no optional backend
+            to gate on.
 
     Examples:
         - The driver identifies itself to ``describe_drivers`` and reads a single granule:

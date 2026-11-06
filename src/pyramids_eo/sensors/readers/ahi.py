@@ -186,9 +186,14 @@ _MAX_PIXEL_M = 20000.0
 #: ``lambda**2``; carrying the units through with ``lambda`` in micrometres,
 #: ``W`` to ``mW`` and ``um-1`` to ``cm-1`` leaves
 #: ``L * lambda_um**2 * 1e-1``. Verified against the forward Planck function at
-#: 3.9-13.3 um and 200-300 K: the round trip lands within 2 mK, the residual
-#: being the registry's rounded ``C1`` / ``C2`` rather than the conversion.
-#: Skipping it is not a small error - a 280 K scene reads as ~9.96e6 K.
+#: 3.9-13.3 um and 200-300 K: the round trip lands within 2 mK (measured worst
+#: case 1.4 mK), the residual being the registry's rounded ``C1`` / ``C2``
+#: rather than the conversion.
+#:
+#: Skipping it does NOT blow up - which is exactly what makes it dangerous. The
+#: factor is only ``lambda_um**2 * 1e-1``, i.e. 1.52x at 3.9 um rising to 17.69x
+#: at 13.3 um, so a 280 K band-13 scene reads as about 189 K: a plausibly cold
+#: scene rather than an absurd number anyone would catch.
 _WAVENUMBER_RADIANCE_SCALE = 1e-1
 
 #: Micrometres per metre, for the one place the Planck inversion needs SI.
@@ -541,7 +546,12 @@ def walk_header_blocks(buffer: bytes, order: ByteOrder) -> dict[int, tuple[int, 
     Raises:
         ReaderError: When a block is truncated, reports a zero length, declares a
             number other than its position, or a fixed-size block's length
-            disagrees with the specification.
+            disagrees with the specification; and when block #1 contradicts the
+            completed walk — field 3 declaring a header-block count other than
+            11, or field 13 a total header length other than the byte the walk
+            ended on. Either of those two fields reading as 0 is skipped rather
+            than treated as a disagreement, which is how an older granule
+            leaves them.
     """
     blocks: dict[int, tuple[int, int]] = {}
     offset = 0
@@ -598,7 +608,8 @@ class HsdHeader:
         rpol_km: Ellipsoid polar radius, WGS84 (block #3).
         slope: Count-to-radiance slope actually in force (block #5); the
             calibrated (updated) value for a solar band when the granule
-            carries one.
+            carries one. Only its magnitude is screened — a negative gain
+            decodes and is passed through (see :data:`_MIN_SLOPE`).
         intercept: Count-to-radiance intercept in force (block #5).
         error_count: Count value marking an error pixel (block #5, 65535).
         outside_count: Count value marking a pixel outside the scan area
@@ -800,8 +811,11 @@ def parse_hsd_header(buffer: bytes) -> HsdHeader:
 
     Raises:
         ReaderError: When the granule is not recognisable HSD, a block is
-            truncated or mislabelled, the band number is out of range, the grid
-            is empty, or the count-to-radiance slope is non-physical.
+            truncated or mislabelled, block #1 contradicts the header walk, the
+            band number is out of range, the grid is empty, a solar band's
+            albedo coefficient is non-finite, or the count-to-radiance slope is
+            unusable — non-finite, or of a magnitude below :data:`_MIN_SLOPE`.
+            Its *sign* is not constrained.
     """
     order = _byte_order(buffer)
     return _parse_header(buffer, order, walk_header_blocks(buffer, order))
@@ -962,10 +976,10 @@ def pixel_size_m(header: HsdHeader) -> tuple[float, float]:
     expresses that angle in **degrees** (unlike MSG, which uses radians), so one
     column step spans ``2**16 / CFAC`` degrees, and the ground distance is that
     angle times the satellite height. The published AHI ``CFAC`` values reproduce
-    2000 / 1000 / 500 m to five significant figures — not exactly, since ``CFAC``
-    is an integer and cannot encode the step precisely; the residual is about
-    36 micrometres at 2 km (see the doctest below). A degrees/radians mix-up, by
-    contrast, would be out by a factor of 57.
+    2000 / 1000 / 500 m to well under a millimetre — not exactly, since ``CFAC``
+    is an integer and cannot encode the step precisely; the residual at the 2 km
+    factor is about 36 micrometres (see the doctest below). A degrees/radians
+    mix-up, by contrast, would be out by a factor of 57.3.
 
     Args:
         header: The decoded granule header.
@@ -1182,8 +1196,10 @@ def _counts(
     Raises:
         ReaderError: When the data block is compressed (HSD compresses whole
             files, so a compressed *block* is not something this reader can
-            decode), the stored bit depth is not 16, or the block is too short
-            for the declared grid.
+            decode), the stored bit depth is not 16, block #1 field 14 declares
+            a payload size other than the one block #2's grid implies (skipped
+            when that field reads as 0), or the block is too short for the
+            declared grid.
     """
     if header.compression != 0:
         raise ReaderError(
@@ -1229,7 +1245,9 @@ def _radiance(counts: Any, header: HsdHeader) -> Any:
             force and the two sentinel count values.
 
     Returns:
-        Radiance in ``W m-2 sr-1 m-1``, with error and outside-scan pixels NaN.
+        Radiance on HSD's own per-micrometre-of-wavelength basis,
+        ``W m-2 sr-1 um-1`` — the unit block #5's slope and intercept are
+        expressed in — with error and outside-scan pixels NaN.
     """
     radiance = counts.astype(float) * header.slope + header.intercept
     sentinel = (counts == header.error_count) | (counts == header.outside_count)
@@ -1253,6 +1271,43 @@ def _to_wavenumber_radiance(radiance: Any, wavelength_um: float) -> Any:
     Raises:
         ReaderError: When `wavelength_um` is not a positive, finite length, since
             the conversion scales by its square.
+
+    Examples:
+        - The factor is ``lambda_um**2 * 1e-1``, so it is band-dependent rather
+          than a single constant: barely 1.5x at the shortest thermal band and
+          nearly 18x at the longest. That spread is why skipping the rebasing
+          produces a plausible-looking temperature instead of an obvious one:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import _to_wavenumber_radiance
+            >>> round(float(_to_wavenumber_radiance(1.0, 3.9)), 6)
+            1.521
+            >>> round(float(_to_wavenumber_radiance(1.0, 10.4)), 6)
+            10.816
+            >>> round(float(_to_wavenumber_radiance(1.0, 13.3)), 6)
+            17.689
+
+            ```
+        - It maps a whole array at once and leaves the NaN sentinels alone:
+            ```python
+            >>> import numpy as np
+            >>> from pyramids_eo.sensors.readers.ahi import _to_wavenumber_radiance
+            >>> values = _to_wavenumber_radiance(np.array([10.0, np.nan]), 10.4)
+            >>> round(float(values[0]), 4)
+            108.16
+            >>> bool(np.isnan(values[1]))
+            True
+
+            ```
+        - A non-physical wavelength is refused rather than squared into a
+          silently wrong scale factor:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import _to_wavenumber_radiance
+            >>> _to_wavenumber_radiance(1.0, 0.0)  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+                ...
+            pyramids_eo.errors.ReaderError: read_ahi: cannot convert radiance units with a non-physical ...
+
+            ```
     """
     if not math.isfinite(wavelength_um) or wavelength_um <= 0.0:
         raise ReaderError(
@@ -1350,7 +1405,7 @@ def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
     # Planck's law is expressed in SI, while HSD gives both the wavelength and
     # the radiance per micrometre, so both are converted here rather than at the
     # call sites: a wavelength of 10.4 read as metres rather than micrometres
-    # calibrates a 280 K scene to about 1e19 K.
+    # calibrates a 280 K scene to about 1e25 K (measured: 9.96e24).
     #
     # On footprint: this holds two image-sized arrays plus a boolean mask, down
     # from about seven. That is a real reduction but it does NOT make the
@@ -1417,7 +1472,8 @@ def parse_ahi_hsd(path: Any) -> Any:
         path: Path to a Himawari Standard Data ``.DAT`` (or ``.DAT.bz2``) granule.
 
     Returns:
-        A pyramids `Dataset` of spectral radiance (``W m-2 sr-1 m-1``) on the
+        A pyramids `Dataset` of spectral radiance on HSD's own
+        per-micrometre-of-wavelength basis (``W m-2 sr-1 um-1``), on the
         geostationary grid, with the geostationary CRS and NaN nodata.
 
     Raises:
@@ -1785,7 +1841,12 @@ def _effective_kind(
         overrides: The caller's coefficient overrides.
 
     Returns:
-        ``"solar"`` or ``"thermal"``, validated — never any other string.
+        ``"solar"`` or ``"thermal"``. A caller's override is checked against
+        :data:`_KINDS` before it is returned, and the granule's own kind is
+        derived from its band number, so neither of those can produce anything
+        else. The registry branch is **not** checked: it returns whatever the
+        sensor table's ``kind`` column holds, and every bundled table carries
+        only those two spellings — a property of the data, not a guard.
 
     Raises:
         ReaderError: When a caller's ``coeffs["kind"]`` is not exactly
@@ -1797,6 +1858,36 @@ def _effective_kind(
             temperature from radiance that had not been rebased.
         UnknownSensorError: When the registry has to be consulted and does not
             know the sensor / band.
+
+    Examples:
+        - With no granule and no override the registry decides, which is the
+          only source available when `source` was already a `Dataset`:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import _effective_kind
+            >>> _effective_kind("B03", "ahi", None, {})
+            'solar'
+            >>> _effective_kind("B13", "ahi", None, {})
+            'thermal'
+
+            ```
+        - A caller's ``kind`` wins even against the band's usual one, which is
+          how a `Dataset` of something other than raw band radiance is routed:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import _effective_kind
+            >>> _effective_kind("B13", "ahi", None, {"kind": "solar"})
+            'solar'
+
+            ```
+        - Any other spelling is refused rather than passed through, since this
+          reader branches on ``"thermal"`` and the registry on ``"solar"``:
+            ```python
+            >>> from pyramids_eo.sensors.readers.ahi import _effective_kind
+            >>> _effective_kind("B13", "ahi", None, {"kind": "brightness"})  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+                ...
+            pyramids_eo.errors.ReaderError: read_ahi: coeffs['kind'] must be one of ['solar', 'thermal'], ...
+
+            ```
     """
     if "kind" in overrides:
         kind = overrides["kind"]
@@ -1830,12 +1921,14 @@ def _calibrate_thermal(
     Prefers the granule's own quadratic Planck model, which the registry's
     linear ``alpha`` / ``beta`` cannot express. When the caller overrides the
     coefficients, or there is no granule, the registry form is used instead —
-    and the radiance is rebased from HSD's per-wavelength basis onto the
-    per-wavenumber one that form documents, without which a 280 K scene
-    calibrates to roughly 921,613 K.
+    and the radiance is rebased from HSD's per-micrometre-of-wavelength basis
+    onto the per-wavenumber one that form documents. Skipping that rebasing
+    would not look like a failure: the factor is only ``lambda_um**2 * 1e-1``,
+    so a 280 K band-13 scene would read as about 189 K — cold, but not absurd.
 
     Args:
-        radiance: Spectral radiance per wavelength, ``W m-2 sr-1 m-1``.
+        radiance: Spectral radiance per micrometre of wavelength,
+            ``W m-2 sr-1 um-1``.
         band: The registry band key.
         sensor: Registry sensor name.
         sun_earth_distance: Passed through to the registry.
