@@ -105,7 +105,7 @@ def _is_plain_local_path(source: str) -> bool:
     lowered = source.lower()
     if "://" in lowered or lowered.startswith("/vsi"):
         return False
-    return not (source.startswith("//") or source.startswith("\\\\"))
+    return not source.startswith(("//", "\\\\"))
 
 
 class Sentinel2Driver:
