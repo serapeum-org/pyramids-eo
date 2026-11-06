@@ -24,15 +24,20 @@ what the offline suite cannot settle at all.
 Himawari HSD is in NOAA's Big Data Program bucket, public and **no credentials required**. JAXA's
 own P-Tree service also serves it but needs registration; the bucket does not.
 
-One band-13 full-disk segment is about 3 MB compressed, which is all these tests need:
+One band-13 full-disk segment is 1.2-3.2 MB compressed (it varies with how much Earth the
+segment covers). A single mid-disk segment runs `test_read_ahi_real_granule`, the units check
+and the registration check; the stitch test needs two or more contiguous segments of one
+acquisition, and the orientation test needs a limb segment (1 or 10 of a full disk), so fetch a
+few if you want the whole live tier to run rather than skip:
 
 ```bash
 curl -O "https://noaa-himawari9.s3.us-east-1.amazonaws.com/AHI-L1b-FLDK/2026/01/01/0000/HS_H09_20260101_0000_B13_FLDK_R20_S0510.DAT.bz2"
 ```
 
-Note the **regional** endpoint host (`s3.us-east-1.amazonaws.com`). The virtual-hosted form
-`noaa-himawari9.s3.amazonaws.com` is equivalent for AWS but is blocked by some corporate egress
-filters, so the regional spelling is the more portable one to document.
+Both the global host `noaa-himawari9.s3.amazonaws.com` and the regional
+`noaa-himawari9.s3.us-east-1.amazonaws.com` are virtual-hosted and serve the same bucket; the
+path-style `s3.us-east-1.amazonaws.com/noaa-himawari9/...` works too. They are interchangeable for
+fetching a granule -- use whichever your network resolves.
 
 Object layout in the bucket:
 
@@ -42,7 +47,9 @@ AHI-L1b-FLDK/<YYYY>/<MM>/<DD>/<hhmm>/HS_H09_<YYYYMMDD>_<hhmm>_B<bb>_FLDK_R<jj>_S
 
 `kk` is the segment number and `ll` the total (`10` for a full disk), so `S0510` is segment 5 of
 10 — a mid-disk band, which is mostly Earth and therefore the most informative single segment.
-`AHI-L1b-Japan/` and `AHI-L1b-Target/` hold the regional scans. Himawari-8 data (through 2022)
+`AHI-L1b-Japan/` and `AHI-L1b-Target/` hold the regional scans, which ship as a single segment
+(`S0101`) and so never stitch. Himawari-8 data is in the `noaa-himawari8` bucket (2015 to its
+2022 handover to Himawari-9, plus a 2025 reprocessed period)
 is in `noaa-himawari8`.
 
 ## Running the tests
@@ -95,7 +102,9 @@ reader's scope, so the reader passes it through.
 
 That is why the live assertions are written against the **median** and the bulk fraction rather
 than the extremes. The failures that have actually occurred on this reader were unit and scale
-errors, and those move the median by sixteen orders of magnitude — it is the discriminator that
+errors, and those move the median far out of range — a wavelength read as metres by sixteen orders
+of magnitude, a slope sign-flip to 364 K, a per-metre slope to all-NaN (the radiance-only unit slip
+is the mildest at a factor of about 4, to 73.8 K). It is the discriminator that
 matters, while the minimum only measures how much space the segment happens to contain.
 
 ## What a real granule does not settle
