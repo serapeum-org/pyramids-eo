@@ -208,9 +208,11 @@ _KINDS = frozenset({"solar", "thermal"})
 
 #: Smallest count-to-radiance slope MAGNITUDE treated as a real gain. HSD leaves
 #: an unused calibration field as literal zero bytes, so this separates "the
-#: field is unset" from any real gain; real AHI slopes are of order 1e-2 to 1e2
-#: in the granule's own units, so a magnitude below this is a misparse rather
-#: than a very small gain.
+#: field is unset" from any real gain. The floor is set far below any gain that
+#: could carry a scene: no real granule was available to measure the operational
+#: magnitudes against, so this deliberately does not assert what they are -- the
+#: `live` reality-check test brackets the slope loosely for that reason, and
+#: tightening either is work for whoever first has a granule in hand.
 #:
 #: The SIGN is deliberately not constrained. An earlier version refused a
 #: negative slope on the grounds that counts rise with radiance "by
@@ -1404,8 +1406,15 @@ def _brightness_temperature(radiance: Any, header: HsdHeader) -> Any:
     # positive radiance has a temperature; the rest (off-earth, error) stay NaN.
     # Planck's law is expressed in SI, while HSD gives both the wavelength and
     # the radiance per micrometre, so both are converted here rather than at the
-    # call sites: a wavelength of 10.4 read as metres rather than micrometres
-    # calibrates a 280 K scene to about 1e25 K (measured: 9.96e24).
+    # call sites. Measured on a 280 K band-13 scene, dropping either conversion:
+    #
+    #   both present (correct)              280.000000 K
+    #   both dropped                          9.9607e+18 K  <- the original defect
+    #   only the wavelength conversion        9.9607e+24 K
+    #   only the radiance conversion                 73.8 K  <- plausible, and wrong
+    #
+    # The last row is the one to fear: a wrong answer that looks like a cold
+    # cloud top rather than one that announces itself.
     #
     # On footprint: this holds two image-sized arrays plus a boolean mask, down
     # from about seven. That is a real reduction but it does NOT make the

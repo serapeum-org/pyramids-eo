@@ -1300,9 +1300,13 @@ def test_read_ahi_real_granule_block_five_units():
     fact wrong at one point and the suite stayed green through it:
 
     * the central wavelength is in MICROMETRES -- band 13 carries about 10.4,
-      not 1.04e-05. Read as metres, a 280 K scene calibrates to about 1e19 K.
-    * the slope is per micrometre, so with an 11-14 bit count range its
-      magnitude is of order 1e-2. Per metre it would have to be of order 1e2.
+      not 1.04e-05. With both unit conversions dropped, as they were, a 280 K
+      scene calibrates to 9.96e18 K (measured).
+    * the slope is per micrometre. Per-metre radiance is 1e6 times larger, so
+      whatever the operational magnitude turns out to be, the per-metre figure
+      would be 1e6 times it -- which is why the assertion below brackets the
+      magnitude loosely rather than pinning a value this repository has never
+      seen a granule state.
 
     A real granule settles both in one read, which is the whole point of this
     test existing.
