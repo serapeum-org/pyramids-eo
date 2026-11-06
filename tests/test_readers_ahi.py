@@ -1401,17 +1401,24 @@ def test_read_ahi_real_segments_stitch():
     assert stitched.geotransform[3] == pytest.approx(single.geotransform[3]), (
         "the stitched origin must equal the first segment's north edge"
     )
-    # No blank seam between segments: every row holds some finite data.
-    finite_per_row = np.isfinite(array).mean(axis=1)
-    assert float(finite_per_row.max()) > 0.0
-    seams = [
-        sum(headers[p].lines for p in paths[: i + 1]) for i in range(len(paths) - 1)
-    ]
-    for seam in seams:
-        assert float(finite_per_row[seam - 1 : seam + 1].max()) > 0.0, (
-            f"rows around the seam at {seam} are entirely non-finite, which is "
-            "what a mis-placed segment looks like"
+    # Every segment's own pixels, at its own rows. A blank-seam or all-finite
+    # check cannot do this job on real data: `_stitch` allocates with
+    # `np.empty`, so rows it never writes hold finite garbage rather than NaN,
+    # and off-limb space makes no row entirely non-finite anyway. Two mutations
+    # prove it -- decoding only the northernmost segment, and filling the mosaic
+    # from the south so the segments land in reverse order -- and both left the
+    # seam and finite-row assertions that used to stand here passing. Comparing
+    # each segment against its own single-granule decode kills both.
+    row = 0
+    for path in paths:
+        lines = headers[path].lines
+        alone = np.asarray(read_ahi(path, calibrate=False).read_array(), dtype=float)
+        assert np.array_equal(array[row : row + lines], alone, equal_nan=True), (
+            f"rows {row}-{row + lines} of the stitch are not segment "
+            f"{headers[path].segment_number}'s own pixels; a segment was left "
+            "undecoded or placed at the wrong rows"
         )
+        row += lines
 
 
 @pytest.mark.live
@@ -2191,6 +2198,13 @@ class TestSegmentsOfOneAcquisitionDifferInStartTime:
             read_ahi([first, second])
 
     def test_a_different_area_is_still_refused(self, tmp_path):
+        """The area alone must refuse the pair, with everything else held equal.
+
+        `timeline` is pinned to 0 on both granules. Without that the second
+        granule took the fixture's default of 230, so the timeline differed too
+        and the pair was refused for that instead: the case passed with the area
+        dropped from the identity key altogether (verified by mutation).
+        """
         base = 61041.00183583374
         first = self._set(tmp_path / "a", starts=[base], area="FLDK")[0]
         second = fixture.write_granule(
@@ -2205,13 +2219,27 @@ class TestSegmentsOfOneAcquisitionDifferInStartTime:
             slope=1.0,
             intercept=0.0,
             start_mjd=base,
+            timeline=0,
             area="JP01",
         )
-        with pytest.raises(ReaderError, match="different observation"):
+        with pytest.raises(ReaderError, match="different observation") as exc_info:
             read_ahi([first, second])
+        message = str(exc_info.value)
+        assert "'FLDK'" in message and "'JP01'" in message, (
+            f"the refusal should name both areas, got: {message}"
+        )
 
     def test_the_same_timeline_on_a_different_day_is_refused(self, tmp_path):
-        """Timeline 0000 recurs daily, so the date has to separate them too."""
+        """Timeline 0000 recurs daily, so the date has to separate them too.
+
+        This is the one case the start-time window exists for, so the two
+        granules have to agree on timeline AND area -- otherwise the identity
+        check refuses them first and the window is never reached. `timeline` is
+        pinned to 0 on both for that reason; without it the second granule took
+        the fixture's default of 230 and this passed with the window removed
+        entirely (verified by mutation). Hence the assertion is on the window's
+        own diagnosis rather than on "different observations".
+        """
         base = 61041.00183583374
         first = self._set(tmp_path / "a", starts=[base])[0]
         second = fixture.write_granule(
@@ -2226,9 +2254,15 @@ class TestSegmentsOfOneAcquisitionDifferInStartTime:
             slope=1.0,
             intercept=0.0,
             start_mjd=base + 1.0,  # same timeline, 24 hours later
+            timeline=0,
         )
-        with pytest.raises(ReaderError, match="different observation"):
+        with pytest.raises(ReaderError, match="24.00 hours apart") as exc_info:
             read_ahi([first, second])
+        message = str(exc_info.value)
+        assert "same slot on different days" in message, (
+            "the refusal should say the two granules are the same slot a day "
+            f"apart, not that they are different observations; got: {message}"
+        )
 
 
 class TestAcquisitionWindow:
@@ -2291,6 +2325,48 @@ class TestAcquisitionWindow:
         paths = self._pair(tmp_path, apart_seconds=86400.0)
         with pytest.raises(ReaderError, match="hours apart"):
             read_ahi(paths)
+
+    def test_a_segment_scanned_before_the_first_is_refused(self, tmp_path):
+        """The window is on the distance, so a backwards gap is out too.
+
+        The northernmost segment is the reference, and `_stitch` orders by
+        `first_line`, so a later segment carrying an EARLIER start time makes the
+        difference negative. Nothing else exercised that sign: without the
+        `abs()` the comparison is against a negative number, which is never
+        greater than the window, so the pair was accepted (verified by mutation).
+        """
+        paths = self._pair(tmp_path, apart_seconds=-7200.0)
+        with pytest.raises(ReaderError, match="2.00 hours apart"):
+            read_ahi(paths)
+
+    def test_a_gap_exactly_at_the_window_is_inside_it(self, tmp_path):
+        """The window is inclusive: ``>``, not ``>=``.
+
+        Asserted through `_assert_same_image` on two headers rather than through
+        a granule pair, because a granule cannot express the boundary exactly. A
+        start time near MJD 61041 has an ulp of 2**-37 day, and one hour is
+        ``1/24`` day, which is not a dyadic fraction -- so for any realistic MJD
+        the decoded difference lands beside the window and never on it. Two
+        headers at MJD 0 and MJD ``1/24`` make the difference exactly the
+        constant, which is the only way the ``>=`` boundary is observable.
+        """
+        from dataclasses import replace
+
+        from pyramids_eo.sensors.readers.ahi import (
+            _MAX_ACQUISITION_SPAN_DAYS,
+            _assert_same_image,
+        )
+
+        paths = self._pair(tmp_path, apart_seconds=0.0)
+        base_header = parse_hsd_header(_read_header_bytes(paths[0]))
+        first = replace(base_header, observation_start_mjd=0.0)
+        later = replace(base_header, observation_start_mjd=_MAX_ACQUISITION_SPAN_DAYS)
+        apart = later.observation_start_mjd - first.observation_start_mjd
+        assert apart == _MAX_ACQUISITION_SPAN_DAYS, (
+            f"this case only bites when the gap is exactly the window; got "
+            f"{apart!r} against {_MAX_ACQUISITION_SPAN_DAYS!r}"
+        )
+        _assert_same_image(first, later)
 
     def test_the_window_brackets_the_measured_scan_span(self):
         """The constant must sit between a real scan and the daily recurrence."""
