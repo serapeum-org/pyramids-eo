@@ -1437,6 +1437,13 @@ def test_read_ahi_real_granule_band_identity():
     for the correct 10.4074 um -- all three indistinguishable from a plausible
     scene. The granule's own central wavelength against the registry's nominal
     value for the band its name declares is what separates them.
+
+    Scope: this confirms the real granule is internally consistent -- name,
+    block-5 wavelength and registry agree. It does not confirm that `read_ahi`
+    *uses* that wavelength in the Planck inversion; a real granule carries no
+    reference temperature to check that against. The reader's use of the
+    wavelength is pinned offline by `TestThermalUnits`, which round-trips a
+    radiance built forward from a chosen temperature back through `read_ahi`.
     """
     fixtures = Path(os.environ.get("AHI_FIXTURES_DIR", "tests/data/ahi"))
     granules = sorted(fixtures.glob("HS_H0?_*_B??_*.DAT")) + sorted(
@@ -1487,8 +1494,16 @@ def test_read_ahi_real_limb_segment_is_north_up():
           6     2751          0.36%           0.38%
          10     4951         30.56%          59.71%
 
-    Near the centre the gradient vanishes, so this asserts only on segments far
-    enough from the sub-satellite line for it to be unambiguous.
+    The table above is the five segments on hand (1, 4, 5, 6, 10); the gate also
+    admits 2, 3, 8 and 9, which show the same gradient and pass. Near the centre
+    the gradient vanishes, so this asserts only on segments far enough from the
+    sub-satellite line for it to be unambiguous.
+
+    Scope: this runs on a single granule. The stitch test checks the multi-
+    segment path for placement (each segment's rows equal that segment read
+    alone), and the offline `TestProjection` / `TestRadiance` pin orientation
+    against known fixture arrays, so a row flip common to both read paths is
+    caught there rather than here.
     """
     fixtures = Path(os.environ.get("AHI_FIXTURES_DIR", "tests/data/ahi"))
     granules = sorted(fixtures.glob("HS_H0?_*_B??_*.DAT")) + sorted(
@@ -2298,7 +2313,10 @@ class TestAcquisitionWindow:
 
     Nothing pinned its size: any value from the real scan span (526 s) up to a
     full day passed the suite, so the constant could drift either into rejecting
-    real scans or into accepting two days' worth. These two cases bracket it.
+    real scans or into accepting two days' worth. The cases below bracket it from
+    both sides -- 526 s and 1052 s accepted, two hours and a full day refused --
+    and the last pins the constant itself between twice the measured scan and a
+    day.
     """
 
     def _pair(self, directory, *, apart_seconds, timeline=0):
@@ -2385,8 +2403,10 @@ class TestAcquisitionWindow:
             _assert_same_image,
         )
 
-        paths = self._pair(tmp_path, apart_seconds=0.0)
-        base_header = parse_hsd_header(_read_header_bytes(paths[0]))
+        granule = fixture.write_granule(
+            tmp_path, band=13, columns=4, lines=3, slope=1.0, intercept=0.0
+        )
+        base_header = parse_hsd_header(_read_header_bytes(str(granule)))
         first = replace(base_header, observation_start_mjd=0.0)
         later = replace(base_header, observation_start_mjd=_MAX_ACQUISITION_SPAN_DAYS)
         apart = later.observation_start_mjd - first.observation_start_mjd

@@ -211,9 +211,11 @@ _UM_PER_M = 1e6
 #: whose time moves (1950-2010 on 2026-01-01, 0750-0810 on the 2nd, 1230-1250 on
 #: the 15th), while the other five days sampled had none. Every other gap is
 #: 10 min, so the binding case is the 10 min one, leaving a margin of 74 s.
-#: `observation_timeline` is what separates adjacent slots. This window only has
-#: to separate the SAME timeline on different days, which are 24 h apart, so an
-#: hour sits comfortably inside that gap while leaving any real scan room.
+#: `observation_timeline` is what separates adjacent slots -- the 74 s margin is
+#: never load-bearing, which is why this window does not need to be anywhere near
+#: that tight. It only has to separate the SAME timeline on different days, which
+#: are 24 h apart, so an hour sits comfortably inside that gap while leaving any
+#: real scan room.
 #:
 #: A tighter key exists and is deliberately not used. Block #1 field 11 is the
 #: observation END time, and for ADJACENT segments it equals the next segment's
@@ -1662,8 +1664,9 @@ def _assert_same_image(first: HsdHeader, header: HsdHeader) -> None:
             f"{first.observation_timeline} but start {apart * 24.0:.2f} hours "
             f"apart (MJD {first.observation_start_mjd!r} and "
             f"{header.observation_start_mjd!r}), beyond the "
-            f"{_MAX_ACQUISITION_SPAN_DAYS * 24.0:.0f}-hour window; a timeline "
-            "recurs daily, so these are the same slot on different days"
+            f"{_MAX_ACQUISITION_SPAN_DAYS * 24.0:.0f}-hour window. A timeline "
+            "recurs daily, so for real granules this is the same slot on "
+            "different days; stitch one acquisition at a time"
         )
     if header.total_segments != first.total_segments:
         raise ReaderError(
