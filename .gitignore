@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Real instrument granules fetched for the `live` tests. These are large binary
+# products from the data providers, not fixtures: the offline suite builds its
+# own. tests/data/ahi/README.md says where to get them.
+tests/data/ahi/**/*.DAT
+tests/data/ahi/**/*.DAT.bz2
+tests/data/ahi/**/*.dat
+tests/data/ahi/**/*.dat.bz2

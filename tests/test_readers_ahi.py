@@ -1283,15 +1283,282 @@ def test_read_ahi_real_granule():
     array = np.asarray(scene.read_array(), dtype=float)
     finite = array[np.isfinite(array)]
     assert finite.size, "a real granule must decode some finite pixels"
-    assert finite.min() > 180.0, f"BT min too low: {finite.min()}"
-    assert finite.max() < 340.0, f"BT max too high: {finite.max()}"
-    assert np.median(finite) > 220.0, f"BT median implausibly cold: {np.median(finite)}"
+    # Asserted on the MEDIAN alone, because every other summary statistic
+    # measured here turned out to depend on where the segment sits in the disk
+    # rather than on whether the decode is right. Off-limb space beyond the
+    # Earth's edge is not always flagged with the outside-scan sentinel, and the
+    # granule's affine calibration maps those high counts to near-zero radiance,
+    # so limb segments carry a large cold tail. Measured on five real band-13
+    # segments of one full disk:
+    #
+    #   seg  first_line  median   within 180-330 K   below 180 K
+    #     1        1     237.31        68.24%           31.76%
+    #     4     1651     291.16        95.54%            4.46%
+    #     5     2201     286.64        98.71%            1.29%
+    #     6     2751     279.77        98.72%            1.28%
+    #    10     4951     250.49        67.97%           32.03%
+    #
+    # An earlier version of this test required the minimum above 180 K, and the
+    # version that replaced it required 90% of pixels inside 180-330 K. Both
+    # fail on segments 1 and 10 -- the limb segments -- because both measure how
+    # much space a segment contains. The median does not: it stays between 237
+    # and 292 K across all five.
+    #
+    # Nor does a bulk-fraction test buy anything. Across ten deliberate
+    # perturbations (wavelength as metres, x10, /10; slope sign-flipped, x1e6;
+    # intercept zeroed; two neighbouring-band wavelengths; flipped rows) the
+    # fraction never failed where the median did not, so it added no detection
+    # power while introducing a false failure on real data.
+    median = float(np.median(finite))
+    assert 180.0 < median < 330.0, (
+        f"BT median {median} is not a terrestrial temperature. A unit or scale "
+        "error on the central wavelength or the slope lands here: taking the "
+        "wavelength as metres rather than micrometres gives about -1.8e44 K "
+        "with this granule's quadratic terms."
+    )
+    assert float(finite.max()) < 340.0, f"BT max too high: {finite.max()}"
     assert "Geostationary" in str(scene.crs), "should carry the geostationary CRS"
     assert abs(scene.geotransform[1]) == pytest.approx(2000.0, abs=1.0), (
         "band 13 is the 2 km grid"
     )
     assert scene.geotransform[5] < 0, "the grid must be north-up (gt[5] < 0)"
     assert np.isnan(scene.no_data_value[0]), "nodata should be NaN"
+
+
+@pytest.mark.live
+def test_read_ahi_real_segments_stitch():
+    """Stitch real segments -- the defect this change fixes, on real data.
+
+    Every other live test reads `granules[0]`, so none of them exercises the
+    multi-granule path at all. That is the path the start-time equality check
+    broke: it rejected a legitimate full-disk set outright, and no live test
+    would have noticed.
+
+    Needs two or more contiguous segments of one acquisition in the fixture
+    directory; skips otherwise rather than asserting on whatever is present.
+    """
+    fixtures = Path(os.environ.get("AHI_FIXTURES_DIR", "tests/data/ahi"))
+    granules = sorted(fixtures.glob("HS_H0?_*_B??_*.DAT")) + sorted(
+        fixtures.glob("HS_H0?_*_B??_*.DAT.bz2")
+    )
+    if not granules:
+        pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
+    from pyramids_eo.sensors.readers.ahi import _read_header_bytes
+
+    # Group by acquisition and band, then keep the longest contiguous run.
+    headers = {str(g): parse_hsd_header(_read_header_bytes(str(g))) for g in granules}
+    groups: dict[tuple, list] = {}
+    for path, header in headers.items():
+        key = (
+            header.satellite,
+            header.band_number,
+            header.observation_timeline,
+            header.observation_area,
+        )
+        groups.setdefault(key, []).append((header.first_line, path, header))
+    run: list = []
+    for members in groups.values():
+        members.sort()
+        current: list = []
+        for first_line, path, header in members:
+            if (
+                current
+                and first_line != current[-1][2].first_line + current[-1][2].lines
+            ):
+                if len(current) > len(run):
+                    run = current
+                current = []
+            current.append((first_line, path, header))
+        if len(current) > len(run):
+            run = current
+    if len(run) < 2:
+        pytest.skip(
+            "need two or more contiguous segments of one acquisition; "
+            f"longest run found was {len(run)}"
+        )
+
+    # Two adjacent segments already prove placement across a seam, so cap the
+    # run there. Stitching a whole band-3 full disk (22000x22000 x 10) would
+    # build a 3.6 GiB float64 mosaic and peak near 11 GiB -- no cheaper for
+    # being real data, and the test learns nothing extra past the first seam.
+    run = run[:2]
+    paths = [path for _, path, _ in run]
+    starts = {headers[p].observation_start_mjd for p in paths}
+    assert len(starts) == len(paths), (
+        "these segments should each carry their own start time, which is what "
+        f"makes this a regression test; got {len(starts)} distinct among "
+        f"{len(paths)} segments"
+    )
+    spread = (max(starts) - min(starts)) * 86400.0
+    assert spread > 1.0, (
+        f"the start times span only {spread:.3f} s, so this fixture cannot "
+        "demonstrate that differing starts are accepted"
+    )
+
+    stitched = read_ahi(paths, calibrate=False)
+    array = np.asarray(stitched.read_array(), dtype=float)
+    expected_rows = sum(headers[p].lines for p in paths)
+    assert array.shape == (expected_rows, headers[paths[0]].columns), (
+        f"expected {expected_rows} rows from {len(paths)} segments, got {array.shape}"
+    )
+    # The stitch must start where its northernmost segment starts.
+    single = read_ahi(paths[0], calibrate=False)
+    assert stitched.geotransform[3] == pytest.approx(single.geotransform[3]), (
+        "the stitched origin must equal the first segment's north edge"
+    )
+    # Every segment's own pixels, at its own rows. A blank-seam or all-finite
+    # check cannot do this job on real data: `_stitch` allocates with
+    # `np.empty`, so rows it never writes hold finite garbage rather than NaN,
+    # and off-limb space makes no row entirely non-finite anyway. Two mutations
+    # prove it -- decoding only the northernmost segment, and filling the mosaic
+    # from the south so the segments land in reverse order -- and both left the
+    # seam and finite-row assertions that used to stand here passing. Comparing
+    # each segment against its own single-granule decode kills both.
+    row = 0
+    for path in paths:
+        lines = headers[path].lines
+        alone = np.asarray(read_ahi(path, calibrate=False).read_array(), dtype=float)
+        assert np.array_equal(array[row : row + lines], alone, equal_nan=True), (
+            f"rows {row}-{row + lines} of the stitch are not segment "
+            f"{headers[path].segment_number}'s own pixels; a segment was left "
+            "undecoded or placed at the wrong rows"
+        )
+        row += lines
+
+
+@pytest.mark.live
+def test_read_ahi_real_granule_band_identity():
+    """The decoded band must be the band the file name declares.
+
+    No live assertion checked this, and the brightness-temperature statistics
+    cannot: substituting a neighbouring band's wavelength leaves the median
+    comfortably terrestrial. Measured on a real band-13 segment, swapping in
+    8.6 um gives a median of 289.9 K and 12.4 um gives 293.1 K, against 286.6 K
+    for the correct 10.4074 um -- all three indistinguishable from a plausible
+    scene. The granule's own central wavelength against the registry's nominal
+    value for the band its name declares is what separates them.
+
+    Scope: this confirms the real granule is internally consistent -- name,
+    block-5 wavelength and registry agree. It does not confirm that `read_ahi`
+    *uses* that wavelength in the Planck inversion; a real granule carries no
+    reference temperature to check that against. The reader's use of the
+    wavelength is pinned offline by `TestThermalUnits`, which round-trips a
+    radiance built forward from a chosen temperature back through `read_ahi`.
+    """
+    fixtures = Path(os.environ.get("AHI_FIXTURES_DIR", "tests/data/ahi"))
+    granules = sorted(fixtures.glob("HS_H0?_*_B??_*.DAT")) + sorted(
+        fixtures.glob("HS_H0?_*_B??_*.DAT.bz2")
+    )
+    if not granules:
+        pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
+    from pyramids_eo.sensors.readers.ahi import _read_header_bytes
+    from pyramids_eo.sensors.registry.sensors import get_sensor
+
+    for granule in granules:
+        named = band_from_filename(granule.name)
+        assert named is not None, f"{granule.name} does not follow the HSD convention"
+        header = parse_hsd_header(_read_header_bytes(str(granule)))
+        assert header.band == named, (
+            f"{granule.name} declares band {named} in its name but {header.band} "
+            "in calibration block #5"
+        )
+        nominal = get_sensor("ahi").get_channel(named).wavelength_um
+        # Tolerance tighter than the smallest spacing between AHI bands
+        # (0.04 um, bands 1 and 2), so a neighbouring band's wavelength cannot
+        # satisfy it. The nominal table values are rounded to 0.1 um and a real
+        # granule's exact centre is within a few thousandths of its own nominal
+        # (10.4074 vs 10.4), so 0.02 um is comfortable for a match and strict
+        # for a mismatch.
+        assert abs(header.central_wavelength_um - nominal) < 0.02, (
+            f"{named}: granule wavelength {header.central_wavelength_um} um is "
+            f"not within 0.02 um of the registry's nominal {nominal} um; the "
+            "nearest other band is 0.04 um away, so a mislabelled band would "
+            "pass every brightness-temperature check but not this"
+        )
+
+
+@pytest.mark.live
+def test_read_ahi_real_limb_segment_is_north_up():
+    """Orientation checked from the pixels, not from the sign of `dy`.
+
+    `geotransform[5] < 0` only restates what the reader wrote; it cannot catch a
+    flipped array, and the brightness statistics are invariant under a flip
+    (median 286.6 K either way, measured). The Earth's limb curves, so a segment
+    north of the sub-satellite line carries more off-limb space in its top rows
+    than its bottom rows, and a southern one the reverse. Measured:
+
+        seg  first_line  off-limb top 10%  bottom 10%
+          1        1          60.05%         31.22%
+          4     1651          2.92%           0.40%
+          5     2201          0.38%           0.36%
+          6     2751          0.36%           0.38%
+         10     4951         30.56%          59.71%
+
+    The table above is the five segments on hand (1, 4, 5, 6, 10); the gate also
+    admits 2, 3, 8 and 9, which show the same gradient and pass. Near the centre
+    the gradient vanishes, so this asserts only on segments far enough from the
+    sub-satellite line for it to be unambiguous.
+
+    Scope: this runs on a single granule. The stitch test checks the multi-
+    segment path for placement (each segment's rows equal that segment read
+    alone), and the offline `TestProjection` / `TestRadiance` pin orientation
+    against known fixture arrays, so a row flip common to both read paths is
+    caught there rather than here.
+    """
+    fixtures = Path(os.environ.get("AHI_FIXTURES_DIR", "tests/data/ahi"))
+    granules = sorted(fixtures.glob("HS_H0?_*_B??_*.DAT")) + sorted(
+        fixtures.glob("HS_H0?_*_B??_*.DAT.bz2")
+    )
+    if not granules:
+        pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
+    from pyramids_eo.sensors.readers.ahi import _read_header_bytes
+
+    tested = 0
+    for granule in granules:
+        header = parse_hsd_header(_read_header_bytes(str(granule)))
+        # Only a full disk has a limb. The Japan and Target scans are on-disk
+        # cut-outs (and ship as one segment anyway), so they carry no off-limb
+        # gradient -- asserting on them compares 0.0 against 0.0 and blames a
+        # flip. The file-name area token is the cheap discriminator.
+        if header.observation_area.upper() != "FLDK":
+            continue
+        centre = header.first_line + header.lines / 2.0
+        offset = centre - header.loff
+        # Only the outer part of the disk shows a usable gradient; `lines * 2`
+        # keeps this to segments whose middle is at least two segment-heights
+        # from the sub-satellite line.
+        if abs(offset) < header.lines * 2:
+            continue
+        array = np.asarray(read_ahi(str(granule)).read_array(), dtype=float)
+        edge = max(1, array.shape[0] // 10)
+        top = 1.0 - float(np.isfinite(array[:edge]).mean())
+        bottom = 1.0 - float(np.isfinite(array[-edge:]).mean())
+        # A full-disk segment this far from the sub-satellite line must actually
+        # reach the limb; if neither edge has off-limb space, the geometry
+        # assumption is wrong and there is nothing to assert rather than a flip
+        # to catch.
+        if max(top, bottom) < 0.05:
+            continue
+        tested += 1
+        if offset < 0:  # north of the sub-satellite line
+            assert top > bottom, (
+                f"{granule.name} is north of the sub-satellite line, so its top "
+                f"rows should hold more off-limb space; got top {top:.2%} and "
+                f"bottom {bottom:.2%}, which is what a vertically flipped array "
+                "looks like"
+            )
+        else:
+            assert bottom > top, (
+                f"{granule.name} is south of the sub-satellite line, so its "
+                f"bottom rows should hold more off-limb space; got top {top:.2%} "
+                f"and bottom {bottom:.2%}"
+            )
+    if not tested:
+        pytest.skip(
+            "no limb segment available; mid-disk segments show no usable "
+            "off-limb gradient (set AHI_FIXTURES_DIR to a set including "
+            "segment 1 or 10 of a full disk)"
+        )
 
 
 @pytest.mark.live
@@ -1304,7 +1571,11 @@ def test_read_ahi_real_granule_block_five_units():
 
     * the central wavelength is in MICROMETRES -- band 13 carries about 10.4,
       not 1.04e-05. With both unit conversions dropped, as they were, a 280 K
-      scene calibrates to 9.96e18 K (measured).
+      scene calibrates to about 9.96e18 K (measured at a nominal 10.4 um with no
+      quadratic correction). The sign and exact magnitude depend on the
+      coefficients applied -- through this granule's own quadratic terms the
+      wavelength-as-metres case alone is -1.8e44 K -- but all of them are wildly
+      unphysical, which is the point.
     * the slope is per micrometre. Per-metre radiance is 1e6 times larger, so
       whatever the operational magnitude turns out to be, the per-metre figure
       would be 1e6 times it -- which is why the assertion below brackets the
@@ -1320,9 +1591,9 @@ def test_read_ahi_real_granule_block_five_units():
     )
     if not granules:
         pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
-    from pyramids_eo.sensors.readers.ahi import _read_bytes
+    from pyramids_eo.sensors.readers.ahi import _read_header_bytes
 
-    header = parse_hsd_header(_read_bytes(str(granules[0])))
+    header = parse_hsd_header(_read_header_bytes(str(granules[0])))
     assert 9.0 < header.central_wavelength_um < 12.0, (
         f"band 13 should be about 10.4 um; got {header.central_wavelength_um!r}. "
         "A value near 1.04e-05 means the field is metres after all and the "
@@ -1357,9 +1628,9 @@ def test_read_ahi_real_granule_matches_the_published_registration():
     )
     if not granules:
         pytest.skip("real AHI fixtures not available (set AHI_FIXTURES_DIR)")
-    from pyramids_eo.sensors.readers.ahi import _read_bytes
+    from pyramids_eo.sensors.readers.ahi import _read_header_bytes
 
-    header = parse_hsd_header(_read_bytes(str(granules[0])))
+    header = parse_hsd_header(_read_header_bytes(str(granules[0])))
     assert 139.0 < header.sub_lon < 142.0, (
         f"Himawari sits near 140.7E, got {header.sub_lon}"
     )
@@ -1609,8 +1880,18 @@ class TestSegmentIdentity:
         )
 
     def test_rejects_segments_from_two_timelines(self, tmp_path):
-        first = self._segment(tmp_path / "a", 0, start_mjd=57127.1041666667)
-        second = self._segment(tmp_path / "b", 1, start_mjd=57127.1111111111)
+        """Set the timeline, which is what actually identifies the slot.
+
+        This case previously varied only `start_mjd` while leaving the timeline
+        at its default, so it never tested what its name claimed. A real
+        full-disk set varies the start time *within* one acquisition -- each
+        segment is scanned at its own moment -- so varying it is not a
+        difference of acquisition at all.
+        """
+        first = self._segment(tmp_path / "a", 0, start_mjd=57127.1041666667, timeline=0)
+        second = self._segment(
+            tmp_path / "b", 1, start_mjd=57127.1111111111, timeline=10
+        )
         with pytest.raises(ReaderError, match="different observation"):
             read_ahi([first, second])
 
@@ -1875,3 +2156,275 @@ class TestHeaderReadIsBounded:
         )
         path = fixture.write_granule(tmp_path, band=13, columns=2000, lines=500)
         assert len(_read_header_bytes(path)) == expected
+
+
+class TestSegmentsOfOneAcquisitionDifferInStartTime:
+    """AHI scans the disk progressively, so each segment has its own start time.
+
+    Measured on a real Himawari-9 band-13 full-disk set (segments 4, 5, 6 of 10),
+    `observation_start_mjd` varies across them, while every field that identifies
+    the acquisition is constant:
+
+        seg 4  start MJD 61041.00183583374    +0.0 s
+        seg 5  start MJD 61041.00283434366   +86.3 s
+        seg 6  start MJD 61041.00353695286  +147.0 s
+
+    `observation_timeline` (0), `observation_area` ('FLDK'), the satellite, the
+    segment total, the band, the grid and the whole projection block are all
+    constant. An equality check on the start time therefore rejects a legitimate
+    full-disk set -- the reader's primary advertised use -- which is what a real
+    granule exposed and no synthetic fixture had, because the fixture wrote one
+    start time to every segment.
+
+    `observation_start_mjd` is not the only varying field, and an earlier version
+    of this docstring claimed it was. Comparing all 35 decoded fields across the
+    five real segments, four vary: `segment_number` and `first_line` (which is
+    the point of a segment), `observation_start_mjd`, and
+    `total_header_length` -- 1533 bytes for some segments and 1523 for the rest,
+    because block #9 (observation time) carries a per-segment number of
+    observation-time records, one 10-byte record more on those segments.
+    Measured across the five real segments, block #10 (error information) is 47
+    bytes with no error records in every one; the delta is entirely block #9.
+    The other 31 fields are identical.
+    """
+
+    def _set(self, directory, *, starts, timeline=0, area="FLDK"):
+        """Write a 3-segment band-13 set with the given per-segment start times."""
+        return [
+            fixture.write_granule(
+                directory / f"s{index}",
+                band=13,
+                columns=4,
+                lines=3,
+                counts=np.full((3, 4), index + 1, dtype=np.uint16),
+                total_segments=3,
+                segment_number=index + 1,
+                first_line=index * 3 + 1,
+                slope=1.0,
+                intercept=0.0,
+                start_mjd=start,
+                timeline=timeline,
+                area=area,
+            )
+            for index, start in enumerate(starts)
+        ]
+
+    def test_segments_with_their_own_start_times_still_stitch(self, tmp_path):
+        """The real spacing: ~86 s and ~147 s after the first segment."""
+        base = 61041.00183583374
+        paths = self._set(
+            tmp_path, starts=[base, base + 86.3 / 86400.0, base + 147.0 / 86400.0]
+        )
+        values = read_ahi(paths, calibrate=False).read_array()
+        assert values.shape == (9, 4)
+        assert values[:, 0] == pytest.approx([1.0] * 3 + [2.0] * 3 + [3.0] * 3)
+
+    def test_a_different_timeline_is_still_refused(self, tmp_path):
+        """The timeline field, not the start time, separates acquisition slots."""
+        base = 61041.00183583374
+        first = self._set(tmp_path / "a", starts=[base], timeline=0)[0]
+        second = fixture.write_granule(
+            tmp_path / "b",
+            band=13,
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), 2, dtype=np.uint16),
+            total_segments=3,
+            segment_number=2,
+            first_line=4,
+            slope=1.0,
+            intercept=0.0,
+            start_mjd=base + 600.0 / 86400.0,
+            timeline=10,
+        )
+        with pytest.raises(ReaderError, match="different observation"):
+            read_ahi([first, second])
+
+    def test_a_different_area_is_still_refused(self, tmp_path):
+        """The area alone must refuse the pair, with everything else held equal.
+
+        `timeline` is pinned to 0 on both granules. Without that the second
+        granule took the fixture's default of 230, so the timeline differed too
+        and the pair was refused for that instead: the case passed with the area
+        dropped from the identity key altogether (verified by mutation).
+        """
+        base = 61041.00183583374
+        first = self._set(tmp_path / "a", starts=[base], area="FLDK")[0]
+        second = fixture.write_granule(
+            tmp_path / "b",
+            band=13,
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), 2, dtype=np.uint16),
+            total_segments=3,
+            segment_number=2,
+            first_line=4,
+            slope=1.0,
+            intercept=0.0,
+            start_mjd=base,
+            timeline=0,
+            area="JP01",
+        )
+        with pytest.raises(ReaderError, match="different observation") as exc_info:
+            read_ahi([first, second])
+        message = str(exc_info.value)
+        assert "'FLDK'" in message, (
+            f"the refusal should name the first area 'FLDK', got: {message}"
+        )
+        assert "'JP01'" in message, (
+            f"the refusal should name the second area 'JP01', got: {message}"
+        )
+
+    def test_the_same_timeline_on_a_different_day_is_refused(self, tmp_path):
+        """Timeline 0000 recurs daily, so the date has to separate them too.
+
+        This is the one case the start-time window exists for, so the two
+        granules have to agree on timeline AND area -- otherwise the identity
+        check refuses them first and the window is never reached. `timeline` is
+        pinned to 0 on both for that reason; without it the second granule took
+        the fixture's default of 230 and this passed with the window removed
+        entirely (verified by mutation). Hence the assertion is on the window's
+        own diagnosis rather than on "different observations".
+        """
+        base = 61041.00183583374
+        first = self._set(tmp_path / "a", starts=[base])[0]
+        second = fixture.write_granule(
+            tmp_path / "b",
+            band=13,
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), 2, dtype=np.uint16),
+            total_segments=3,
+            segment_number=2,
+            first_line=4,
+            slope=1.0,
+            intercept=0.0,
+            start_mjd=base + 1.0,  # same timeline, 24 hours later
+            timeline=0,
+        )
+        with pytest.raises(ReaderError, match="24.00 hours apart") as exc_info:
+            read_ahi([first, second])
+        message = str(exc_info.value)
+        assert "same slot on different days" in message, (
+            "the refusal should say the two granules are the same slot a day "
+            f"apart, not that they are different observations; got: {message}"
+        )
+
+
+class TestAcquisitionWindow:
+    """The start-time window has to be bracketed, not merely chosen.
+
+    Nothing pinned its size: any value from the real scan span (526 s) up to a
+    full day passed the suite, so the constant could drift either into rejecting
+    real scans or into accepting two days' worth. The cases below bracket it from
+    both sides -- 526 s and 1052 s accepted, two hours and a full day refused --
+    and the last pins the constant itself between twice the measured scan and a
+    day.
+    """
+
+    def _pair(self, directory, *, apart_seconds, timeline=0):
+        base = 61041.00183583374
+        first = fixture.write_granule(
+            directory / "a",
+            band=13,
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), 1, dtype=np.uint16),
+            total_segments=2,
+            segment_number=1,
+            first_line=1,
+            slope=1.0,
+            intercept=0.0,
+            start_mjd=base,
+            timeline=timeline,
+        )
+        second = fixture.write_granule(
+            directory / "b",
+            band=13,
+            columns=4,
+            lines=3,
+            counts=np.full((3, 4), 2, dtype=np.uint16),
+            total_segments=2,
+            segment_number=2,
+            first_line=4,
+            slope=1.0,
+            intercept=0.0,
+            start_mjd=base + apart_seconds / 86400.0,
+            timeline=timeline,
+        )
+        return [first, second]
+
+    def test_a_real_scan_span_is_inside_the_window(self, tmp_path):
+        """Measured segment 1 to segment 10 is 526.0 s, so that must be accepted."""
+        paths = self._pair(tmp_path, apart_seconds=526.0)
+        assert read_ahi(paths, calibrate=False).read_array().shape == (6, 4)
+
+    def test_twice_the_real_scan_span_is_still_inside(self, tmp_path):
+        """Headroom for a slower scan than the one disk measured here."""
+        paths = self._pair(tmp_path, apart_seconds=1052.0)
+        assert read_ahi(paths, calibrate=False).read_array().shape == (6, 4)
+
+    def test_two_hours_apart_is_outside_the_window(self, tmp_path):
+        """A window wide enough to admit this would admit unrelated scenes."""
+        paths = self._pair(tmp_path, apart_seconds=7200.0)
+        with pytest.raises(ReaderError, match="hours apart"):
+            read_ahi(paths)
+
+    def test_the_same_slot_a_day_later_is_outside_the_window(self, tmp_path):
+        paths = self._pair(tmp_path, apart_seconds=86400.0)
+        with pytest.raises(ReaderError, match="hours apart"):
+            read_ahi(paths)
+
+    def test_a_segment_scanned_before_the_first_is_refused(self, tmp_path):
+        """The window is on the distance, so a backwards gap is out too.
+
+        The northernmost segment is the reference, and `_stitch` orders by
+        `first_line`, so a later segment carrying an EARLIER start time makes the
+        difference negative. Nothing else exercised that sign: without the
+        `abs()` the comparison is against a negative number, which is never
+        greater than the window, so the pair was accepted (verified by mutation).
+        """
+        paths = self._pair(tmp_path, apart_seconds=-7200.0)
+        with pytest.raises(ReaderError, match="2.00 hours apart"):
+            read_ahi(paths)
+
+    def test_a_gap_exactly_at_the_window_is_inside_it(self, tmp_path):
+        """The window is inclusive: ``>``, not ``>=``.
+
+        Asserted through `_assert_same_image` on two headers rather than through
+        a granule pair, because a granule cannot express the boundary exactly. A
+        start time near MJD 61041 has an ulp of 2**-37 day, and one hour is
+        ``1/24`` day, which is not a dyadic fraction -- so for any realistic MJD
+        the decoded difference lands beside the window and never on it. Two
+        headers at MJD 0 and MJD ``1/24`` make the difference exactly the
+        constant, which is the only way the ``>=`` boundary is observable.
+        """
+        from dataclasses import replace
+
+        from pyramids_eo.sensors.readers.ahi import (
+            _MAX_ACQUISITION_SPAN_DAYS,
+            _assert_same_image,
+        )
+
+        granule = fixture.write_granule(
+            tmp_path, band=13, columns=4, lines=3, slope=1.0, intercept=0.0
+        )
+        base_header = parse_hsd_header(_read_header_bytes(str(granule)))
+        first = replace(base_header, observation_start_mjd=0.0)
+        later = replace(base_header, observation_start_mjd=_MAX_ACQUISITION_SPAN_DAYS)
+        apart = later.observation_start_mjd - first.observation_start_mjd
+        assert apart == _MAX_ACQUISITION_SPAN_DAYS, (
+            f"this case only bites when the gap is exactly the window; got "
+            f"{apart!r} against {_MAX_ACQUISITION_SPAN_DAYS!r}"
+        )
+        _assert_same_image(first, later)
+
+    def test_the_window_brackets_the_measured_scan_span(self):
+        """The constant must sit between a real scan and the daily recurrence."""
+        from pyramids_eo.sensors.readers.ahi import _MAX_ACQUISITION_SPAN_DAYS
+
+        window_s = _MAX_ACQUISITION_SPAN_DAYS * 86400.0
+        assert window_s > 526.0 * 2, (
+            f"window {window_s} s leaves no headroom over the measured 526 s scan"
+        )
+        assert window_s < 86400.0, "a window of a day or more cannot separate slots"
