@@ -1489,6 +1489,12 @@ def test_read_ahi_real_limb_segment_is_north_up():
     tested = 0
     for granule in granules:
         header = parse_hsd_header(_read_bytes(str(granule)))
+        # Only a full disk has a limb. The Japan and Target scans are on-disk
+        # cut-outs (and ship as one segment anyway), so they carry no off-limb
+        # gradient -- asserting on them compares 0.0 against 0.0 and blames a
+        # flip. The file-name area token is the cheap discriminator.
+        if header.observation_area.upper() != "FLDK":
+            continue
         centre = header.first_line + header.lines / 2.0
         offset = centre - header.loff
         # Only the outer part of the disk shows a usable gradient; `lines * 2`
@@ -1496,11 +1502,17 @@ def test_read_ahi_real_limb_segment_is_north_up():
         # from the sub-satellite line.
         if abs(offset) < header.lines * 2:
             continue
-        tested += 1
         array = np.asarray(read_ahi(str(granule)).read_array(), dtype=float)
         edge = max(1, array.shape[0] // 10)
         top = 1.0 - float(np.isfinite(array[:edge]).mean())
         bottom = 1.0 - float(np.isfinite(array[-edge:]).mean())
+        # A full-disk segment this far from the sub-satellite line must actually
+        # reach the limb; if neither edge has off-limb space, the geometry
+        # assumption is wrong and there is nothing to assert rather than a flip
+        # to catch.
+        if max(top, bottom) < 0.05:
+            continue
+        tested += 1
         if offset < 0:  # north of the sub-satellite line
             assert top > bottom, (
                 f"{granule.name} is north of the sub-satellite line, so its top "
