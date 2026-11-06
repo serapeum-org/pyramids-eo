@@ -220,10 +220,11 @@ class TestHeaderWalk:
         """
         buffer = bytearray(fixture.granule_bytes(columns=8, lines=4))
         struct.pack_into("<H", buffer, 3, declared)
+        payload = bytes(buffer)
         with pytest.raises(
             ReaderError, match=rf"block #1 declares {declared} header blocks"
         ):
-            walk_header_blocks(bytes(buffer), "<")
+            walk_header_blocks(payload, "<")
 
     def test_a_zero_declared_block_count_is_tolerated(self):
         """A granule leaving field 3 unset is walked rather than refused.
@@ -254,8 +255,9 @@ class TestHeaderWalk:
         assert len(walk_header_blocks(fixture.granule_bytes(order=">"), ">")) == 12
         buffer = bytearray(fixture.granule_bytes(order=">"))
         struct.pack_into(">H", buffer, 3, 12)
+        payload = bytes(buffer)
         with pytest.raises(ReaderError, match="block #1 declares 12 header blocks"):
-            walk_header_blocks(bytes(buffer), ">")
+            walk_header_blocks(payload, ">")
 
 
 class TestHeaderOnlyRead:
@@ -997,8 +999,9 @@ class TestThermalUnits:
         """
         from pyramids_eo.sensors.readers.ahi import _to_wavenumber_radiance
 
+        radiance = np.array([[1.0]])
         with pytest.raises(ReaderError, match="non-physical central wavelength"):
-            _to_wavenumber_radiance(np.array([[1.0]]), bad)
+            _to_wavenumber_radiance(radiance, bad)
 
 
 class TestSegments:

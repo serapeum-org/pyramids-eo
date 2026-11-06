@@ -359,8 +359,9 @@ class TestArgumentPrecedence:
             must now raise the same `ValueError` the `bands` form does.
         """
         source = str(tmp_path / fixture.hsd_filename())
+        driver = AhiDriver()
         with pytest.raises(ValueError, match="an AHI read is one band"):
-            AhiDriver().read(source, options={"band": option_band})
+            driver.read(source, options={"band": option_band})
 
     def test_a_nested_options_band_list_is_unwrapped_only_once(
         self, tmp_path, monkeypatch
