@@ -34,9 +34,10 @@ driver cannot actually read is never claimed.
 
 from __future__ import annotations
 
-import fnmatch
 import os
 import zipfile
+from collections.abc import Iterable
+from fnmatch import fnmatchcase
 from typing import Any
 
 from pyramids.dataset import Dataset
@@ -46,24 +47,35 @@ from pyramids_eo.drivers._base import RASTER_DRIVER_API_VERSION, options_as_dict
 #: Top-level names that identify a Sentinel-2 product. ESA shares the ``.SAFE`` suffix across
 #: missions, so the suffix alone cannot tell a Sentinel-2 product from a Sentinel-1 one — these
 #: metadata files can. A Sentinel-1 product carries none of them (it has ``annotation/`` and
-#: ``measurement/`` beside a ``manifest.safe``). Mirrors the globs
-#: :mod:`pyramids_eo.sentinel.product` already uses to find a product's metadata.
+#: ``measurement/`` beside a ``manifest.safe``). These are the first two of the three globs
+#: :mod:`pyramids_eo.sentinel.product` uses to locate a product's metadata; its third,
+#: ``manifest.safe``, is deliberately left out here because every mission ships one, so it
+#: cannot discriminate — which is also why ``can_open`` rejects a bare manifest outright.
 _S2_MARKERS: tuple[str, ...] = ("MTD_MSIL*.xml", "*_MTD_SAF*.xml")
 
 
-def _holds_s2_metadata(names: Any) -> bool:
+#: :data:`_S2_MARKERS` pre-upper-cased, so the comparison does not re-fold them per name.
+_S2_MARKERS_UPPER: tuple[str, ...] = tuple(glob.upper() for glob in _S2_MARKERS)
+
+
+def _holds_s2_metadata(names: Iterable[str]) -> bool:
     """Return whether any of ``names`` is a Sentinel-2 metadata file.
 
     Args:
-        names: Iterable of file names, each compared against :data:`_S2_MARKERS`
-            case-insensitively and by base name only.
+        names: File names to test — a directory listing, or a zip's index. Each is
+            compared against :data:`_S2_MARKERS` by base name, case-insensitively.
+            A name ending in ``/`` is a *folder* entry in a zip index, not a file,
+            and is skipped: an archive holding only a directory called
+            ``MTD_MSIL1C.xml/`` contains no metadata.
 
     Returns:
         bool: True when at least one name identifies a Sentinel-2 product.
     """
     for name in names:
-        base = name.rstrip("/").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
-        if any(fnmatch.fnmatch(base.upper(), glob.upper()) for glob in _S2_MARKERS):
+        if name.endswith(("/", "\\")):
+            continue
+        base = name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1].strip()
+        if any(fnmatchcase(base.upper(), glob) for glob in _S2_MARKERS_UPPER):
             return True
     return False
 
@@ -96,8 +108,11 @@ class Sentinel2Driver:
         long_name: Human-readable source name for ``describe_drivers``.
         api_version: The driver-contract version (see
             :data:`~pyramids_eo.drivers._base.RASTER_DRIVER_API_VERSION`).
-        suffixes: ``(".safe", ".safe.zip")`` — the driver claims a Sentinel-2 product directory or
-            a zipped product.
+        suffixes: ``(".safe", ".safe.zip")`` — the two spellings a Sentinel-2 product comes in.
+            Declaration only, and the second entry is descriptive rather than functional:
+            pyramids matches a source's **final** suffix, so a zipped product presents as
+            ``.zip`` and never as ``.safe.zip``. Routing is decided by :meth:`can_open`, and the
+            pre-emption by ``preempts``.
         schemes: Empty — a ``.SAFE`` is a local product.
         preempts: ``(".zip",)`` — a zipped product is tried *before* GDAL, which would otherwise
             open the archive and hand back an empty container. ``".safe.zip"`` is not usable here
@@ -127,7 +142,8 @@ class Sentinel2Driver:
         """Return whether ``source`` is a Sentinel-2 ``.SAFE`` product.
 
         Args:
-            source: The source handed by ``Dataset.read_file`` (stringified).
+            source: The source handed by ``Dataset.read_file`` (stringified) — a product
+                directory or a lowercase ``*.SAFE.zip`` archive, both local.
 
         Returns:
             True only for a Sentinel-2 product. The ``.SAFE`` suffix is **not** sufficient: ESA

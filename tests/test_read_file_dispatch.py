@@ -261,9 +261,9 @@ def test_a_zipped_sentinel2_product_is_claimed(tmp_path):
     """A zipped Sentinel-2 product is claimed, so `driver="s2"` can read it.
 
     Test scenario:
-        GDAL opens the archive on the bare path, so this form needs an explicit
-        `driver="s2"` — but the claim must still succeed when asked, which is
-        what makes the explicit form work.
+        GDAL would open the archive on the bare path, which is why this form is
+        pre-empted; the claim has to succeed for that to work, and for an
+        explicit `driver="s2"` too.
     """
     from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
 
@@ -479,9 +479,11 @@ def test_preempts_declaration_is_well_formed():
         The conformance kit only partly covers this: it rejects an uppercase
         entry (`(".ZIP",)` fails `assert_raster_driver_conforms`) but accepts a
         missing dot (`("zip",)`) and a scheme-shaped one (`(".zip://",)`),
-        either of which would silently never match. The exact tuple is pinned
-        because adding a second suffix would widen what the driver takes from
-        GDAL — `.safe` in particular would capture Sentinel-1 directories.
+        either of which would silently never match. The exact tuple is pinned as
+        a deliberate-change tripwire rather than a safety net: the content check
+        is what actually keeps Sentinel-1 and ordinary archives out, so adding
+        `.safe` here breaks this assertion and nothing else. Widening the tuple
+        should be a decision, not a side effect.
     """
     from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
 
@@ -592,4 +594,25 @@ def test_both_metadata_namings_are_recognised(product, marker, tmp_path):
     archive = _zip_product(product, tmp_path, product.name)
     assert Sentinel2Driver.can_open(archive) is True, (
         f"the {marker} naming must be recognised inside an archive"
+    )
+
+
+def test_a_zip_directory_entry_is_not_metadata(tmp_path):
+    """A zip entry that is a *folder* named like the metadata file is not metadata.
+
+    Test scenario:
+        A zip index lists folders as entries ending in `/`. Matching those against
+        the metadata globs would claim an archive that contains no metadata file
+        at all — only a directory that happens to share the name.
+    """
+    import zipfile
+
+    from pyramids_eo.drivers.sentinel2 import Sentinel2Driver
+
+    archive = tmp_path / "DIRENTRY.SAFE.zip"
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.writestr("X.SAFE/MTD_MSIL1C.xml/", b"")
+        handle.writestr("X.SAFE/measurement/band.tif", b"not a product")
+    assert Sentinel2Driver.can_open(str(archive)) is False, (
+        "a directory entry is not a metadata file and must not win the claim"
     )

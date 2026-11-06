@@ -67,11 +67,14 @@ The consequence is the single rule worth remembering:
 
 !!! warning "Give a zipped read its `bands` and `resolution`"
 
-    A Sentinel-2 product is 13 bands harmonised onto a 20984x20980 10 m grid — about 10 GiB. Now that a bare
-    `read_file("….SAFE.zip")` reaches the reader, asking for a product without narrowing it asks for all of
-    that, and it does **not** fail fast: measured on a fake L1C fixture, the call had not returned after 45
-    seconds. Pass `open_options={"bands": [...], "resolution": 60}` (or whatever you need). Before pre-emption
-    the same call returned GDAL's empty container in about 0.1 s — quick, but with nothing in it.
+    A Sentinel-2 product is 13 bands harmonised onto a 20984x20980 10 m grid — about 10 GiB. Asking for a
+    product without narrowing it asks for all of that, and it does **not** fail fast: measured on a fake L1C
+    fixture, neither a bare directory read nor a bare zipped read had returned after 30–45 seconds. Pass
+    `open_options={"bands": [...], "resolution": 60}` (or whatever you need).
+
+    This is not new for the **directory** form, which has always reached the reader. What pre-emption changes is
+    the **zipped** form: it used to return GDAL's empty container in about 0.1 s — quick, but with nothing in
+    it — and now behaves like the directory form.
 
 ## Passing reader options
 
