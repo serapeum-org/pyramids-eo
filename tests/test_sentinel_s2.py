@@ -199,7 +199,7 @@ def test_baseline_509_carries_radiometric_offset():
     product = open_product(_L1C_509)
     assert product.baseline == "05.09"
     sub = product.subdataset_for(min(product.resolutions)).open()
-    assert sub.band_meta_data[0]["RADIO_ADD_OFFSET"] == "-1000"
+    assert sub.band_metadata[0]["RADIO_ADD_OFFSET"] == "-1000"
 
 
 def test_baseline_509_offset_flows_to_scaled_read():

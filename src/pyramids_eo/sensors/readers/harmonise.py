@@ -35,7 +35,7 @@ def _resample_to(band: Any, reference: Any, method: str | None) -> Any:
         crs,
         method=method,
         cell_size=reference.cell_size,
-        bbox=tuple(reference.bbox),
+        bbox=tuple(reference.total_bounds),
     )
     # warped_view derives its grid from bbox + cell size, which can land off the
     # reference by a pixel for non-integer ratios / rounding; align snaps it to

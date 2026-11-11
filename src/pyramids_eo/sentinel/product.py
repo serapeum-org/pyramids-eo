@@ -48,7 +48,7 @@ class SentinelProduct(abc.ABC):
     Attributes:
         path: The path (or connection root) the product was opened from.
         driver: The GDAL driver short name (``"SENTINEL2"`` / ``"SAFE"``).
-        metadata: The container's default-domain metadata (``Dataset.meta_data``).
+        metadata: The container's default-domain metadata (``Dataset.metadata``).
         subdatasets: The pyramids ``SubDataset`` value objects the container
             exposes, each openable with ``.open()``.
     """
@@ -56,7 +56,7 @@ class SentinelProduct(abc.ABC):
     def __init__(self, path: str, container: Dataset) -> None:
         self.path = path
         self.driver = container.raster.GetDriver().ShortName
-        self.metadata: dict[str, str] = dict(container.meta_data or {})
+        self.metadata: dict[str, str] = dict(container.metadata or {})
         self.subdatasets: list[Any] = list(container.subdatasets)
 
     @property

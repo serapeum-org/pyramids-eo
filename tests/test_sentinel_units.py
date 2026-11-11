@@ -400,7 +400,7 @@ class TestTagReflectance:
         """`_stamp_baseline` never raises when the metadata write fails.
 
         Test scenario:
-            A dataset whose ``meta_data`` setter raises leaves scaling
+            A dataset whose ``metadata`` setter raises leaves scaling
             unaffected (the defensive except path).
         """
 
@@ -408,11 +408,11 @@ class TestTagReflectance:
             baseline = "05.09"
 
             @property
-            def meta_data(self):
+            def metadata(self):
                 return {}
 
-            @meta_data.setter
-            def meta_data(self, value):
+            @metadata.setter
+            def metadata(self, value):
                 raise RuntimeError("read only")
 
         product = open_product(_L2A)
@@ -625,7 +625,7 @@ class TestReaderEdges:
 
         product = open_product(_L2A)
         full = from_sentinel2(product, bands=["B04"])
-        bb = full.bbox
+        bb = full.total_bounds
         window = (
             bb[0],
             bb[1],
@@ -641,7 +641,7 @@ class TestReaderEdges:
         from pyramids_eo.sentinel import from_sentinel2
 
         product = open_product(_L2A)
-        bb = from_sentinel2(product, bands=["B04"]).bbox
+        bb = from_sentinel2(product, bands=["B04"]).total_bounds
         window = (
             bb[0],
             bb[1],
@@ -763,7 +763,7 @@ class TestCoverageGaps:
         """`_find_scl_band` falls back to the display name when BANDNAME is absent."""
 
         class _DS:
-            band_meta_data = [{}, {}]
+            band_metadata = [{}, {}]
             band_names = ["red", "SCL, Scene Classification"]
 
         assert _masks._find_scl_band(_DS()) == 1
@@ -772,7 +772,7 @@ class TestCoverageGaps:
         """`_find_scl_band` returns None when no band is SCL."""
 
         class _DS:
-            band_meta_data = [{"BANDNAME": "B4"}]
+            band_metadata = [{"BANDNAME": "B4"}]
             band_names = ["B4"]
 
         assert _masks._find_scl_band(_DS()) is None

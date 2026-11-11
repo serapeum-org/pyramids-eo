@@ -25,19 +25,26 @@ classifiers = [
 requires-python = ">= 3.11, <4"
 
 dependencies = [
-    # >=0.73.0 for the in-memory DatasetCollection reduction (pyramids #1412): the
-    # collection `collection_from_earthengine` returns is backed by resident scenes
-    # (`datasets=`, so `files is None`), and before 0.73.0 `DatasetCollection.data`
-    # — which `reduce_time` and the associative `mean`/`min`/`max`/`sum` all read —
-    # raised RuntimeError on it, making the reader's collection unreducible (#131).
-    "pyramids-core >=0.73.0",
+    # The floor tracks pyramids-core's current release, which is also the head of its
+    # main branch. 0.76.0 deprecates `meta_data`, `band_meta_data` and `bbox` in favour
+    # of `metadata`, `band_metadata` and `total_bounds`; this package calls the new
+    # names, so the floor keeps a resolve from pairing them with a release that
+    # predates them.
+    #
+    # The floor was previously 0.73.0, for the in-memory DatasetCollection reduction
+    # (pyramids #1412): the collection `collection_from_earthengine` returns is backed
+    # by resident scenes (`datasets=`, so `files is None`), and before 0.73.0
+    # `DatasetCollection.data` — which `reduce_time` and the associative
+    # `mean`/`min`/`max`/`sum` all read — raised RuntimeError on it, making the
+    # reader's collection unreducible (#131). That requirement still holds.
+    "pyramids-core >=0.76.0",
     "numpy >=2.0.0",
     "pyyaml >=6.0",
 ]
 
 [project.optional-dependencies]
 viz = [
-    "pyramids-core[viz]>=0.73.0",
+    "pyramids-core[viz]>=0.76.0",
     # CVE-2026-112395/112397/112400/112404/112895/112896/112897/112899: eight
     # vulnerabilities in Pillow < 13.0.0, fixed in 13.0.0. Pillow arrives *only* via
     # the viz stack (pyramids-core[viz] → matplotlib → pillow), so the floor belongs
@@ -54,7 +61,7 @@ viz = [
 # `pip install pyramids-eo[lazy]`, rather than requiring a user to know to install an
 # upstream package's extra by hand. It is an extra, not a runtime dependency, so a
 # plain `pip install pyramids-eo` still pulls none of its ~31 distributions.
-lazy = ["pyramids-core[lazy]>=0.73.0"]
+lazy = ["pyramids-core[lazy]>=0.76.0"]
 
 [dependency-groups]
 dev = [

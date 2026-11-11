@@ -168,7 +168,7 @@ class TestFromSentinel2Wiring:
 
         spy = mock.Mock(side_effect=_reader._crop_to_bbox)
         monkeypatch.setattr(_reader, "_crop_to_bbox", spy)
-        bb = from_sentinel2(_L2A, bands=["B04"]).bbox
+        bb = from_sentinel2(_L2A, bands=["B04"]).total_bounds
         window = (bb[0], bb[1], (bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2)
         from_sentinel2(_L2A, bands=["B04"], bbox=window)
         assert spy.call_count == 1, (
