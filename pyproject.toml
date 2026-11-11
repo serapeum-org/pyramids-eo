@@ -25,11 +25,13 @@ classifiers = [
 requires-python = ">= 3.11, <4"
 
 dependencies = [
-    # The floor tracks pyramids-core's current release, which is also the head of its
-    # main branch. 0.76.0 deprecates `meta_data`, `band_meta_data` and `bbox` in favour
-    # of `metadata`, `band_metadata` and `total_bounds`; this package calls the new
-    # names, so the floor keeps a resolve from pairing them with a release that
-    # predates them.
+    # The floor tracks pyramids-core's current release. The strict *requirement* is
+    # lower: 0.75.0 (pyramids #1463) deprecated `meta_data` and `band_meta_data` in
+    # favour of `metadata` and `band_metadata`, which this package now calls, so
+    # >=0.75.0 would be the minimum correct floor. `total_bounds` is not part of that
+    # — it predates the previous 0.73.0 floor, which already called it. 0.76.0 is
+    # chosen to sit on the current release rather than the oldest one that happens to
+    # work.
     #
     # The floor was previously 0.73.0, for the in-memory DatasetCollection reduction
     # (pyramids #1412): the collection `collection_from_earthengine` returns is backed
@@ -232,6 +234,13 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 timeout = 300
 faulthandler_timeout = 120
+filterwarnings = [
+    # A deprecated pyramids alias must fail the suite, not just warn: the renames this
+    # package made (`metadata`, `band_metadata`, `total_bounds`) are only enforced by
+    # the absence of a warning, and nothing else would catch a regression. Scoped to
+    # pyramids so an upstream dependency's own deprecations do not fail our CI.
+    "error::DeprecationWarning:pyramids",
+]
 markers = [
     "slow: mark test as slow (deselect with '-m \"not slow\"')",
     "fast: mark test as fast (deselect with '-m \"not fast\"')",
