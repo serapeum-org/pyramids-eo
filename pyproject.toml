@@ -235,11 +235,18 @@ testpaths = ["tests"]
 timeout = 300
 faulthandler_timeout = 120
 filterwarnings = [
-    # A deprecated pyramids alias must fail the suite, not just warn: the renames this
-    # package made (`metadata`, `band_metadata`, `total_bounds`) are only enforced by
-    # the absence of a warning, and nothing else would catch a regression. Scoped to
-    # pyramids so an upstream dependency's own deprecations do not fail our CI.
-    "error::DeprecationWarning:pyramids",
+    # A deprecated pyramids alias must fail the suite, not just warn. Only one test
+    # (`test_open_product_emits_no_container_warning`) would otherwise notice, and only
+    # for `open_product`.
+    #
+    # Matched on pyramids' deprecation *wording*, not on a module. pytest's module field
+    # is a regex against the module a warning is blamed on, and these aliases warn with
+    # `stacklevel=2` — so the blame lands on the caller, which leaves every call site in
+    # `tests/` unguarded. Measured over six reintroduced aliases: a module filter caught
+    # 3 of 6 (src only); this one catches 6 of 6. It is also narrower than a bare
+    # `error::DeprecationWarning`, which would fail on a dependency's unrelated
+    # deprecations.
+    "error:.*is deprecated and will be removed in a future release:DeprecationWarning",
 ]
 markers = [
     "slow: mark test as slow (deselect with '-m \"not slow\"')",
