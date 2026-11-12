@@ -357,7 +357,7 @@ def _native_subdataset(product: S2Product, band: str, epsg: int | None) -> S2Sub
 
 def _offsets_of(dataset: Any) -> list[float]:
     """Per-band radiometric offsets (BOA/RADIO_ADD_OFFSET), ``0.0`` if absent."""
-    return [_scaling._band_offset(meta) for meta in dataset.band_meta_data]
+    return [_scaling._band_offset(meta) for meta in dataset.band_metadata]
 
 
 def _check_bands_present(subdataset: S2Subdataset, wanted: list[str]) -> None:

@@ -7,7 +7,7 @@ radiometric offset that processing baselines ``>= 04.00`` introduced
 (``BOA_ADD_OFFSET`` / ``RADIO_ADD_OFFSET``; ``0`` before that).
 
 The GDAL ``SENTINEL2`` driver surfaces the offset in **per-band** metadata
-(``Dataset.band_meta_data[i]``), which is where :func:`_band_offset` reads it —
+(``Dataset.band_metadata[i]``), which is where :func:`_band_offset` reads it —
 verified end-to-end against a real baseline-05.09 product (offset ``-1000``
 flows into ``read_array()``; see ``test_baseline_509_*``), not just
 the offset parser.
@@ -100,7 +100,7 @@ def tag_reflectance(
         raise ProductError("product has no usable quantification value")
 
     band_names = dataset.band_names
-    band_meta = dataset.band_meta_data
+    band_meta = dataset.band_metadata
     scales: list[float] = []
     tagged_offsets: list[float] = []
     for i, name in enumerate(band_names):
@@ -132,10 +132,10 @@ def _stamp_baseline(dataset: Any, product: S2Product) -> None:
     untagged rather than failing the reflectance conversion.
     """
     try:
-        meta = dict(dataset.meta_data or {})
+        meta = dict(dataset.metadata or {})
         meta["PROCESSING_BASELINE"] = product.baseline
         meta["PYRAMIDS_EO_REFLECTANCE"] = "scaled"
-        dataset.meta_data = meta
+        dataset.metadata = meta
     except (RuntimeError, ValueError, TypeError):
         # baseline stamping is non-essential; a rejecting setter must not fail
         # the reflectance conversion, but a programming error still surfaces.

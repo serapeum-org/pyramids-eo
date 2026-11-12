@@ -25,19 +25,33 @@ classifiers = [
 requires-python = ">= 3.11, <4"
 
 dependencies = [
-    # >=0.73.0 for the in-memory DatasetCollection reduction (pyramids #1412): the
-    # collection `collection_from_earthengine` returns is backed by resident scenes
-    # (`datasets=`, so `files is None`), and before 0.73.0 `DatasetCollection.data`
-    # — which `reduce_time` and the associative `mean`/`min`/`max`/`sum` all read —
-    # raised RuntimeError on it, making the reader's collection unreducible (#131).
-    "pyramids-core >=0.73.0",
+    # The floor tracks pyramids-core's current release. The strict *requirement* is
+    # lower: 0.75.0 (pyramids #1463) deprecated `meta_data` and `band_meta_data` in
+    # favour of `metadata` and `band_metadata`, which this package now calls, so
+    # >=0.75.0 would be the minimum correct floor. `total_bounds` is not part of that
+    # — it predates the previous 0.73.0 floor, which already called it. 0.77.0 is
+    # chosen to sit on the current release rather than the oldest one that happens to
+    # work.
+    #
+    # 0.77.0's two breaking changes do not reach this package: it reads no `.zarr`
+    # source (so the new GeoZarr routing in `read_file` cannot change what it opens),
+    # and it names no Mesh/NetCDF member, so none of that release's deprecated aliases
+    # is exercised.
+    #
+    # The floor was previously 0.73.0, for the in-memory DatasetCollection reduction
+    # (pyramids #1412): the collection `collection_from_earthengine` returns is backed
+    # by resident scenes (`datasets=`, so `files is None`), and before 0.73.0
+    # `DatasetCollection.data` — which `reduce_time` and the associative
+    # `mean`/`min`/`max`/`sum` all read — raised RuntimeError on it, making the
+    # reader's collection unreducible (#131). That requirement still holds.
+    "pyramids-core >=0.77.0",
     "numpy >=2.0.0",
     "pyyaml >=6.0",
 ]
 
 [project.optional-dependencies]
 viz = [
-    "pyramids-core[viz]>=0.73.0",
+    "pyramids-core[viz]>=0.77.0",
     # CVE-2026-112395/112397/112400/112404/112895/112896/112897/112899: eight
     # vulnerabilities in Pillow < 13.0.0, fixed in 13.0.0. Pillow arrives *only* via
     # the viz stack (pyramids-core[viz] → matplotlib → pillow), so the floor belongs
@@ -54,7 +68,7 @@ viz = [
 # `pip install pyramids-eo[lazy]`, rather than requiring a user to know to install an
 # upstream package's extra by hand. It is an extra, not a runtime dependency, so a
 # plain `pip install pyramids-eo` still pulls none of its ~31 distributions.
-lazy = ["pyramids-core[lazy]>=0.73.0"]
+lazy = ["pyramids-core[lazy]>=0.77.0"]
 
 [dependency-groups]
 dev = [
@@ -225,6 +239,28 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 timeout = 300
 faulthandler_timeout = 120
+filterwarnings = [
+    # A deprecated pyramids alias must fail the suite, not just warn. Only one test
+    # (`test_open_product_emits_no_container_warning`) would otherwise notice, and only
+    # for `open_product`.
+    #
+    # Deliberately filtered by *category*, not by module or message:
+    #
+    # - A module filter does not work. pytest matches it against the module a warning is
+    #   blamed on, and pyramids' aliases warn with `stacklevel=2`, so the blame lands on
+    #   the caller. Measured over six reintroduced aliases, `:pyramids` caught 3 of 6 —
+    #   only the ones in `src/`, and those only because `pyramids_eo` prefix-matches it.
+    # - A message filter does not work either. pyramids 0.77 emits 42 distinct
+    #   deprecation messages and only 10 end in "will be removed in a future release";
+    #   matching that wording misses the whole Mesh/NetCDF alias family (#1516),
+    #   `FeatureCollection.explode(geometry=)` (#1526) and
+    #   `DatasetCollection.read_multiple_files`, among others.
+    #
+    # The cost is that an unrelated third-party deprecation also fails CI. That is the
+    # lesser problem: it is visible and fixable here, whereas a missed pyramids
+    # deprecation is silent. Measured clean across the suite, doctests and notebooks.
+    "error::DeprecationWarning",
+]
 markers = [
     "slow: mark test as slow (deselect with '-m \"not slow\"')",
     "fast: mark test as fast (deselect with '-m \"not fast\"')",

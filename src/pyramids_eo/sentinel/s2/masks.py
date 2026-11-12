@@ -96,7 +96,7 @@ def _resolve_classes(classes: Sequence[SclClass | str | int]) -> set[int]:
 
 def _find_scl_band(dataset: Any) -> int | None:
     """Return the 0-based index of a band named ``SCL`` in ``dataset``, else None."""
-    for i, meta in enumerate(dataset.band_meta_data):
+    for i, meta in enumerate(dataset.band_metadata):
         if (meta.get("BANDNAME") or "").strip().upper() == "SCL":
             return i
     for i, name in enumerate(dataset.band_names):
