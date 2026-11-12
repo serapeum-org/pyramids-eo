@@ -244,14 +244,22 @@ filterwarnings = [
     # (`test_open_product_emits_no_container_warning`) would otherwise notice, and only
     # for `open_product`.
     #
-    # Matched on pyramids' deprecation *wording*, not on a module. pytest's module field
-    # is a regex against the module a warning is blamed on, and these aliases warn with
-    # `stacklevel=2` — so the blame lands on the caller, which leaves every call site in
-    # `tests/` unguarded. Measured over six reintroduced aliases: a module filter caught
-    # 3 of 6 (src only); this one catches 6 of 6. It is also narrower than a bare
-    # `error::DeprecationWarning`, which would fail on a dependency's unrelated
-    # deprecations.
-    "error:.*is deprecated and will be removed in a future release:DeprecationWarning",
+    # Deliberately filtered by *category*, not by module or message:
+    #
+    # - A module filter does not work. pytest matches it against the module a warning is
+    #   blamed on, and pyramids' aliases warn with `stacklevel=2`, so the blame lands on
+    #   the caller. Measured over six reintroduced aliases, `:pyramids` caught 3 of 6 —
+    #   only the ones in `src/`, and those only because `pyramids_eo` prefix-matches it.
+    # - A message filter does not work either. pyramids 0.77 emits 42 distinct
+    #   deprecation messages and only 10 end in "will be removed in a future release";
+    #   matching that wording misses the whole Mesh/NetCDF alias family (#1516),
+    #   `FeatureCollection.explode(geometry=)` (#1526) and
+    #   `DatasetCollection.read_multiple_files`, among others.
+    #
+    # The cost is that an unrelated third-party deprecation also fails CI. That is the
+    # lesser problem: it is visible and fixable here, whereas a missed pyramids
+    # deprecation is silent. Measured clean across the suite, doctests and notebooks.
+    "error::DeprecationWarning",
 ]
 markers = [
     "slow: mark test as slow (deselect with '-m \"not slow\"')",
