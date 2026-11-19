@@ -25,18 +25,21 @@ classifiers = [
 requires-python = ">= 3.11, <4"
 
 dependencies = [
-    # The floor tracks pyramids-core's current release. The strict *requirement* is
-    # lower: 0.75.0 (pyramids #1463) deprecated `meta_data` and `band_meta_data` in
-    # favour of `metadata` and `band_metadata`, which this package now calls, so
-    # >=0.75.0 would be the minimum correct floor. `total_bounds` is not part of that
-    # — it predates the previous 0.73.0 floor, which already called it. 0.77.0 is
-    # chosen to sit on the current release rather than the oldest one that happens to
-    # work.
+    # The floor tracks pyramids-core's current release. 0.80.0 is a real requirement
+    # here, not just the newest number: it removed the `[lazy]` extra (pyramids #1569),
+    # which this package's own `[lazy]` extra forwarded to. See that extra below.
     #
-    # 0.77.0's two breaking changes do not reach this package: it reads no `.zarr`
-    # source (so the new GeoZarr routing in `read_file` cannot change what it opens),
-    # and it names no Mesh/NetCDF member, so none of that release's deprecated aliases
-    # is exercised.
+    # The strict floor for the *API* this package calls is lower — 0.75.0 (pyramids
+    # #1463) deprecated `meta_data` and `band_meta_data` in favour of `metadata` and
+    # `band_metadata`, which this package now calls. `total_bounds` predates even the
+    # old 0.73.0 floor.
+    #
+    # Nothing in 0.78.0-0.80.0 breaks a call this package makes. The releases carry
+    # four `!` commits: three are the lazy/packaging extraction (#1461, #1559, #1569),
+    # and the fourth NaN-fills `match_histogram` / `percentile_stretch` output (#1570),
+    # neither of which this package calls. 0.77.0's GeoZarr routing and Mesh/NetCDF
+    # renames stay out of reach too: no `.zarr` source is read and no Mesh/NetCDF
+    # member is named.
     #
     # The floor was previously 0.73.0, for the in-memory DatasetCollection reduction
     # (pyramids #1412): the collection `collection_from_earthengine` returns is backed
@@ -44,14 +47,14 @@ dependencies = [
     # `DatasetCollection.data` — which `reduce_time` and the associative
     # `mean`/`min`/`max`/`sum` all read — raised RuntimeError on it, making the
     # reader's collection unreducible (#131). That requirement still holds.
-    "pyramids-core >=0.77.0",
+    "pyramids-core >=0.80.0",
     "numpy >=2.0.0",
     "pyyaml >=6.0",
 ]
 
 [project.optional-dependencies]
 viz = [
-    "pyramids-core[viz]>=0.77.0",
+    "pyramids-core[viz]>=0.80.0",
     # CVE-2026-112395/112397/112400/112404/112895/112896/112897/112899: eight
     # vulnerabilities in Pillow < 13.0.0, fixed in 13.0.0. Pillow arrives *only* via
     # the viz stack (pyramids-core[viz] → matplotlib → pillow), so the floor belongs
@@ -63,12 +66,22 @@ viz = [
     "pillow >=13.0.0",
 ]
 # Reductions over a returned DatasetCollection (`reduce_time`, `mean` / `min` /
-# `max` / `sum`) read `DatasetCollection.data`, which needs dask — so a bare install
-# raises `OptionalPackageDoesNotExist` on them (#131). This is the supported opt-in:
-# `pip install pyramids-eo[lazy]`, rather than requiring a user to know to install an
-# upstream package's extra by hand. It is an extra, not a runtime dependency, so a
-# plain `pip install pyramids-eo` still pulls none of its ~31 distributions.
-lazy = ["pyramids-core[lazy]>=0.77.0"]
+# `max` / `sum`) read `DatasetCollection.data`, which needs the dask compute backend —
+# so a bare install raises `OptionalPackageDoesNotExist` on them (#131). This is the
+# supported opt-in: `pip install pyramids-eo[lazy]`, rather than requiring a user to
+# know to install the backend by hand. It is an extra, not a runtime dependency, so a
+# plain `pip install pyramids-eo` still pulls none of its distributions.
+#
+# This forwards to the `pyramids-lazy` *plugin*, not to a core extra. pyramids-core
+# 0.79.0 moved its dask layer behind the `pyramids.compute_backend` entry-point seam
+# (#1461) and 0.80.0 deleted the `[lazy]` extra outright (#1569) — 0.80.0 publishes
+# only `viz`, `parquet` and `stac`. A `pyramids-core[lazy]` requirement against 0.80.0
+# names an extra that no longer exists, which pip resolves with a warning and no
+# backend, so `pyramids-eo[lazy]` would have installed nothing that makes a reduction
+# work. The minimum that functions is `pyramids-lazy>=0.1.1`: 0.1.0 imports core's
+# `lazy_extra_hint`, which #1569 deleted. 0.2.0 is pinned because it is the current
+# release and requires `pyramids-core>=0.80.0`, matching this floor exactly.
+lazy = ["pyramids-lazy>=0.2.0"]
 
 [dependency-groups]
 dev = [
@@ -266,7 +279,7 @@ markers = [
     "fast: mark test as fast (deselect with '-m \"not fast\"')",
     "core: extras-free test (auto-applied when no extras marker is present)",
     "plot: tests requiring the [viz] extra (cleopatra) — plotting tests (deselect with '-m \"not plot\"')",
-    "lazy: tests requiring pyramids-core[lazy] (dask) — DatasetCollection reductions (deselect with '-m \"not lazy\"')",
+    "lazy: tests requiring the pyramids-lazy backend (dask) — DatasetCollection reductions (deselect with '-m \"not lazy\"')",
     "live: test against a real external resource — a network service, or a real granule on disk that the offline fixtures cannot stand in for (deselect with '-m \"not live\"', run with '-m live')",
 ]
 

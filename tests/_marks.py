@@ -41,5 +41,5 @@ HAS_DASK = _has("dask.array")
 
 EXTRA_MARKERS: dict[str, tuple[bool, str]] = {
     "plot": (HAS_CLEOPATRA, "requires the [viz] extra (cleopatra)"),
-    "lazy": (HAS_DASK, "requires pyramids-core[lazy] (dask)"),
+    "lazy": (HAS_DASK, "requires the pyramids-lazy backend (dask)"),
 }
