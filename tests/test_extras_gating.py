@@ -8,13 +8,14 @@ unavailable — without needing the real dependency to be absent.
 
 from __future__ import annotations
 
+import re
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import requires as _dist_requires
 
 import pytest
 
 from tests import _marks
-from tests._marks import EXTRA_MARKERS, HAS_DASK, _has
+from tests._marks import EXTRA_MARKERS, _has
 from tests.conftest import pytest_collection_modifyitems
 
 
@@ -122,19 +123,39 @@ class TestPytestCollectionModifyItems:
         pytest_collection_modifyitems(config=None, items=[])
 
 
+def _canonical_name(requirement: str) -> str:
+    """The canonical distribution name of a ``Requires-Dist`` string.
+
+    Strips the environment marker, version specifier and any extras, then
+    PEP 503-normalises, so ``pyramids-lazy[parquet]>=0.2.0; extra == "lazy"``
+    and ``pyramids_lazy >= 0.2`` both reduce to ``pyramids-lazy``.
+
+    Args:
+        requirement: One ``Requires-Dist`` entry.
+
+    Returns:
+        The lower-cased, dash-normalised project name with no extras or specifier.
+    """
+    head = requirement.split(";")[0].strip()
+    name = re.split(r"[<>=!~\[ (]", head, maxsplit=1)[0]
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def _lazy_extra_requirements():
     """This package's own ``[lazy]`` extra requirements, from installed metadata.
 
     Returns:
-        The ``Requires-Dist`` entries of ``pyramids-eo`` that are gated on
-        ``extra == "lazy"``, or ``None`` when the distribution is not installed
-        (an editable/source tree without metadata).
+        The ``Requires-Dist`` entries of ``pyramids-eo`` gated on the ``lazy``
+        extra, or ``None`` when the distribution is not installed (an
+        editable/source tree run via ``pythonpath`` with no built metadata).
     """
     try:
         reqs = _dist_requires("pyramids-eo") or []
-    except PackageNotFoundError:  # pragma: no cover - always installed under pytest
+    except PackageNotFoundError:
         return None
-    return [r for r in reqs if 'extra == "lazy"' in r]
+    # importlib normalises markers to double quotes, but accept either so the
+    # test leans on no normalisation it does not itself assert.
+    return [r for r in reqs if 'extra == "lazy"' in r or "extra == 'lazy'" in r]
 
 
 class TestLazyExtraContract:
@@ -142,20 +163,24 @@ class TestLazyExtraContract:
 
     This is the regression guard for the break this extra was repaired from:
     ``pyramids-core`` 0.80.0 deleted the ``[lazy]`` extra that
-    ``pyramids-eo[lazy]`` used to forward to, so the old
-    ``pyramids-core[lazy]`` requirement resolved to a pip warning and no dask —
-    ``pip install pyramids-eo[lazy]`` silently installed nothing a
-    ``DatasetCollection`` reduction (#131) needs. These assertions read declared
-    metadata only, so they fail the moment the extra regresses to a form that
-    cannot bring dask, without needing a full resolve.
+    ``pyramids-eo[lazy]`` used to forward to, so the old ``pyramids-core[lazy]``
+    requirement resolved to a pip warning and no dask — ``pip install
+    pyramids-eo[lazy]`` silently installed nothing a ``DatasetCollection``
+    reduction (#131) needs.
+
+    The contract test reads declared metadata by *name* — it proves the extra
+    points at ``pyramids-lazy`` rather than the dead core form, not that the pin
+    resolves to a working dask; the latter is what the dask-stack test covers.
     """
 
     def test_lazy_extra_targets_the_pyramids_lazy_plugin(self):
         """``[lazy]`` requires ``pyramids-lazy`` and never the dead core extra."""
         reqs = _lazy_extra_requirements()
+        if reqs is None:
+            pytest.skip("pyramids-eo not installed; run against built metadata")
         assert reqs, "pyramids-eo must declare a non-empty [lazy] extra"
-        names = [r.split(";")[0].split()[0].lower().replace("_", "-") for r in reqs]
-        assert any(n.startswith("pyramids-lazy") for n in names), (
+        names = [_canonical_name(r) for r in reqs]
+        assert "pyramids-lazy" in names, (
             f"[lazy] must forward to the pyramids-lazy plugin, got {reqs}"
         )
         assert not any("pyramids-core[lazy]" in r.replace(" ", "") for r in reqs), (
@@ -165,20 +190,20 @@ class TestLazyExtraContract:
 
     @pytest.mark.lazy
     def test_lazy_plugin_brings_the_dask_array_stack(self):
-        """With the extra installed, ``dask.array`` — what #131 reductions read — resolves.
+        """The installed ``[lazy]`` stack imports ``dask.array`` and ``pyramids-lazy`` hard-needs dask.
 
-        Marked ``lazy`` so it runs only where the extra is present; the collection
-        hook skips it otherwise, keeping this free of an in-body availability branch.
+        Marked ``lazy`` so it runs only where ``dask.array`` is importable (the
+        #131 reduction path reads it directly). The ``pyramids-lazy`` distribution
+        lookup is guarded, because dask can be present for reasons unrelated to
+        this extra, so the dist may be absent even when the marker lets the test run.
         """
-        assert HAS_DASK, (
-            "the lazy extra is installed in this environment, so dask.array must import; "
-            "if this fails, pyramids-lazy stopped delivering the dask stack"
-        )
-        import dask.array as da  # noqa: F401
+        import dask.array as da  # noqa: F401 - the end-to-end check that the stack resolves
 
-        pl = [
-            r
-            for r in (_dist_requires("pyramids-lazy") or [])
-            if "extra ==" not in r and r.split()[0].lower().startswith("dask")
+        try:
+            lazy_reqs = _dist_requires("pyramids-lazy") or []
+        except PackageNotFoundError:
+            pytest.skip("pyramids-lazy not installed; dask present for another reason")
+        dask_pins = [
+            r for r in lazy_reqs if "extra ==" not in r and _canonical_name(r) == "dask"
         ]
-        assert pl, f"pyramids-lazy must hard-depend on dask, got {pl!r}"
+        assert dask_pins, f"pyramids-lazy must hard-depend on dask, got {lazy_reqs!r}"

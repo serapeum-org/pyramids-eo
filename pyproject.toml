@@ -39,10 +39,11 @@ dependencies = [
     # one NaN-fills `match_histogram` / `percentile_stretch` output (#1570), and one
     # restructures the CLI (#1539) — none of which this package calls. (0.78.0-0.80.0
     # alone shows only four; the CLI break released in 0.78.0 is easy to miss with the
-    # wrong `git log` range.) The package does read `.zarr` through no path, and it
-    # does name NetCDF members — `NetCDF.read_file` / `get_variable` in the FCI reader
-    # — but neither is among 0.80.0's deprecated aliases, so 0.77.0's GeoZarr routing
-    # and Mesh/NetCDF renames leave every call this package makes intact.
+    # wrong `git log` range.) The package reads no `.zarr` source, so 0.77.0's GeoZarr
+    # routing cannot change what it opens. It does name NetCDF members —
+    # `NetCDF.read_file` and `get_variable` in the FCI reader — but neither is among
+    # 0.80.0's deprecated aliases, so the Mesh/NetCDF renames leave every call this
+    # package makes intact.
     #
     # The floor was previously 0.73.0, for the in-memory DatasetCollection reduction
     # (pyramids #1412): the collection `collection_from_earthengine` returns is backed
@@ -92,9 +93,9 @@ viz = [
 # of the real backend; a bare install pays none of it.
 #
 # Floor: 0.2.0 is the current release and requires `pyramids-core>=0.80.0`, matching
-# this floor exactly. 0.1.1 is the lowest that pairs with 0.80.0 at all (0.1.0 imports
-# core's `lazy_extra_hint`, deleted by #1569, though only on surfaces this package
-# does not reach); 0.2.0 is chosen to track the release, not as the strict minimum.
+# this floor exactly. (0.1.0 would import core's `lazy_extra_hint`, which #1569 deleted —
+# but only on surfaces this package never touches, so the practical minimum is below
+# 0.2.0; 0.2.0 is chosen to track the current release, not as that minimum.)
 lazy = ["pyramids-lazy>=0.2.0"]
 
 [dependency-groups]
