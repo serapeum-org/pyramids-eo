@@ -22,7 +22,13 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 
-requires-python = ">= 3.11, <4"
+# 3.11.5 (not 3.11) is a security floor: the fixed `soupsieve` (>=3.0.2, which clears
+# CVE-2026-126190/126191/126192/126193) declares `requires-python >=3.11.5`, and
+# `soupsieve` arrives transitively through the docs/test toolchain (nbconvert ->
+# beautifulsoup4). With the floor at 3.11 the lock could not adopt the fix and pinned the
+# vulnerable 2.9.2; at 3.11.5 it resolves 4.1.2. The 3.11.0-3.11.4 patch releases this
+# excludes are end-of-life and carry their own unpatched CVEs, so the floor costs nothing real.
+requires-python = ">= 3.11.5, <4"
 
 dependencies = [
     # The floor tracks pyramids-core's current release. 0.80.0 is a real requirement
