@@ -1623,8 +1623,13 @@ those libraries — so <code>pip install pyramids-eo</code> works out of the box
 <h3 id="optional-extras"><a class="toclink" href="#optional-extras">Optional extras</a><a class="headerlink" href="#optional-extras" title="Permanent link">#</a></h3>
 <ul>
 <li><code>viz</code>: installs <code>pyramids-core[viz]</code> (plotting and quick-look composites via cleopatra).</li>
+<li><code>lazy</code>: installs the <a href="https://pypi.org/project/pyramids-lazy/"><code>pyramids-lazy</code></a> plugin, which
+  brings the dask array stack. Needed only for reductions over a multi-scene
+  <code>DatasetCollection</code> (<code>reduce_time</code>, <code>mean</code> / <code>min</code> / <code>max</code> / <code>sum</code>); a bare install raises a
+  clear error on those and nothing else.</li>
 </ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="go">pip install "pyramids-eo[viz]"</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="go">pip install "pyramids-eo[lazy]"</span>
 </code></pre></div>
 <h2 id="development-install-pixi"><a class="toclink" href="#development-install-pixi">Development install (pixi)</a><a class="headerlink" href="#development-install-pixi" title="Permanent link">#</a></h2>
 <p>Environments are managed with <a href="https://pixi.sh">pixi</a>:</p>
