@@ -22,36 +22,12 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 
-# 3.11.5 floor: lets the lock adopt the patched soupsieve (>=3.0.2 needs it), clearing its CVEs.
+# 3.11.5 floor so the lock can take patched soupsieve (clears its CVEs).
 requires-python = ">= 3.11.5, <4"
 
 dependencies = [
-    # The floor tracks pyramids-core's current release. 0.80.0 is a real requirement
-    # here, not just the newest number: it removed the `[lazy]` extra (pyramids #1569),
-    # which this package's own `[lazy]` extra forwarded to. See that extra below.
-    #
-    # The strict floor for the *API* this package calls is lower — 0.75.0 (pyramids
-    # #1463) deprecated `meta_data` and `band_meta_data` in favour of `metadata` and
-    # `band_metadata`, which this package now calls. `total_bounds` predates even the
-    # old 0.73.0 floor.
-    #
-    # Nothing in 0.77.0-0.80.0 breaks a call this package makes. That range carries
-    # five `!` commits: three are the lazy/packaging extraction (#1461, #1559, #1569),
-    # one NaN-fills `match_histogram` / `percentile_stretch` output (#1570), and one
-    # restructures the CLI (#1539) — none of which this package calls. (0.78.0-0.80.0
-    # alone shows only four; the CLI break released in 0.78.0 is easy to miss with the
-    # wrong `git log` range.) The package reads no `.zarr` source, so 0.77.0's GeoZarr
-    # routing cannot change what it opens. It does name NetCDF members —
-    # `NetCDF.read_file` and `get_variable` in the FCI reader — but neither is among
-    # 0.80.0's deprecated aliases, so the Mesh/NetCDF renames leave every call this
-    # package makes intact.
-    #
-    # The floor was previously 0.73.0, for the in-memory DatasetCollection reduction
-    # (pyramids #1412): the collection `collection_from_earthengine` returns is backed
-    # by resident scenes (`datasets=`, so `files is None`), and before 0.73.0
-    # `DatasetCollection.data` — which `reduce_time` and the associative
-    # `mean`/`min`/`max`/`sum` all read — raised RuntimeError on it, making the
-    # reader's collection unreducible (#131). That requirement still holds.
+    # 0.80.0 dropped the [lazy] extra (#1569) this package's [lazy] forwards to; also the
+    # floor for #131's resident-collection reduction.
     "pyramids-core >=0.80.0",
     "numpy >=2.0.0",
     "pyyaml >=6.0",
@@ -60,43 +36,11 @@ dependencies = [
 [project.optional-dependencies]
 viz = [
     "pyramids-core[viz]>=0.80.0",
-    # CVE-2026-112395/112397/112400/112404/112895/112896/112897/112899: eight
-    # vulnerabilities in Pillow < 13.0.0, fixed in 13.0.0. Pillow arrives *only* via
-    # the viz stack (pyramids-core[viz] → matplotlib → pillow), so the floor belongs
-    # on this extra — a bare `pip install pyramids-eo` takes no pin, `pip install
-    # pyramids-eo[viz]` does. (certifi is also flagged transitively via pyogrio /
-    # pyproj and the dev-only requests chain, but pyramids-eo doesn't own those
-    # chains — upstream pyramids-gis guards them; pip-audit on the lock sees the
-    # resolver's 2026.10.19 already.)
+    # Pillow <13 CVEs; arrives via the viz stack, so the floor sits on this extra.
     "pillow >=13.0.0",
 ]
-# Reductions over a returned DatasetCollection (`reduce_time`, `mean` / `min` /
-# `max` / `sum`) read `DatasetCollection.data`, which does `import dask.array` — so a
-# bare install raises `OptionalPackageDoesNotExist` on them (#131). Note this path
-# needs the dask *array* stack, not the `pyramids.compute_backend` seam: core routes
-# to-/from-zarr and lazy reads through that seam, but the in-memory reduction this
-# package relies on reads `dask.array` directly. The extra's job is to deliver that
-# stack; `pip install pyramids-eo[lazy]` is the supported opt-in rather than making a
-# user find it by hand. It is an extra, not a runtime dependency, so a plain
-# `pip install pyramids-eo` still pulls none of it.
-#
-# It must forward to the `pyramids-lazy` *plugin*, not a core extra. pyramids-core
-# 0.79.0 moved its dask layer behind the compute-backend seam (#1461) and 0.80.0
-# deleted the `[lazy]` extra outright (#1569); 0.80.0 publishes only `viz`, `parquet`
-# and `stac`. A `pyramids-core[lazy]` requirement against 0.80.0 names an extra that
-# no longer exists, which pip resolves with a warning and no dask at all — so the old
-# `pyramids-eo[lazy]` had silently stopped installing anything a reduction needs.
-# `pyramids-lazy` hard-depends on `dask`, so forwarding here restores that stack.
-#
-# Cost of the extra: `pyramids-lazy` also pulls distributed, s3fs, zarr, kerchunk and
-# h5py, and through s3fs -> aiobotocore -> botocore it caps `python-dateutil<3`, so a
-# bare resolve's dateutil 4.x is held back when the extra is added. That is the price
-# of the real backend; a bare install pays none of it.
-#
-# Floor: 0.2.0 is the current release and requires `pyramids-core>=0.80.0`, matching
-# this floor exactly. (0.1.0 would import core's `lazy_extra_hint`, which #1569 deleted —
-# but only on surfaces this package never touches, so the practical minimum is below
-# 0.2.0; 0.2.0 is chosen to track the current release, not as that minimum.)
+# Delivers the dask array stack DatasetCollection reductions need (#131). Forwards to
+# the pyramids-lazy plugin: core 0.80 dropped its own [lazy] extra (#1569).
 lazy = ["pyramids-lazy>=0.2.0"]
 
 [dependency-groups]
@@ -113,28 +57,19 @@ dev = [
     "build>=1.0.0",
     "twine>=5.0.0",
     "pip",
-    # Floor jupyterlab / notebook past PYSEC-2026-4055/4056/4057 +
-    # CVE-2026-102832 (jupyterlab) and PYSEC-2026-4112 (notebook), fixed in
-    # 4.6.4 and 7.6.3 respectively.
+    # security floors (jupyterlab / notebook CVEs)
     "jupyterlab >=4.6.4",
     "notebook >=7.6.3",
     "jupyter",
-    # Floor jupyter-server past CVE-2026-86049 (token leaked into 500 logs,
-    # fixed in 2.21.0); it arrives transitively via jupyterlab / notebook.
+    # security floor (jupyter-server CVE-2026-86049), transitive via jupyterlab
     "jupyter-server >=2.21.0",
-    # Floor tornado past GHSA-chx6-46f5-w4vp / c2m8-h5v5-343r / 3hv7-mjh2-fv65
-    # (fixed in 6.5.9) and CVE-2026-115927 / 116577 / 116578 (fixed in 6.6); it
-    # arrives transitively via the jupyter stack.
+    # security floor (tornado CVEs), transitive via the jupyter stack
     "tornado >=6.6",
-    # Floor filelock past CVE-2026-112907/112908/112909/112910/112911/112913/
-    # 112915/112935/112936/112938/112939/112940 (fixed by 4.2.1); it arrives
-    # transitively via virtualenv / pre-commit.
+    # security floor (filelock CVEs), transitive via virtualenv / pre-commit
     "filelock >=4.2.1",
-    # Floor urllib3 past PYSEC-2026-4175/4176/4177 (chunked-encoding memory
-    # DoS, fixed in 2.8.0); it arrives transitively via the jupyter / HTTP stack.
+    # security floor (urllib3 PYSEC-2026-4175..4177), transitive via the HTTP stack
     "urllib3 >=2.8.0",
-    # Floor virtualenv past PYSEC-2026-4011/4012/4013/4014 (fixed by 21.7.13);
-    # it arrives transitively via pre-commit.
+    # security floor (virtualenv PYSEC-2026-4011..4014), transitive via pre-commit
     "virtualenv >=21.7.13",
     "commitizen>=4.8.4",
     "mypy>=1.10.0",
@@ -155,9 +90,7 @@ docs = [
     "jupyter",
     "nbconvert",
     "ipykernel",
-    # Same tornado floor the dev group carries (CVE-2026-115927 / 116577 / 116578,
-    # fixed in 6.6): it arrives here too, via the notebook / jupyter stack. pip-audit
-    # only scans the py311 environment, so this one is not caught by CI.
+    # security floor (tornado CVEs), transitive via the jupyter stack
     "tornado >=6.6",
 ]
 
@@ -167,13 +100,7 @@ repository = "https://github.com/serapeum-org/pyramids-eo"
 documentation = "https://serapeum-org.github.io/pyramids-eo"
 Changelog = "https://github.com/serapeum-org/pyramids-eo/blob/main/docs/change-log.md"
 
-# Raster-reader plugins discovered by pyramids-core's `pyramids.raster_drivers`
-# hook: installing this package lets `Dataset.read_file(<source>)` route into these.
-# Every reader that fits the single-source read_file model is registered (see
-# src/pyramids_eo/drivers/__init__.py). What stays facade-only is the temporal
-# path: read_file only ever dispatches a driver's `read`, never `read_collection`,
-# so a time series goes through `collection_from_*`. The Sentinel-2 driver also declares
-# `preempts`, so a zipped product beats GDAL to the bare read.
+# Reader plugins discovered via pyramids-core's `pyramids.raster_drivers` hook.
 [project.entry-points."pyramids.raster_drivers"]
 ahi = "pyramids_eo.drivers.ahi:AhiDriver"
 earthengine = "pyramids_eo.drivers.earthengine:EarthEngineDriver"
@@ -269,25 +196,8 @@ testpaths = ["tests"]
 timeout = 300
 faulthandler_timeout = 120
 filterwarnings = [
-    # A deprecated pyramids alias must fail the suite, not just warn. Only one test
-    # (`test_open_product_emits_no_container_warning`) would otherwise notice, and only
-    # for `open_product`.
-    #
-    # Deliberately filtered by *category*, not by module or message:
-    #
-    # - A module filter does not work. pytest matches it against the module a warning is
-    #   blamed on, and pyramids' aliases warn with `stacklevel=2`, so the blame lands on
-    #   the caller. Measured over six reintroduced aliases, `:pyramids` caught 3 of 6 —
-    #   only the ones in `src/`, and those only because `pyramids_eo` prefix-matches it.
-    # - A message filter does not work either. pyramids 0.77 emits 42 distinct
-    #   deprecation messages and only 10 end in "will be removed in a future release";
-    #   matching that wording misses the whole Mesh/NetCDF alias family (#1516),
-    #   `FeatureCollection.explode(geometry=)` (#1526) and
-    #   `DatasetCollection.read_multiple_files`, among others.
-    #
-    # The cost is that an unrelated third-party deprecation also fails CI. That is the
-    # lesser problem: it is visible and fixable here, whereas a missed pyramids
-    # deprecation is silent. Measured clean across the suite, doctests and notebooks.
+    # Fail on any deprecation so a reintroduced pyramids alias can't slip by. Category,
+    # not module/message: pyramids warns with stacklevel=2 and its wording varies.
     "error::DeprecationWarning",
 ]
 markers = [
@@ -302,9 +212,7 @@ markers = [
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
-# macOS floor raised to 14.0 on the osx platforms so pixi accepts the
-# macosx_14_0_arm64 wheels (pyproj/numpy) instead of falling back to an sdist
-# build. Declared per-platform (the global [system-requirements] table is deprecated).
+# osx floor 14.0 so pixi takes the macosx_14_0 wheels (pyproj/numpy) over an sdist build.
 platforms = [
     "win-64",
     "linux-64",
@@ -334,9 +242,7 @@ cz-changelog = { cmd = "cz changelog", description = "Generate changelog using C
 cz-bump = { cmd = "cz bump", description = "Bump version using Commitizen" }
 mypy = { cmd = "mypy", description = "Run mypy type checking" }
 
-# The test environments carry `lazy` (dask) so the `@pytest.mark.lazy` reduction
-# tests execute rather than auto-skip; `default` and `docs` stay without it, so a
-# bare install and the docs build pull none of its distributions (#131).
+# Test envs carry `lazy` so `@pytest.mark.lazy` tests run; default/docs stay without it.
 [tool.pixi.environments]
 default = { features = ["viz"], solve-group = "default" }
 dev = { features = ["viz", "lazy", "dev"], solve-group = "default" }
