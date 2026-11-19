@@ -18,9 +18,14 @@ pip install pyramids-eo
 ### Optional extras
 
 - `viz`: installs `pyramids-core[viz]` (plotting and quick-look composites via cleopatra).
+- `lazy`: installs the [`pyramids-lazy`](https://pypi.org/project/pyramids-lazy/) plugin, which
+  brings the dask array stack. Needed only for reductions over a multi-scene
+  `DatasetCollection` (`reduce_time`, `mean` / `min` / `max` / `sum`); a bare install raises a
+  clear error on those and nothing else.
 
 ```console
 pip install "pyramids-eo[viz]"
+pip install "pyramids-eo[lazy]"
 ```
 
 ## Development install (pixi)

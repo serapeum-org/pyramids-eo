@@ -8,8 +8,13 @@ unavailable — without needing the real dependency to be absent.
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import requires as _dist_requires
+
+import pytest
+
 from tests import _marks
-from tests._marks import EXTRA_MARKERS, _has
+from tests._marks import EXTRA_MARKERS, HAS_DASK, _has
 from tests.conftest import pytest_collection_modifyitems
 
 
@@ -115,3 +120,65 @@ class TestPytestCollectionModifyItems:
             {"plot": (False, "requires the [viz] extra")},
         )
         pytest_collection_modifyitems(config=None, items=[])
+
+
+def _lazy_extra_requirements():
+    """This package's own ``[lazy]`` extra requirements, from installed metadata.
+
+    Returns:
+        The ``Requires-Dist`` entries of ``pyramids-eo`` that are gated on
+        ``extra == "lazy"``, or ``None`` when the distribution is not installed
+        (an editable/source tree without metadata).
+    """
+    try:
+        reqs = _dist_requires("pyramids-eo") or []
+    except PackageNotFoundError:  # pragma: no cover - always installed under pytest
+        return None
+    return [r for r in reqs if 'extra == "lazy"' in r]
+
+
+class TestLazyExtraContract:
+    """The ``[lazy]`` extra must deliver the dask stack, not a dead core extra.
+
+    This is the regression guard for the break this extra was repaired from:
+    ``pyramids-core`` 0.80.0 deleted the ``[lazy]`` extra that
+    ``pyramids-eo[lazy]`` used to forward to, so the old
+    ``pyramids-core[lazy]`` requirement resolved to a pip warning and no dask —
+    ``pip install pyramids-eo[lazy]`` silently installed nothing a
+    ``DatasetCollection`` reduction (#131) needs. These assertions read declared
+    metadata only, so they fail the moment the extra regresses to a form that
+    cannot bring dask, without needing a full resolve.
+    """
+
+    def test_lazy_extra_targets_the_pyramids_lazy_plugin(self):
+        """``[lazy]`` requires ``pyramids-lazy`` and never the dead core extra."""
+        reqs = _lazy_extra_requirements()
+        assert reqs, "pyramids-eo must declare a non-empty [lazy] extra"
+        names = [r.split(";")[0].split()[0].lower().replace("_", "-") for r in reqs]
+        assert any(n.startswith("pyramids-lazy") for n in names), (
+            f"[lazy] must forward to the pyramids-lazy plugin, got {reqs}"
+        )
+        assert not any("pyramids-core[lazy]" in r.replace(" ", "") for r in reqs), (
+            "[lazy] must not name pyramids-core[lazy]: 0.80.0 deleted that extra, so "
+            f"it resolves to no backend (the bug this guards). Got {reqs}"
+        )
+
+    @pytest.mark.lazy
+    def test_lazy_plugin_brings_the_dask_array_stack(self):
+        """With the extra installed, ``dask.array`` — what #131 reductions read — resolves.
+
+        Marked ``lazy`` so it runs only where the extra is present; the collection
+        hook skips it otherwise, keeping this free of an in-body availability branch.
+        """
+        assert HAS_DASK, (
+            "the lazy extra is installed in this environment, so dask.array must import; "
+            "if this fails, pyramids-lazy stopped delivering the dask stack"
+        )
+        import dask.array as da  # noqa: F401
+
+        pl = [
+            r
+            for r in (_dist_requires("pyramids-lazy") or [])
+            if "extra ==" not in r and r.split()[0].lower().startswith("dask")
+        ]
+        assert pl, f"pyramids-lazy must hard-depend on dask, got {pl!r}"
