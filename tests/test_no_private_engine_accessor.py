@@ -8,11 +8,15 @@ This test fails if any accessor hop creeps back into ``src/`` or ``tests/``.
 
 ``Dataset.__init__`` wires eight collaborators — ``io``, ``spatial``, ``bands``,
 ``analysis``, ``cell``, ``vectorize``, ``cog`` and ``georef`` — and all eight are
-checked. The check is lexical, not semantic: it scans source text, so an accessor
-reached indirectly (``getattr(ds, "bands")``, ``ds.bands["x"]``, an alias) is out of
-scope by design — it catches the direct ``ds.<engine>.<method>`` form the migration
-removes. Two lines are allowed: ``scipy.io`` (an unrelated standard module that
-collides with the ``io`` accessor) and this guard file itself (it names the banned
+checked. The check is lexical, not semantic: it scans source text, so an accessor reached
+indirectly (``getattr(ds, "bands")``, ``ds.bands["x"]``, an alias) is out of scope by
+design — it catches the direct ``X.<engine>.<method>`` form the migration removes.
+Being lexical it is deliberately conservative: it flags ``.<engine>.`` on *any*
+object, not only a ``Dataset`` (``other.cell.value`` would match). That is the safe
+direction for a guard; a legitimate non-Dataset use is whitelisted by adding its
+dotted prefix to ``_ALLOWED`` below, which is stripped from each line before the
+match. Two allowances already apply — ``scipy.io`` (an unrelated standard module
+colliding with the ``io`` accessor) and this guard file itself (it names the banned
 forms as documentation).
 """
 
@@ -41,11 +45,12 @@ def test_no_dataset_engine_accessor_in_source():
         for path in root.rglob("*.py"):
             if path.resolve() == _THIS_FILE:
                 continue
-            text = path.read_text(encoding="utf-8", errors="ignore")
+            text = path.read_text(encoding="utf-8", errors="surrogateescape")
             for lineno, line in enumerate(text.splitlines(), 1):
-                if any(allowed in line for allowed in _ALLOWED):
-                    continue
-                if _ENGINE_ACCESSOR.search(line):
+                probe = line
+                for allowed in _ALLOWED:
+                    probe = probe.replace(allowed, "")
+                if _ENGINE_ACCESSOR.search(probe):
                     offenders.append(f"{path.relative_to(_ROOT)}:{lineno}: {line.strip()}")
     assert not offenders, (
         "pyramids Dataset engine accessors must use the public facade "
