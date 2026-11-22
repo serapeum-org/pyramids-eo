@@ -8,7 +8,7 @@ the Scene-Classification band, and crops / reprojects — returning a plain
 pyramids ``Dataset`` with no Sentinel objects leaking out.
 
 Built entirely on pyramids 0.64+ APIs: ``Dataset.subdatasets`` /
-``open_subdataset`` for the catalog, ``Dataset.bands.select`` for band subsetting
+``open_subdataset`` for the catalog, ``Dataset.select_bands`` for band subsetting
 (1-based, or by name), ``Dataset.read_array()`` for the lazy reflectance read the
 scale/offset tags drive, and ``crop`` / ``to_crs`` for the spatial ops.
 """
@@ -459,7 +459,7 @@ def _select_bands(subdataset: S2Subdataset, wanted: list[str]) -> Any:
     """Open ``subdataset`` and select ``wanted`` bands (1-based, arg order)."""
     ds = subdataset.open()
     indices = [_band_index(subdataset.bands, b) for b in wanted]
-    return ds.bands.select(indices)
+    return ds.select_bands(indices)
 
 
 def _band_index(band_list: list[str], wanted: str) -> int:

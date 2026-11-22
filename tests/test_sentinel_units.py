@@ -368,7 +368,7 @@ class TestTagReflectance:
         product = open_product(_L2A)
         object.__setattr__(product, "quantification", 0.0)
         sub = product.subdataset_for(60).open()
-        ds = sub.bands.select([1])
+        ds = sub.select_bands([1])
         with pytest.raises(ProductError, match="quantification"):
             _scaling.tag_reflectance(ds, product)
 
@@ -382,7 +382,7 @@ class TestTagReflectance:
         product = open_product(_L2A)
         sub = product.subdataset_for(60).open()
         # B1 (spectral) + SCL (auxiliary) as a writable 2-band selection.
-        ds = sub.bands.select([1, 15])
+        ds = sub.select_bands([1, 15])
         tagged = _scaling.tag_reflectance(ds, product)
         assert tagged.scale[0] == pytest.approx(1.0 / product.quantification)
         assert tagged.scale[1] == pytest.approx(1.0)
@@ -392,7 +392,7 @@ class TestTagReflectance:
         """An explicit offsets list overrides the metadata-derived offset."""
         product = open_product(_L2A)
         sub = product.subdataset_for(60).open()
-        ds = sub.bands.select([1, 2])
+        ds = sub.select_bands([1, 2])
         _scaling.tag_reflectance(ds, product, offsets=[-1000.0, 0.0])
         assert ds.offset[0] == pytest.approx(-1000.0 / product.quantification)
 
