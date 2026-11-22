@@ -68,7 +68,7 @@ def tag_reflectance(
 
     Args:
         dataset: A pyramids ``Dataset`` of Sentinel-2 bands (must be writable —
-            e.g. the result of ``Dataset.bands.select`` or a MEM copy).
+            e.g. the result of ``Dataset.select_bands`` or a MEM copy).
         product: The :class:`S2Product` supplying the quantification value.
         offsets: Optional per-band radiometric offsets, in band order. Passed by
             the reader (captured from the original read) so tagging does not
