@@ -51,7 +51,9 @@ def test_no_dataset_engine_accessor_in_source():
                 for allowed in _ALLOWED:
                     probe = probe.replace(allowed, "")
                 if _ENGINE_ACCESSOR.search(probe):
-                    offenders.append(f"{path.relative_to(_ROOT)}:{lineno}: {line.strip()}")
+                    offenders.append(
+                        f"{path.relative_to(_ROOT)}:{lineno}: {line.strip()}"
+                    )
     assert not offenders, (
         "pyramids Dataset engine accessors must use the public facade "
         "(e.g. ds.select_bands), not ds.bands.select (pyramids-core#1623):\n  "
