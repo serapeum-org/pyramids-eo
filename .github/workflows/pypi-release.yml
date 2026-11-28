@@ -86,7 +86,7 @@ jobs:
 
       - name: Build and publish sdist + pure wheel
         if: github.event_name == 'workflow_dispatch' || steps.gate.outputs.publish == 'true'
-        uses: serapeum-org/github-actions/actions/release/pypi@961524686fb512c05ca8e4c7bfe81ba68eef4dda  # pypi-release/v1.5.1
+        uses: serapeum-org/github-actions/actions/release/pypi@e65132ca10fc27245cfd787c2148ddac3b44e668  # pypi-release/v1.6.0
         with:
           pypi-username: __token__
           pypi-password: ${{ secrets.PYPI_PUBLISH }}
