@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: serapeum-org/github-actions/actions/python-setup/pixi@961524686fb512c05ca8e4c7bfe81ba68eef4dda  # pixi/v1.5.1
+        uses: serapeum-org/github-actions/actions/python-setup/pixi@e65132ca10fc27245cfd787c2148ddac3b44e668  # pixi/v1.6.0
         with:
           environments: py311
           activate-environment: py311
